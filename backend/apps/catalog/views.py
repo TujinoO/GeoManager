@@ -1,0 +1,173 @@
+import json
+
+from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from django.views.decorators.http import require_GET, require_POST
+
+from apps.catalog.data_query import DataQueryError, get_resource_profile, query_resource
+from apps.catalog.models import Achievement, DataCatalog, DataResource, MapLayer
+from apps.catalog.permissions import filter_accessible, user_can_access
+from apps.catalog.serializers import (
+    serialize_achievement,
+    serialize_catalog,
+    serialize_layer,
+    serialize_resource,
+)
+from apps.core.storage import StoragePathError, vector_data_path
+
+
+@require_GET
+@login_required
+def directories(request):
+    queryset = DataCatalog.objects.filter(is_active=True).prefetch_related("resources", "resources__category")
+    catalogs = filter_accessible(queryset, request.user)
+    return JsonResponse({"items": [serialize_catalog(item) for item in catalogs]})
+
+
+@require_GET
+@login_required
+def resources(request):
+    queryset = DataResource.objects.filter(status=DataResource.Status.ACTIVE).select_related("category")
+    query = request.GET.get("q", "").strip()
+    if query:
+        queryset = queryset.filter(name__icontains=query)
+    data_type = request.GET.get("dataType", "").strip()
+    if data_type:
+        queryset = queryset.filter(data_type=data_type)
+    category = request.GET.get("category", "").strip()
+    if category:
+        queryset = queryset.filter(category__code=category)
+    source = request.GET.get("source", "").strip()
+    if source:
+        queryset = queryset.filter(source__icontains=source)
+    provider = request.GET.get("provider", "").strip()
+    if provider:
+        queryset = queryset.filter(provider__icontains=provider)
+    date_from = request.GET.get("dateFrom", "").strip()
+    if date_from:
+        queryset = queryset.filter(data_date__gte=date_from)
+    date_to = request.GET.get("dateTo", "").strip()
+    if date_to:
+        queryset = queryset.filter(data_date__lte=date_to)
+    resources_qs = filter_accessible(queryset, request.user)
+    return JsonResponse({"items": [serialize_resource(item) for item in resources_qs]})
+
+
+@require_GET
+@login_required
+def resource_profile(request, pk: int):
+    resource = get_object_or_404(DataResource.objects.select_related("category"), pk=pk, status=DataResource.Status.ACTIVE)
+    if not user_can_access(resource, request.user):
+        return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
+    try:
+        profile = get_resource_profile(resource)
+    except DataQueryError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return JsonResponse(
+        {
+            "resource": serialize_resource(resource),
+            "fields": profile.fields,
+            "featureCount": profile.feature_count,
+            "geometryType": profile.geometry_type,
+            "bounds": profile.bounds,
+        }
+    )
+
+
+@require_POST
+@login_required
+def resource_query(request, pk: int):
+    resource = get_object_or_404(DataResource.objects.select_related("category"), pk=pk, status=DataResource.Status.ACTIVE)
+    if not user_can_access(resource, request.user):
+        return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except json.JSONDecodeError:
+        return JsonResponse({"detail": "请求体不是有效 JSON"}, status=400)
+    try:
+        result = query_resource(resource, payload)
+    except DataQueryError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return JsonResponse(result)
+
+
+@require_GET
+@login_required
+def layers(request):
+    queryset = MapLayer.objects.filter(is_active=True).select_related("category", "data_resource")
+    layers_qs = filter_accessible(queryset, request.user)
+    return JsonResponse({"items": [serialize_layer(item) for item in layers_qs]})
+
+
+@require_GET
+@login_required
+def layer_features(request, pk: int):
+    layer = get_object_or_404(MapLayer, pk=pk, is_active=True)
+    if not user_can_access(layer, request.user):
+        return JsonResponse({"detail": "无权访问该图层"}, status=403)
+    if layer.layer_type != MapLayer.LayerType.VECTOR:
+        return JsonResponse({"detail": "该图层不是矢量图层"}, status=400)
+
+    source_path = layer.source_path or (layer.data_resource.storage_path if layer.data_resource else "")
+    if not source_path:
+        return JsonResponse({"detail": "图层未配置 GeoPackage 相对路径"}, status=400)
+
+    try:
+        geopackage_path = vector_data_path(source_path)
+    except StoragePathError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+
+    if not geopackage_path.exists():
+        return JsonResponse({"detail": f"GeoPackage 文件不存在：{source_path}"}, status=404)
+
+    try:
+        limit = int(request.GET.get("limit", settings.PROJECT_CONFIG.limits.query_result_limit))
+    except ValueError:
+        limit = settings.PROJECT_CONFIG.limits.query_result_limit
+    limit = min(max(limit, 1), settings.PROJECT_CONFIG.limits.query_result_limit)
+
+    try:
+        import geopandas as gpd
+
+        gdf = gpd.read_file(geopackage_path)
+        if gdf.crs and gdf.crs.to_epsg() != 4326:
+            gdf = gdf.to_crs(4326)
+        if len(gdf) > limit:
+            gdf = gdf.head(limit)
+        geojson = json.loads(gdf.to_json())
+    except Exception as exc:
+        return JsonResponse({"detail": f"读取 GeoPackage 失败：{exc}"}, status=500)
+
+    return JsonResponse(geojson)
+
+
+@require_GET
+@login_required
+def achievements(request):
+    queryset = Achievement.objects.filter(status=Achievement.Status.PUBLISHED).select_related("category", "related_layer")
+    achievements_qs = filter_accessible(queryset, request.user)
+    return JsonResponse({"items": [serialize_achievement(item) for item in achievements_qs]})
+
+
+@require_GET
+@login_required
+def search(request):
+    query = request.GET.get("q", "").strip()
+    if not query:
+        return JsonResponse({"resources": [], "achievements": []})
+
+    resource_qs = DataResource.objects.filter(status=DataResource.Status.ACTIVE, name__icontains=query).select_related(
+        "category"
+    )
+    achievement_qs = Achievement.objects.filter(
+        status=Achievement.Status.PUBLISHED,
+        title__icontains=query,
+    ).select_related("category")
+    return JsonResponse(
+        {
+            "resources": [serialize_resource(item) for item in filter_accessible(resource_qs, request.user)],
+            "achievements": [serialize_achievement(item) for item in filter_accessible(achievement_qs, request.user)],
+        }
+    )

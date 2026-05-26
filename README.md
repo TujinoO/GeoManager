@@ -1,0 +1,32 @@
+# 中亚胡杨林生态系统保护数据共享平台
+
+本仓库按前后端分离实现：
+
+- `backend/`：Django 后端，负责认证、权限、业务数据、GeoPackage 读取、栅格 PNG 出图与缓存。
+- `frontend/`：React + Vite + Ant Design + Mapbox GL JS 前端，负责统一登录、地图工作台和后台入口。
+- `config/`：TOML 配置示例，数据根目录由配置指定。
+- `docs/`：从设计文档提炼出的实现约束和开发记录。
+
+## 本地运行
+
+后端：
+
+```bash
+cd backend
+eval "$(mamba shell hook --shell zsh)"
+mamba activate zyhy
+python manage.py migrate
+python manage.py seed_demo
+python manage.py runserver 127.0.0.1:8000
+```
+
+前端：
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+默认开发配置使用 `config/app.example.toml`，业务数据和地理数据目录位于 `/private/tmp/huyang_system/` 下，避免与程序代码混放。生产部署时通过 `HUYANG_CONFIG=/path/to/app.toml` 指定实际配置文件。
+

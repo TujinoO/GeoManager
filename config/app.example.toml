@@ -1,0 +1,25 @@
+[system]
+name = "中亚胡杨林生态系统保护数据共享平台"
+mode = "development"
+allow_registration = false
+
+[storage]
+business_data_root = "/private/tmp/huyang_system/business-data"
+geographic_data_root = "/private/tmp/huyang_system/geographic-data"
+auto_create_directories = true
+
+[map]
+default_center = [80.0, 41.5]
+default_zoom = 4.5
+default_basemap = "osm"
+mapbox_access_token = "your_mapbox_access_token_here"
+
+[limits]
+upload_max_mb = 512
+query_result_limit = 30000
+
+[raster]
+png_cache_max_mb = 512
+cache_cleanup_policy = "least_recently_used"
+symbolizer_timeout_seconds = 120
+default_symbolizer_script = "scripts/raster_symbolizers/basic_gradient.py"
