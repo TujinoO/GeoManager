@@ -4,7 +4,7 @@ from django.test import TestCase
 from shapely.geometry import Point
 
 from apps.catalog.models import DataResource, MapLayer
-from apps.core.storage import vector_data_path
+from apps.core.storage import vector_geopackage_path
 
 
 class LayerApiTests(TestCase):
@@ -45,8 +45,8 @@ class ResourceQueryApiTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="resource-tester", password="pass12345")
         self.client.force_login(self.user)
-        self.relative_path = "tests/query_points.gpkg"
-        self.path = vector_data_path(self.relative_path)
+        self.layer_name = "test_query_points"
+        self.path = vector_geopackage_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.unlink(missing_ok=True)
 
@@ -60,13 +60,13 @@ class ResourceQueryApiTests(TestCase):
             geometry="geometry",
             crs="EPSG:4326",
         )
-        gdf.to_file(self.path, layer="points", driver="GPKG")
+        gdf.to_file(self.path, layer=self.layer_name, driver="GPKG")
         self.resource = DataResource.objects.create(
             name="测试点位数据",
             code="test-query-points",
             data_type=DataResource.DataType.VECTOR,
             file_format="GPKG",
-            storage_path=self.relative_path,
+            storage_path=self.layer_name,
             status=DataResource.Status.ACTIVE,
         )
 

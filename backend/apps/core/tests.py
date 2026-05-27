@@ -5,7 +5,15 @@ from django.conf import settings
 from django.test import SimpleTestCase, TestCase
 
 from apps.core.config import load_project_config
-from apps.core.storage import StoragePathError, geographic_path
+from apps.core.storage import (
+    StoragePathError,
+    geographic_path,
+    raster_cache_path,
+    raster_metadata_path,
+    raster_output_path,
+    raster_processed_path,
+    raster_source_path,
+)
 
 
 class BootstrapApiTests(TestCase):
@@ -23,6 +31,13 @@ class StoragePathTests(SimpleTestCase):
     def test_geographic_path_rejects_parent_traversal(self):
         with self.assertRaises(StoragePathError):
             geographic_path("vector", "../secret.gpkg")
+
+    def test_raster_paths_are_under_raster_root(self):
+        self.assertTrue(str(raster_source_path("a.tif")).endswith("/raster/original/a.tif"))
+        self.assertTrue(str(raster_processed_path("a.cog.tif")).endswith("/raster/preprocessed/a.cog.tif"))
+        self.assertTrue(str(raster_metadata_path("source/a.tif.gdalinfo.json")).endswith("/raster/metadata/source/a.tif.gdalinfo.json"))
+        self.assertTrue(str(raster_output_path("tmp/a.png")).endswith("/raster/png/output/tmp/a.png"))
+        self.assertTrue(str(raster_cache_path("a.png")).endswith("/raster/png/cache/a.png"))
 
 
 class ConfigLoaderTests(SimpleTestCase):
@@ -67,4 +82,9 @@ default_symbolizer_script = "scripts/raster_symbolizers/basic_gradient.py"
 
             self.assertTrue(config.business_path("database").is_dir())
             self.assertTrue(config.geographic_path("vector").is_dir())
-            self.assertTrue(config.geographic_path("png", "cache").is_dir())
+            self.assertTrue(config.geographic_path("raster").is_dir())
+            self.assertTrue(config.geographic_path("raster", "original").is_dir())
+            self.assertTrue(config.geographic_path("raster", "preprocessed").is_dir())
+            self.assertTrue(config.geographic_path("raster", "metadata", "source").is_dir())
+            self.assertTrue(config.geographic_path("raster", "metadata", "preprocessed").is_dir())
+            self.assertTrue(config.geographic_path("raster", "png", "cache").is_dir())

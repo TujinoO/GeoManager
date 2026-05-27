@@ -8,7 +8,16 @@ from typing import Any
 
 
 BUSINESS_SUBDIRS = ("database", "media", "uploads", "exports", "logs", "static")
-GEOGRAPHIC_SUBDIRS = ("vector", "raster", "png/output", "png/cache")
+GEOGRAPHIC_SUBDIRS = (
+    "vector",
+    "raster",
+    "raster/original",
+    "raster/preprocessed",
+    "raster/metadata/source",
+    "raster/metadata/preprocessed",
+    "raster/png/output",
+    "raster/png/cache",
+)
 CACHE_POLICIES = {"least_recently_used", "oldest_created", "largest_file"}
 
 

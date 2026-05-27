@@ -64,7 +64,7 @@ class DataResource(models.Model):
         max_length=255,
         blank=True,
         verbose_name="存储相对路径",
-        help_text="矢量相对于 geographic/vector，栅格相对于 geographic/raster。",
+        help_text="矢量填写 geodata/vector/vector.gpkg 内的图层名；栅格相对于 geographic/raster。",
     )
     description = models.TextField(blank=True, verbose_name="数据说明")
     quality_note = models.TextField(blank=True, verbose_name="数据质量说明")
@@ -156,7 +156,7 @@ class MapLayer(models.Model):
         related_name="map_layers",
         verbose_name="数据资源",
     )
-    source_path = models.CharField(max_length=255, blank=True, verbose_name="数据相对路径")
+    source_path = models.CharField(max_length=255, blank=True, verbose_name="数据图层名或相对路径")
     sort_order = models.PositiveIntegerField(default=100, verbose_name="排序")
     default_visible = models.BooleanField(default=False, verbose_name="默认显示")
     default_opacity = models.PositiveSmallIntegerField(default=85, verbose_name="默认透明度")
@@ -223,4 +223,3 @@ class Achievement(models.Model):
 
     def __str__(self) -> str:
         return self.title
-

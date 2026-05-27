@@ -15,7 +15,7 @@ from apps.catalog.serializers import (
     serialize_layer,
     serialize_resource,
 )
-from apps.core.storage import StoragePathError, vector_data_path
+from apps.core.storage import StoragePathError, validate_vector_layer_name, vector_geopackage_path
 
 
 @require_GET
@@ -72,6 +72,7 @@ def resource_profile(request, pk: int):
             "featureCount": profile.feature_count,
             "geometryType": profile.geometry_type,
             "bounds": profile.bounds,
+            "raster": profile.raster,
         }
     )
 
@@ -112,15 +113,16 @@ def layer_features(request, pk: int):
 
     source_path = layer.source_path or (layer.data_resource.storage_path if layer.data_resource else "")
     if not source_path:
-        return JsonResponse({"detail": "图层未配置 GeoPackage 相对路径"}, status=400)
+        return JsonResponse({"detail": "图层未配置 GeoPackage 图层名"}, status=400)
 
     try:
-        geopackage_path = vector_data_path(source_path)
+        layer_name = validate_vector_layer_name(source_path)
+        geopackage_path = vector_geopackage_path()
     except StoragePathError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
 
     if not geopackage_path.exists():
-        return JsonResponse({"detail": f"GeoPackage 文件不存在：{source_path}"}, status=404)
+        return JsonResponse({"detail": f"统一 GeoPackage 文件不存在：{geopackage_path}"}, status=404)
 
     try:
         limit = int(request.GET.get("limit", settings.PROJECT_CONFIG.limits.query_result_limit))
@@ -131,14 +133,14 @@ def layer_features(request, pk: int):
     try:
         import geopandas as gpd
 
-        gdf = gpd.read_file(geopackage_path)
+        gdf = gpd.read_file(geopackage_path, layer=layer_name)
         if gdf.crs and gdf.crs.to_epsg() != 4326:
             gdf = gdf.to_crs(4326)
         if len(gdf) > limit:
             gdf = gdf.head(limit)
         geojson = json.loads(gdf.to_json())
     except Exception as exc:
-        return JsonResponse({"detail": f"读取 GeoPackage 失败：{exc}"}, status=500)
+        return JsonResponse({"detail": f"读取 GeoPackage 图层失败：{layer_name}，{exc}"}, status=500)
 
     return JsonResponse(geojson)
 

@@ -1,3 +1,5 @@
+import type { GroupSymbolization, RasterSymbolization, VectorSymbolization } from './symbolization';
+
 export interface Bootstrap {
   systemName: string;
   allowRegistration: boolean;
@@ -26,6 +28,7 @@ export interface User {
     canExportData: boolean;
     canMaintainData: boolean;
     canManageRasterCache: boolean;
+    canManageRasterData: boolean;
   };
 }
 
@@ -52,6 +55,7 @@ export interface DataResource {
   qualityNote: string;
   status: string;
   isQueryable: boolean;
+  isRenderable: boolean;
   updatedAt: string;
 }
 
@@ -68,6 +72,46 @@ export interface DataResourceProfile {
   featureCount: number | null;
   geometryType: string;
   bounds: number[];
+  raster?: RasterDatasetProfile | null;
+}
+
+export interface RasterBandMetadata {
+  band: number;
+  type: string;
+  description: string;
+  colorInterpretation: string;
+  min: number;
+  max: number;
+}
+
+export interface RasterDatasetProfile {
+  id: number;
+  name: string;
+  code: string;
+  status: string;
+  sourcePath: string;
+  processedPath: string;
+  sourceMetadataPath: string;
+  processedMetadataPath: string;
+  dataResourceId: number | null;
+  mapLayerId: number | null;
+  bandCount: number;
+  bounds3857: number[];
+  bounds4326: number[];
+  imageCoordinates: Array<[number, number]>;
+  defaultRules: Partial<RasterSymbolization>;
+  sourceFileSize: number;
+  processedFileSize: number;
+  progressLog: string;
+  errorMessage: string;
+  importedAt: string | null;
+  processedAt: string | null;
+  metadata: {
+    size: number[];
+    driver: string;
+    coordinateSystem: string | number;
+    bands: RasterBandMetadata[];
+  };
 }
 
 export interface AttributeFilter {
@@ -112,12 +156,37 @@ export interface ResourceQueryResult {
 export interface LoadedLayer {
   id: string;
   name: string;
+  layerType: 'vector' | 'raster';
   sourceResource: DataResource;
-  geojson: GeoJsonFeatureCollection;
+  geojson?: GeoJsonFeatureCollection;
+  pngUrl?: string;
+  tileUrl?: string;
+  imageCoordinates?: Array<[number, number]>;
+  rasterDatasetId?: number;
+  rasterLayerId?: number | null;
+  rasterMetadata?: RasterDatasetProfile['metadata'];
+  renderJobId?: string;
+  renderStatus?: string;
+  renderProgress?: number;
+  renderMessages?: string[];
   geometryType: string;
   visible: boolean;
-  opacity: number;
   summary: string;
+  metadata: Record<string, string | number | boolean | null | undefined>;
+  symbolization: VectorSymbolization | RasterSymbolization;
+  fields: ResourceField[];
+}
+
+export interface LoadedLayerGroup {
+  id: string;
+  name: string;
+  sourceResource: DataResource;
+  visible: boolean;
+  summary: string;
+  createdAt: string;
+  metadata: Record<string, string | number | boolean | null | undefined>;
+  symbolization: GroupSymbolization;
+  children: LoadedLayer[];
 }
 
 export interface DataCatalog {
@@ -147,6 +216,36 @@ export interface MapLayer {
   rasterRules: Record<string, string | number | boolean>;
   isActive: boolean;
   updatedAt: string;
+}
+
+export interface RasterRenderResult {
+  delivery: 'image' | 'xyz';
+  datasetId: number;
+  layerId: number | null;
+  cacheKey?: string;
+  styleHash: string;
+  pngUrl?: string;
+  tileUrl?: string;
+  fileSize?: number;
+  width?: number;
+  height?: number;
+  status: string;
+  bounds3857: number[];
+  bounds4326: number[];
+  imageCoordinates: Array<[number, number]>;
+  rules: Partial<RasterSymbolization>;
+}
+
+export interface RasterJob {
+  id: string;
+  kind: 'import' | 'scan' | 'render';
+  status: 'queued' | 'running' | 'ready' | 'failed';
+  progressPercent: number;
+  messages: string[];
+  result: RasterRenderResult | RasterDatasetProfile | { items: RasterDatasetProfile[]; count: number } | null;
+  error: string;
+  startedAt: number;
+  finishedAt: number | null;
 }
 
 export interface Achievement {

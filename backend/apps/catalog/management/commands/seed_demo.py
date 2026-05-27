@@ -7,10 +7,10 @@ from django.core.management.base import BaseCommand
 from shapely.geometry import Point
 
 from apps.catalog.models import Achievement, DataCatalog, DataResource, DictionaryItem, MapLayer
-from apps.core.storage import vector_data_path
+from apps.core.storage import vector_geopackage_path
 
 
-URUMQI_POPLAR_POINTS_PATH = "demo/poplar_points_urumqi.gpkg"
+URUMQI_POPLAR_POINTS_LAYER = "demo_poplar_points_urumqi"
 
 
 class Command(BaseCommand):
@@ -91,7 +91,7 @@ class Command(BaseCommand):
                 "source": "平台演示数据",
                 "provider": "项目组",
                 "file_format": "GPKG",
-                "storage_path": URUMQI_POPLAR_POINTS_PATH,
+                "storage_path": URUMQI_POPLAR_POINTS_LAYER,
                 "spatial_extent": "乌鲁木齐附近",
                 "coordinate_system": "EPSG:4326",
                 "description": "由固定随机种子生成的乌鲁木齐附近胡杨示范点位，可用于验证点图层加载和点符号渲染。",
@@ -130,7 +130,7 @@ class Command(BaseCommand):
                 "geometry_type": MapLayer.GeometryType.POINT,
                 "category": layer_category,
                 "data_resource": point_resource,
-                "source_path": URUMQI_POPLAR_POINTS_PATH,
+                "source_path": URUMQI_POPLAR_POINTS_LAYER,
                 "sort_order": 20,
                 "default_visible": False,
                 "default_opacity": 90,
@@ -182,11 +182,10 @@ def create_urumqi_poplar_points():
             }
         )
 
-    output_path = vector_data_path(URUMQI_POPLAR_POINTS_PATH)
+    output_path = vector_geopackage_path()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.unlink(missing_ok=True)
     gdf = gpd.GeoDataFrame(records, geometry="geometry", crs="EPSG:4326")
-    gdf.to_file(output_path, layer="poplar_points", driver="GPKG")
+    gdf.to_file(output_path, layer=URUMQI_POPLAR_POINTS_LAYER, driver="GPKG")
     return output_path
 
 

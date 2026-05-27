@@ -28,5 +28,8 @@ pnpm install
 pnpm dev
 ```
 
-默认开发配置使用 `config/app.example.toml`，业务数据和地理数据目录位于 `/private/tmp/huyang_system/` 下，避免与程序代码混放。生产部署时通过 `HUYANG_CONFIG=/path/to/app.toml` 指定实际配置文件。
+默认开发配置使用 `config/app.example.toml`，业务数据目录为 `/Users/gx/Documents/Source/huyang_system_data/appdata`，地理数据目录为 `/Users/gx/Documents/Source/huyang_system_data/geodata`。所有矢量数据统一从 `geodata/vector/vector.gpkg` 读取，业务库中矢量资源和图层填写该 GeoPackage 内的图层名。栅格数据统一放在 `geodata/raster/` 下，后端扫描 `raster/original/`，预处理、元数据和 PNG 缓存分别写入 `raster/preprocessed/`、`raster/metadata/` 和 `raster/png/`。生产部署时通过 `HUYANG_CONFIG=/path/to/app.toml` 指定实际配置文件。
 
+## Docker 部署
+
+Linux Docker 部署说明见 [`docs/docker-deploy.md`](docs/docker-deploy.md)。镜像直接基于 `mambaorg/micromamba:latest`，并使用 conda-forge 安装 Python 3.14、Django、Pillow、GDAL、Rasterio、GeoPandas 等运行依赖；前端需提前构建到 `frontend/dist`，程序源文件内置到镜像，业务数据、地理数据和 TOML 配置通过挂载传入。

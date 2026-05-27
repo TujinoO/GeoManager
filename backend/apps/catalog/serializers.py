@@ -29,6 +29,7 @@ def serialize_resource(resource: DataResource) -> dict:
         "qualityNote": resource.quality_note,
         "status": resource.status,
         "isQueryable": bool(resource.data_type == DataResource.DataType.VECTOR and resource.storage_path),
+        "isRenderable": bool(resource.data_type == DataResource.DataType.RASTER and resource.storage_path),
         "updatedAt": resource.updated_at.isoformat(),
     }
 

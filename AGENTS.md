@@ -2,9 +2,9 @@
 
 Central Asia Poplar Forest Ecosystem Protection Data Sharing Platform (中亚胡杨林生态系统保护数据共享平台).
 
-## Current state
+## Attention
 
-No source code yet. The repo contains only a design doc. Use it as the source of truth for all feature and architecture decisions.
+Summarise the details into a document for reference during the coding process
 
 ## Key reference
 
@@ -37,4 +37,4 @@ No source code yet. The repo contains only a design doc. Use it as the source of
 ## Environment setup
 
 - **Node.js**: Use `pnpm` as the package manager for frontend dependencies.
-- **Python**: Use `mamba activate zyhy` to activate the Python environment before running any backend commands.
+- **Python**: Use `eval "$(mamba shell hook --shell zsh)" && mamba activate zyhy` to activate the Python environment before running any backend commands.

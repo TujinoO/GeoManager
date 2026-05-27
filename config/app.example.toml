@@ -4,8 +4,8 @@ mode = "development"
 allow_registration = false
 
 [storage]
-business_data_root = "/private/tmp/huyang_system/business-data"
-geographic_data_root = "/private/tmp/huyang_system/geographic-data"
+business_data_root = "/Users/gx/Documents/Source/huyang_system_data/appdata"
+geographic_data_root = "/Users/gx/Documents/Source/huyang_system_data/geodata"
 auto_create_directories = true
 
 [map]

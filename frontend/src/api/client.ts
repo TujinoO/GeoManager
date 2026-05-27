@@ -5,6 +5,8 @@ import type {
   DataResource,
   DataResourceProfile,
   MapLayer,
+  RasterJob,
+  RasterRenderResult,
   ResourceFilters,
   ResourceQueryPayload,
   ResourceQueryResult,
@@ -90,13 +92,31 @@ export const api = {
   achievements: () => request<ListResponse<Achievement>>('/api/achievements/'),
   search: (query: string) => request<SearchResult>(`/api/search/?q=${encodeURIComponent(query)}`),
   renderRaster: (layerId: number, width: number, height: number, rules: Record<string, unknown>) =>
-    request<{ cacheKey: string; pngUrl: string; fileSize: number; width: number; height: number; status: string }>(
+    request<RasterRenderResult>(
       '/api/raster/render/',
       {
         method: 'POST',
         body: JSON.stringify({ layerId, width, height, rules }),
       },
     ),
+  renderRasterAsync: (payload: {
+    layerId?: number | null;
+    datasetId?: number | null;
+    width: number;
+    height: number;
+    rules: Record<string, unknown>;
+    delivery: 'image' | 'xyz';
+  }) =>
+    request<RasterJob>('/api/raster/render/async/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  rasterJob: (jobId: string) => request<RasterJob>(`/api/raster/jobs/${jobId}/`),
+  scanRasterSources: () =>
+    request<RasterJob>('/api/raster/scan/', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
   rasterCacheStatus: () =>
     request<{ count: number; readyCount: number; failedCount: number; totalBytes: number }>('/api/raster/cache/status/'),
 };

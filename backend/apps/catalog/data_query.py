@@ -10,7 +10,7 @@ from django.conf import settings
 from shapely.geometry import shape
 
 from apps.catalog.models import DataResource
-from apps.core.storage import StoragePathError, vector_data_path
+from apps.core.storage import StoragePathError, validate_vector_layer_name, vector_geopackage_path
 
 
 class DataQueryError(ValueError):
@@ -23,9 +23,33 @@ class ResourceProfile:
     feature_count: int | None
     geometry_type: str
     bounds: list[float]
+    raster: dict[str, Any] | None = None
 
 
 def get_resource_profile(resource: DataResource) -> ResourceProfile:
+    if resource.data_type == DataResource.DataType.RASTER:
+        from apps.raster.services import compact_raster_metadata, dataset_for_resource, serialize_raster_dataset
+
+        dataset = dataset_for_resource(resource)
+        if not dataset:
+            return ResourceProfile(fields=[], feature_count=None, geometry_type="Raster", bounds=[])
+        metadata = compact_raster_metadata(dataset.processed_gdalinfo or dataset.source_gdalinfo, dataset.source_gdalinfo)
+        fields = [
+            {
+                "name": f"Band {band['band']}",
+                "type": band.get("type", ""),
+                "nullable": False,
+                "sampleValues": [band.get("min"), band.get("max")],
+            }
+            for band in metadata.get("bands", [])
+        ]
+        return ResourceProfile(
+            fields=fields,
+            feature_count=None,
+            geometry_type="Raster",
+            bounds=dataset.bounds_4326,
+            raster={**serialize_raster_dataset(dataset), "metadata": metadata},
+        )
     if resource.data_type != DataResource.DataType.VECTOR or not resource.storage_path:
         return ResourceProfile(fields=[], feature_count=None, geometry_type="", bounds=[])
     gdf = read_vector_resource(resource)
@@ -63,20 +87,21 @@ def query_resource(resource: DataResource, payload: dict[str, Any]) -> dict[str,
 
 def read_vector_resource(resource: DataResource):
     if not resource.storage_path:
-        raise DataQueryError("数据资源未配置 GeoPackage 相对路径")
+        raise DataQueryError("数据资源未配置 GeoPackage 图层名")
     try:
-        path = vector_data_path(resource.storage_path)
+        layer_name = validate_vector_layer_name(resource.storage_path)
+        path = vector_geopackage_path()
     except StoragePathError as exc:
         raise DataQueryError(str(exc)) from exc
     if not path.exists():
-        raise DataQueryError(f"GeoPackage 文件不存在：{resource.storage_path}")
+        raise DataQueryError(f"统一 GeoPackage 文件不存在：{path}")
 
     try:
         import geopandas as gpd
 
-        gdf = gpd.read_file(path)
+        gdf = gpd.read_file(path, layer=layer_name)
     except Exception as exc:
-        raise DataQueryError(f"读取 GeoPackage 失败：{exc}") from exc
+        raise DataQueryError(f"读取 GeoPackage 图层失败：{layer_name}，{exc}") from exc
 
     if gdf.crs and gdf.crs.to_epsg() != 4326:
         gdf = gdf.to_crs(4326)
@@ -203,4 +228,3 @@ def _json_value(value: Any):
         except ValueError:
             pass
     return value
-

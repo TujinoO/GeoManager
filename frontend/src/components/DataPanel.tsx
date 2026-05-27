@@ -40,6 +40,7 @@ interface Props {
   onClearSpatialFilter: () => void;
   onQuery: (filters: AttributeFilter[]) => void;
   onLoadResult: () => void;
+  onLoadRaster: () => void;
 }
 
 const operatorOptions = [
@@ -68,6 +69,7 @@ export default function DataPanel({
   onClearSpatialFilter,
   onQuery,
   onLoadResult,
+  onLoadRaster,
 }: Props) {
   const [resourceFilters, setResourceFilters] = useState<ResourceFilters>({});
   const [attributeFilters, setAttributeFilters] = useState<AttributeFilter[]>([]);
@@ -90,6 +92,7 @@ export default function DataPanel({
     value: item.name,
     label: `${item.name} (${item.type})`,
   }));
+  const selectedIsRaster = profile?.resource.dataType === 'raster';
 
   function updateResourceFilter(key: keyof ResourceFilters, nextValue?: string) {
     setResourceFilters((current) => ({ ...current, [key]: nextValue }));
@@ -193,7 +196,7 @@ export default function DataPanel({
                 key="select"
                 size="small"
                 type={resource.id === selectedResourceId ? 'primary' : 'default'}
-                disabled={!resource.isQueryable}
+                disabled={!resource.isQueryable && !resource.isRenderable}
                 onClick={() => onSelectResource(resource)}
               >
                 选择
@@ -204,7 +207,8 @@ export default function DataPanel({
               title={
                 <span>
                   {resource.name}
-                  {!resource.isQueryable && <Tag>仅元数据</Tag>}
+                  {!resource.isQueryable && !resource.isRenderable && <Tag>仅元数据</Tag>}
+                  {resource.isRenderable && <Tag color="blue">栅格</Tag>}
                 </span>
               }
               description={`${resource.category?.name ?? '未分类'} · ${resource.fileFormat || resource.dataType}`}
@@ -223,8 +227,12 @@ export default function DataPanel({
             <Descriptions.Item label="数据来源">{profile.resource.source || '-'}</Descriptions.Item>
             <Descriptions.Item label="提供单位">{profile.resource.provider || '-'}</Descriptions.Item>
             <Descriptions.Item label="空间范围">{profile.resource.spatialExtent || '-'}</Descriptions.Item>
-            <Descriptions.Item label="要素数">{profile.featureCount ?? '-'}</Descriptions.Item>
-            <Descriptions.Item label="几何类型">{profile.geometryType || '-'}</Descriptions.Item>
+            <Descriptions.Item label={selectedIsRaster ? '波段数' : '要素数'}>
+              {selectedIsRaster ? profile.raster?.bandCount ?? '-' : profile.featureCount ?? '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label={selectedIsRaster ? '栅格大小' : '几何类型'}>
+              {selectedIsRaster ? profile.raster?.metadata.size?.join(' x ') || '-' : profile.geometryType || '-'}
+            </Descriptions.Item>
           </Descriptions>
           {loadingProfile ? (
             <Alert className="inline-alert" type="info" showIcon message="正在读取字段信息" />
@@ -244,66 +252,78 @@ export default function DataPanel({
         </>
       )}
 
-      <div className="subsection-title">
-        <Crosshair size={15} />
-        <Typography.Text strong>空间查询</Typography.Text>
-      </div>
-      <Segmented
-        block
-        value={drawMode ?? 'none'}
-        options={[
-          { label: '无', value: 'none' },
-          { label: '矩形', value: 'rectangle' },
-          { label: '圆', value: 'circle' },
-          { label: '椭圆', value: 'ellipse' },
-          { label: '多边形', value: 'polygon' },
-        ]}
-        onChange={(nextValue) => onDrawModeChange(nextValue === 'none' ? null : (nextValue as DrawMode))}
-      />
-      <div className="spatial-status">
-        {spatialFilter ? (
-          <>
-            <Tag color="green">已绘制{spatialModeName(spatialFilter.mode)}</Tag>
-            <Button size="small" icon={<X size={13} />} onClick={onClearSpatialFilter}>
-              清除
-            </Button>
-          </>
-        ) : (
-          <Typography.Text type="secondary">选择图形后在地图上绘制查询范围</Typography.Text>
-        )}
-      </div>
+      {!selectedIsRaster && (
+        <>
+          <div className="subsection-title">
+            <Crosshair size={15} />
+            <Typography.Text strong>空间查询</Typography.Text>
+          </div>
+          <Segmented
+            block
+            value={drawMode ?? 'none'}
+            options={[
+              { label: '无', value: 'none' },
+              { label: '矩形', value: 'rectangle' },
+              { label: '圆', value: 'circle' },
+              { label: '椭圆', value: 'ellipse' },
+              { label: '多边形', value: 'polygon' },
+            ]}
+            onChange={(nextValue) => onDrawModeChange(nextValue === 'none' ? null : (nextValue as DrawMode))}
+          />
+          <div className="spatial-status">
+            {spatialFilter ? (
+              <>
+                <Tag color="green">已绘制{spatialModeName(spatialFilter.mode)}</Tag>
+                <Button size="small" icon={<X size={13} />} onClick={onClearSpatialFilter}>
+                  清除
+                </Button>
+              </>
+            ) : (
+              <Typography.Text type="secondary">选择图形后在地图上绘制查询范围</Typography.Text>
+            )}
+          </div>
 
-      <div className="subsection-title">
-        <Plus size={15} />
-        <Typography.Text strong>属性查询</Typography.Text>
-      </div>
-      <Space direction="vertical" className="full-width compact-stack">
-        <Select placeholder="选择字段" value={field} options={fieldOptions} onChange={setField} disabled={!profile} />
-        <Select value={operator} options={operatorOptions} onChange={setOperator} />
-        <Input placeholder="字段值" value={value} onChange={(event) => setValue(event.target.value)} />
-        {operator === 'between' && (
-          <Input placeholder="结束值" value={valueTo} onChange={(event) => setValueTo(event.target.value)} />
-        )}
-        <Button icon={<Plus size={15} />} disabled={!field || !value.trim()} onClick={addAttributeFilter}>
-          添加属性条件
-        </Button>
-      </Space>
-      <Space wrap className="filter-tags">
-        {attributeFilters.map((item) => (
-          <Tag key={item.id} closable onClose={() => removeAttributeFilter(item.id)}>
-            {item.field} {operatorLabel(item.operator)} {item.value}
-            {item.valueTo ? ` - ${item.valueTo}` : ''}
-          </Tag>
-        ))}
-      </Space>
+          <div className="subsection-title">
+            <Plus size={15} />
+            <Typography.Text strong>属性查询</Typography.Text>
+          </div>
+          <Space direction="vertical" className="full-width compact-stack">
+            <Select placeholder="选择字段" value={field} options={fieldOptions} onChange={setField} disabled={!profile} />
+            <Select value={operator} options={operatorOptions} onChange={setOperator} />
+            <Input placeholder="字段值" value={value} onChange={(event) => setValue(event.target.value)} />
+            {operator === 'between' && (
+              <Input placeholder="结束值" value={valueTo} onChange={(event) => setValueTo(event.target.value)} />
+            )}
+            <Button icon={<Plus size={15} />} disabled={!field || !value.trim()} onClick={addAttributeFilter}>
+              添加属性条件
+            </Button>
+          </Space>
+          <Space wrap className="filter-tags">
+            {attributeFilters.map((item) => (
+              <Tag key={item.id} closable onClose={() => removeAttributeFilter(item.id)}>
+                {item.field} {operatorLabel(item.operator)} {item.value}
+                {item.valueTo ? ` - ${item.valueTo}` : ''}
+              </Tag>
+            ))}
+          </Space>
+        </>
+      )}
 
       <div className="query-footer">
-        <Button type="primary" loading={querying} disabled={!profile} onClick={() => onQuery(attributeFilters)}>
-          查询数据
-        </Button>
-        <Button disabled={!queryResult || queryResult.returnedCount === 0} onClick={onLoadResult}>
-          加载到图层
-        </Button>
+        {selectedIsRaster ? (
+          <Button type="primary" disabled={!profile?.raster} onClick={onLoadRaster}>
+            加载栅格
+          </Button>
+        ) : (
+          <>
+            <Button type="primary" loading={querying} disabled={!profile} onClick={() => onQuery(attributeFilters)}>
+              查询数据
+            </Button>
+            <Button disabled={!queryResult || queryResult.returnedCount === 0} onClick={onLoadResult}>
+              加载到图层
+            </Button>
+          </>
+        )}
       </div>
       {queryResult && (
         <Alert
