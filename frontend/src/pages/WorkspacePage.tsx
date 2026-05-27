@@ -20,6 +20,7 @@ import type {
   Bootstrap,
   DataResource,
   DataResourceProfile,
+  ExportLayerItem,
   LoadedLayer,
   LoadedRasterLayer,
   LoadedVectorLayer,
@@ -211,6 +212,27 @@ export default function WorkspacePage({ bootstrap, user, onLogout }: Props) {
     finally { onLogout(); }
   }
 
+  const exportLayers = useCallback(async (items: ExportLayerItem[], epsg: number) => {
+    if (!user.permissions.canExportData) {
+      message.warning(permissionDeniedMessage);
+      return;
+    }
+    try {
+      const { blob, filename } = await api.exportLayers({ epsg, items });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      message.success('导出任务已完成');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '导出失败');
+    }
+  }, [message, permissionDeniedMessage, user.permissions.canExportData]);
+
   const layerContextValue: LayerContextValue = {
     groups: layerGroups.groups,
     addGroup: layerGroups.addGroup,
@@ -231,7 +253,9 @@ export default function WorkspacePage({ bootstrap, user, onLogout }: Props) {
     locateGroup,
     mapRef: mapInstanceRef,
     canUseCustomSymbolization: user.permissions.canUseCustomSymbolization,
+    canExportData: user.permissions.canExportData,
     permissionDeniedMessage,
+    exportLayers,
   };
 
   const dataPanel = (

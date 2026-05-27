@@ -1,3 +1,7 @@
+import io
+import json
+import zipfile
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.test import TestCase
@@ -92,6 +96,65 @@ class ResourceQueryApiTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["totalCount"], 1)
         self.assertEqual(payload["geojson"]["features"][0]["properties"]["name"], "样点二")
+
+
+class ExportApiTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="exporter", password="pass12345")
+        grant(self.user, ("core", "browse_data"))
+        self.client.force_login(self.user)
+        self.resource = DataResource.objects.create(
+            name="导出测试数据",
+            code="export-test-data",
+            data_type=DataResource.DataType.VECTOR,
+            status=DataResource.Status.ACTIVE,
+        )
+        self.geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"name": "空间查询结果"},
+                    "geometry": {"type": "Point", "coordinates": [87.6, 43.8]},
+                }
+            ],
+        }
+
+    def test_export_requires_export_permission(self):
+        response = self.client.post(
+            "/api/catalog/export/",
+            data={"epsg": 4326, "items": [self._vector_item()]},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("当前用户组“未分组”无权限", response.json()["detail"])
+
+    def test_export_vector_geojson_zip(self):
+        grant(self.user, ("catalog", "export_dataresource"))
+
+        response = self.client.post(
+            "/api/catalog/export/",
+            data={"epsg": 4326, "items": [self._vector_item()]},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/zip")
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            names = archive.namelist()
+            self.assertEqual(len(names), 1)
+            self.assertTrue(names[0].endswith(".geojson"))
+            exported = json.loads(archive.read(names[0]).decode("utf-8"))
+            self.assertEqual(exported["features"][0]["properties"]["name"], "空间查询结果")
+
+    def _vector_item(self):
+        return {
+            "layerType": "vector",
+            "name": "查询结果",
+            "resourceId": self.resource.id,
+            "geojson": self.geojson,
+        }
 
 
 def grant(user, *specs):

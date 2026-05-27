@@ -1,6 +1,6 @@
 import { createContext, type RefObject, useContext } from 'react';
 import type mapboxgl from 'mapbox-gl';
-import type { LoadedLayer, LoadedLayerGroup, LoadedRasterLayer } from '../types';
+import type { ExportLayerItem, LoadedLayer, LoadedLayerGroup, LoadedRasterLayer } from '../types';
 import type { GroupSymbolization, RasterSymbolization, VectorSymbolization } from '../symbolization';
 
 type DropPlacement = 'before' | 'after';
@@ -30,7 +30,9 @@ export interface LayerContextValue {
   locateGroup: (groupId: string) => void;
   mapRef: RefObject<mapboxgl.Map | null>;
   canUseCustomSymbolization: boolean;
+  canExportData: boolean;
   permissionDeniedMessage: string;
+  exportLayers: (items: ExportLayerItem[], epsg: number) => Promise<void>;
 }
 
 export const LayerContext = createContext<LayerContextValue | null>(null);

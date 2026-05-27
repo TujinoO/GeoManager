@@ -4,6 +4,7 @@ import type {
   DataCatalog,
   DataResource,
   DataResourceProfile,
+  ExportLayersPayload,
   MapLayer,
   RasterJob,
   RasterRenderResult,
@@ -57,6 +58,33 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
+async function requestBlob(path: string, options: RequestInit = {}): Promise<{ blob: Blob; filename: string }> {
+  const method = (options.method ?? 'GET').toUpperCase();
+  const headers = new Headers(options.headers);
+  if (options.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (method !== 'GET') {
+    headers.set('X-CSRFToken', getCookie('csrftoken') ?? '');
+  }
+
+  const response = await fetch(path, {
+    ...options,
+    method,
+    headers,
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const contentType = response.headers.get('Content-Type') ?? '';
+    const data = contentType.includes('application/json') ? await response.json() : null;
+    throw new ApiError(data?.detail ?? `请求失败：${response.status}`, response.status);
+  }
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? 'layers-export.zip';
+  return { blob: await response.blob(), filename };
+}
+
 function getCookie(name: string): string | null {
   const match = document.cookie
     .split('; ')
@@ -85,6 +113,11 @@ export const api = {
     request<DataResourceProfile>(`/api/catalog/resources/${resourceId}/profile/`),
   queryResource: (resourceId: number, payload: ResourceQueryPayload) =>
     request<ResourceQueryResult>(`/api/catalog/resources/${resourceId}/query/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  exportLayers: (payload: ExportLayersPayload) =>
+    requestBlob('/api/catalog/export/', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),

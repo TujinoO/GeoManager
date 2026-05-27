@@ -210,6 +210,19 @@ export interface LoadedLayerGroup {
   children: LoadedLayer[];
 }
 
+export interface ExportLayerItem {
+  layerType: 'vector' | 'raster';
+  name: string;
+  resourceId: number;
+  geojson?: GeoJsonFeatureCollection;
+  datasetId?: number;
+}
+
+export interface ExportLayersPayload {
+  epsg: number;
+  items: ExportLayerItem[];
+}
+
 export interface DataCatalog {
   id: number;
   name: string;

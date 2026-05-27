@@ -1,8 +1,9 @@
-import { Badge, Button, Card, Descriptions, Empty, Input, Popover, Progress, Switch, Tooltip, Typography } from 'antd';
+import { App, Badge, Button, Card, Descriptions, Empty, Input, InputNumber, Modal, Popover, Progress, Switch, Tooltip, Typography } from 'antd';
 import {
   ChevronDown,
   ChevronRight,
   Crosshair,
+  Download,
   Eye,
   EyeOff,
   FileStack,
@@ -18,17 +19,20 @@ import { type DragEvent, useEffect, useMemo, useState } from 'react';
 import { useLayerContext } from '../hooks/LayerContext';
 import { GroupSymbolizationEditor, RasterSymbolizationEditor, VectorSymbolizationEditor } from './SymbolizationEditor';
 import type { GroupSymbolization, RasterSymbolization, VectorSymbolization } from '../symbolization';
-import type { LoadedLayer, LoadedLayerGroup, ResourceField, RasterBandMetadata } from '../types';
+import type { ExportLayerItem, LoadedLayer, LoadedLayerGroup, ResourceField, RasterBandMetadata } from '../types';
 
 type DropPlacement = 'before' | 'after';
 
 export default function LayerPanel() {
   const ctx = useLayerContext();
+  const { message } = App.useApp();
   const groups = ctx.groups;
   const [query, setQuery] = useState('');
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() => new Set());
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
   const [dragTarget, setDragTarget] = useState<{ groupId: string; placement: DropPlacement } | null>(null);
+  const [exportTarget, setExportTarget] = useState<{ name: string; items: ExportLayerItem[] } | null>(null);
+  const [exportEpsg, setExportEpsg] = useState<number | null>(4326);
   const filteredGroups = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     if (!keyword) {
@@ -104,6 +108,26 @@ export default function LayerPanel() {
     }
   }
 
+  function openExportDialog(name: string, items: ExportLayerItem[]) {
+    if (!ctx.canExportData) {
+      message.warning(ctx.permissionDeniedMessage);
+      return;
+    }
+    const exportableItems = items.filter((item) => item.layerType === 'vector' || item.datasetId);
+    if (exportableItems.length === 0) {
+      message.warning('当前对象没有可导出的数据');
+      return;
+    }
+    setExportTarget({ name, items: exportableItems });
+    setExportEpsg(4326);
+  }
+
+  async function confirmExport() {
+    if (!exportTarget || !exportEpsg) return;
+    await ctx.exportLayers(exportTarget.items, exportEpsg);
+    setExportTarget(null);
+  }
+
   return (
     <section className="panel-section">
       <div className="panel-title">
@@ -148,6 +172,7 @@ export default function LayerPanel() {
                   onSymbolizationChange={ctx.setGroupSymbolization}
                   onLocate={ctx.locateGroup}
                   onRemove={ctx.removeGroup}
+                  onExport={() => openExportDialog(group.name, exportItemsForGroup(group))}
                 />
                 {expanded && (
                   <div className="layer-children" role="group">
@@ -161,6 +186,7 @@ export default function LayerPanel() {
                         onSymbolizationChange={handleLayerSymbolizationChange}
                         onLocate={ctx.locateLayer}
                         onRemove={ctx.removeLayer}
+                        onExport={() => openExportDialog(layer.name, exportItemsForLayer(layer))}
                       />
                     ))}
                   </div>
@@ -172,6 +198,25 @@ export default function LayerPanel() {
       ) : (
         <Empty className="layer-empty" image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无已加载图层" />
       )}
+      <Modal
+        title={`导出 ${exportTarget?.name ?? ''}`}
+        open={Boolean(exportTarget)}
+        okText="导出"
+        cancelText="取消"
+        onOk={confirmExport}
+        onCancel={() => setExportTarget(null)}
+      >
+        <label className="export-epsg-field">
+          <span>目标坐标系 EPSG</span>
+          <InputNumber
+            className="full-width"
+            min={1024}
+            max={999999}
+            value={exportEpsg}
+            onChange={(value) => setExportEpsg(typeof value === 'number' ? value : null)}
+          />
+        </label>
+      </Modal>
     </section>
   );
 }
@@ -187,6 +232,7 @@ interface GroupNodeProps {
   onSymbolizationChange: (groupId: string, value: GroupSymbolization) => void;
   onLocate: (groupId: string) => void;
   onRemove: (groupId: string) => void;
+  onExport: () => void;
 }
 
 function LayerGroupNode({
@@ -200,6 +246,7 @@ function LayerGroupNode({
   onSymbolizationChange,
   onLocate,
   onRemove,
+  onExport,
 }: GroupNodeProps) {
   const ctx = useLayerContext();
   return (
@@ -247,7 +294,9 @@ function LayerGroupNode({
             onSymbolizationChange={(next) => onSymbolizationChange(group.id, next as GroupSymbolization)}
             onLocate={() => onLocate(group.id)}
             onRemove={() => onRemove(group.id)}
+            onExport={onExport}
             canUseCustomSymbolization={ctx.canUseCustomSymbolization}
+            canExportData={ctx.canExportData}
             permissionDeniedMessage={ctx.permissionDeniedMessage}
           />
           <Tooltip title="拖动排序">
@@ -277,6 +326,7 @@ interface LayerNodeProps {
   onSymbolizationChange: (groupId: string, layerId: string, value: VectorSymbolization | RasterSymbolization) => void;
   onLocate: (groupId: string, layerId: string) => void;
   onRemove: (groupId: string, layerId: string) => void;
+  onExport: () => void;
 }
 
 function LayerItemNode({
@@ -287,6 +337,7 @@ function LayerItemNode({
   onSymbolizationChange,
   onLocate,
   onRemove,
+  onExport,
 }: LayerNodeProps) {
   const ctx = useLayerContext();
   return (
@@ -329,7 +380,9 @@ function LayerItemNode({
           onSymbolizationChange={(next) => onSymbolizationChange(groupId, layer.id, next as VectorSymbolization | RasterSymbolization)}
           onLocate={() => onLocate(groupId, layer.id)}
           onRemove={() => onRemove(groupId, layer.id)}
+          onExport={onExport}
           canUseCustomSymbolization={ctx.canUseCustomSymbolization}
+          canExportData={ctx.canExportData}
           permissionDeniedMessage={ctx.permissionDeniedMessage}
         />
       </div>
@@ -346,7 +399,9 @@ interface NodeActionProps {
   onSymbolizationChange: (value: GroupSymbolization | VectorSymbolization | RasterSymbolization) => void;
   onLocate: () => void;
   onRemove: () => void;
+  onExport: () => void;
   canUseCustomSymbolization: boolean;
+  canExportData: boolean;
   permissionDeniedMessage: string;
 }
 
@@ -359,7 +414,9 @@ function NodeActions({
   onSymbolizationChange,
   onLocate,
   onRemove,
+  onExport,
   canUseCustomSymbolization,
+  canExportData,
   permissionDeniedMessage,
 }: NodeActionProps) {
   const [symbolizationOpen, setSymbolizationOpen] = useState(false);
@@ -403,6 +460,18 @@ function NodeActions({
       </Popover>
       <Tooltip title="定位">
         <Button size="small" type="text" aria-label={`定位${subjectName}`} icon={<Crosshair size={15} />} onClick={onLocate} />
+      </Tooltip>
+      <Tooltip title={canExportData ? '导出' : permissionDeniedMessage}>
+        <span>
+          <Button
+            size="small"
+            type="text"
+            aria-label={`导出${subjectName}`}
+            icon={<Download size={15} />}
+            disabled={!canExportData}
+            onClick={onExport}
+          />
+        </span>
       </Tooltip>
       <Popover
         trigger="click"
@@ -459,6 +528,27 @@ function isRasterSymbolization(
   value: GroupSymbolization | VectorSymbolization | RasterSymbolization,
 ): value is RasterSymbolization {
   return 'mode' in value && 'bands' in value;
+}
+
+function exportItemsForGroup(group: LoadedLayerGroup): ExportLayerItem[] {
+  return group.children.flatMap((layer) => exportItemsForLayer(layer));
+}
+
+function exportItemsForLayer(layer: LoadedLayer): ExportLayerItem[] {
+  if (layer.layerType === 'vector') {
+    return [{
+      layerType: 'vector',
+      name: layer.name,
+      resourceId: layer.sourceResource.id,
+      geojson: layer.geojson,
+    }];
+  }
+  return [{
+    layerType: 'raster',
+    name: layer.name,
+    resourceId: layer.sourceResource.id,
+    datasetId: layer.rasterDatasetId,
+  }];
 }
 
 function MetadataCard({

@@ -1,12 +1,14 @@
 import json
+from datetime import datetime
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 
 from apps.catalog.data_query import DataQueryError, get_resource_profile, query_resource
+from apps.catalog.export import ExportError, export_layers_zip, validate_epsg
 from apps.catalog.models import Achievement, DataCatalog, DataResource, MapLayer
 from apps.catalog.permissions import filter_accessible, user_can_access
 from apps.catalog.serializers import (
@@ -103,6 +105,42 @@ def resource_query(request, pk: int):
     except DataQueryError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
     return JsonResponse(result)
+
+
+@require_POST
+@login_required
+def export_loaded_layers(request):
+    if not has_feature_perm(request.user, "catalog.export_dataresource"):
+        return feature_denied_response(request.user)
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except json.JSONDecodeError:
+        return JsonResponse({"detail": "请求体不是有效 JSON"}, status=400)
+    try:
+        epsg = validate_epsg(payload.get("epsg", 4326))
+    except Exception as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+
+    items = payload.get("items") or []
+    if not isinstance(items, list):
+        return JsonResponse({"detail": "items 必须是数组"}, status=400)
+
+    for item in items:
+        resource_id = item.get("resourceId")
+        if resource_id:
+            resource = get_object_or_404(DataResource, pk=resource_id, status=DataResource.Status.ACTIVE)
+            if not user_can_access(resource, request.user):
+                return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
+
+    try:
+        content = export_layers_zip(items, epsg)
+    except ExportError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+
+    filename = f"layers-export-{datetime.now().strftime('%Y%m%d%H%M%S')}.zip"
+    response = HttpResponse(content, content_type="application/zip")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @require_GET
