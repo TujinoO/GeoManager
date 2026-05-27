@@ -59,8 +59,8 @@ describe('createVectorLayerGroup', () => {
   });
 
   it('includes resource name in group name', () => {
-    const group = createVectorLayerGroup(makeResource({ name: '胡杨数据' }), makeProfile(), makeQueryResult());
-    expect(group.name).toContain('胡杨数据');
+    const group = createVectorLayerGroup(makeResource({ name: '测试数据' }), makeProfile(), makeQueryResult());
+    expect(group.name).toContain('测试数据');
   });
 
   it('uses default vector symbolization', () => {

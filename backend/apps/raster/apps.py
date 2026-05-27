@@ -18,7 +18,7 @@ class RasterConfig(AppConfig):
         import sys
         import threading
 
-        if os.environ.get("HUYANG_DISABLE_RASTER_STARTUP_SCAN") == "1":
+        if os.environ.get("APP_DISABLE_RASTER_STARTUP_SCAN") == "1":
             return
         if len(sys.argv) > 1 and sys.argv[1] not in {"runserver"}:
             return

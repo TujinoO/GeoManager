@@ -188,7 +188,7 @@ function syncLoadedLayers(map: Map, layers: LoadedLayer[]) {
     ...renderableRasterLayers.map((l) => sourceIdFor(l.id)),
   ]);
 
-  const existing = (map as unknown as { __huyangLoadedSources?: Set<string> }).__huyangLoadedSources ?? new Set<string>();
+  const existing = (map as unknown as { __loadedSources?: Set<string> }).__loadedSources ?? new Set<string>();
   for (const sourceId of Array.from(existing)) {
     if (!activeIds.has(sourceId)) removeLoadedLayerGroup(map, sourceId);
   }
@@ -212,7 +212,7 @@ function syncLoadedLayers(map: Map, layers: LoadedLayer[]) {
 
   reorderLoadedStyleLayers(map, [...renderableVectorLayers, ...renderableRasterLayers]);
   syncVectorInteractions(map, renderableVectorLayers);
-  (map as unknown as { __huyangLoadedSources: Set<string> }).__huyangLoadedSources = activeIds;
+  (map as unknown as { __loadedSources: Set<string> }).__loadedSources = activeIds;
 }
 
 function applyChineseLabels(map: Map) {

@@ -85,7 +85,7 @@ class Command(BaseCommand):
         point_resource, _ = DataResource.objects.update_or_create(
             code="demo-poplar-points-urumqi",
             defaults={
-                "name": "胡杨点位图示例",
+                "name": "胡杨林点位图示例",
                 "data_type": DataResource.DataType.VECTOR,
                 "category": layer_category,
                 "source": "平台演示数据",
@@ -94,7 +94,7 @@ class Command(BaseCommand):
                 "storage_path": URUMQI_POPLAR_POINTS_LAYER,
                 "spatial_extent": "乌鲁木齐附近",
                 "coordinate_system": "EPSG:4326",
-                "description": "由固定随机种子生成的乌鲁木齐附近胡杨示范点位，可用于验证点图层加载和点符号渲染。",
+                "description": "由固定随机种子生成的乌鲁木齐附近胡杨林示范点位，可用于验证点图层加载和点符号渲染。",
                 "quality_note": "演示数据，不代表真实调查结果。",
                 "status": DataResource.Status.ACTIVE,
             },
@@ -125,7 +125,7 @@ class Command(BaseCommand):
         MapLayer.objects.update_or_create(
             code="demo-poplar-points-urumqi",
             defaults={
-                "name": "胡杨点位图",
+                "name": "胡杨林点位图",
                 "layer_type": MapLayer.LayerType.VECTOR,
                 "geometry_type": MapLayer.GeometryType.POINT,
                 "category": layer_category,
@@ -140,7 +140,7 @@ class Command(BaseCommand):
                     "lineColor": "#6f4f1f",
                     "lineWidth": 1,
                 },
-                "legend": f"乌鲁木齐附近胡杨随机点位示例，共 {point_count(points_path)} 个点。",
+                "legend": f"乌鲁木齐附近胡杨林随机点位示例，共 {point_count(points_path)} 个点。",
                 "bounds": [86.9, 43.35, 88.35, 44.25],
                 "is_active": True,
             },
@@ -174,7 +174,7 @@ def create_urumqi_poplar_points():
         lat = center_lat + random_generator.gauss(0, 0.14)
         records.append(
             {
-                "name": f"胡杨示范点-{index + 1:03d}",
+                "name": f"胡杨林示范点-{index + 1:03d}",
                 "point_type": random_generator.choice(["天然林", "人工修复", "样方监测"]),
                 "health": random_generator.choice(["良好", "一般", "退化"]),
                 "survey_date": date(2026, 5, 1) - timedelta(days=random_generator.randint(0, 365)),

@@ -28,6 +28,7 @@ export default function App() {
         if (mounted) {
           setBootstrap(bootstrapData);
           setUser(currentUser);
+          document.title = bootstrapData.systemName;
         }
       } catch (error) {
         message.error(error instanceof Error ? error.message : '系统初始化失败');

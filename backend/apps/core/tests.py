@@ -78,7 +78,7 @@ default_symbolizer_script = "scripts/raster_symbolizers/basic_gradient.py"
                 encoding="utf-8",
             )
 
-            config = load_project_config(config_path, program_root=Path("/opt/huyang-program"))
+            config = load_project_config(config_path, program_root=Path("/opt/data-sharing-platform"))
 
             self.assertTrue(config.business_path("database").is_dir())
             self.assertTrue(config.geographic_path("vector").is_dir())

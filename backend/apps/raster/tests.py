@@ -63,4 +63,4 @@ default_symbolizer_script = "scripts/raster_symbolizers/basic_gradient.py"
 """,
             encoding="utf-8",
         )
-        return load_project_config(config_path, program_root=Path("/opt/huyang-program"))
+        return load_project_config(config_path, program_root=Path("/opt/data-sharing-platform"))

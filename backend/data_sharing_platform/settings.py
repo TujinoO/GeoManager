@@ -8,7 +8,7 @@ from apps.core.config import ConfigValidationError, load_project_config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROGRAM_ROOT = BASE_DIR.parent
-CONFIG_PATH = Path(os.environ.get("HUYANG_CONFIG", PROGRAM_ROOT / "config" / "app.example.toml"))
+CONFIG_PATH = Path(os.environ.get("APP_CONFIG", PROGRAM_ROOT / "config" / "app.example.toml"))
 
 try:
     PROJECT_CONFIG = load_project_config(CONFIG_PATH, program_root=PROGRAM_ROOT)
@@ -57,7 +57,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "huyang_system.urls"
+ROOT_URLCONF = "data_sharing_platform.urls"
 
 TEMPLATES = [
     {
@@ -74,12 +74,12 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "huyang_system.wsgi.application"
+WSGI_APPLICATION = "data_sharing_platform.wsgi.application"
 
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": PROJECT_CONFIG.business_path("database", "huyang.sqlite3"),
+        "NAME": PROJECT_CONFIG.business_path("database", "data.sqlite3"),
     }
 }
 
