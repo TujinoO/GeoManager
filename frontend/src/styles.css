@@ -199,6 +199,10 @@ body {
 }
 
 .workspace-body {
+  --workspace-edge: 16px;
+  --workspace-gap: 12px;
+  --side-panel-width: min(390px, calc((100vw - 64px) * 0.28));
+  --bottom-panel-height: 112px;
   height: 100vh;
   position: relative;
   overflow: hidden;
@@ -208,9 +212,9 @@ body {
 .floating-panel {
   position: absolute;
   top: 90px;
-  bottom: 16px;
+  bottom: calc(var(--workspace-edge) + var(--bottom-panel-height) + var(--workspace-gap));
   z-index: 5;
-  width: min(340px, calc(100vw - 32px));
+  width: var(--side-panel-width);
   min-width: 0;
   overflow: auto;
   background: rgba(248, 250, 247, 0.66);
@@ -221,33 +225,27 @@ body {
 }
 
 .floating-panel-left {
-  left: 16px;
-  width: min(390px, calc(100vw - 32px));
+  left: var(--workspace-edge);
 }
 
 .floating-panel-right {
-  right: 16px;
-  width: 54px;
-  padding: 8px 0;
-  overflow: visible;
+  right: var(--workspace-edge);
+  pointer-events: none;
 }
 
-.floating-panel-left .ant-tabs,
-.floating-panel-right .ant-tabs {
-  height: 100%;
-}
-
-.floating-panel-left .ant-tabs-content-holder,
-.floating-panel-right .ant-tabs-content-holder {
-  overflow: auto;
-}
-
-.floating-panel-left .ant-tabs-nav,
-.floating-panel-right .ant-tabs-nav {
-  margin: 0;
-  padding: 0 14px;
-  background: rgba(255, 255, 255, 0.34);
-  border-radius: 8px 8px 0 0;
+.floating-panel-bottom {
+  position: absolute;
+  left: calc(var(--workspace-edge) + var(--side-panel-width) + var(--workspace-gap));
+  right: calc(var(--workspace-edge) + var(--side-panel-width) + var(--workspace-gap));
+  bottom: var(--workspace-edge);
+  z-index: 5;
+  height: var(--bottom-panel-height);
+  min-width: 0;
+  background: rgba(248, 250, 247, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 8px;
+  box-shadow: 0 20px 58px rgba(8, 28, 24, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  backdrop-filter: blur(24px) saturate(1.22);
 }
 
 .floating-panel .ant-input,
@@ -259,11 +257,6 @@ body {
   background: rgba(255, 255, 255, 0.72) !important;
   border-color: rgba(23, 63, 57, 0.12) !important;
   backdrop-filter: blur(12px);
-}
-
-.floating-panel-right .layer-tree,
-.floating-panel-right .panel-section > :not(.panel-title) {
-  display: none;
 }
 
 .data-popover .ant-popover-inner {
@@ -347,6 +340,16 @@ body {
 
 .inline-alert {
   margin-top: 2px;
+}
+
+.export-epsg-field {
+  display: grid;
+  gap: 8px;
+}
+
+.export-epsg-field > span {
+  color: #546862;
+  font-size: 13px;
 }
 
 .panel-title h5.ant-typography,
@@ -653,13 +656,13 @@ body {
 
 .map-toolbar {
   position: absolute;
-  right: 16px;
-  bottom: 28px;
+  right: calc(var(--workspace-edge) + var(--side-panel-width) + var(--workspace-gap) + 10px);
+  bottom: calc(var(--workspace-edge) + var(--bottom-panel-height) + var(--workspace-gap) + 10px);
   z-index: 6;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
+  flex-direction: row;
+  gap: 5px;
+  padding: 5px;
   background: rgba(248, 250, 247, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.36);
   border-radius: 8px;
@@ -667,9 +670,16 @@ body {
   backdrop-filter: blur(22px) saturate(1.25);
 }
 
+.map-toolbar .ant-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+}
+
 .mapboxgl-ctrl-bottom-left,
 .mapboxgl-ctrl-bottom-right {
-  margin: 14px;
+  margin: calc(var(--workspace-edge) + var(--bottom-panel-height) + var(--workspace-gap)) calc(var(--workspace-edge) + var(--side-panel-width) + var(--workspace-gap));
 }
 
 .full-width {
@@ -677,8 +687,9 @@ body {
 }
 
 @media (max-width: 1100px) {
-  .floating-panel-right {
-    display: none;
+  .workspace-body {
+    --side-panel-width: 320px;
+    --bottom-panel-height: 96px;
   }
 }
 
@@ -703,7 +714,25 @@ body {
   }
 
   .workspace-body {
+    --side-panel-width: min(320px, calc(100vw - 20px));
+    --bottom-panel-height: 86px;
     height: 100vh;
+  }
+
+  .floating-panel {
+    top: 92px;
+    bottom: auto;
+    max-height: calc(100vh - 196px);
+  }
+
+  .floating-panel-right,
+  .floating-panel-bottom {
+    display: none;
+  }
+
+  .map-toolbar {
+    right: 12px;
+    bottom: 16px;
   }
 
   .brand-block h4.ant-typography {

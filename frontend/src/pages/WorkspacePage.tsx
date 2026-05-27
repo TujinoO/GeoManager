@@ -343,6 +343,8 @@ export default function WorkspacePage({ bootstrap, user, onLogout }: Props) {
             <LayerPanel />
           </LayerContext.Provider>
         </aside>
+        <aside className="floating-panel floating-panel-right" aria-label="右侧预留面板" />
+        <aside className="floating-panel-bottom" aria-label="底部预留面板" />
       </div>
     </Layout>
   );
