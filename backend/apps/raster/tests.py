@@ -21,7 +21,7 @@ class RasterScanPathTests(TestCase):
             loose_file.write_bytes(b"not a source tif")
 
             with override_settings(PROJECT_CONFIG=config):
-                with patch("apps.raster.services.import_raster_file") as import_raster_file:
+                with patch("apps.raster.services.importer.import_raster_file") as import_raster_file:
                     import_raster_file.side_effect = lambda path, progress=None: path
 
                     imported = scan_unprocessed_source_files()

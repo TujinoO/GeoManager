@@ -15,41 +15,16 @@ import {
   Trash2,
 } from 'lucide-react';
 import { type DragEvent, useEffect, useMemo, useState } from 'react';
+import { useLayerContext } from '../hooks/LayerContext';
 import { GroupSymbolizationEditor, RasterSymbolizationEditor, VectorSymbolizationEditor } from './SymbolizationEditor';
 import type { GroupSymbolization, RasterSymbolization, VectorSymbolization } from '../symbolization';
-import type { LoadedLayer, LoadedLayerGroup } from '../types';
+import type { LoadedLayer, LoadedLayerGroup, ResourceField, RasterBandMetadata } from '../types';
 
 type DropPlacement = 'before' | 'after';
 
-interface Props {
-  groups: LoadedLayerGroup[];
-  onGroupVisibilityChange: (groupId: string, visible: boolean) => void;
-  onGroupNameChange: (groupId: string, name: string) => void;
-  onGroupSymbolizationChange: (groupId: string, value: GroupSymbolization) => void;
-  onLayerVisibilityChange: (groupId: string, layerId: string, visible: boolean) => void;
-  onLayerNameChange: (groupId: string, layerId: string, name: string) => void;
-  onLayerSymbolizationChange: (groupId: string, layerId: string, value: VectorSymbolization | RasterSymbolization) => void;
-  onLocateGroup: (groupId: string) => void;
-  onLocateLayer: (groupId: string, layerId: string) => void;
-  onRemoveGroup: (groupId: string) => void;
-  onRemoveLayer: (groupId: string, layerId: string) => void;
-  onGroupReorder: (sourceGroupId: string, targetGroupId: string, placement: DropPlacement) => void;
-}
-
-export default function LayerPanel({
-  groups,
-  onGroupVisibilityChange,
-  onGroupNameChange,
-  onGroupSymbolizationChange,
-  onLayerVisibilityChange,
-  onLayerNameChange,
-  onLayerSymbolizationChange,
-  onLocateGroup,
-  onLocateLayer,
-  onRemoveGroup,
-  onRemoveLayer,
-  onGroupReorder,
-}: Props) {
+export default function LayerPanel() {
+  const ctx = useLayerContext();
+  const groups = ctx.groups;
   const [query, setQuery] = useState('');
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() => new Set());
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
@@ -113,9 +88,17 @@ export default function LayerPanel({
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
     const placement = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
-    onGroupReorder(sourceGroupId, targetGroupId, placement);
+    ctx.reorderGroups(sourceGroupId, targetGroupId, placement);
     setDraggingGroupId(null);
     setDragTarget(null);
+  }
+
+  function handleLayerSymbolizationChange(groupId: string, layerId: string, symbolization: VectorSymbolization | RasterSymbolization) {
+    const targetLayer = ctx.groups.find((g) => g.id === groupId)?.children.find((l) => l.id === layerId);
+    ctx.setLayerSymbolization(groupId, layerId, symbolization);
+    if ('mode' in symbolization && 'bands' in symbolization && targetLayer?.layerType === 'raster') {
+      ctx.startRasterRender(groupId, layerId, symbolization, { ...targetLayer, symbolization });
+    }
   }
 
   return (
@@ -157,11 +140,11 @@ export default function LayerPanel({
                     setDraggingGroupId(null);
                     setDragTarget(null);
                   }}
-                  onVisibilityChange={onGroupVisibilityChange}
-                  onNameChange={onGroupNameChange}
-                  onSymbolizationChange={onGroupSymbolizationChange}
-                  onLocate={onLocateGroup}
-                  onRemove={onRemoveGroup}
+                  onVisibilityChange={ctx.setGroupVisibility}
+                  onNameChange={ctx.setGroupName}
+                  onSymbolizationChange={ctx.setGroupSymbolization}
+                  onLocate={ctx.locateGroup}
+                  onRemove={ctx.removeGroup}
                 />
                 {expanded && (
                   <div className="layer-children" role="group">
@@ -170,11 +153,11 @@ export default function LayerPanel({
                         key={layer.id}
                         groupId={group.id}
                         layer={layer}
-                        onVisibilityChange={onLayerVisibilityChange}
-                        onNameChange={onLayerNameChange}
-                        onSymbolizationChange={onLayerSymbolizationChange}
-                        onLocate={onLocateLayer}
-                        onRemove={onRemoveLayer}
+                        onVisibilityChange={ctx.setLayerVisibility}
+                        onNameChange={ctx.setLayerName}
+                        onSymbolizationChange={handleLayerSymbolizationChange}
+                        onLocate={ctx.locateLayer}
+                        onRemove={ctx.removeLayer}
                       />
                     ))}
                   </div>
@@ -320,7 +303,7 @@ function LayerItemNode({
               {layer.name}
             </Typography.Text>
             <div className="layer-meta">{layer.summary}</div>
-            {layer.renderStatus === 'running' && (
+            {layer.layerType === 'raster' && layer.renderStatus === 'running' && (
               <Progress
                 className="layer-render-progress"
                 percent={layer.renderProgress ?? 0}
@@ -334,7 +317,7 @@ function LayerItemNode({
           metadata={layer.metadata}
           symbolization={layer.symbolization}
           fields={layer.fields}
-          rasterBands={layer.rasterMetadata?.bands ?? []}
+          rasterBands={layer.layerType === 'raster' ? layer.rasterMetadata?.bands ?? [] : []}
           subjectName={layer.name}
           onSymbolizationChange={(next) => onSymbolizationChange(groupId, layer.id, next as VectorSymbolization | RasterSymbolization)}
           onLocate={() => onLocate(groupId, layer.id)}
@@ -348,8 +331,8 @@ function LayerItemNode({
 interface NodeActionProps {
   metadata: Record<string, string | number | boolean | null | undefined>;
   symbolization: GroupSymbolization | VectorSymbolization | RasterSymbolization;
-  fields: LoadedLayer['fields'];
-  rasterBands?: NonNullable<LoadedLayer['rasterMetadata']>['bands'];
+  fields: ResourceField[];
+  rasterBands?: RasterBandMetadata[];
   subjectName: string;
   onSymbolizationChange: (value: GroupSymbolization | VectorSymbolization | RasterSymbolization) => void;
   onLocate: () => void;

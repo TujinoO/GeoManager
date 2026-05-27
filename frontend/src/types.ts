@@ -153,12 +153,25 @@ export interface ResourceQueryResult {
   geojson: GeoJsonFeatureCollection;
 }
 
-export interface LoadedLayer {
+export interface LoadedVectorLayer {
   id: string;
   name: string;
-  layerType: 'vector' | 'raster';
+  layerType: 'vector';
   sourceResource: DataResource;
-  geojson?: GeoJsonFeatureCollection;
+  geojson: GeoJsonFeatureCollection;
+  geometryType: string;
+  visible: boolean;
+  summary: string;
+  metadata: Record<string, string | number | boolean | null | undefined>;
+  symbolization: VectorSymbolization;
+  fields: ResourceField[];
+}
+
+export interface LoadedRasterLayer {
+  id: string;
+  name: string;
+  layerType: 'raster';
+  sourceResource: DataResource;
   pngUrl?: string;
   tileUrl?: string;
   imageCoordinates?: Array<[number, number]>;
@@ -173,9 +186,11 @@ export interface LoadedLayer {
   visible: boolean;
   summary: string;
   metadata: Record<string, string | number | boolean | null | undefined>;
-  symbolization: VectorSymbolization | RasterSymbolization;
+  symbolization: RasterSymbolization;
   fields: ResourceField[];
 }
+
+export type LoadedLayer = LoadedVectorLayer | LoadedRasterLayer;
 
 export interface LoadedLayerGroup {
   id: string;

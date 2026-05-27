@@ -10,6 +10,7 @@ from apps.catalog.models import MapLayer
 from apps.catalog.permissions import user_can_access
 from apps.core.storage import raster_cache_path
 from apps.raster.models import RasterCacheRecord, RasterDataset
+from apps.raster.permissions import can_manage_raster_cache, can_manage_raster_data
 from apps.raster.services import (
     RasterImportError,
     RasterJobError,
@@ -180,7 +181,7 @@ def tile(request, dataset_id: int, style_hash: str, z: int, x: int, y: int):
 @require_GET
 @login_required
 def cache_status(request):
-    if not (request.user.has_perm("raster.manage_raster_cache") or request.user.is_superuser):
+    if not can_manage_raster_cache(request.user):
         return JsonResponse({"detail": "无权查看缓存状态"}, status=403)
     records = RasterCacheRecord.objects.all()
     return JsonResponse(
@@ -196,15 +197,7 @@ def cache_status(request):
 @require_POST
 @login_required
 def clear_cache(request):
-    if not (request.user.has_perm("raster.manage_raster_cache") or request.user.is_superuser):
+    if not can_manage_raster_cache(request.user):
         return JsonResponse({"detail": "无权清理缓存"}, status=403)
     cleanup_png_cache()
     return JsonResponse({"detail": "缓存清理检查已完成"})
-
-
-def can_manage_raster_data(user) -> bool:
-    return (
-        user.has_perm("raster.manage_raster_dataset")
-        or user.has_perm("catalog.maintain_dataresource")
-        or user.is_superuser
-    )

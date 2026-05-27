@@ -28,27 +28,17 @@ class ResourceProfile:
 
 def get_resource_profile(resource: DataResource) -> ResourceProfile:
     if resource.data_type == DataResource.DataType.RASTER:
-        from apps.raster.services import compact_raster_metadata, dataset_for_resource, serialize_raster_dataset
+        from apps.raster.services.profile import get_raster_profile
 
-        dataset = dataset_for_resource(resource)
-        if not dataset:
+        raster_info = get_raster_profile(resource)
+        if not raster_info:
             return ResourceProfile(fields=[], feature_count=None, geometry_type="Raster", bounds=[])
-        metadata = compact_raster_metadata(dataset.processed_gdalinfo or dataset.source_gdalinfo, dataset.source_gdalinfo)
-        fields = [
-            {
-                "name": f"Band {band['band']}",
-                "type": band.get("type", ""),
-                "nullable": False,
-                "sampleValues": [band.get("min"), band.get("max")],
-            }
-            for band in metadata.get("bands", [])
-        ]
         return ResourceProfile(
-            fields=fields,
+            fields=raster_info["fields"],
             feature_count=None,
             geometry_type="Raster",
-            bounds=dataset.bounds_4326,
-            raster={**serialize_raster_dataset(dataset), "metadata": metadata},
+            bounds=raster_info["bounds"],
+            raster=raster_info["raster"],
         )
     if resource.data_type != DataResource.DataType.VECTOR or not resource.storage_path:
         return ResourceProfile(fields=[], feature_count=None, geometry_type="", bounds=[])

@@ -7,7 +7,8 @@
     "dev": "vite --host 127.0.0.1",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "build": "pnpm typecheck && vite build",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "vitest run"
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.1",
@@ -22,7 +23,8 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.7.2",
-    "vite": "^6.0.1"
+    "vite": "^6.0.1",
+    "vitest": "^4.1.7"
   },
   "packageManager": "pnpm@11.2.2"
 }
