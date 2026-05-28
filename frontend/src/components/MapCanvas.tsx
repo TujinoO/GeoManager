@@ -182,7 +182,7 @@ export default function MapCanvas({
 
 function syncLoadedLayers(map: Map, layers: LoadedLayer[]) {
   const renderableVectorLayers = layers.filter((l): l is LoadedVectorLayer => l.layerType === 'vector' && 'geojson' in l);
-  const renderableRasterLayers = layers.filter((l): l is LoadedRasterLayer => l.layerType === 'raster' && ('pngUrl' in l || 'tileUrl' in l));
+  const renderableRasterLayers = layers.filter((l): l is LoadedRasterLayer => l.layerType === 'raster' && Boolean(l.tileUrl));
   const activeIds = new Set([
     ...renderableVectorLayers.map((l) => sourceIdFor(l.id)),
     ...renderableRasterLayers.map((l) => sourceIdFor(l.id)),

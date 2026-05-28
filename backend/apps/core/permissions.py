@@ -29,7 +29,6 @@ FEATURE_PERMISSIONS: tuple[FeaturePermissionDef, ...] = (
     FeaturePermissionDef("catalog", "export_dataresource", "导出数据资源", "数据管理"),
     FeaturePermissionDef("catalog", "maintain_dataresource", "维护数据资源", "数据管理"),
     FeaturePermissionDef("raster", "manage_raster_dataset", "管理栅格数据集", "栅格管理"),
-    FeaturePermissionDef("raster", "manage_raster_cache", "管理栅格 PNG 缓存", "栅格管理"),
 )
 
 FEATURE_PERMISSION_NAMES = tuple(item.perm_name for item in FEATURE_PERMISSIONS)

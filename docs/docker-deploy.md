@@ -45,8 +45,6 @@ upload_max_mb = 512
 query_result_limit = 30000
 
 [raster]
-png_cache_max_mb = 512
-cache_cleanup_policy = "least_recently_used"
 symbolizer_timeout_seconds = 120
 default_symbolizer_script = "scripts/raster_symbolizers/basic_gradient.py"
 ```
@@ -117,13 +115,14 @@ static/
 ```text
 vector/
 raster/
-preprocessed/
-metadata/
-png/output/
-png/cache/
+  original/
+  preprocessed/
+  metadata/
+    source/
+    preprocessed/
 ```
 
-GeoPackage 矢量数据放入 `/data/geographic/vector`，原始栅格数据放入 `/data/geographic/raster`。栅格符号化在后端完成，PNG 输出和缓存写入 `/data/geographic/png`。
+GeoPackage 矢量数据放入 `/data/geographic/vector`，原始栅格数据放入 `/data/geographic/raster/original`。栅格符号化在后端完成，并统一通过 XYZ 动态瓦片接口返回。
 
 ## 8. 常用运维命令
 

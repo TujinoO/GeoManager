@@ -358,6 +358,7 @@ function LayerItemNode({
           symbolization={layer.symbolization}
           fields={layer.fields}
           rasterBands={layer.layerType === 'raster' ? layer.rasterMetadata?.bands ?? [] : []}
+          rasterDatasetId={layer.layerType === 'raster' ? layer.rasterDatasetId : undefined}
           subjectName={layer.name}
           onSymbolizationChange={(next) => onSymbolizationChange(groupId, layer.id, next as VectorSymbolization | RasterSymbolization)}
           onLocate={() => onLocate(groupId, layer.id)}
@@ -393,6 +394,7 @@ interface NodeActionProps {
   symbolization: GroupSymbolization | VectorSymbolization | RasterSymbolization;
   fields: ResourceField[];
   rasterBands?: RasterBandMetadata[];
+  rasterDatasetId?: number;
   subjectName: string;
   onSymbolizationChange: (value: GroupSymbolization | VectorSymbolization | RasterSymbolization) => void;
   onLocate: () => void;
@@ -408,6 +410,7 @@ function NodeActions({
   symbolization,
   fields,
   rasterBands = [],
+  rasterDatasetId,
   subjectName,
   onSymbolizationChange,
   onLocate,
@@ -490,6 +493,7 @@ function NodeActions({
             <RasterSymbolizationEditor
               value={draftSymbolization}
               bands={rasterBands}
+              datasetId={rasterDatasetId}
               onChange={setDraftSymbolization}
               onApply={applyDraftSymbolization}
             />

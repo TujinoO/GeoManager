@@ -137,6 +137,6 @@ export function sourceIdFor(layerId: string): string {
   return `loaded-${layerId}`;
 }
 
-export function rasterSourceKey(layer: { pngUrl?: string; tileUrl?: string; imageCoordinates?: unknown[] }): string {
-  return JSON.stringify({ pngUrl: layer.pngUrl, tileUrl: layer.tileUrl, imageCoordinates: layer.imageCoordinates });
+export function rasterSourceKey(layer: { tileUrl?: string }): string {
+  return JSON.stringify({ tileUrl: layer.tileUrl });
 }

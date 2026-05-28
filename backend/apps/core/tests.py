@@ -11,9 +11,7 @@ from apps.core.config import load_project_config
 from apps.core.storage import (
     StoragePathError,
     geographic_path,
-    raster_cache_path,
     raster_metadata_path,
-    raster_output_path,
     raster_processed_path,
     raster_source_path,
 )
@@ -78,8 +76,6 @@ class StoragePathTests(SimpleTestCase):
         self.assertTrue(str(raster_source_path("a.tif")).endswith("/raster/original/a.tif"))
         self.assertTrue(str(raster_processed_path("a.cog.tif")).endswith("/raster/preprocessed/a.cog.tif"))
         self.assertTrue(str(raster_metadata_path("source/a.tif.gdalinfo.json")).endswith("/raster/metadata/source/a.tif.gdalinfo.json"))
-        self.assertTrue(str(raster_output_path("tmp/a.png")).endswith("/raster/png/output/tmp/a.png"))
-        self.assertTrue(str(raster_cache_path("a.png")).endswith("/raster/png/cache/a.png"))
 
 
 class ConfigLoaderTests(SimpleTestCase):
@@ -112,8 +108,6 @@ upload_max_mb = 512
 query_result_limit = 30000
 
 [raster]
-png_cache_max_mb = 512
-cache_cleanup_policy = "least_recently_used"
 symbolizer_timeout_seconds = 120
 default_symbolizer_script = "scripts/raster_symbolizers/basic_gradient.py"
 """,
@@ -129,7 +123,6 @@ default_symbolizer_script = "scripts/raster_symbolizers/basic_gradient.py"
             self.assertTrue(config.geographic_path("raster", "preprocessed").is_dir())
             self.assertTrue(config.geographic_path("raster", "metadata", "source").is_dir())
             self.assertTrue(config.geographic_path("raster", "metadata", "preprocessed").is_dir())
-            self.assertTrue(config.geographic_path("raster", "png", "cache").is_dir())
 
 
 def grant(user, *specs):

@@ -3,7 +3,6 @@ from django.test import SimpleTestCase
 
 from apps.raster.services.color_mapping import (
     array_to_rgba,
-    colorize_gray_png,
     hex_to_rgba,
     palette_array,
     scale_array,
@@ -52,23 +51,6 @@ class ScaleArrayTests(SimpleTestCase):
         self.assertEqual(result[2], 255)
 
 
-class ColorizeGrayPngTests(SimpleTestCase):
-    def test_unique_mode(self):
-        gray = np.array([[0, 1], [1, 0]], dtype=np.uint8)
-        rules = {"mode": "unique", "uniqueValues": [{"value": 0, "color": "#00000000"}, {"value": 1, "color": "#ff0000ff"}]}
-        result = colorize_gray_png(gray, rules, {})
-        self.assertEqual(result.shape, (2, 2, 4))
-        self.assertEqual(result[0, 0, 3], 0)
-        self.assertEqual(result[0, 1, 0], 255)
-
-    def test_pseudocolor_mode(self):
-        gray = np.array([[0, 128, 255]], dtype=np.uint8)
-        rules = {"mode": "pseudocolor", "palette": "viridis", "uniqueValues": []}
-        result = colorize_gray_png(gray, rules, {})
-        self.assertEqual(result.shape, (1, 3, 4))
-        self.assertEqual(result[0, 0, 3], 255)
-
-
 class ArrayToRgbaTests(SimpleTestCase):
     def test_gray_mode(self):
         data = np.ma.MaskedArray(np.array([[0, 128]], dtype=np.float32), mask=False)
@@ -89,6 +71,18 @@ class ArrayToRgbaTests(SimpleTestCase):
         metadata = {"bands": [{"band": 1}, {"band": 2}, {"band": 3}]}
         result = array_to_rgba(data, rules, metadata)
         self.assertEqual(result.shape, (1, 2, 4))
+
+    def test_rgb_mode_uses_alpha_band_when_present(self):
+        data = np.ma.MaskedArray(
+            np.array([[[100]], [[100]], [[100]], [[128]]], dtype=np.float32),
+            mask=False,
+        )
+        rules = {"mode": "rgb", "bands": [1, 2, 3], "alphaBand": 4, "stretch": {"enabled": True, "perBand": {
+            "1": {"min": 0, "max": 255}, "2": {"min": 0, "max": 255}, "3": {"min": 0, "max": 255},
+        }}}
+        metadata = {"bands": [{"band": 1}, {"band": 2}, {"band": 3}, {"band": 4}]}
+        result = array_to_rgba(data, rules, metadata)
+        self.assertEqual(result[0, 0, 3], 128)
 
     def test_masked_pixels_become_transparent(self):
         data = np.ma.MaskedArray(np.array([[100]], dtype=np.float32), mask=True)

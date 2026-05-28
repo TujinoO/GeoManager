@@ -36,6 +36,5 @@ def health(request):
             "configLoaded": True,
             "businessSubdirs": list(BUSINESS_SUBDIRS),
             "geographicSubdirs": list(GEOGRAPHIC_SUBDIRS),
-            "rasterCachePolicy": config.raster.cache_cleanup_policy,
         }
     )

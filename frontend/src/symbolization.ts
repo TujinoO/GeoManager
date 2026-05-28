@@ -144,7 +144,6 @@ export interface VectorSymbolization {
 }
 
 export type RasterRenderMode = 'gray' | 'rgb' | 'pseudocolor' | 'unique';
-export type RasterLoadMode = 'image' | 'xyz';
 
 export interface RasterStretchBand {
   min: number;
@@ -159,9 +158,12 @@ export interface RasterUniqueValue {
 
 export interface RasterSymbolization {
   opacity: number;
-  loadMode: RasterLoadMode;
   mode: RasterRenderMode;
   bands: number[];
+  alphaBand: number | 'mask' | null;
+  nodata: {
+    enabled: boolean;
+  };
   stretch: {
     enabled: boolean;
     type: 'minmax';
@@ -288,9 +290,12 @@ export const defaultVectorSymbolization: VectorSymbolization = {
 
 export const defaultRasterSymbolization: RasterSymbolization = {
   opacity: 90,
-  loadMode: 'image',
   mode: 'gray',
   bands: [1],
+  alphaBand: 'mask',
+  nodata: {
+    enabled: true,
+  },
   stretch: {
     enabled: true,
     type: 'minmax',
@@ -299,10 +304,7 @@ export const defaultRasterSymbolization: RasterSymbolization = {
     },
   },
   palette: 'poplar',
-  uniqueValues: [
-    { value: 0, color: '#00000000', label: '0' },
-    { value: 1, color: '#2f7d62', label: '1' },
-  ],
+  uniqueValues: [],
 };
 
 export function cloneDefaultGroupSymbolization(): GroupSymbolization {
@@ -345,9 +347,15 @@ export function rasterSymbolizationFromRules(
     ...defaultRasterSymbolization,
     ...raw,
     opacity: typeof raw.opacity === 'number' ? raw.opacity : defaultRasterSymbolization.opacity,
-    loadMode: raw.loadMode ?? defaultRasterSymbolization.loadMode,
     mode: raw.mode ?? defaultRasterSymbolization.mode,
     bands: Array.isArray(raw.bands) && raw.bands.length > 0 ? raw.bands.map(Number) : [...defaultRasterSymbolization.bands],
+    alphaBand: raw.alphaBand === null || raw.alphaBand === 'mask' || typeof raw.alphaBand === 'number'
+      ? raw.alphaBand
+      : defaultRasterSymbolization.alphaBand,
+    nodata: {
+      ...defaultRasterSymbolization.nodata,
+      ...(raw.nodata ?? {}),
+    },
     stretch: {
       ...defaultRasterSymbolization.stretch,
       ...(raw.stretch ?? {}),

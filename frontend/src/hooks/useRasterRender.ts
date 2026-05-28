@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import { rasterSymbolizationFromRules } from '../symbolization';
 import type { RasterSymbolization } from '../symbolization';
 import type { LoadedRasterLayer, RasterRenderResult } from '../types';
-import { delay, formatBytes } from '../utils/geometry';
+import { delay } from '../utils/geometry';
 
 export function useRasterRender(updateLayer: (groupId: string, layerId: string, updater: (layer: LoadedRasterLayer) => LoadedRasterLayer) => void) {
   const { message } = App.useApp();
@@ -21,29 +21,21 @@ export function useRasterRender(updateLayer: (groupId: string, layerId: string, 
     layer: LoadedRasterLayer,
     rulesMode: 'default' | 'custom' = 'custom',
   ) => {
-    const canvas = mapInstanceRef.current?.getCanvas();
-    const width = Math.min(2400, Math.max(512, Math.round((canvas?.clientWidth ?? 1400) * window.devicePixelRatio)));
-    const height = Math.min(1800, Math.max(512, Math.round((canvas?.clientHeight ?? 900) * window.devicePixelRatio)));
-
     updateLayer(groupId, layerId, (current) => ({
       ...current,
       summary: '后台符号化中',
       renderStatus: 'running',
       renderProgress: 5,
       renderMessages: ['提交符号化任务'],
-      pngUrl: symbolization.loadMode === 'image' ? current.pngUrl : undefined,
-      tileUrl: symbolization.loadMode === 'xyz' ? current.tileUrl : undefined,
+      tileUrl: current.tileUrl,
     }));
 
     try {
       const job = await api.renderRasterAsync({
         datasetId: layer.rasterDatasetId,
         layerId: layer.rasterLayerId,
-        width,
-        height,
         rules: rulesMode === 'custom' ? symbolization as unknown as Record<string, unknown> : undefined,
         rulesMode,
-        delivery: symbolization.loadMode,
       });
       updateLayer(groupId, layerId, (current) => ({
         ...current,
@@ -102,24 +94,20 @@ export function useRasterRender(updateLayer: (groupId: string, layerId: string, 
 
   const applyResult = useCallback((groupId: string, layerId: string, result: RasterRenderResult) => {
     updateLayer(groupId, layerId, (current) => {
-      const currentRasterSymbolization = current.symbolization as RasterSymbolization;
       return {
         ...current,
-        pngUrl: result.delivery === 'image' ? result.pngUrl : undefined,
-        tileUrl: result.delivery === 'xyz' ? result.tileUrl : undefined,
+        tileUrl: result.tileUrl,
         imageCoordinates: result.imageCoordinates,
-        summary: result.delivery === 'xyz' ? 'XYZ 瓦片已就绪' : `PNG 已生成 · ${formatBytes(result.fileSize ?? 0)}`,
+        summary: 'XYZ 瓦片已就绪',
         renderStatus: 'ready',
         renderProgress: 100,
         symbolization: {
           ...rasterSymbolizationFromRules(result.rules),
-          opacity: currentRasterSymbolization.opacity,
-          loadMode: currentRasterSymbolization.loadMode,
+          opacity: current.symbolization.opacity,
         },
         metadata: {
           ...current.metadata,
-          加载方式: result.delivery === 'xyz' ? 'XYZ 瓦片' : '整图 PNG',
-          缓存标识: result.cacheKey,
+          加载方式: 'XYZ 瓦片',
           样式哈希: result.styleHash,
         },
       };

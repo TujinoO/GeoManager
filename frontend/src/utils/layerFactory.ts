@@ -69,7 +69,7 @@ export function createRasterLayerGroup(
   const raster = profile.raster;
   const now = new Date();
   const groupId = `raster-${raster.id}-${now.getTime()}`;
-  const layerId = `${groupId}-image`;
+  const layerId = `${groupId}-xyz`;
   const symbolization = raster.defaultRules
     ? rasterSymbolizationFromRules(raster.defaultRules)
     : cloneDefaultRasterSymbolization();
@@ -107,7 +107,7 @@ export function createRasterLayerGroup(
         geometryType: 'Raster',
         visible: true,
         summary: '等待后台符号化',
-        metadata: { ...metadata, 图层类型: '栅格', 加载方式: symbolization.loadMode === 'xyz' ? 'XYZ 瓦片' : '整图 PNG' },
+        metadata: { ...metadata, 图层类型: '栅格', 加载方式: 'XYZ 瓦片' },
         symbolization,
         fields: [],
         renderStatus: 'queued',

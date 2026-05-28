@@ -48,19 +48,6 @@ def image_coordinates_from_gdalinfo(metadata: dict[str, Any]) -> list[list[float
     return [[west, north], [east, north], [east, south], [west, south]]
 
 
-def cache_key_for(raster_path: Path, width: int, height: int, rules: dict[str, Any]) -> str:
-    stat = raster_path.stat()
-    payload = {
-        "raster_path": str(raster_path.resolve()),
-        "raster_mtime": stat.st_mtime_ns,
-        "rules": rules,
-        "width": width,
-        "height": height,
-    }
-    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-
 def style_hash_for(raster_path: Path, rules: dict[str, Any]) -> str:
     stat = raster_path.stat()
     payload = {

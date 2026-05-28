@@ -35,7 +35,9 @@ def default_raster_rules(metadata: dict[str, Any], fallback_metadata: dict[str, 
             },
         },
         "palette": "poplar",
-        "uniqueValues": default_unique_values(metadata, fallback_metadata),
+        "uniqueValues": [],
+        "alphaBand": "mask",
+        "nodata": {"enabled": True},
     }
 
 
@@ -67,6 +69,8 @@ def normalize_rules(rules: dict[str, Any], metadata: dict[str, Any]) -> dict[str
         "stretch": normalized_stretch,
         "palette": str(raw.get("palette") or "poplar"),
         "uniqueValues": normalize_unique_values(raw.get("uniqueValues"), metadata),
+        "alphaBand": normalize_alpha_band(raw.get("alphaBand", defaults.get("alphaBand")), band_count),
+        "nodata": normalize_nodata(raw.get("nodata")),
     }
 
 
@@ -88,7 +92,7 @@ def normalize_unique_values(value: Any, metadata: dict[str, Any]) -> list[dict[s
     if isinstance(value, list) and value:
         items = value
     else:
-        items = default_unique_values(metadata)
+        items = []
     normalized = []
     for index, item in enumerate(items):
         if not isinstance(item, dict):
@@ -104,18 +108,22 @@ def normalize_unique_values(value: Any, metadata: dict[str, Any]) -> list[dict[s
     return normalized
 
 
-def default_unique_values(metadata: dict[str, Any], fallback_metadata: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-    minimum, maximum = band_min_max(metadata, 1, fallback_metadata)
-    if not float(minimum).is_integer() or not float(maximum).is_integer() or maximum - minimum > 32:
-        return [
-            {"value": 0, "color": "#00000000", "label": "0"},
-            {"value": 1, "color": "#2f7d62", "label": "1"},
-        ]
-    values = []
-    for offset, value in enumerate(range(int(minimum), int(maximum) + 1)):
-        color = UNIQUE_COLORS[offset % len(UNIQUE_COLORS)]
-        values.append({"value": value, "color": color, "label": str(value)})
-    return values
+def normalize_alpha_band(value: Any, band_count: int) -> int | str | None:
+    if value in (None, "", False):
+        return None
+    if str(value).lower() == "mask":
+        return "mask"
+    try:
+        band = int(value)
+    except (TypeError, ValueError):
+        return "mask"
+    return min(max(band, 1), band_count)
+
+
+def normalize_nodata(value: Any) -> dict[str, bool]:
+    if isinstance(value, dict):
+        return {"enabled": bool(value.get("enabled", True))}
+    return {"enabled": True}
 
 
 def band_min_max(
@@ -151,6 +159,25 @@ def output_source_bands(rules: dict[str, Any]) -> list[int]:
     if rules.get("mode") == "rgb":
         return bands[:3]
     return [bands[0]]
+
+
+def read_source_bands(rules: dict[str, Any]) -> list[int]:
+    bands = output_source_bands(rules)
+    alpha_band = rules.get("alphaBand")
+    if rules.get("mode") == "rgb" and isinstance(alpha_band, int):
+        return [*bands, alpha_band]
+    return bands
+
+
+def band_data_type(metadata: dict[str, Any], band_index: int) -> str:
+    bands = metadata.get("bands") or []
+    band = bands[band_index - 1] if 0 <= band_index - 1 < len(bands) else {}
+    return str(band.get("type") or "")
+
+
+def is_integer_band(metadata: dict[str, Any], band_index: int) -> bool:
+    data_type = band_data_type(metadata, band_index).lower()
+    return any(token in data_type for token in ("byte", "int", "uint")) and "float" not in data_type
 
 
 def stretch_min_max(rules: dict[str, Any], metadata: dict[str, Any], band_index: int) -> tuple[float, float]:

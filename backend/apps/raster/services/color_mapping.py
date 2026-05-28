@@ -31,23 +31,6 @@ def scale_array(values: np.ndarray, rules: dict[str, Any], metadata: dict[str, A
     return np.clip(scaled * 255.0, 0, 255).astype(np.uint8)
 
 
-def colorize_gray_png(gray: np.ndarray, rules: dict[str, Any], metadata: dict[str, Any]) -> np.ndarray:
-    if rules["mode"] == "unique":
-        output = np.zeros((*gray.shape, 4), dtype=np.uint8)
-        for item in rules["uniqueValues"]:
-            rgba = hex_to_rgba(str(item["color"]))
-            output[gray == int(item["value"])] = rgba
-        return output
-    palette = palette_array(str(rules.get("palette") or "poplar"))
-    scaled = gray.astype(np.float32) / 255.0
-    output = np.zeros((*gray.shape, 4), dtype=np.uint8)
-    stops = np.linspace(0.0, 1.0, len(palette), dtype=np.float32)
-    for channel in range(3):
-        output[..., channel] = np.interp(scaled, stops, palette[:, channel]).astype(np.uint8)
-    output[..., 3] = 255
-    return output
-
-
 def array_to_rgba(data: np.ma.MaskedArray, rules: dict[str, Any], metadata: dict[str, Any]) -> np.ndarray:
     from apps.raster.services.rules_engine import output_source_bands
 
@@ -63,7 +46,10 @@ def array_to_rgba(data: np.ma.MaskedArray, rules: dict[str, Any], metadata: dict
     if mode == "rgb":
         for index, band_index in enumerate(output_source_bands(rules)[:3]):
             output[..., index] = scale_array(values[index], rules, metadata, band_index)
-        output[..., 3] = np.where(valid, 255, 0).astype(np.uint8)
+        if values.shape[0] > 3:
+            output[..., 3] = np.where(valid, np.clip(values[3], 0, 255), 0).astype(np.uint8)
+        else:
+            output[..., 3] = np.where(valid, 255, 0).astype(np.uint8)
         return output
 
     if mode == "gray":

@@ -144,16 +144,13 @@ def start_render_job(
     *,
     layer_id: int | None,
     dataset_id: int | None,
-    width: int,
-    height: int,
     rules: dict[str, Any] | None,
-    delivery: str,
 ) -> RasterJob:
     from apps.catalog.models import MapLayer
     from apps.raster.models import RasterDataset
     from apps.raster.services.exceptions import RasterRenderError
     from apps.raster.services.importer import dataset_for_layer
-    from apps.raster.services.renderer import register_tile_style, render_dataset_png
+    from apps.raster.services.renderer import register_tile_style
 
     job = _create_job("render")
 
@@ -167,19 +164,8 @@ def start_render_job(
             if dataset is None:
                 raise RasterRenderError("未找到可渲染的栅格数据集")
             render_rules = rules or (layer.raster_rules if layer and layer.raster_rules else dataset.default_rules)
-            if delivery == "xyz":
-                result = register_tile_style(dataset, render_rules)
-                _finish_job(job.id, result, "ready")
-                return
-            record_result = render_dataset_png(
-                dataset=dataset,
-                layer=layer or dataset.map_layer,
-                width=width,
-                height=height,
-                rules=render_rules,
-                progress=lambda text: _append_job(job.id, text),
-            )
-            _finish_job(job.id, record_result, "ready")
+            result = register_tile_style(dataset, render_rules)
+            _finish_job(job.id, result, "ready")
         except Exception as exc:
             _fail_job(job.id, str(exc))
 

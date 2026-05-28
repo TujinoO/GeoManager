@@ -49,14 +49,6 @@ def raster_metadata_path(relative_path: str) -> Path:
     return geographic_path("raster", "metadata", relative_path)
 
 
-def raster_output_path(relative_path: str) -> Path:
-    return geographic_path("raster", "png", "output", relative_path)
-
-
-def raster_cache_path(relative_path: str) -> Path:
-    return geographic_path("raster", "png", "cache", relative_path)
-
-
 def _safe_join(root: Path, *parts: str) -> Path:
     root = root.resolve()
     candidate = root

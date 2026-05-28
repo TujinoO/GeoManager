@@ -1,5 +1,7 @@
-import { Button, Card, ColorPicker, Divider, Input, InputNumber, Segmented, Select, Slider, Space, Switch, Tabs, Typography } from 'antd';
+import { Alert, App, Button, Card, ColorPicker, Divider, Input, InputNumber, Segmented, Select, Slider, Space, Switch, Tabs, Typography } from 'antd';
 import type { ReactNode } from 'react';
+import { useState } from 'react';
+import { api } from '../api/client';
 import type {
   Anchor,
   Alignment,
@@ -283,20 +285,32 @@ export function RasterSymbolizationEditor({
   bands,
   onChange,
   onApply,
+  datasetId,
 }: {
   value: RasterSymbolization;
   bands: RasterBandMetadata[];
   onChange: (value: RasterSymbolization) => void;
   onApply?: () => void;
+  datasetId?: number;
 }) {
+  const { message } = App.useApp();
+  const [classifying, setClassifying] = useState(false);
   const bandOptions = (bands.length > 0 ? bands : [{ band: 1, description: 'Band 1', type: 'Byte' } as RasterBandMetadata])
     .map((band) => ({
       value: band.band,
       label: `${band.band} · ${band.description || band.type}`,
     }));
+  const alphaBandOptions = [
+    { value: 'mask', label: 'mask' },
+    { value: 'none', label: '无' },
+    ...bandOptions,
+  ];
   const selectedBands = value.mode === 'rgb'
     ? [value.bands[0] ?? 1, value.bands[1] ?? 1, value.bands[2] ?? 1]
     : [value.bands[0] ?? 1];
+  const uniqueBand = selectedBands[0] ?? 1;
+  const uniqueBandMeta = bands.find((band) => band.band === uniqueBand);
+  const uniqueBandIsInteger = uniqueBandMeta ? isIntegerRasterBand(uniqueBandMeta) : true;
 
   function update(next: Partial<RasterSymbolization>) {
     onChange({ ...value, ...next });
@@ -316,6 +330,36 @@ export function RasterSymbolizationEditor({
       ? [current[0] ?? 1, current[1] ?? current[0] ?? 1, current[2] ?? current[1] ?? current[0] ?? 1]
       : [current[0] ?? 1];
     update({ mode, bands: nextBands });
+  }
+
+  async function copyRulesJson() {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
+      message.success('符号化方案 JSON 已复制');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '复制失败');
+    }
+  }
+
+  async function classifyUniqueValues() {
+    if (!datasetId) {
+      message.warning('缺少栅格数据集编号');
+      return;
+    }
+    if (!uniqueBandIsInteger) {
+      message.warning('唯一值分类仅支持整型波段');
+      return;
+    }
+    setClassifying(true);
+    try {
+      const result = await api.classifyRasterUniqueValues(datasetId, uniqueBand);
+      update({ mode: 'unique', bands: [uniqueBand], uniqueValues: result.items });
+      message.success(`已分类 ${result.items.length} 个唯一值`);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '唯一值分类失败');
+    } finally {
+      setClassifying(false);
+    }
   }
 
   function updateStretchBand(band: number, key: 'min' | 'max', nextValue: number) {
@@ -349,17 +393,6 @@ export function RasterSymbolizationEditor({
             label: '渲染',
             children: (
               <Space direction="vertical" className="full-width symbolization-stack">
-                <ControlRow label="加载方式">
-                  <Segmented
-                    block
-                    value={value.loadMode}
-                    options={[
-                      { value: 'image', label: '整图' },
-                      { value: 'xyz', label: 'XYZ' },
-                    ]}
-                    onChange={(loadMode) => update({ loadMode: loadMode as RasterSymbolization['loadMode'] })}
-                  />
-                </ControlRow>
                 <ControlRow label="透明度">
                   <Slider
                     value={value.opacity}
@@ -391,6 +424,21 @@ export function RasterSymbolizationEditor({
                     />
                   </ControlRow>
                 ))}
+                {value.mode === 'rgb' && (
+                  <ControlRow label="A">
+                    <Select
+                      className="full-width"
+                      value={value.alphaBand ?? 'none'}
+                      options={alphaBandOptions}
+                      onChange={(nextBand) => update({ alphaBand: nextBand === 'none' ? null : nextBand as RasterSymbolization['alphaBand'] })}
+                    />
+                  </ControlRow>
+                )}
+                <BooleanField
+                  label="启用 nodata"
+                  value={value.nodata.enabled}
+                  onChange={(enabled) => update({ nodata: { ...value.nodata, enabled } })}
+                />
                 {value.mode === 'pseudocolor' && (
                   <SelectField
                     label="色带"
@@ -438,6 +486,28 @@ export function RasterSymbolizationEditor({
             label: '唯一值',
             children: (
               <Space direction="vertical" className="full-width symbolization-stack">
+                <ControlRow label="分类波段">
+                  <Select
+                    className="full-width"
+                    value={uniqueBand}
+                    options={bandOptions}
+                    onChange={(nextBand) => update({ mode: 'unique', bands: [nextBand] })}
+                  />
+                </ControlRow>
+                {!uniqueBandIsInteger && (
+                  <Alert type="warning" showIcon message="唯一值分类仅支持整型波段，浮点型波段不适用。" />
+                )}
+                <Button
+                  block
+                  loading={classifying}
+                  disabled={!datasetId || !uniqueBandIsInteger}
+                  onClick={classifyUniqueValues}
+                >
+                  分类
+                </Button>
+                {value.uniqueValues.length === 0 && (
+                  <Typography.Text type="secondary">选择整型波段后点击分类，即时计算唯一值。</Typography.Text>
+                )}
                 {value.uniqueValues.map((item, index) => (
                   <ControlRow key={`${item.value}-${index}`} label={item.label || String(item.value)}>
                     <ColorPicker
@@ -452,8 +522,18 @@ export function RasterSymbolizationEditor({
           },
         ]}
       />
+      <div className="symbolization-footer">
+        <Button size="small" onClick={copyRulesJson}>
+          复制 JSON
+        </Button>
+      </div>
     </Card>
   );
+}
+
+function isIntegerRasterBand(band: RasterBandMetadata) {
+  const type = band.type.toLowerCase();
+  return band.isInteger || (type.includes('int') || type.includes('byte')) && !type.includes('float');
 }
 
 function SymbolizationTitle({ title, onApply }: { title: string; onApply?: () => void }) {

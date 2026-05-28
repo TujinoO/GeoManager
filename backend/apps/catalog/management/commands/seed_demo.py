@@ -48,7 +48,6 @@ class Command(BaseCommand):
                 ("core", "custom_symbolization"),
                 ("catalog", "maintain_dataresource"),
                 ("raster", "manage_raster_dataset"),
-                ("raster", "manage_raster_cache"),
             ],
             system_admin: [
                 ("core", "access_admin"),
@@ -61,7 +60,6 @@ class Command(BaseCommand):
                 ("catalog", "export_dataresource"),
                 ("catalog", "maintain_dataresource"),
                 ("raster", "manage_raster_dataset"),
-                ("raster", "manage_raster_cache"),
             ],
         }
         for group, specs in permission_sets.items():

@@ -5,7 +5,7 @@
 - 前端和后端必须分离：`frontend/` 只放 React/Vite 工程，`backend/` 只放 Django 工程。
 - 程序代码、业务数据、地理数据分离存放。业务数据根目录和地理数据根目录只从 TOML 配置读取。
 - 业务数据固定子目录：`database/`、`media/`、`uploads/`、`exports/`、`logs/`、`static/`。
-- 地理数据固定子目录：`vector/`、`raster/original/`、`raster/preprocessed/`、`raster/metadata/source/`、`raster/metadata/preprocessed/`、`raster/png/output/`、`raster/png/cache/`。
+- 地理数据固定子目录：`vector/`、`raster/original/`、`raster/preprocessed/`、`raster/metadata/source/`、`raster/metadata/preprocessed/`。
 - 当前本机业务数据根目录为 `/Users/gx/Documents/Source/huyang_system_data/appdata`，通过 TOML 的 `storage.business_data_root` 指定，不在程序中硬编码。
 - 当前本机地理数据根目录为 `/Users/gx/Documents/Source/huyang_system_data/geodata`，通过 TOML 的 `storage.geographic_data_root` 指定，不在程序中硬编码。
 
@@ -25,9 +25,9 @@ backend/apps/
 │   ├── data_query.py   # 矢量 GeoPackage 查询（GeoPandas + Shapely）
 │   └── views.py        # 目录、资源、图层、成果、搜索 HTTP API
 ├── raster/         # 栅格数据全生命周期
-│   ├── models.py       # RasterDataset, RasterCacheRecord
-│   ├── permissions.py  # can_manage_raster_data, can_manage_raster_cache
-│   ├── views.py        # 栅格 HTTP API（导入/渲染/瓦片/缓存）
+│   ├── models.py       # RasterDataset
+│   ├── permissions.py  # can_manage_raster_data
+│   ├── views.py        # 栅格 HTTP API（导入/渲染/瓦片）
 │   └── services/       # 核心业务逻辑（拆分后的包）
 │       ├── __init__.py         # 公共 API 重新导出，外部调用方零修改
 │       ├── exceptions.py       # RasterRenderError, RasterImportError, RasterJobError
@@ -36,13 +36,12 @@ backend/apps/
 │       ├── geo_utils.py        # 坐标/边界/瓦片计算
 │       ├── color_mapping.py    # numpy → RGBA 色彩映射
 │       ├── rules_engine.py     # 符号化规则归一化与校验
-│       ├── gdal_ops.py         # GDAL CLI 封装（gdalinfo, gdalwarp, gdal_translate）
+│       ├── gdal_ops.py         # GDAL CLI 封装（gdalinfo, gdalwarp）
 │       ├── catalog_sync.py     # DataResource/MapLayer upsert
 │       ├── serializers.py      # RasterDataset 序列化、元数据压缩
-│       ├── cache.py            # PNG 缓存清理（LRU/oldest/largest 策略）
 │       ├── profile.py          # 栅格资源 profile 查询（供 catalog.data_query 调用）
 │       ├── importer.py         # 文件导入、预处理、扫描、数据集查找
-│       ├── renderer.py         # PNG/XYZ 渲染、瓦片样式注册
+│       ├── renderer.py         # XYZ 瓦片渲染、瓦片样式注册
 │       └── jobs.py             # 异步任务系统（线程池、进度轮询）
 └── audit/          # 操作日志
     ├── models.py       # OperationLog
@@ -65,7 +64,6 @@ backend/apps/
 - 栅格数据统一放在地理数据根目录的 `raster/` 总目录下：源文件放在 `raster/original/`，导入后预处理 COG 放在 `raster/preprocessed/`，两份 `gdalinfo -json` 元数据放在 `raster/metadata/source/` 和 `raster/metadata/preprocessed/`。
 - 栅格导入预处理固定使用 `gdalwarp -t_srs EPSG:3857 -r nearest -co COMPRESS=DEFLATE -of COG "$in" "$out"`，导入记录保存源文件、预处理文件、两份 GDAL 元数据、导入时间、处理日志、错误信息、默认符号化规则、范围和关联数据资源/地图图层。
 - 后端启动 `runserver` 或 WSGI/ASGI 进程时会异步扫描 `raster/original/` 下未完成预处理的栅格源文件；迁移、测试等管理命令不触发扫描。可用 `HUYANG_DISABLE_RASTER_STARTUP_SCAN=1` 显式关闭。
-- PNG 缓存放在 `raster/png/cache/` 下，缓存 key 基于预处理 COG 文件、mtime、符号化规则和输出尺寸。
 
 ## 统一功能权限
 
@@ -73,9 +71,9 @@ backend/apps/
 - `apps.core.permissions.FEATURE_PERMISSIONS` 是统一注册表；后台用户组配置页只同步注册表内权限，保留用户组已有其他模型权限。
 - 数据资源和图层的 `access_groups` 继续控制“能看见哪些对象”；功能权限控制“能对可见对象做什么”。
 - 首批平台功能权限包括：后台入口、功能权限配置、数据浏览、数据查询、矢量加载、栅格加载、自定义符号化。
-- 现有导出、数据维护、栅格数据集管理、栅格缓存管理权限也纳入同一用户组配置入口。
+- 现有导出、数据维护、栅格数据集管理权限也纳入同一用户组配置入口。
 - 前后端无权限提示统一为 `当前用户组“xxxx”无权限`；无用户组时显示 `未分组`。
-- `core.load_raster_layer` 控制按默认规则加载栅格和访问 PNG/XYZ；`core.custom_symbolization` 只控制用户打开符号化编辑器并提交自定义规则。
+- `core.load_raster_layer` 控制按默认规则加载栅格和访问 XYZ；`core.custom_symbolization` 只控制用户打开符号化编辑器并提交自定义规则。
 - 栅格渲染 API 使用 `rulesMode` 区分默认/自定义：默认加载不传 `rules` 或传 `rulesMode: "default"`；自定义符号化传 `rulesMode: "custom"` 和 `rules`。
 
 ## 前端模块结构
@@ -126,7 +124,7 @@ frontend/src/
 - 统一登录页不展示独立后台入口。
 - 登录后进入地图工作台，包含顶部栏、地图、数据管理面板和已加载图层面板。
 - 后台入口始终作为工作台功能呈现；无权限时禁用并显示用户组无权限提示，入口指向 Django admin。
-- 前端仅做矢量样式表达和 PNG 叠加，不实现栅格符号化。
+- 前端仅做矢量样式表达和 XYZ 瓦片叠加，不实现栅格符号化。
 - Mapbox 公共 token 从 TOML 的 `map.mapbox_access_token` 读取，经后端 bootstrap 下发；前端不硬编码默认 token。
 - Mapbox 底图标注语言使用 `zh-Hans`，并在样式加载后优先读取中文名称字段。
 
@@ -145,7 +143,7 @@ frontend/src/
 
 - 每次"查询数据 -> 加载到图层"都会生成一个独立图层组，用于保留本次查询的时间、条件结果和元数据上下文。
 - 矢量数据查询结果来自统一 GeoJSON 数据源，正常情况下每个图层组下只有一个矢量子图层。
-- 栅格数据在前端状态模型中作为图层组下的栅格子图层加载，子图层可持有 `pngUrl`、`tileUrl`、Mapbox 图片角点、透明度、元数据和符号化配置；栅格符号化仍由后端完成。
+- 栅格数据在前端状态模型中作为图层组下的栅格子图层加载，子图层持有 `tileUrl`、Mapbox 图片角点、透明度、元数据和符号化配置；栅格符号化仍由后端完成。
 - 图层组和子图层均保留独立显隐、元数据按钮和符号化面板入口；透明度在符号化面板内配置。
 - 元数据展示使用临时弹出小卡片，不占用地图常驻布局。
 
@@ -160,12 +158,14 @@ frontend/src/
 
 ## 栅格符号化与加载方案
 
-- 栅格符号化规则支持四种模式：单波段灰度（可拉伸）、任意三波段 RGB 组合（可逐波段拉伸）、单波段伪彩色、单波段唯一值渲染。
-- 默认规则按波段数生成：1 波段使用灰度；2 波段使用 `[1, 2, 2]` 映射到 RGB；3 个及以上波段使用 `[1, 2, 3]` 映射到 RGB；默认都启用 min/max 拉伸。若处理后 COG 的 `gdalinfo -json` 缺少统计值，默认规则回退使用源文件 `gdalinfo -json` 中的统计值。
-- 整图加载时，后端使用 `gdal_translate` 选择波段、按规则拉伸到 Byte 并输出 PNG；伪彩色和唯一值模式先由 `gdal_translate` 生成归一化临时 PNG，再在后端应用色带或唯一值色表，最终 PNG 仍写入缓存目录。
-- XYZ 加载时，前端先提交符号化规则，后端按 `(预处理 COG + 规则)` 生成内存样式哈希，瓦片接口 `/api/raster/tiles/{datasetId}/{styleHash}/{z}/{x}/{y}.png` 使用 Rasterio windowed read 直接从 COG 读取 256x256 窗口并实时应用同一套规则。
-- 整图 PNG 返回 `pngUrl` 和 Mapbox image source 所需的四角经纬度；XYZ 返回 tile URL 模板。两种方式都返回 EPSG:3857 范围、WGS84 范围、样式哈希和实际规则。
-- 导入和符号化均通过异步任务接口返回进度。`gdalwarp`/`gdal_translate` 的命令行输出会写入任务消息，前端在图层树中显示进度条和最近消息。
+- 栅格符号化规则支持四种模式：单波段灰度（可拉伸）、任意三波段 RGB 组合（可逐波段拉伸并可指定 A 透明度 mask）、单波段伪彩色、单波段唯一值渲染。
+- 默认规则按波段数生成：1 波段使用灰度；2 波段使用 `[1, 2, 2]` 映射到 RGB；3 个及以上波段使用 `[1, 2, 3]` 映射到 RGB；默认都启用 min/max 拉伸和 nodata。若处理后 COG 的 `gdalinfo -json` 缺少统计值，默认规则回退使用源文件 `gdalinfo -json` 中的统计值。
+- 唯一值不在导入或默认规则阶段预统计。用户在符号化面板选择整型波段后点击“分类”，后端通过 rasterio 按 block window 逐块读取，使用 `np.unique` 合并唯一值集合，不统计数量频次；浮点波段直接拒绝唯一值分类。当前单次分类最多返回 4096 个唯一值，超过说明该波段不适合唯一值渲染。
+- RGB 模式支持 A 透明度来源：默认使用 `mask`，也可选择具体整型波段或关闭。XYZ 瓦片通过 Rasterio masked read 处理 nodata，若 A 选择具体波段则同步读取该波段作为 alpha。
+- 栅格只支持 XYZ 加载。前端提交符号化规则后，后端按 `(预处理 COG + 规则)` 生成内存样式哈希，瓦片接口 `/api/raster/tiles/{datasetId}/{styleHash}/{z}/{x}/{y}.png` 使用 Rasterio windowed read 直接从 COG 读取 256x256 窗口并实时应用同一套规则。
+- XYZ 返回 tile URL 模板、EPSG:3857 范围、WGS84 范围、样式哈希和实际规则。
+- 导入和符号化均通过异步任务接口返回进度。`gdalwarp` 的命令行输出会写入任务消息，前端在图层树中显示进度条和最近消息。
+- 栅格符号化面板支持复制完整 JSON 方案，内容包含 `opacity`、`mode`、`bands`、`alphaBand`、`nodata`、`stretch`、`palette` 和 `uniqueValues`。后台可在 `RasterDataset.default_rules` 或关联 `MapLayer.raster_rules` 中为不同数据配置默认方案；普通用户无自定义符号化权限时仍可按默认 XYZ 方案完整加载。
 
 ## 后端测试
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from apps.raster.models import RasterDataset
-from apps.raster.services.rules_engine import band_min_max
+from apps.raster.services.rules_engine import band_min_max, is_integer_band
 
 
 def serialize_raster_dataset(dataset: RasterDataset) -> dict[str, Any]:
@@ -22,7 +22,7 @@ def serialize_raster_dataset(dataset: RasterDataset) -> dict[str, Any]:
         "bounds3857": dataset.bounds_3857,
         "bounds4326": dataset.bounds_4326,
         "imageCoordinates": dataset.image_coordinates,
-        "defaultRules": dataset.default_rules,
+        "defaultRules": dataset.map_layer.raster_rules if dataset.map_layer_id and dataset.map_layer.raster_rules else dataset.default_rules,
         "sourceFileSize": dataset.source_file_size,
         "processedFileSize": dataset.processed_file_size,
         "progressLog": dataset.progress_log,
@@ -45,6 +45,7 @@ def compact_raster_metadata(metadata: dict[str, Any], fallback_metadata: dict[st
                 "colorInterpretation": band.get("colorInterpretation", ""),
                 "min": band_min_max(metadata, band_number, fallback_metadata)[0],
                 "max": band_min_max(metadata, band_number, fallback_metadata)[1],
+                "isInteger": is_integer_band(metadata, band_number),
             }
         )
     return {
@@ -54,25 +55,3 @@ def compact_raster_metadata(metadata: dict[str, Any], fallback_metadata: dict[st
         "bands": bands,
     }
 
-
-def render_result(dataset: RasterDataset, record: Any, rules: dict[str, Any]) -> dict[str, Any]:
-    from apps.raster.services.geo_utils import style_hash_for
-    from apps.core.storage import raster_processed_path
-
-    raster_path = raster_processed_path(dataset.processed_relative_path)
-    return {
-        "delivery": "image",
-        "datasetId": dataset.id,
-        "layerId": dataset.map_layer_id,
-        "cacheKey": record.cache_key,
-        "styleHash": style_hash_for(raster_path, rules),
-        "pngUrl": f"/api/raster/png/{record.cache_key}.png",
-        "fileSize": record.file_size,
-        "width": record.output_width,
-        "height": record.output_height,
-        "status": record.status,
-        "bounds3857": dataset.bounds_3857,
-        "bounds4326": dataset.bounds_4326,
-        "imageCoordinates": dataset.image_coordinates,
-        "rules": rules,
-    }

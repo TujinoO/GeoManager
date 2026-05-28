@@ -66,7 +66,6 @@ def serialize_user(user):
         "canUseCustomSymbolization": has_feature_perm(user, "core.custom_symbolization"),
         "canExportData": user.has_perm("catalog.export_dataresource") or user.is_superuser,
         "canMaintainData": user.has_perm("catalog.maintain_dataresource") or user.is_superuser,
-        "canManageRasterCache": user.has_perm("raster.manage_raster_cache") or user.is_superuser,
         "canManageRasterData": user.has_perm("raster.manage_raster_dataset")
         or user.has_perm("catalog.maintain_dataresource")
         or user.is_superuser,

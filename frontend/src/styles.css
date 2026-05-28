@@ -600,6 +600,12 @@ body {
   margin: 6px 0 !important;
 }
 
+.symbolization-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
 .feature-popup {
   min-width: 220px;
   max-width: 340px;

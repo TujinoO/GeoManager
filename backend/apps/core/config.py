@@ -15,10 +15,7 @@ GEOGRAPHIC_SUBDIRS = (
     "raster/preprocessed",
     "raster/metadata/source",
     "raster/metadata/preprocessed",
-    "raster/png/output",
-    "raster/png/cache",
 )
-CACHE_POLICIES = {"least_recently_used", "oldest_created", "largest_file"}
 
 
 class ConfigValidationError(RuntimeError):
@@ -41,8 +38,6 @@ class LimitConfig:
 
 @dataclass(frozen=True)
 class RasterConfig:
-    png_cache_max_mb: int
-    cache_cleanup_policy: str
     symbolizer_timeout_seconds: int
     default_symbolizer_script: str
 
@@ -108,8 +103,6 @@ def load_project_config(config_path: Path, program_root: Path) -> ProjectConfig:
             query_result_limit=_positive_int(limits.get("query_result_limit"), "limits.query_result_limit"),
         ),
         raster=RasterConfig(
-            png_cache_max_mb=_positive_int(raster.get("png_cache_max_mb"), "raster.png_cache_max_mb"),
-            cache_cleanup_policy=_cache_policy(raster.get("cache_cleanup_policy")),
             symbolizer_timeout_seconds=_positive_int(
                 raster.get("symbolizer_timeout_seconds"),
                 "raster.symbolizer_timeout_seconds",
@@ -159,13 +152,6 @@ def _center(value: Any) -> tuple[float, float]:
     if not -180 <= lon <= 180 or not -90 <= lat <= 90:
         raise ConfigValidationError("配置项 map.default_center 超出经纬度范围")
     return lon, lat
-
-
-def _cache_policy(value: Any) -> str:
-    policy = _string(value, "raster.cache_cleanup_policy")
-    if policy not in CACHE_POLICIES:
-        raise ConfigValidationError(f"缓存清理策略必须是：{', '.join(sorted(CACHE_POLICIES))}")
-    return policy
 
 
 def _mapbox_token(value: Any) -> str:

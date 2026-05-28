@@ -8,6 +8,7 @@ import type {
   MapLayer,
   RasterJob,
   RasterRenderResult,
+  RasterUniqueValuesResult,
   ResourceFilters,
   ResourceQueryPayload,
   ResourceQueryResult,
@@ -126,8 +127,6 @@ export const api = {
   search: (query: string) => request<SearchResult>(`/api/search/?q=${encodeURIComponent(query)}`),
   renderRaster: (
     layerId: number,
-    width: number,
-    height: number,
     rulesMode: 'default' | 'custom' = 'default',
     rules?: Record<string, unknown>,
   ) =>
@@ -135,30 +134,30 @@ export const api = {
       '/api/raster/render/',
       {
         method: 'POST',
-        body: JSON.stringify({ layerId, width, height, rulesMode, rules }),
+        body: JSON.stringify({ layerId, rulesMode, rules }),
       },
     ),
   renderRasterAsync: (payload: {
     layerId?: number | null;
     datasetId?: number | null;
-    width: number;
-    height: number;
     rules?: Record<string, unknown>;
     rulesMode?: 'default' | 'custom';
-    delivery: 'image' | 'xyz';
   }) =>
     request<RasterJob>('/api/raster/render/async/', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
   rasterJob: (jobId: string) => request<RasterJob>(`/api/raster/jobs/${jobId}/`),
+  classifyRasterUniqueValues: (datasetId: number, band: number) =>
+    request<RasterUniqueValuesResult>('/api/raster/unique-values/', {
+      method: 'POST',
+      body: JSON.stringify({ datasetId, band }),
+    }),
   scanRasterSources: () =>
     request<RasterJob>('/api/raster/scan/', {
       method: 'POST',
       body: JSON.stringify({}),
     }),
-  rasterCacheStatus: () =>
-    request<{ count: number; readyCount: number; failedCount: number; totalBytes: number }>('/api/raster/cache/status/'),
 };
 
 function toQueryString(filters: ResourceFilters) {

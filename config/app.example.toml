@@ -19,7 +19,5 @@ upload_max_mb = 512
 query_result_limit = 30000
 
 [raster]
-png_cache_max_mb = 512
-cache_cleanup_policy = "least_recently_used"
 symbolizer_timeout_seconds = 120
 default_symbolizer_script = "scripts/raster_symbolizers/basic_gradient.py"

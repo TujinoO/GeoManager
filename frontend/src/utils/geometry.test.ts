@@ -100,13 +100,13 @@ describe('sourceIdFor', () => {
 
 describe('rasterSourceKey', () => {
   it('returns JSON string', () => {
-    const key = rasterSourceKey({ pngUrl: 'a.png', tileUrl: undefined, imageCoordinates: undefined });
+    const key = rasterSourceKey({ tileUrl: 'a/{z}/{x}/{y}.png' });
     expect(() => JSON.parse(key)).not.toThrow();
   });
 
   it('differs for different urls', () => {
-    const k1 = rasterSourceKey({ pngUrl: 'a.png' });
-    const k2 = rasterSourceKey({ pngUrl: 'b.png' });
+    const k1 = rasterSourceKey({ tileUrl: 'a/{z}/{x}/{y}.png' });
+    const k2 = rasterSourceKey({ tileUrl: 'b/{z}/{x}/{y}.png' });
     expect(k1).not.toBe(k2);
   });
 });

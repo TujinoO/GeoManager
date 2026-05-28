@@ -16,9 +16,6 @@ export function addRasterLayer(map: mapboxgl.Map, sourceId: string, layer: Loade
     removeLoadedLayerGroup(map, sourceId);
     if (layer.tileUrl) {
       map.addSource(sourceId, { type: 'raster', tiles: [layer.tileUrl], tileSize: 256 });
-    } else if (layer.pngUrl && layer.imageCoordinates?.length === 4) {
-      const coordinates = layer.imageCoordinates as [[number, number], [number, number], [number, number], [number, number]];
-      map.addSource(sourceId, { type: 'image', url: layer.pngUrl, coordinates });
     }
     state.rasterSourceKeys.set(sourceId, key);
   }

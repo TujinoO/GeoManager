@@ -33,7 +33,6 @@ export interface User {
     canUseCustomSymbolization: boolean;
     canExportData: boolean;
     canMaintainData: boolean;
-    canManageRasterCache: boolean;
     canManageRasterData: boolean;
   };
 }
@@ -88,6 +87,7 @@ export interface RasterBandMetadata {
   colorInterpretation: string;
   min: number;
   max: number;
+  isInteger: boolean;
 }
 
 export interface RasterDatasetProfile {
@@ -178,7 +178,6 @@ export interface LoadedRasterLayer {
   name: string;
   layerType: 'raster';
   sourceResource: DataResource;
-  pngUrl?: string;
   tileUrl?: string;
   imageCoordinates?: Array<[number, number]>;
   rasterDatasetId?: number;
@@ -247,27 +246,31 @@ export interface MapLayer {
   symbolization: Record<string, string | number | boolean>;
   bounds: number[];
   legend: string;
-  rasterRules: Record<string, string | number | boolean>;
+  rasterRules: Record<string, unknown>;
   isActive: boolean;
   updatedAt: string;
 }
 
 export interface RasterRenderResult {
-  delivery: 'image' | 'xyz';
+  delivery: 'xyz';
   datasetId: number;
   layerId: number | null;
-  cacheKey?: string;
   styleHash: string;
-  pngUrl?: string;
   tileUrl?: string;
-  fileSize?: number;
-  width?: number;
-  height?: number;
   status: string;
   bounds3857: number[];
   bounds4326: number[];
   imageCoordinates: Array<[number, number]>;
   rules: Partial<RasterSymbolization>;
+}
+
+export interface RasterUniqueValuesResult {
+  band: number;
+  items: Array<{
+    value: number;
+    color: string;
+    label: string;
+  }>;
 }
 
 export interface RasterJob {

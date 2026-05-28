@@ -2,11 +2,13 @@ from django.test import SimpleTestCase
 
 from apps.raster.services.rules_engine import (
     band_min_max,
+    is_integer_band,
     default_raster_rules,
     normalize_rules,
     normalize_stretch_bands,
     normalize_unique_values,
     output_source_bands,
+    read_source_bands,
     stretch_min_max,
 )
 from apps.raster.services.exceptions import RasterRenderError
@@ -54,6 +56,7 @@ class DefaultRasterRulesTests(SimpleTestCase):
         rules = default_raster_rules(_single_band_metadata())
         self.assertEqual(rules["mode"], "gray")
         self.assertEqual(rules["bands"], [1])
+        self.assertEqual(rules["uniqueValues"], [])
 
     def test_three_bands_produces_rgb_mode(self):
         rules = default_raster_rules(_three_band_metadata())
@@ -81,10 +84,17 @@ class NormalizeRulesTests(SimpleTestCase):
         rules = normalize_rules({"mode": "rgb", "bands": [1]}, _three_band_metadata())
         self.assertEqual(len(rules["bands"]), 3)
 
+    def test_normalizes_alpha_and_nodata(self):
+        rules = normalize_rules({"mode": "rgb", "alphaBand": 99, "nodata": {"enabled": False}}, _three_band_metadata())
+        self.assertEqual(rules["alphaBand"], 3)
+        self.assertFalse(rules["nodata"]["enabled"])
+
 
 class OutputSourceBandsTests(SimpleTestCase):
     def test_rgb_returns_three_bands(self):
-        self.assertEqual(output_source_bands({"mode": "rgb", "bands": [1, 2, 3]}), [1, 2, 3])
+        rules = {"mode": "rgb", "bands": [1, 2, 3], "alphaBand": 4}
+        self.assertEqual(output_source_bands(rules), [1, 2, 3])
+        self.assertEqual(read_source_bands(rules), [1, 2, 3, 4])
 
     def test_gray_returns_single_band(self):
         self.assertEqual(output_source_bands({"mode": "gray", "bands": [2]}), [2])
@@ -117,10 +127,18 @@ class NormalizeStretchBandsTests(SimpleTestCase):
 class NormalizeUniqueValuesTests(SimpleTestCase):
     def test_returns_default_for_empty_input(self):
         result = normalize_unique_values(None, _single_band_metadata(0, 5))
-        self.assertEqual(len(result), 6)
+        self.assertEqual(result, [])
 
     def test_normalizes_provided_values(self):
         raw = [{"value": 1, "color": "#ff0000", "label": "A"}]
         result = normalize_unique_values(raw, _single_band_metadata())
         self.assertEqual(result[0]["value"], 1)
         self.assertEqual(result[0]["color"], "#ff0000")
+
+
+class IntegerBandTests(SimpleTestCase):
+    def test_detects_integer_band(self):
+        self.assertTrue(is_integer_band({"bands": [{"band": 1, "type": "UInt16"}]}, 1))
+
+    def test_rejects_float_band(self):
+        self.assertFalse(is_integer_band({"bands": [{"band": 1, "type": "Float32"}]}, 1))

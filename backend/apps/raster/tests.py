@@ -18,7 +18,7 @@ class RasterPermissionApiTests(TestCase):
     def test_render_async_requires_raster_load_permission(self):
         response = self.client.post(
             "/api/raster/render/async/",
-            data={"datasetId": 1, "rulesMode": "default", "delivery": "image", "width": 512, "height": 512},
+            data={"datasetId": 1, "rulesMode": "default"},
             content_type="application/json",
         )
 
@@ -30,7 +30,7 @@ class RasterPermissionApiTests(TestCase):
 
         response = self.client.post(
             "/api/raster/render/async/",
-            data={"datasetId": 1, "rulesMode": "default", "delivery": "image", "width": 512, "height": 512},
+            data={"datasetId": 1, "rulesMode": "default"},
             content_type="application/json",
         )
 
@@ -46,9 +46,6 @@ class RasterPermissionApiTests(TestCase):
                 "datasetId": 1,
                 "rulesMode": "custom",
                 "rules": {"mode": "gray"},
-                "delivery": "image",
-                "width": 512,
-                "height": 512,
             },
             content_type="application/json",
         )
@@ -105,8 +102,6 @@ upload_max_mb = 512
 query_result_limit = 30000
 
 [raster]
-png_cache_max_mb = 512
-cache_cleanup_policy = "least_recently_used"
 symbolizer_timeout_seconds = 120
 default_symbolizer_script = "scripts/raster_symbolizers/basic_gradient.py"
 """,

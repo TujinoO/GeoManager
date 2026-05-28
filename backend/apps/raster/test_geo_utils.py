@@ -3,7 +3,6 @@ from django.test import SimpleTestCase
 from apps.raster.services.geo_utils import (
     bounds_4326_from_gdalinfo,
     bounds_from_gdalinfo,
-    cache_key_for,
     image_coordinates_from_gdalinfo,
     intersects_bounds,
     style_hash_for,
@@ -90,31 +89,8 @@ class TransparentPngTests(SimpleTestCase):
         self.assertTrue(data[:4] == b"\x89PNG")
 
 
-class CacheKeyTests(SimpleTestCase):
-    def test_same_input_same_key(self):
-        import tempfile
-        from pathlib import Path
-
-        with tempfile.NamedTemporaryFile(suffix=".tif") as f:
-            path = Path(f.name)
-            path.write_bytes(b"test")
-            rules = {"mode": "gray"}
-            key1 = cache_key_for(path, 100, 100, rules)
-            key2 = cache_key_for(path, 100, 100, rules)
-            self.assertEqual(key1, key2)
-
-    def test_different_rules_different_key(self):
-        import tempfile
-        from pathlib import Path
-
-        with tempfile.NamedTemporaryFile(suffix=".tif") as f:
-            path = Path(f.name)
-            path.write_bytes(b"test")
-            key1 = cache_key_for(path, 100, 100, {"mode": "gray"})
-            key2 = cache_key_for(path, 100, 100, {"mode": "rgb"})
-            self.assertNotEqual(key1, key2)
-
-    def test_style_hash_is_shorter_than_cache_key(self):
+class StyleHashTests(SimpleTestCase):
+    def test_style_hash_length_is_bounded(self):
         import tempfile
         from pathlib import Path
 

@@ -10,7 +10,3 @@ def can_manage_raster_data(user: AbstractBaseUser) -> bool:
         has_feature_perm(user, "raster.manage_raster_dataset")
         or has_feature_perm(user, "catalog.maintain_dataresource")
     )
-
-
-def can_manage_raster_cache(user: AbstractBaseUser) -> bool:
-    return has_feature_perm(user, "raster.manage_raster_cache")
