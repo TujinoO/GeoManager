@@ -20,6 +20,74 @@ export function useRasterRender(
     mapInstanceRef.current = map;
   }, []);
 
+  const applyResult = useCallback(
+    (groupId: string, layerId: string, result: RasterRenderResult) => {
+      updateLayer(groupId, layerId, (current) => {
+        return {
+          ...current,
+          tileUrl: result.tileUrl,
+          imageCoordinates: result.imageCoordinates,
+          summary: "XYZ 瓦片已就绪",
+          renderStatus: "ready",
+          renderProgress: 100,
+          symbolization: {
+            ...rasterSymbolizationFromRules(result.rules),
+            opacity: current.symbolization.opacity,
+          },
+          metadata: {
+            ...current.metadata,
+            加载方式: "XYZ 瓦片",
+            样式哈希: result.styleHash,
+          },
+        };
+      });
+    },
+    [updateLayer],
+  );
+
+  const pollJob = useCallback(
+    async (jobId: string, groupId: string, layerId: string) => {
+      for (;;) {
+        await delay(900);
+        try {
+          const job = await api.rasterJob(jobId);
+          updateLayer(groupId, layerId, (current) => ({
+            ...current,
+            renderStatus: job.status,
+            renderProgress: job.progressPercent,
+            renderMessages: job.messages,
+          }));
+          if (job.status === "ready" && job.result) {
+            applyResult(groupId, layerId, job.result as RasterRenderResult);
+            return;
+          }
+          if (job.status === "failed") {
+            updateLayer(groupId, layerId, (current) => ({
+              ...current,
+              summary: "符号化失败",
+              renderStatus: "failed",
+              renderMessages:
+                job.messages.length > 0 ? job.messages : [job.error],
+            }));
+            message.error(job.error || "栅格符号化失败");
+            return;
+          }
+        } catch (error) {
+          updateLayer(groupId, layerId, (current) => ({
+            ...current,
+            summary: "进度查询失败",
+            renderStatus: "failed",
+            renderMessages: [
+              error instanceof Error ? error.message : "进度查询失败",
+            ],
+          }));
+          return;
+        }
+      }
+    },
+    [message, updateLayer, applyResult],
+  );
+
   const startRasterRender = useCallback(
     async (
       groupId: string,
@@ -66,75 +134,7 @@ export function useRasterRender(
         message.error(error instanceof Error ? error.message : "符号化失败");
       }
     },
-    [message, updateLayer],
-  );
-
-  const pollJob = useCallback(
-    async (jobId: string, groupId: string, layerId: string) => {
-      for (;;) {
-        await delay(900);
-        try {
-          const job = await api.rasterJob(jobId);
-          updateLayer(groupId, layerId, (current) => ({
-            ...current,
-            renderStatus: job.status,
-            renderProgress: job.progressPercent,
-            renderMessages: job.messages,
-          }));
-          if (job.status === "ready" && job.result) {
-            applyResult(groupId, layerId, job.result as RasterRenderResult);
-            return;
-          }
-          if (job.status === "failed") {
-            updateLayer(groupId, layerId, (current) => ({
-              ...current,
-              summary: "符号化失败",
-              renderStatus: "failed",
-              renderMessages:
-                job.messages.length > 0 ? job.messages : [job.error],
-            }));
-            message.error(job.error || "栅格符号化失败");
-            return;
-          }
-        } catch (error) {
-          updateLayer(groupId, layerId, (current) => ({
-            ...current,
-            summary: "进度查询失败",
-            renderStatus: "failed",
-            renderMessages: [
-              error instanceof Error ? error.message : "进度查询失败",
-            ],
-          }));
-          return;
-        }
-      }
-    },
-    [message, updateLayer],
-  );
-
-  const applyResult = useCallback(
-    (groupId: string, layerId: string, result: RasterRenderResult) => {
-      updateLayer(groupId, layerId, (current) => {
-        return {
-          ...current,
-          tileUrl: result.tileUrl,
-          imageCoordinates: result.imageCoordinates,
-          summary: "XYZ 瓦片已就绪",
-          renderStatus: "ready",
-          renderProgress: 100,
-          symbolization: {
-            ...rasterSymbolizationFromRules(result.rules),
-            opacity: current.symbolization.opacity,
-          },
-          metadata: {
-            ...current.metadata,
-            加载方式: "XYZ 瓦片",
-            样式哈希: result.styleHash,
-          },
-        };
-      });
-    },
-    [updateLayer],
+    [message, updateLayer, pollJob],
   );
 
   return { startRasterRender, setMapInstance };

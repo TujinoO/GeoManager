@@ -4,7 +4,8 @@ Central Asia Poplar Forest Ecosystem Protection Data Sharing Platform (中亚胡
 
 ## Attention
 
-Summarise the details into a document for reference during the coding process
+- Summarise the details into a document for reference during the coding process
+- format code before commiting git. 
 
 ## Key reference
 
@@ -38,3 +39,24 @@ Summarise the details into a document for reference during the coding process
 
 - **Node.js**: Use `pnpm` as the package manager for frontend dependencies.
 - **Python**: Use `eval "$(mamba shell hook --shell zsh)" && mamba activate zyhy` to activate the Python environment before running any backend commands.
+
+## Format code
+
+### frontend
+refer to pnpm scripts:
+
+```
+"format": "biome format . --write",
+"lint": "biome lint .",
+"check": "biome check .",
+"fix": "biome check . --write"
+```
+
+### backend
+
+activate python and run `ruff format . --line-length=160`
+
+## Other instructions:
+
+- Avoid the use of the !important style.
+- Avoid using the index of an array as key property in an element.

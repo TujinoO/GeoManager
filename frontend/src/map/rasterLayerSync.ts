@@ -1,7 +1,6 @@
 import type mapboxgl from "mapbox-gl";
-import type { RasterSymbolization } from "../symbolization";
 import type { LoadedRasterLayer } from "../types";
-import { clamp, rasterSourceKey, sourceIdFor } from "../utils/geometry";
+import { clamp, rasterSourceKey } from "../utils/geometry";
 import { getMapState } from "./mapState";
 import { upsertLayer } from "./styleHelpers";
 import { removeLoadedLayerGroup } from "./vectorLayerSync";

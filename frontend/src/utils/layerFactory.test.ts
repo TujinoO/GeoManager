@@ -154,7 +154,7 @@ describe("createRasterLayerGroup", () => {
       makeProfile({ raster: rasterProfile }),
     );
     expect(group).not.toBeNull();
-    expect(group!.children).toHaveLength(1);
-    expect(group!.children[0].layerType).toBe("raster");
+    expect(group?.children).toHaveLength(1);
+    expect(group?.children[0].layerType).toBe("raster");
   });
 });

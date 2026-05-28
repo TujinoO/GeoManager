@@ -1059,18 +1059,22 @@ export function RasterSymbolizationEditor({
                     }
                   />
                 </ControlRow>
-                {selectedBands.map((band, index) => (
+                {selectedBands.map((band) => (
                   <ControlRow
-                    key={`${index}-${band}`}
+                    key={band}
                     label={
-                      value.mode === "rgb" ? ["R", "G", "B"][index] : "波段"
+                      value.mode === "rgb"
+                        ? ["R", "G", "B"][selectedBands.indexOf(band)]
+                        : "波段"
                     }
                   >
                     <Select
                       className="full-width"
                       value={band}
                       options={bandOptions}
-                      onChange={(nextBand) => updateBand(index, nextBand)}
+                      onChange={(nextBand) =>
+                        updateBand(selectedBands.indexOf(band), nextBand)
+                      }
                     />
                   </ControlRow>
                 ))}
@@ -1204,16 +1208,19 @@ export function RasterSymbolizationEditor({
                     选择整型波段后点击分类，即时计算唯一值。
                   </Typography.Text>
                 )}
-                {value.uniqueValues.map((item, index) => (
+                {value.uniqueValues.map((item) => (
                   <ControlRow
-                    key={`${item.value}-${index}`}
+                    key={item.value}
                     label={item.label || String(item.value)}
                   >
                     <ColorPicker
                       value={item.color}
                       showText
                       onChangeComplete={(color) =>
-                        updateUniqueColor(index, color.toHexString())
+                        updateUniqueColor(
+                          value.uniqueValues.indexOf(item),
+                          color.toHexString(),
+                        )
                       }
                     />
                   </ControlRow>
@@ -1272,10 +1279,10 @@ function ControlRow({
   children: ReactNode;
 }) {
   return (
-    <label className="symbolization-control-row">
+    <div className="symbolization-control-row">
       <span>{label}</span>
       <div>{children}</div>
-    </label>
+    </div>
   );
 }
 

@@ -224,6 +224,7 @@ export default function LayerPanel() {
                 key={group.id}
                 className={`layer-group-shell${draggingGroupId === group.id ? " is-dragging" : ""}${dropClass}`}
                 role="treeitem"
+                tabIndex={0}
                 aria-expanded={expanded}
                 onDragOver={(event) => handleDragOver(event, group.id)}
                 onDragLeave={() => setDragTarget(null)}
@@ -248,7 +249,7 @@ export default function LayerPanel() {
                   }
                 />
                 {expanded && (
-                  <div className="layer-children" role="group">
+                  <fieldset className="layer-children">
                     {group.children.map((layer) => (
                       <LayerItemNode
                         key={layer.id}
@@ -267,7 +268,7 @@ export default function LayerPanel() {
                         }
                       />
                     ))}
-                  </div>
+                  </fieldset>
                 )}
               </div>
             );
@@ -288,9 +289,10 @@ export default function LayerPanel() {
         onOk={confirmExport}
         onCancel={() => setExportTarget(null)}
       >
-        <label className="export-epsg-field">
+        <label className="export-epsg-field" htmlFor="export-epsg-input">
           <span>目标坐标系 EPSG</span>
           <InputNumber
+            id="export-epsg-input"
             className="full-width"
             min={1024}
             max={999999}
@@ -573,7 +575,11 @@ function NodeActions({
   }
 
   return (
-    <div className="icon-cluster" onClick={(event) => event.stopPropagation()}>
+    <button
+      type="button"
+      className="icon-cluster"
+      onClick={(event) => event.stopPropagation()}
+    >
       <Popover
         trigger="click"
         placement="leftTop"
@@ -671,7 +677,7 @@ function NodeActions({
           onClick={onRemove}
         />
       </Tooltip>
-    </div>
+    </button>
   );
 }
 

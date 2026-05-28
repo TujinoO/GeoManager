@@ -1,6 +1,5 @@
 import type mapboxgl from "mapbox-gl";
-import type { VectorSymbolization } from "../symbolization";
-import type { GeoJsonGeometry, LoadedLayer, LoadedVectorLayer } from "../types";
+import type { LoadedLayer, LoadedVectorLayer } from "../types";
 import { clamp, sourceIdFor } from "../utils/geometry";
 import { removeVectorInteraction } from "./featureInteraction";
 import { getMapState } from "./mapState";

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { LoadedLayerGroup } from "../types";
 import {
   boundsFromImageCoordinates,
   circleGeometry,
@@ -129,16 +130,16 @@ describe("reorderLayerGroups", () => {
     { id: "a", name: "A" },
     { id: "b", name: "B" },
     { id: "c", name: "C" },
-  ] as any[];
+  ] as LoadedLayerGroup[];
 
   it("moves group before target", () => {
     const result = reorderLayerGroups(groups, "c", "a", "before");
-    expect(result.map((g: any) => g.id)).toEqual(["c", "a", "b"]);
+    expect(result.map((g) => g.id)).toEqual(["c", "a", "b"]);
   });
 
   it("moves group after target", () => {
     const result = reorderLayerGroups(groups, "a", "c", "after");
-    expect(result.map((g: any) => g.id)).toEqual(["b", "c", "a"]);
+    expect(result.map((g) => g.id)).toEqual(["b", "c", "a"]);
   });
 
   it("returns same array if source not found", () => {
@@ -208,10 +209,10 @@ describe("combinedFeatureBounds", () => {
     };
     const bounds = combinedFeatureBounds([fc]);
     expect(bounds).not.toBeNull();
-    expect(bounds!.getWest()).toBe(10);
-    expect(bounds!.getEast()).toBe(30);
-    expect(bounds!.getSouth()).toBe(20);
-    expect(bounds!.getNorth()).toBe(40);
+    expect(bounds?.getWest()).toBe(10);
+    expect(bounds?.getEast()).toBe(30);
+    expect(bounds?.getSouth()).toBe(20);
+    expect(bounds?.getNorth()).toBe(40);
   });
 });
 
@@ -226,7 +227,7 @@ describe("boundsFromImageCoordinates", () => {
       [30, 40],
     ]);
     expect(bounds).not.toBeNull();
-    expect(bounds!.getWest()).toBe(10);
-    expect(bounds!.getEast()).toBe(30);
+    expect(bounds?.getWest()).toBe(10);
+    expect(bounds?.getEast()).toBe(30);
   });
 });

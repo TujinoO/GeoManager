@@ -90,22 +90,25 @@ export default function WorkspacePage({ bootstrap, user, onLogout }: Props) {
     [layerGroups.groups],
   );
 
+  const loadResources = useCallback(
+    async (filters: ResourceFilters) => {
+      try {
+        const response = await api.resources(filters);
+        setResources(response.items);
+      } catch (error) {
+        message.error(
+          error instanceof Error ? error.message : "数据资源加载失败",
+        );
+      }
+    },
+    [message],
+  );
+
   useEffect(() => {
     if (user.permissions.canBrowseData) {
       loadResources({});
     }
-  }, [user.permissions.canBrowseData]);
-
-  async function loadResources(filters: ResourceFilters) {
-    try {
-      const response = await api.resources(filters);
-      setResources(response.items);
-    } catch (error) {
-      message.error(
-        error instanceof Error ? error.message : "数据资源加载失败",
-      );
-    }
-  }
+  }, [user.permissions.canBrowseData, loadResources]);
 
   async function handleSelectResource(resource: DataResource) {
     setSelectedResource(resource);
@@ -272,11 +275,11 @@ export default function WorkspacePage({ bootstrap, user, onLogout }: Props) {
         .map((l) => l.geojson);
       const rasterBounds = targetGroup.children
         .filter((l) => l.layerType === "raster" && l.imageCoordinates?.length)
-        .map((l) =>
-          boundsFromImageCoordinates(
-            (l as import("../types").LoadedRasterLayer).imageCoordinates!,
-          ),
-        )
+        .map((l) => {
+          const coords = (l as import("../types").LoadedRasterLayer)
+            .imageCoordinates;
+          return coords ? boundsFromImageCoordinates(coords) : null;
+        })
         .filter(Boolean) as mapboxgl.LngLatBounds[];
       if (geojsons.length === 0 && rasterBounds.length === 0) {
         message.warning("该图层组没有可定位的数据");

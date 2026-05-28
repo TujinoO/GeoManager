@@ -1,7 +1,6 @@
 import mapboxgl from "mapbox-gl";
 import type { LoadedVectorLayer } from "../types";
 import { sourceIdFor } from "../utils/geometry";
-import type { FeatureStateTarget, VectorInteractionHandlers } from "./mapState";
 import { clearFeatureState, featureStateTarget, getMapState } from "./mapState";
 
 export function syncVectorInteractions(

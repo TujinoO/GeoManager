@@ -1,4 +1,4 @@
-import { App, Button, Tooltip } from "antd";
+import { Button, Tooltip } from "antd";
 import {
   Fullscreen,
   Home,
@@ -7,7 +7,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import mapboxgl, { type Map } from "mapbox-gl";
+import mapboxgl, { type Map as MapboxMap } from "mapbox-gl";
 import { useEffect, useRef } from "react";
 import { syncVectorInteractions } from "../map/featureInteraction";
 import { addRasterLayer } from "../map/rasterLayerSync";
@@ -45,7 +45,7 @@ interface Props {
   drawMode: DrawMode;
   spatialFilter: SpatialFilter | null;
   onSpatialFilterChange: (filter: SpatialFilter) => void;
-  onMapReady?: (map: Map) => void;
+  onMapReady?: (map: MapboxMap) => void;
   onMapDestroy?: () => void;
 }
 
@@ -58,7 +58,7 @@ export default function MapCanvas({
   onMapReady,
   onMapDestroy,
 }: Props) {
-  const mapRef = useRef<Map | null>(null);
+  const mapRef = useRef<MapboxMap | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapboxToken = bootstrap.map.mapboxAccessToken;
 
@@ -121,7 +121,7 @@ export default function MapCanvas({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map?.isStyleLoaded()) return;
     if (spatialFilter) {
       upsertPolygonLayer(
         map,
@@ -266,7 +266,7 @@ export default function MapCanvas({
   );
 }
 
-function syncLoadedLayers(map: Map, layers: LoadedLayer[]) {
+function syncLoadedLayers(map: MapboxMap, layers: LoadedLayer[]) {
   const renderableVectorLayers = layers.filter(
     (l): l is LoadedVectorLayer => l.layerType === "vector" && "geojson" in l,
   );
@@ -324,7 +324,7 @@ function syncLoadedLayers(map: Map, layers: LoadedLayer[]) {
     activeIds;
 }
 
-function applyChineseLabels(map: Map) {
+function applyChineseLabels(map: MapboxMap) {
   const style = map.getStyle();
   for (const layer of style.layers ?? []) {
     if (
@@ -345,7 +345,7 @@ function applyChineseLabels(map: Map) {
   }
 }
 
-function hideAdministrativeBoundaries(map: Map) {
+function hideAdministrativeBoundaries(map: MapboxMap) {
   const style = map.getStyle();
   for (const layer of style.layers ?? []) {
     const sourceLayer =

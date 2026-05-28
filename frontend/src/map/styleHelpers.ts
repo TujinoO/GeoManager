@@ -70,7 +70,6 @@ export function addLayerIfMissing(map: mapboxgl.Map, layer: mapboxgl.AnyLayer) {
 }
 
 import { removeVectorInteraction } from "./featureInteraction";
-import { getMapState } from "./mapState";
 
 export function buildVectorPaintProperties(
   style: VectorSymbolization,
