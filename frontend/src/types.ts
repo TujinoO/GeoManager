@@ -219,10 +219,14 @@ export interface ExportLayerItem {
   resourceId: number;
   geojson?: GeoJsonFeatureCollection;
   datasetId?: number;
+  sourceCrs?: string | number | null;
 }
 
 export interface ExportLayersPayload {
-  epsg: number;
+  epsg?: number | null;
+  reproject: boolean;
+  clip: boolean;
+  clipGeometry?: GeoJsonGeometry | null;
   items: ExportLayerItem[];
 }
 
@@ -279,7 +283,7 @@ export interface RasterUniqueValuesResult {
 
 export interface RasterJob {
   id: string;
-  kind: "import" | "scan" | "render";
+  kind: "import" | "scan" | "render" | "export";
   status: "queued" | "running" | "ready" | "failed";
   progressPercent: number;
   messages: string[];

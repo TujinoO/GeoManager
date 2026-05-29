@@ -1,4 +1,5 @@
 import {
+  Alert,
   App,
   Badge,
   Button,
@@ -7,9 +8,10 @@ import {
   Empty,
   Input,
   InputNumber,
-  Modal,
   Popover,
   Progress,
+  Segmented,
+  Space,
   Switch,
   Tooltip,
   Typography,
@@ -32,6 +34,7 @@ import {
 } from "lucide-react";
 import { type DragEvent, useEffect, useMemo, useState } from "react";
 import { useLayerContext } from "../hooks/LayerContext";
+import type { DrawMode } from "../map/spatialDraw";
 import type {
   GroupSymbolization,
   RasterSymbolization,
@@ -54,7 +57,6 @@ type DropPlacement = "before" | "after";
 
 export default function LayerPanel() {
   const ctx = useLayerContext();
-  const { message } = App.useApp();
   const groups = ctx.groups;
   const [query, setQuery] = useState("");
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
@@ -65,11 +67,6 @@ export default function LayerPanel() {
     groupId: string;
     placement: DropPlacement;
   } | null>(null);
-  const [exportTarget, setExportTarget] = useState<{
-    name: string;
-    items: ExportLayerItem[];
-  } | null>(null);
-  const [exportEpsg, setExportEpsg] = useState<number | null>(4326);
   const filteredGroups = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     if (!keyword) {
@@ -172,28 +169,6 @@ export default function LayerPanel() {
     }
   }
 
-  function openExportDialog(name: string, items: ExportLayerItem[]) {
-    if (!ctx.canExportData) {
-      message.warning(ctx.permissionDeniedMessage);
-      return;
-    }
-    const exportableItems = items.filter(
-      (item) => item.layerType === "vector" || item.datasetId,
-    );
-    if (exportableItems.length === 0) {
-      message.warning("当前对象没有可导出的数据");
-      return;
-    }
-    setExportTarget({ name, items: exportableItems });
-    setExportEpsg(4326);
-  }
-
-  async function confirmExport() {
-    if (!exportTarget || !exportEpsg) return;
-    await ctx.exportLayers(exportTarget.items, exportEpsg);
-    setExportTarget(null);
-  }
-
   return (
     <section className="panel-section">
       <div className="panel-title">
@@ -244,9 +219,7 @@ export default function LayerPanel() {
                   onSymbolizationChange={ctx.setGroupSymbolization}
                   onLocate={ctx.locateGroup}
                   onRemove={ctx.removeGroup}
-                  onExport={() =>
-                    openExportDialog(group.name, exportItemsForGroup(group))
-                  }
+                  exportItems={exportItemsForGroup(group)}
                 />
                 {expanded && (
                   <fieldset className="layer-children">
@@ -260,12 +233,7 @@ export default function LayerPanel() {
                         onSymbolizationChange={handleLayerSymbolizationChange}
                         onLocate={ctx.locateLayer}
                         onRemove={ctx.removeLayer}
-                        onExport={() =>
-                          openExportDialog(
-                            layer.name,
-                            exportItemsForLayer(layer),
-                          )
-                        }
+                        exportItems={exportItemsForLayer(layer)}
                       />
                     ))}
                   </fieldset>
@@ -281,28 +249,6 @@ export default function LayerPanel() {
           description="暂无已加载图层"
         />
       )}
-      <Modal
-        title={`导出 ${exportTarget?.name ?? ""}`}
-        open={Boolean(exportTarget)}
-        okText="导出"
-        cancelText="取消"
-        onOk={confirmExport}
-        onCancel={() => setExportTarget(null)}
-      >
-        <label className="export-epsg-field" htmlFor="export-epsg-input">
-          <span>目标坐标系 EPSG</span>
-          <InputNumber
-            id="export-epsg-input"
-            className="full-width"
-            min={1024}
-            max={999999}
-            value={exportEpsg}
-            onChange={(value) =>
-              setExportEpsg(typeof value === "number" ? value : null)
-            }
-          />
-        </label>
-      </Modal>
     </section>
   );
 }
@@ -318,7 +264,7 @@ interface GroupNodeProps {
   onSymbolizationChange: (groupId: string, value: GroupSymbolization) => void;
   onLocate: (groupId: string) => void;
   onRemove: (groupId: string) => void;
-  onExport: () => void;
+  exportItems: ExportLayerItem[];
 }
 
 function LayerGroupNode({
@@ -332,7 +278,7 @@ function LayerGroupNode({
   onSymbolizationChange,
   onLocate,
   onRemove,
-  onExport,
+  exportItems,
 }: GroupNodeProps) {
   const ctx = useLayerContext();
   return (
@@ -379,7 +325,7 @@ function LayerGroupNode({
             }
             onLocate={() => onLocate(group.id)}
             onRemove={() => onRemove(group.id)}
-            onExport={onExport}
+            exportItems={exportItems}
             canUseCustomSymbolization={ctx.canUseCustomSymbolization}
             canExportData={ctx.canExportData}
             permissionDeniedMessage={ctx.permissionDeniedMessage}
@@ -430,7 +376,7 @@ interface LayerNodeProps {
   ) => void;
   onLocate: (groupId: string, layerId: string) => void;
   onRemove: (groupId: string, layerId: string) => void;
-  onExport: () => void;
+  exportItems: ExportLayerItem[];
 }
 
 function LayerItemNode({
@@ -441,7 +387,7 @@ function LayerItemNode({
   onSymbolizationChange,
   onLocate,
   onRemove,
-  onExport,
+  exportItems,
 }: LayerNodeProps) {
   const ctx = useLayerContext();
   return (
@@ -482,7 +428,7 @@ function LayerItemNode({
           }
           onLocate={() => onLocate(groupId, layer.id)}
           onRemove={() => onRemove(groupId, layer.id)}
-          onExport={onExport}
+          exportItems={exportItems}
           canUseCustomSymbolization={ctx.canUseCustomSymbolization}
           canExportData={ctx.canExportData}
           permissionDeniedMessage={ctx.permissionDeniedMessage}
@@ -498,14 +444,6 @@ function LayerItemNode({
         >
           {layer.name}
         </Typography.Text>
-        {layer.layerType === "raster" && layer.renderStatus === "running" && (
-          <Progress
-            className="layer-render-progress"
-            percent={layer.renderProgress ?? 0}
-            size="small"
-            showInfo={false}
-          />
-        )}
       </div>
     </div>
   );
@@ -523,7 +461,7 @@ interface NodeActionProps {
   ) => void;
   onLocate: () => void;
   onRemove: () => void;
-  onExport: () => void;
+  exportItems: ExportLayerItem[];
   canUseCustomSymbolization: boolean;
   canExportData: boolean;
   permissionDeniedMessage: string;
@@ -539,13 +477,24 @@ function NodeActions({
   onSymbolizationChange,
   onLocate,
   onRemove,
-  onExport,
+  exportItems,
   canUseCustomSymbolization,
   canExportData,
   permissionDeniedMessage,
 }: NodeActionProps) {
+  const ctx = useLayerContext();
+  const { message } = App.useApp();
   const [symbolizationOpen, setSymbolizationOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [draftSymbolization, setDraftSymbolization] = useState(symbolization);
+  const [exportReproject, setExportReproject] = useState(false);
+  const [exportClip, setExportClip] = useState(false);
+  const [exportEpsg, setExportEpsg] = useState<number | null>(
+    defaultExportEpsg(exportItems),
+  );
+  const [exportRunning, setExportRunning] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportMessages, setExportMessages] = useState<string[]>([]);
   const isDeferredSymbolization =
     isVectorSymbolization(symbolization) ||
     isRasterSymbolization(symbolization);
@@ -563,6 +512,55 @@ function NodeActions({
     setSymbolizationOpen(open);
     if (open) {
       setDraftSymbolization(symbolization);
+    }
+  }
+
+  function handleExportOpenChange(open: boolean) {
+    if (open && !canExportData) {
+      return;
+    }
+    setExportOpen(open);
+    if (open) {
+      setExportEpsg(defaultExportEpsg(exportItems));
+      setExportProgress(0);
+      setExportMessages([]);
+    }
+  }
+
+  async function confirmExport() {
+    const exportableItems = exportItems.filter(
+      (item) => item.layerType === "vector" || item.datasetId,
+    );
+    if (exportableItems.length === 0) {
+      message.warning("当前对象没有可导出的数据");
+      return;
+    }
+    if (exportReproject && !exportEpsg) {
+      message.warning("请填写目标坐标系 EPSG");
+      return;
+    }
+    if (exportClip && !ctx.exportClipGeometry) {
+      message.warning("请先在地图上绘制裁切范围");
+      return;
+    }
+    setExportRunning(true);
+    try {
+      await ctx.exportLayers(
+        exportableItems,
+        {
+          epsg: exportEpsg,
+          reproject: exportReproject,
+          clip: exportClip,
+          clipGeometry: exportClip ? ctx.exportClipGeometry : null,
+        },
+        ({ percent, messages }) => {
+          setExportProgress(percent);
+          setExportMessages(messages);
+        },
+      );
+      setExportOpen(false);
+    } finally {
+      setExportRunning(false);
     }
   }
 
@@ -637,19 +635,47 @@ function NodeActions({
           onClick={onLocate}
         />
       </Tooltip>
-      <Tooltip title={canExportData ? "导出" : permissionDeniedMessage}>
-        <span>
-          <Button
-            className="action-btn"
-            size="small"
-            type="text"
-            aria-label={`导出${subjectName}`}
-            icon={<Download size={14} />}
-            disabled={!canExportData}
-            onClick={onExport}
+      <Popover
+        trigger="click"
+        placement="leftTop"
+        overlayClassName="symbolization-popover"
+        open={exportOpen}
+        onOpenChange={handleExportOpenChange}
+        content={
+          <ExportOptionsCard
+            title={`导出 ${subjectName}`}
+            epsg={exportEpsg}
+            reproject={exportReproject}
+            clip={exportClip}
+            clipReady={Boolean(ctx.exportClipGeometry)}
+            running={exportRunning}
+            progress={exportProgress}
+            messages={exportMessages}
+            onEpsgChange={setExportEpsg}
+            onReprojectChange={setExportReproject}
+            onClipChange={(checked) => {
+              setExportClip(checked);
+              if (!checked) ctx.clearExportClipGeometry();
+            }}
+            onDrawClip={ctx.startExportClipDraw}
+            onClearClip={ctx.clearExportClipGeometry}
+            onExport={confirmExport}
           />
-        </span>
-      </Tooltip>
+        }
+      >
+        <Tooltip title={canExportData ? "导出" : permissionDeniedMessage}>
+          <span>
+            <Button
+              className="action-btn"
+              size="small"
+              type="text"
+              aria-label={`导出${subjectName}`}
+              icon={<Download size={14} />}
+              disabled={!canExportData}
+            />
+          </span>
+        </Tooltip>
+      </Popover>
       <Popover
         trigger="click"
         placement="leftTop"
@@ -711,6 +737,7 @@ function exportItemsForLayer(layer: LoadedLayer): ExportLayerItem[] {
         name: layer.name,
         resourceId: layer.sourceResource.id,
         geojson: layer.geojson,
+        sourceCrs: layer.sourceResource.coordinateSystem,
       },
     ];
   }
@@ -720,6 +747,9 @@ function exportItemsForLayer(layer: LoadedLayer): ExportLayerItem[] {
       name: layer.name,
       resourceId: layer.sourceResource.id,
       datasetId: layer.rasterDatasetId,
+      sourceCrs:
+        layer.rasterMetadata?.coordinateSystem ??
+        layer.sourceResource.coordinateSystem,
     },
   ];
 }
@@ -745,4 +775,121 @@ function MetadataCard({
       </Descriptions>
     </Card>
   );
+}
+
+function ExportOptionsCard({
+  title,
+  epsg,
+  reproject,
+  clip,
+  clipReady,
+  running,
+  progress,
+  messages,
+  onEpsgChange,
+  onReprojectChange,
+  onClipChange,
+  onDrawClip,
+  onClearClip,
+  onExport,
+}: {
+  title: string;
+  epsg: number | null;
+  reproject: boolean;
+  clip: boolean;
+  clipReady: boolean;
+  running: boolean;
+  progress: number;
+  messages: string[];
+  onEpsgChange: (value: number | null) => void;
+  onReprojectChange: (value: boolean) => void;
+  onClipChange: (value: boolean) => void;
+  onDrawClip: (mode: DrawMode) => void;
+  onClearClip: () => void;
+  onExport: () => void;
+}) {
+  const latestMessage =
+    messages.length > 0 ? messages[messages.length - 1] : "";
+  return (
+    <Card className="symbolization-card export-card" size="small" title={title}>
+      <Space direction="vertical" className="full-width symbolization-stack">
+        <div className="export-option-row">
+          <Typography.Text strong>重投影</Typography.Text>
+          <Switch checked={reproject} onChange={onReprojectChange} />
+        </div>
+        <label className="export-epsg-field" htmlFor="export-epsg-input">
+          <span>目标坐标系 EPSG</span>
+          <InputNumber
+            id="export-epsg-input"
+            className="full-width"
+            min={1024}
+            max={999999}
+            value={epsg}
+            disabled={!reproject}
+            onChange={(value) =>
+              onEpsgChange(typeof value === "number" ? value : null)
+            }
+          />
+        </label>
+        <div className="export-option-row">
+          <Typography.Text strong>裁切</Typography.Text>
+          <Switch checked={clip} onChange={onClipChange} />
+        </div>
+        {clip && (
+          <Space direction="vertical" className="full-width compact-stack">
+            <Segmented
+              block
+              options={[
+                { label: "矩形", value: "rectangle" },
+                { label: "圆形", value: "circle" },
+                { label: "多边形", value: "polygon" },
+              ]}
+              onChange={(mode) => onDrawClip(mode as DrawMode)}
+            />
+            <div className="export-clip-actions">
+              <Typography.Text type={clipReady ? "success" : "secondary"}>
+                {clipReady ? "已绘制裁切范围" : "未绘制裁切范围"}
+              </Typography.Text>
+              <Button size="small" onClick={onClearClip} disabled={!clipReady}>
+                清除
+              </Button>
+            </div>
+          </Space>
+        )}
+        {running && (
+          <Space direction="vertical" className="full-width compact-stack">
+            <Progress percent={progress} size="small" />
+            {latestMessage && (
+              <Alert type="info" showIcon message={latestMessage} />
+            )}
+          </Space>
+        )}
+        <Button
+          type="primary"
+          icon={<Download size={15} />}
+          loading={running}
+          disabled={running || (clip && !clipReady)}
+          onClick={onExport}
+        >
+          导出
+        </Button>
+      </Space>
+    </Card>
+  );
+}
+
+function defaultExportEpsg(items: ExportLayerItem[]) {
+  for (const item of items) {
+    const epsg = parseEpsg(item.sourceCrs);
+    if (epsg) return epsg;
+  }
+  return 4326;
+}
+
+function parseEpsg(value: string | number | null | undefined) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  const match = String(value ?? "").match(/EPSG[:\s-]*(\d{4,6})/i);
+  return match ? Number(match[1]) : null;
 }

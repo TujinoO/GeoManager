@@ -12,9 +12,9 @@ import { useEffect, useRef } from "react";
 import { syncVectorInteractions } from "../map/featureInteraction";
 import { addRasterLayer } from "../map/rasterLayerSync";
 import {
-  clearDrawPreview,
+  bindGeometryDraw,
+  type DrawMode,
   removeLayerGroupSimple,
-  showDrawPreview,
   upsertPolygonLayer,
 } from "../map/spatialDraw";
 import {
@@ -24,27 +24,30 @@ import {
 } from "../map/vectorLayerSync";
 import type {
   Bootstrap,
+  GeoJsonGeometry,
   LoadedLayer,
   LoadedRasterLayer,
   LoadedVectorLayer,
   SpatialFilter,
 } from "../types";
-import { geometryFromPoints, sourceIdFor } from "../utils/geometry";
-
-type DrawMode = SpatialFilter["mode"] | null;
+import { sourceIdFor } from "../utils/geometry";
 
 const mapStyle = "mapbox://styles/mapbox/satellite-streets-v12";
 const globeOverviewZoom = 2.4;
 const spatialFilterSourceId = "query-spatial-filter";
 const spatialFilterFillId = "query-spatial-filter-fill";
 const spatialFilterLineId = "query-spatial-filter-line";
+const exportClipSourceId = "export-clip-filter";
+const exportClipFillId = "export-clip-filter-fill";
+const exportClipLineId = "export-clip-filter-line";
 
 interface Props {
   bootstrap: Bootstrap;
   loadedLayers: LoadedLayer[];
-  drawMode: DrawMode;
+  drawMode: DrawMode | null;
   spatialFilter: SpatialFilter | null;
-  onSpatialFilterChange: (filter: SpatialFilter) => void;
+  exportClipGeometry: GeoJsonGeometry | null;
+  onDrawComplete: (mode: DrawMode, geometry: GeoJsonGeometry) => void;
   onMapReady?: (map: MapboxMap) => void;
   onMapDestroy?: () => void;
 }
@@ -54,7 +57,8 @@ export default function MapCanvas({
   loadedLayers,
   drawMode,
   spatialFilter,
-  onSpatialFilterChange,
+  exportClipGeometry,
+  onDrawComplete,
   onMapReady,
   onMapDestroy,
 }: Props) {
@@ -141,74 +145,31 @@ export default function MapCanvas({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    clearDrawPreview(map);
-    if (!drawMode) {
-      map.getCanvas().style.cursor = "";
-      return;
+    if (!map?.isStyleLoaded()) return;
+    if (exportClipGeometry) {
+      upsertPolygonLayer(
+        map,
+        exportClipSourceId,
+        exportClipFillId,
+        exportClipLineId,
+        exportClipGeometry,
+        0.14,
+      );
+    } else {
+      removeLayerGroupSimple(map, exportClipSourceId, [
+        exportClipFillId,
+        exportClipLineId,
+      ]);
     }
+  }, [exportClipGeometry]);
 
-    map.getCanvas().style.cursor = "crosshair";
-    map.doubleClickZoom.disable();
-    let start: [number, number] | null = null;
-    let polygonPoints: Array<[number, number]> = [];
-
-    const handleClick = (event: mapboxgl.MapMouseEvent) => {
-      const point: [number, number] = [event.lngLat.lng, event.lngLat.lat];
-      if (drawMode === "polygon") {
-        polygonPoints = [...polygonPoints, point];
-        if (polygonPoints.length >= 2)
-          showDrawPreview(
-            map,
-            geometryFromPoints("polygon", polygonPoints[0], polygonPoints[1]),
-          );
-        return;
-      }
-      if (!start) {
-        start = point;
-        return;
-      }
-      const geometry = geometryFromPoints(drawMode, start, point);
-      showDrawPreview(map, geometry);
-      onSpatialFilterChange({ mode: drawMode, geometry });
-    };
-
-    const handleMouseMove = (event: mapboxgl.MapMouseEvent) => {
-      const point: [number, number] = [event.lngLat.lng, event.lngLat.lat];
-      if (drawMode === "polygon" && polygonPoints.length > 0) {
-        showDrawPreview(map, {
-          type: "Polygon",
-          coordinates: [[...polygonPoints, point, polygonPoints[0]]],
-        });
-      } else if (start) {
-        showDrawPreview(map, geometryFromPoints(drawMode, start, point));
-      }
-    };
-
-    const handleDoubleClick = (event: mapboxgl.MapMouseEvent) => {
-      if (drawMode !== "polygon" || polygonPoints.length < 3) return;
-      event.preventDefault();
-      const geometry = {
-        type: "Polygon",
-        coordinates: [polygonPoints],
-      } as import("../types").GeoJsonGeometry;
-      showDrawPreview(map, geometry);
-      onSpatialFilterChange({ mode: "polygon", geometry });
-    };
-
-    map.on("click", handleClick);
-    map.on("mousemove", handleMouseMove);
-    map.on("dblclick", handleDoubleClick);
-
-    return () => {
-      map.off("click", handleClick);
-      map.off("mousemove", handleMouseMove);
-      map.off("dblclick", handleDoubleClick);
-      map.doubleClickZoom.enable();
-      map.getCanvas().style.cursor = "";
-      clearDrawPreview(map);
-    };
-  }, [drawMode, onSpatialFilterChange]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !drawMode) return;
+    return bindGeometryDraw(map, drawMode, (geometry) =>
+      onDrawComplete(drawMode, geometry),
+    );
+  }, [drawMode, onDrawComplete]);
 
   function resetView() {
     mapRef.current?.flyTo({

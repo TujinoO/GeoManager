@@ -3,7 +3,7 @@ from datetime import datetime
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 
@@ -23,6 +23,7 @@ from apps.core.storage import (
     validate_vector_layer_name,
     vector_geopackage_path,
 )
+from apps.raster.services import RasterJobError, get_job, get_job_artifact_path, start_export_job
 
 
 @require_GET
@@ -145,7 +146,12 @@ def export_loaded_layers(request):
                 return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
 
     try:
-        content = export_layers_zip(items, epsg)
+        content = export_layers_zip(
+            items,
+            epsg,
+            reproject=bool(payload.get("reproject", True)),
+            clip_geometry=payload.get("clipGeometry") if payload.get("clip") else None,
+        )
     except ExportError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
 
@@ -153,6 +159,61 @@ def export_loaded_layers(request):
     response = HttpResponse(content, content_type="application/zip")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+
+@require_POST
+@login_required
+def export_loaded_layers_async(request):
+    if not has_feature_perm(request.user, "catalog.export_dataresource"):
+        return feature_denied_response(request.user)
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except json.JSONDecodeError:
+        return JsonResponse({"detail": "请求体不是有效 JSON"}, status=400)
+
+    reproject = bool(payload.get("reproject", True))
+    epsg = None
+    if reproject:
+        try:
+            epsg = validate_epsg(payload.get("epsg", 4326))
+        except Exception as exc:
+            return JsonResponse({"detail": str(exc)}, status=400)
+
+    items = payload.get("items") or []
+    if not isinstance(items, list):
+        return JsonResponse({"detail": "items 必须是数组"}, status=400)
+
+    for item in items:
+        resource_id = item.get("resourceId")
+        if resource_id:
+            resource = get_object_or_404(DataResource, pk=resource_id, status=DataResource.Status.ACTIVE)
+            if not user_can_access(resource, request.user):
+                return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
+
+    clip_geometry = payload.get("clipGeometry") if payload.get("clip") else None
+    try:
+        job = start_export_job(items=items, epsg=epsg, reproject=reproject, clip_geometry=clip_geometry)
+    except ExportError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return JsonResponse(job.as_dict(), status=202)
+
+
+@require_GET
+@login_required
+def export_job_download(request, job_id: str):
+    if not has_feature_perm(request.user, "catalog.export_dataresource"):
+        return feature_denied_response(request.user)
+    try:
+        job = get_job(job_id)
+        path = get_job_artifact_path(job_id)
+    except RasterJobError as exc:
+        return JsonResponse({"detail": str(exc)}, status=404)
+    if job.status != "ready":
+        return JsonResponse({"detail": "导出任务尚未完成"}, status=409)
+    if not path.exists():
+        return JsonResponse({"detail": "导出文件不存在或已过期"}, status=404)
+    filename = (job.result or {}).get("filename") or f"layers-export-{datetime.now().strftime('%Y%m%d%H%M%S')}.zip"
+    return FileResponse(path.open("rb"), as_attachment=True, filename=filename, content_type="application/zip")
 
 
 @require_GET

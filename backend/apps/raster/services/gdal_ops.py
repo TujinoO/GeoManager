@@ -24,14 +24,24 @@ def run_gdal_command(command: list[str], progress: Callable[[str], None] | None 
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        bufsize=1,
+        bufsize=0,
     )
     output: list[str] = []
     assert process.stdout is not None
-    for line in process.stdout:
-        output.append(line)
-        if progress:
-            progress(line)
+    chunk: list[str] = []
+    while True:
+        char = process.stdout.read(1)
+        if char == "" and process.poll() is not None:
+            break
+        if char == "":
+            continue
+        output.append(char)
+        chunk.append(char)
+        if progress and (char in "\n\r" or char == "."):
+            progress("".join(chunk))
+            chunk = []
+    if progress and chunk:
+        progress("".join(chunk))
     return_code = process.wait()
     text = "".join(output)
     if return_code != 0:

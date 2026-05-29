@@ -144,6 +144,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  exportLayersAsync: (payload: ExportLayersPayload) =>
+    request<RasterJob>("/api/catalog/export/async/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  downloadExport: (path: string) => requestBlob(path),
   layers: () => request<ListResponse<MapLayer>>("/api/layers/"),
   achievements: () => request<ListResponse<Achievement>>("/api/achievements/"),
   search: (query: string) =>

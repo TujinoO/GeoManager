@@ -44,6 +44,8 @@ from apps.raster.services.importer import (
 from apps.raster.services.jobs import (
     RasterJob,
     get_job,
+    get_job_artifact_path,
+    start_export_job,
     start_import_job,
     start_render_job,
     start_scan_job,
@@ -89,7 +91,9 @@ __all__ = [
     "start_import_job",
     "start_scan_job",
     "start_render_job",
+    "start_export_job",
     "get_job",
+    "get_job_artifact_path",
     # importer
     "scan_unprocessed_source_files",
     "scan_unprocessed_source_files_safely",

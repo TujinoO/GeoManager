@@ -4,6 +4,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from apps.raster.services.progress import (
@@ -21,6 +22,7 @@ class RasterJob:
     messages: list[str] = field(default_factory=list)
     result: dict[str, Any] | None = None
     error: str = ""
+    artifact_path: str = ""
     started_at: float = field(default_factory=time.time)
     finished_at: float | None = None
 
@@ -81,6 +83,11 @@ def _finish_job(job_id: str, result: dict[str, Any], status: str) -> None:
         job.progress_percent = 100
         job.result = result
         job.finished_at = time.time()
+
+
+def _set_job_artifact(job_id: str, path: Path) -> None:
+    with _LOCK:
+        _JOBS[job_id].artifact_path = str(path)
 
 
 def _fail_job(job_id: str, error: str) -> None:
@@ -181,3 +188,55 @@ def start_render_job(
 
     threading.Thread(target=runner, name=f"raster-render-{job.id}", daemon=True).start()
     return job
+
+
+def start_export_job(
+    *,
+    items: list[dict[str, Any]],
+    epsg: int | None,
+    reproject: bool,
+    clip_geometry: dict[str, Any] | None,
+) -> RasterJob:
+    from tempfile import NamedTemporaryFile
+
+    from apps.catalog.export import export_layers_zip
+
+    job = _create_job("export")
+
+    def runner() -> None:
+        try:
+            _set_job_running(job.id, "准备导出数据", 1)
+            content = export_layers_zip(
+                items,
+                epsg,
+                reproject=reproject,
+                clip_geometry=clip_geometry,
+                progress=lambda text: _append_job(job.id, text),
+            )
+            with NamedTemporaryFile(prefix=f"layers-export-{job.id}-", suffix=".zip", delete=False) as output:
+                output.write(content)
+                artifact = Path(output.name)
+            _set_job_artifact(job.id, artifact)
+            _finish_job(
+                job.id,
+                {
+                    "filename": f"layers-export-{time.strftime('%Y%m%d%H%M%S')}.zip",
+                    "downloadUrl": f"/api/catalog/export/jobs/{job.id}/download/",
+                },
+                "ready",
+            )
+        except Exception as exc:
+            _fail_job(job.id, str(exc))
+
+    threading.Thread(target=runner, name=f"catalog-export-{job.id}", daemon=True).start()
+    return job
+
+
+def get_job_artifact_path(job_id: str) -> Path:
+    from apps.raster.services.exceptions import RasterJobError
+
+    with _LOCK:
+        job = _JOBS.get(job_id)
+        if not job or not job.artifact_path:
+            raise RasterJobError("导出文件不存在或已过期")
+        return Path(job.artifact_path)

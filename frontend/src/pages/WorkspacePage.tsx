@@ -5,7 +5,12 @@ import { api } from "../api/client";
 import DataPanel from "../components/DataPanel";
 import LayerPanel from "../components/LayerPanel";
 import MapCanvas from "../components/MapCanvas";
-import { LayerContext, type LayerContextValue } from "../hooks/LayerContext";
+import {
+  type ExportOptions,
+  type ExportProgressHandler,
+  LayerContext,
+  type LayerContextValue,
+} from "../hooks/LayerContext";
 import { useLayerGroups } from "../hooks/useLayerGroups";
 import { useRasterRender } from "../hooks/useRasterRender";
 import type {
@@ -14,6 +19,7 @@ import type {
   DataResource,
   DataResourceProfile,
   ExportLayerItem,
+  GeoJsonGeometry,
   LoadedLayer,
   LoadedRasterLayer,
   ResourceFilters,
@@ -32,6 +38,7 @@ import {
 } from "../utils/layerFactory";
 
 type DrawMode = SpatialFilter["mode"] | null;
+type DrawPurpose = "query" | "exportClip";
 
 interface Props {
   bootstrap: Bootstrap;
@@ -53,7 +60,12 @@ export default function WorkspacePage({ bootstrap, user, onLogout }: Props) {
   const [spatialFilter, setSpatialFilter] = useState<SpatialFilter | null>(
     null,
   );
-  const [drawMode, setDrawMode] = useState<DrawMode>(null);
+  const [activeDraw, setActiveDraw] = useState<{
+    purpose: DrawPurpose;
+    mode: NonNullable<DrawMode>;
+  } | null>(null);
+  const [exportClipGeometry, setExportClipGeometry] =
+    useState<GeoJsonGeometry | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [querying, setQuerying] = useState(false);
   const [dataPanelOpen, setDataPanelOpen] = useState(false);
@@ -127,9 +139,20 @@ export default function WorkspacePage({ bootstrap, user, onLogout }: Props) {
     }
   }
 
-  const handleSpatialFilterChange = useCallback((filter: SpatialFilter) => {
-    setSpatialFilter(filter);
-    setDrawMode(null);
+  const handleDrawComplete = useCallback(
+    (mode: NonNullable<DrawMode>, geometry: GeoJsonGeometry) => {
+      if (activeDraw?.purpose === "exportClip") {
+        setExportClipGeometry(geometry);
+      } else {
+        setSpatialFilter({ mode, geometry });
+      }
+      setActiveDraw(null);
+    },
+    [activeDraw?.purpose],
+  );
+
+  const setQueryDrawMode = useCallback((mode: DrawMode) => {
+    setActiveDraw(mode ? { purpose: "query", mode } : null);
   }, []);
 
   async function handleQuery(attributeFilters: AttributeFilter[]) {
@@ -322,13 +345,51 @@ export default function WorkspacePage({ bootstrap, user, onLogout }: Props) {
   }
 
   const exportLayers = useCallback(
-    async (items: ExportLayerItem[], epsg: number) => {
+    async (
+      items: ExportLayerItem[],
+      options: ExportOptions,
+      onProgress?: ExportProgressHandler,
+    ) => {
       if (!user.permissions.canExportData) {
         message.warning(permissionDeniedMessage);
         return;
       }
       try {
-        const { blob, filename } = await api.exportLayers({ epsg, items });
+        const job = await api.exportLayersAsync({
+          epsg: options.epsg,
+          reproject: options.reproject,
+          clip: options.clip,
+          clipGeometry: options.clipGeometry,
+          items,
+        });
+        onProgress?.({
+          status: job.status,
+          percent: job.progressPercent,
+          messages: job.messages,
+        });
+        let downloadUrl = "";
+        while (true) {
+          await new Promise((resolve) => window.setTimeout(resolve, 900));
+          const next = await api.rasterJob(job.id);
+          onProgress?.({
+            status: next.status,
+            percent: next.progressPercent,
+            messages: next.messages,
+          });
+          if (next.status === "ready") {
+            downloadUrl =
+              (next.result as { downloadUrl?: string } | null)?.downloadUrl ??
+              "";
+            break;
+          }
+          if (next.status === "failed") {
+            throw new Error(next.error || "导出失败");
+          }
+        }
+        if (!downloadUrl) {
+          throw new Error("导出文件下载地址缺失");
+        }
+        const { blob, filename } = await api.downloadExport(downloadUrl);
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
@@ -340,6 +401,7 @@ export default function WorkspacePage({ bootstrap, user, onLogout }: Props) {
         message.success("导出任务已完成");
       } catch (error) {
         message.error(error instanceof Error ? error.message : "导出失败");
+        throw error;
       }
     },
     [message, permissionDeniedMessage, user.permissions.canExportData],
@@ -367,6 +429,10 @@ export default function WorkspacePage({ bootstrap, user, onLogout }: Props) {
     canUseCustomSymbolization: user.permissions.canUseCustomSymbolization,
     canExportData: user.permissions.canExportData,
     permissionDeniedMessage,
+    exportClipGeometry,
+    startExportClipDraw: (mode) =>
+      setActiveDraw({ purpose: "exportClip", mode }),
+    clearExportClipGeometry: () => setExportClipGeometry(null),
     exportLayers,
   };
 
@@ -376,7 +442,7 @@ export default function WorkspacePage({ bootstrap, user, onLogout }: Props) {
       profile={resourceProfile}
       selectedResourceId={selectedResource?.id ?? null}
       spatialFilter={spatialFilter}
-      drawMode={drawMode}
+      drawMode={activeDraw?.purpose === "query" ? activeDraw.mode : null}
       queryResult={queryResult}
       loadingProfile={loadingProfile}
       querying={querying}
@@ -384,7 +450,7 @@ export default function WorkspacePage({ bootstrap, user, onLogout }: Props) {
       permissionDeniedMessage={permissionDeniedMessage}
       onFilterResources={loadResources}
       onSelectResource={handleSelectResource}
-      onDrawModeChange={setDrawMode}
+      onDrawModeChange={setQueryDrawMode}
       onClearSpatialFilter={() => setSpatialFilter(null)}
       onQuery={handleQuery}
       onLoadResult={handleLoadResult}
@@ -465,9 +531,10 @@ export default function WorkspacePage({ bootstrap, user, onLogout }: Props) {
           <MapCanvas
             bootstrap={bootstrap}
             loadedLayers={mapLayers}
-            drawMode={drawMode}
+            drawMode={activeDraw?.mode ?? null}
             spatialFilter={spatialFilter}
-            onSpatialFilterChange={handleSpatialFilterChange}
+            exportClipGeometry={exportClipGeometry}
+            onDrawComplete={handleDrawComplete}
             onMapReady={handleMapReady}
             onMapDestroy={handleMapDestroy}
           />

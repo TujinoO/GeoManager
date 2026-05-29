@@ -7,12 +7,27 @@ import type {
 } from "../symbolization";
 import type {
   ExportLayerItem,
+  GeoJsonGeometry,
   LoadedLayer,
   LoadedLayerGroup,
   LoadedRasterLayer,
+  SpatialFilter,
 } from "../types";
 
 type DropPlacement = "before" | "after";
+type DrawMode = SpatialFilter["mode"];
+export interface ExportOptions {
+  epsg: number | null;
+  reproject: boolean;
+  clip: boolean;
+  clipGeometry: GeoJsonGeometry | null;
+}
+
+export type ExportProgressHandler = (state: {
+  status: "queued" | "running" | "ready" | "failed";
+  percent: number;
+  messages: string[];
+}) => void;
 
 export interface LayerContextValue {
   groups: LoadedLayerGroup[];
@@ -61,7 +76,14 @@ export interface LayerContextValue {
   canUseCustomSymbolization: boolean;
   canExportData: boolean;
   permissionDeniedMessage: string;
-  exportLayers: (items: ExportLayerItem[], epsg: number) => Promise<void>;
+  exportClipGeometry: GeoJsonGeometry | null;
+  startExportClipDraw: (mode: DrawMode) => void;
+  clearExportClipGeometry: () => void;
+  exportLayers: (
+    items: ExportLayerItem[],
+    options: ExportOptions,
+    onProgress?: ExportProgressHandler,
+  ) => Promise<void>;
 }
 
 export const LayerContext = createContext<LayerContextValue | null>(null);
