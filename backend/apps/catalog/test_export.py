@@ -1,7 +1,5 @@
 import json
-import zipfile
 from pathlib import Path
-from unittest.mock import patch
 
 from django.test import SimpleTestCase
 

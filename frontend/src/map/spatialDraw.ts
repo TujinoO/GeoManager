@@ -1,7 +1,7 @@
-import type mapboxgl from "mapbox-gl";
 import type { GeoJsonGeometry, SpatialFilter } from "../types";
 import { geometryFromPoints } from "../utils/geometry";
 import { addLayerIfMissing } from "./styleHelpers";
+import { removeLayerGroup } from "./vectorLayerSync";
 
 const previewSourceId = "query-draw-preview";
 const previewFillId = "query-draw-preview-fill";
@@ -20,7 +20,9 @@ export function showDrawPreview(map: mapboxgl.Map, geometry: GeoJsonGeometry) {
 }
 
 export function clearDrawPreview(map: mapboxgl.Map) {
-  removeLayerGroupSimple(map, previewSourceId, [previewFillId, previewLineId]);
+  removeLayerGroup(map, previewSourceId, [previewFillId, previewLineId], {
+    cleanInteraction: false,
+  });
 }
 
 export function bindGeometryDraw(
@@ -121,15 +123,4 @@ export function upsertPolygonLayer(
     source: sourceId,
     paint: { "line-color": "#d9a441", "line-width": 2, "line-opacity": 0.9 },
   });
-}
-
-export function removeLayerGroupSimple(
-  map: mapboxgl.Map,
-  sourceId: string,
-  layerIds: string[],
-) {
-  layerIds.forEach((id) => {
-    if (map.getLayer(id)) map.removeLayer(id);
-  });
-  if (map.getSource(sourceId)) map.removeSource(sourceId);
 }

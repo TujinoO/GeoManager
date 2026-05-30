@@ -33,7 +33,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { type DragEvent, useEffect, useMemo, useState } from "react";
-import { useLayerContext } from "../hooks/LayerContext";
+import { type DropPlacement, useLayerContext } from "../hooks/LayerContext";
 import type { DrawMode } from "../map/spatialDraw";
 import type {
   GroupSymbolization,
@@ -52,8 +52,6 @@ import {
   RasterSymbolizationEditor,
   VectorSymbolizationEditor,
 } from "./SymbolizationEditor";
-
-type DropPlacement = "before" | "after";
 
 export default function LayerPanel() {
   const ctx = useLayerContext();

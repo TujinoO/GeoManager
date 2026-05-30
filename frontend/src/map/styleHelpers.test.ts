@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import type { VectorSymbolization } from "../symbolization";
 import { buildVectorPaintProperties } from "./styleHelpers";
 
-function makeStyle(overrides: Partial<VectorSymbolization> = {}): VectorSymbolization {
+function makeStyle(
+  overrides: Partial<VectorSymbolization> = {},
+): VectorSymbolization {
   return {
     opacity: 90,
     pointMode: "circle",

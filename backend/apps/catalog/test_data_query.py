@@ -1,14 +1,12 @@
 from django.test import SimpleTestCase
 
 from apps.catalog.data_query import (
-    DataQueryError,
     _coerce_value,
     _json_value,
     _limit,
     geometry_type,
     normalize_for_geojson,
 )
-from django.conf import settings
 from unittest.mock import patch
 import pandas as pd
 import numpy as np
@@ -106,9 +104,7 @@ class NormalizeForGeojsonTests(SimpleTestCase):
         import geopandas as gpd
         from shapely.geometry import Point
 
-        gdf = gpd.GeoDataFrame(
-            {"name": ["A"], "date": pd.to_datetime(["2025-01-01"]), "geometry": [Point(0, 0)]}
-        )
+        gdf = gpd.GeoDataFrame({"name": ["A"], "date": pd.to_datetime(["2025-01-01"]), "geometry": [Point(0, 0)]})
         result = normalize_for_geojson(gdf)
         self.assertEqual(result["date"].iloc[0], "2025-01-01")
 

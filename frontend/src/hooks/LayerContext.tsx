@@ -1,5 +1,6 @@
 import type mapboxgl from "mapbox-gl";
 import { createContext, type RefObject, useContext } from "react";
+import type { DrawMode } from "../map/spatialDraw";
 import type {
   GroupSymbolization,
   RasterSymbolization,
@@ -11,11 +12,10 @@ import type {
   LoadedLayer,
   LoadedLayerGroup,
   LoadedRasterLayer,
-  SpatialFilter,
 } from "../types";
 
-type DropPlacement = "before" | "after";
-type DrawMode = SpatialFilter["mode"];
+export type { DrawMode };
+export type DropPlacement = "before" | "after";
 export interface ExportOptions {
   epsg: number | null;
   reproject: boolean;

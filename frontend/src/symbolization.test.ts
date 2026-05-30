@@ -36,7 +36,9 @@ describe("defaultVectorSymbolization", () => {
 
   it("has fill properties", () => {
     expect(defaultVectorSymbolization.fill.fillColor).toBeDefined();
-    expect(defaultVectorSymbolization.fill.fillOpacity).toBeGreaterThanOrEqual(0);
+    expect(defaultVectorSymbolization.fill.fillOpacity).toBeGreaterThanOrEqual(
+      0,
+    );
     expect(defaultVectorSymbolization.fill.fillOpacity).toBeLessThanOrEqual(1);
   });
 });
@@ -104,8 +106,12 @@ describe("cloneDefaultVectorSymbolization", () => {
 
   it("clones nested arrays", () => {
     const clone = cloneDefaultVectorSymbolization();
-    expect(clone.symbol.iconOffset).not.toBe(defaultVectorSymbolization.symbol.iconOffset);
-    expect(clone.line.lineDasharray).not.toBe(defaultVectorSymbolization.line.lineDasharray);
+    expect(clone.symbol.iconOffset).not.toBe(
+      defaultVectorSymbolization.symbol.iconOffset,
+    );
+    expect(clone.line.lineDasharray).not.toBe(
+      defaultVectorSymbolization.line.lineDasharray,
+    );
   });
 });
 
@@ -134,7 +140,9 @@ describe("rasterSymbolizationFromRules", () => {
   });
 
   it("converts band values to numbers", () => {
-    const result = rasterSymbolizationFromRules({ bands: ["1", "2", "3"] as unknown as number[] });
+    const result = rasterSymbolizationFromRules({
+      bands: ["1", "2", "3"] as unknown as number[],
+    });
     expect(result.bands).toEqual([1, 2, 3]);
   });
 
@@ -149,7 +157,9 @@ describe("rasterSymbolizationFromRules", () => {
   });
 
   it("uses default opacity for non-number", () => {
-    const result = rasterSymbolizationFromRules({ opacity: "invalid" as unknown as number });
+    const result = rasterSymbolizationFromRules({
+      opacity: "invalid" as unknown as number,
+    });
     expect(result.opacity).toBe(90);
   });
 
@@ -187,7 +197,9 @@ describe("rasterSymbolizationFromRules", () => {
   });
 
   it("uses default unique values for non-array", () => {
-    const result = rasterSymbolizationFromRules({ uniqueValues: "invalid" as unknown as [] });
+    const result = rasterSymbolizationFromRules({
+      uniqueValues: "invalid" as unknown as [],
+    });
     expect(result.uniqueValues).toEqual([]);
   });
 });
@@ -211,6 +223,8 @@ describe("cloneDefaultRasterSymbolization", () => {
 
   it("clones perBand object", () => {
     const clone = cloneDefaultRasterSymbolization();
-    expect(clone.stretch.perBand).not.toBe(defaultRasterSymbolization.stretch.perBand);
+    expect(clone.stretch.perBand).not.toBe(
+      defaultRasterSymbolization.stretch.perBand,
+    );
   });
 });

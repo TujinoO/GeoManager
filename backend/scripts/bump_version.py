@@ -48,31 +48,15 @@ def bump_version(version: str, bump_type: str) -> str:
 def update_version_in_file(pyproject_path: Path, new_version: str) -> None:
     """Update version in pyproject.toml file."""
     content = pyproject_path.read_text()
-    new_content = re.sub(
-        r'version\s*=\s*"[^"]+"',
-        f'version = "{new_version}"',
-        content
-    )
+    new_content = re.sub(r'version\s*=\s*"[^"]+"', f'version = "{new_version}"', content)
     pyproject_path.write_text(new_content)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Bump version in pyproject.toml")
-    parser.add_argument(
-        "bump_type",
-        choices=["major", "minor", "patch"],
-        help="Type of version bump"
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Show what would be done without making changes"
-    )
-    parser.add_argument(
-        "--tag",
-        action="store_true",
-        help="Create git tag after bumping version"
-    )
+    parser.add_argument("bump_type", choices=["major", "minor", "patch"], help="Type of version bump")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
+    parser.add_argument("--tag", action="store_true", help="Create git tag after bumping version")
 
     args = parser.parse_args()
 
@@ -99,6 +83,7 @@ def main():
     # Create git tag if requested
     if args.tag:
         import subprocess
+
         try:
             subprocess.run(["git", "add", "pyproject.toml"], check=True)
             subprocess.run(["git", "commit", "-m", f"chore: bump version to {new_version}"], check=True)

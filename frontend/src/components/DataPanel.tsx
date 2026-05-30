@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { DrawMode } from "../map/spatialDraw";
 import type {
   AttributeFilter,
   DataResource,
@@ -33,21 +34,19 @@ import type {
   User,
 } from "../types";
 
-type DrawMode = SpatialFilter["mode"] | null;
-
 interface Props {
   resources: DataResource[];
   profile: DataResourceProfile | null;
   selectedResourceId: number | null;
   spatialFilter: SpatialFilter | null;
-  drawMode: DrawMode;
+  drawMode: DrawMode | null;
   queryResult: ResourceQueryResult | null;
   loadingProfile: boolean;
   querying: boolean;
   permissions: User["permissions"];
   onFilterResources: (filters: ResourceFilters) => void;
   onSelectResource: (resource: DataResource) => void;
-  onDrawModeChange: (mode: DrawMode) => void;
+  onDrawModeChange: (mode: DrawMode | null) => void;
   onClearSpatialFilter: () => void;
   onQuery: (filters: AttributeFilter[]) => void;
   onLoadResult: () => void;

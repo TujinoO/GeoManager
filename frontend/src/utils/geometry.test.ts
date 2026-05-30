@@ -8,7 +8,6 @@ import {
   delay,
   ellipseGeometry,
   extractCoordinates,
-  formatBytes,
   geometryFromPoints,
   polygonGeometry,
   rasterSourceKey,
@@ -89,14 +88,6 @@ describe("clamp", () => {
   it("clamps below min", () => expect(clamp(-5, 0, 10)).toBe(0));
   it("clamps above max", () => expect(clamp(15, 0, 10)).toBe(10));
   it("returns value in range", () => expect(clamp(5, 0, 10)).toBe(5));
-});
-
-describe("formatBytes", () => {
-  it("formats 0", () => expect(formatBytes(0)).toBe("0 B"));
-  it("formats bytes", () => expect(formatBytes(500)).toBe("500 B"));
-  it("formats KB", () => expect(formatBytes(1024)).toBe("1.0 KB"));
-  it("formats MB", () => expect(formatBytes(1048576)).toBe("1.0 MB"));
-  it("formats GB", () => expect(formatBytes(1073741824)).toBe("1.0 GB"));
 });
 
 describe("sourceIdFor", () => {

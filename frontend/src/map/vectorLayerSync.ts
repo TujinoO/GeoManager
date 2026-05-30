@@ -224,13 +224,15 @@ export function removeLayerGroup(
   map: mapboxgl.Map,
   sourceId: string,
   layerIds: string[],
+  options?: { cleanInteraction?: boolean },
 ) {
+  const cleanInteraction = options?.cleanInteraction ?? true;
   layerIds.forEach((id) => {
-    removeVectorInteraction(map, id);
+    if (cleanInteraction) removeVectorInteraction(map, id);
     if (map.getLayer(id)) map.removeLayer(id);
   });
   if (map.getSource(sourceId)) map.removeSource(sourceId);
-  getMapState(map).rasterSourceKeys.delete(sourceId);
+  if (cleanInteraction) getMapState(map).rasterSourceKeys.delete(sourceId);
 }
 
 export function reorderLoadedStyleLayers(

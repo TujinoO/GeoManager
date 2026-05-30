@@ -183,16 +183,6 @@ export function delay(ms: number): Promise<void> {
   });
 }
 
-export function formatBytes(value: number): string {
-  if (value <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  const index = Math.min(
-    units.length - 1,
-    Math.floor(Math.log(value) / Math.log(1024)),
-  );
-  return `${(value / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
-}
-
 export function sourceIdFor(layerId: string): string {
   return `loaded-${layerId}`;
 }

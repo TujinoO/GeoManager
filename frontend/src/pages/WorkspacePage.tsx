@@ -13,6 +13,7 @@ import {
 } from "../hooks/LayerContext";
 import { useLayerGroups } from "../hooks/useLayerGroups";
 import { useRasterRender } from "../hooks/useRasterRender";
+import type { DrawMode } from "../map/spatialDraw";
 import type {
   AttributeFilter,
   Bootstrap,
@@ -37,7 +38,6 @@ import {
   createVectorLayerGroup,
 } from "../utils/layerFactory";
 
-type DrawMode = SpatialFilter["mode"] | null;
 type DrawPurpose = "query" | "exportClip";
 
 interface Props {
@@ -151,7 +151,7 @@ export default function WorkspacePage({ bootstrap, user, onLogout }: Props) {
     [activeDraw?.purpose],
   );
 
-  const setQueryDrawMode = useCallback((mode: DrawMode) => {
+  const setQueryDrawMode = useCallback((mode: DrawMode | null) => {
     setActiveDraw(mode ? { purpose: "query", mode } : null);
   }, []);
 

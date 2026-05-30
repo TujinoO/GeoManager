@@ -16,6 +16,7 @@ from apps.core.storage import (
 )
 from apps.raster.models import RasterDataset
 from apps.raster.services.catalog_sync import upsert_catalog_records
+from apps.raster.services.constants import RASTER_EXTENSIONS
 from apps.raster.services.exceptions import RasterImportError
 from apps.raster.services.gdal_ops import gdalinfo_json, run_gdal_command
 from apps.raster.services.geo_utils import (
@@ -25,9 +26,6 @@ from apps.raster.services.geo_utils import (
 )
 from apps.raster.services.progress import normalize_progress_text
 from apps.raster.services.rules_engine import default_raster_rules
-
-
-RASTER_EXTENSIONS = {".tif", ".tiff", ".img", ".vrt"}
 
 
 def is_raster_file(path: Path) -> bool:

@@ -14,11 +14,11 @@ import { addRasterLayer } from "../map/rasterLayerSync";
 import {
   bindGeometryDraw,
   type DrawMode,
-  removeLayerGroupSimple,
   upsertPolygonLayer,
 } from "../map/spatialDraw";
 import {
   addLoadedStyleLayers,
+  removeLayerGroup,
   removeLoadedLayerGroup,
   reorderLoadedStyleLayers,
 } from "../map/vectorLayerSync";
@@ -136,10 +136,12 @@ export default function MapCanvas({
         0.16,
       );
     } else {
-      removeLayerGroupSimple(map, spatialFilterSourceId, [
-        spatialFilterFillId,
-        spatialFilterLineId,
-      ]);
+      removeLayerGroup(
+        map,
+        spatialFilterSourceId,
+        [spatialFilterFillId, spatialFilterLineId],
+        { cleanInteraction: false },
+      );
     }
   }, [spatialFilter]);
 
@@ -156,10 +158,12 @@ export default function MapCanvas({
         0.14,
       );
     } else {
-      removeLayerGroupSimple(map, exportClipSourceId, [
-        exportClipFillId,
-        exportClipLineId,
-      ]);
+      removeLayerGroup(
+        map,
+        exportClipSourceId,
+        [exportClipFillId, exportClipLineId],
+        { cleanInteraction: false },
+      );
     }
   }, [exportClipGeometry]);
 

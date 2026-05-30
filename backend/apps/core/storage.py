@@ -33,10 +33,6 @@ def validate_vector_layer_name(layer_name: str) -> str:
     return layer_name
 
 
-def raster_data_path(relative_path: str) -> Path:
-    return raster_processed_path(relative_path)
-
-
 def raster_source_path(relative_path: str) -> Path:
     return geographic_path("raster", "original", relative_path)
 
