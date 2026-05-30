@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       APP_CONFIG: /config/app.toml
-      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-*}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
       APP_DISABLE_RASTER_STARTUP_SCAN: ${APP_DISABLE_RASTER_STARTUP_SCAN:-0}
