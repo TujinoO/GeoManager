@@ -14,7 +14,13 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    // 性能优化：减少类型检查范围
+    "types": ["vite/client"],
+    // 不生成 source map（Vite 自己处理）
+    "sourceMap": false
   },
-  "include": ["src"]
+  "include": ["src"],
+  // 排除测试文件和大型类型定义
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "node_modules"]
 }

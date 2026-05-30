@@ -1,4 +1,5 @@
-import { LockOutlined, UserOutlined } from "@ant-design/icons";
+import LockOutlined from "@ant-design/icons/LockOutlined";
+import UserOutlined from "@ant-design/icons/UserOutlined";
 import {
   Alert,
   App,

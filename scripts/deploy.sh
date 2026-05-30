@@ -10,7 +10,7 @@ if [[ -f "${PROJECT_ROOT}/.env" ]]; then
 fi
 
 COMPOSE_FILE="${COMPOSE_FILE:-${PROJECT_ROOT}/docker-compose.yml}"
-SOURCE_CONFIG_FILE="${APP_SOURCE_CONFIG_FILE:-${1:-}}"
+SOURCE_CONFIG_FILE="${APP_CONFIG_FILE:-${1:-}}"
 RUNTIME_DIR="${APP_RUNTIME_DIR:-${PROJECT_ROOT}/.deploy}"
 APP_HTTP_PORT="${APP_HTTP_PORT:-80}"
 APP_DOCKER_BUILD_MODE="${APP_DOCKER_BUILD_MODE:-serial}"
@@ -18,7 +18,7 @@ APP_DOCKER_BUILD_MODE="${APP_DOCKER_BUILD_MODE:-serial}"
 if [[ -z "${SOURCE_CONFIG_FILE}" ]]; then
   cat >&2 <<EOF
 缺少配置文件参数。
-用法：APP_SOURCE_CONFIG_FILE=/path/to/app.toml scripts/deploy.sh
+用法：在 .env 中设置 APP_CONFIG_FILE=/path/to/app.toml
 或：scripts/deploy.sh /path/to/app.toml
 EOF
   exit 1

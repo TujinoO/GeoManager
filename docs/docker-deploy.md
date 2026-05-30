@@ -54,7 +54,7 @@ default_symbolizer_script = "scripts/raster_symbolizers/basic_gradient.py"
 可在项目根目录创建 `.env`，覆盖默认部署参数：
 
 ```bash
-APP_SOURCE_CONFIG_FILE=/srv/data-platform/app.toml
+APP_CONFIG_FILE=/srv/data-platform/app.toml
 APP_HTTP_PORT=80
 MAPBOX_ACCESS_TOKEN=pk.your-mapbox-public-token
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,your.domain.com,your.server.ip
@@ -102,7 +102,7 @@ scripts/deploy.sh /srv/data-platform/app.toml
 也可以通过环境变量传入配置文件：
 
 ```bash
-APP_SOURCE_CONFIG_FILE=/srv/data-platform/app.toml scripts/deploy.sh
+APP_CONFIG_FILE=/srv/data-platform/app.toml scripts/deploy.sh
 ```
 
 脚本流程：
