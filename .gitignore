@@ -17,3 +17,4 @@ frontend/.vite/
 frontend/vite.config.d.ts
 frontend/vite.config.js
 frontend/.env.local
+config/app.test.toml

@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from django.core.exceptions import ValidationError
 
-from apps.core.storage import raster_processed_path, raster_source_path
+from apps.core.storage import raster_source_path
 from apps.raster.models import RasterDataset
 from apps.raster.services.gdal_ops import run_gdal_command
 
