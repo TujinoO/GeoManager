@@ -1085,18 +1085,14 @@ export function RasterSymbolizationEditor({
                   <ControlRow
                     key={value.mode === "rgb" ? ["R", "G", "B"][index] : "band"}
                     label={
-                      value.mode === "rgb"
-                        ? ["R", "G", "B"][index]
-                        : "波段"
+                      value.mode === "rgb" ? ["R", "G", "B"][index] : "波段"
                     }
                   >
                     <Select
                       className="full-width"
                       value={band}
                       options={bandOptions}
-                      onChange={(nextBand) =>
-                        updateBand(index, nextBand)
-                      }
+                      onChange={(nextBand) => updateBand(index, nextBand)}
                     />
                   </ControlRow>
                 ))}

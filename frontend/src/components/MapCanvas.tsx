@@ -30,7 +30,11 @@ import type {
   LoadedVectorLayer,
   SpatialFilter,
 } from "../types";
-import { sourceIdFor } from "../utils/geometry";
+import {
+  boundsFromImageCoordinates,
+  combinedFeatureBounds,
+  sourceIdFor,
+} from "../utils/geometry";
 
 const mapStyle = "mapbox://styles/mapbox/satellite-streets-v12";
 const globeOverviewZoom = 2.4;
@@ -251,18 +255,22 @@ function syncLoadedLayers(map: MapboxMap, layers: LoadedLayer[]) {
     if (!activeIds.has(sourceId)) removeLoadedLayerGroup(map, sourceId);
   }
 
+  const newVectorBounds: mapboxgl.LngLatBounds[] = [];
   for (const layer of renderableVectorLayers) {
     const sourceId = sourceIdFor(layer.id);
     if (!layer.visible) {
       removeLoadedLayerGroup(map, sourceId);
       continue;
     }
-    if (!map.getSource(sourceId)) {
+    const isNew = !map.getSource(sourceId);
+    if (isNew) {
       map.addSource(sourceId, {
         type: "geojson",
         data: layer.geojson as never,
         generateId: true,
       });
+      const bounds = combinedFeatureBounds([layer.geojson]);
+      if (bounds) newVectorBounds.push(bounds);
     } else {
       (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(
         layer.geojson as never,
@@ -271,13 +279,31 @@ function syncLoadedLayers(map: MapboxMap, layers: LoadedLayer[]) {
     addLoadedStyleLayers(map, sourceId, layer);
   }
 
+  const newRasterBounds: mapboxgl.LngLatBounds[] = [];
   for (const layer of renderableRasterLayers) {
     const sourceId = sourceIdFor(layer.id);
     if (!layer.visible) {
       removeLoadedLayerGroup(map, sourceId);
       continue;
     }
+    const isNew = !map.getSource(sourceId);
+    if (isNew && layer.imageCoordinates) {
+      const bounds = boundsFromImageCoordinates(layer.imageCoordinates);
+      if (bounds) newRasterBounds.push(bounds);
+    }
     addRasterLayer(map, sourceId, layer);
+  }
+
+  const allNewBounds = [...newVectorBounds, ...newRasterBounds];
+  if (allNewBounds.length > 0) {
+    const combined = allNewBounds.reduce(
+      (b, next) => b.extend(next),
+      new mapboxgl.LngLatBounds(
+        allNewBounds[0].getSouthWest(),
+        allNewBounds[0].getNorthEast(),
+      ),
+    );
+    map.fitBounds(combined, { padding: 80, duration: 900, essential: true });
   }
 
   reorderLoadedStyleLayers(map, [
