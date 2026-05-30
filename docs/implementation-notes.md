@@ -186,3 +186,108 @@ frontend/src/
   - `layerFactory.test.ts` — 矢量/栅格图层组构建
 - 类型检查：`pnpm run typecheck`（`tsc --noEmit`）
 - 生产构建：`pnpm run build`（typecheck + vite build）
+
+## 版本管理
+
+### 实现概述
+
+项目采用语义化版本（Semantic Versioning）进行版本管理，前后端版本号保持同步更新。
+
+### 文件结构
+
+```
+huyang_system/
+├── CHANGELOG.md                    # 项目变更日志
+├── Makefile                        # 版本管理统一命令
+├── frontend/
+│   └── package.json                # 前端版本号及版本管理脚本
+└── backend/
+    ├── pyproject.toml              # 后端版本号
+    └── scripts/
+        └── bump_version.py         # 后端版本更新脚本
+```
+
+### 版本管理脚本
+
+#### 前端（package.json）
+
+```json
+{
+  "scripts": {
+    "version:patch": "npm version patch",
+    "version:minor": "npm version minor",
+    "version:major": "npm version major",
+    "version:prerelease": "npm version prerelease"
+  }
+}
+```
+
+#### 后端（bump_version.py）
+
+- 读取 `pyproject.toml` 中的版本号
+- 根据参数（major/minor/patch）计算新版本号
+- 更新 `pyproject.toml` 文件
+- 可选：创建 git commit 和 tag
+
+使用方式：
+```bash
+# 激活 Python 环境
+eval "$(mamba shell hook --shell zsh)" && mamba activate zyhy
+
+# 更新补丁版本
+python scripts/bump_version.py patch
+
+# 更新次版本并创建 git 标签
+python scripts/bump_version.py minor --tag
+
+# 预览变更（不实际修改）
+python scripts/bump_version.py patch --dry-run
+```
+
+### Makefile 命令
+
+Makefile 提供了统一的版本管理接口，同时更新前端和后端版本：
+
+- `make version-patch` - 同时更新前后端补丁版本
+- `make version-minor` - 同时更新前后端次版本
+- `make version-major` - 同时更新前后端主版本
+- `make changelog` - 显示最近提交历史
+- `make tag` - 创建 git 标签
+
+### CHANGELOG.md 格式
+
+采用 [Keep a Changelog](https://keepachangelog.com) 格式：
+
+```markdown
+## [Unreleased]
+
+### Added
+- 新增功能
+
+### Changed
+- 变更功能
+
+### Fixed
+- 修复问题
+
+### Removed
+- 移除功能
+
+## [0.1.0] - YYYY-MM-DD
+
+### Added
+- 初始版本功能
+```
+
+### 发布流程
+
+1. 更新 `CHANGELOG.md`，将 `[Unreleased]` 部分移至新版本
+2. 运行 `make version-patch/minor/major` 更新版本号
+3. 运行 `make tag` 创建 git 标签
+4. 推送代码和标签：`git push && git push --tags`
+
+### 当前版本
+
+- 前端版本：`0.1.0`（frontend/package.json）
+- 后端版本：`0.1.0`（backend/pyproject.toml）
+- 最新标签：`v0.1.0`

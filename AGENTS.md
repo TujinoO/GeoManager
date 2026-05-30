@@ -56,6 +56,45 @@ refer to pnpm scripts:
 
 activate python and run `ruff format . --line-length=160`
 
+## Version management
+
+The project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
+
+### Quick commands
+
+```bash
+# View available commands
+make help
+
+# Bump patch version (0.1.0 -> 0.1.1)
+make version-patch
+
+# Bump minor version (0.1.0 -> 0.2.0)
+make version-minor
+
+# Bump major version (0.1.0 -> 1.0.0)
+make version-major
+
+# Generate changelog
+make changelog
+
+# Create git tag
+make tag
+```
+
+### Version files
+
+- **Frontend**: `frontend/package.json` - version field
+- **Backend**: `backend/pyproject.toml` - version field
+- **Changelog**: `CHANGELOG.md` - project root
+
+### Release workflow
+
+1. Update CHANGELOG.md with new version changes
+2. Bump version using `make version-patch/minor/major`
+3. Create git tag using `make tag` or `git tag -a v{version} -m "Version {version}"`
+4. Push changes and tags: `git push && git push --tags`
+
 ## Other instructions:
 
 - Avoid the use of the !important style.
