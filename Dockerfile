@@ -44,6 +44,8 @@ CMD ["serve"]
 
 FROM node:22-bookworm-slim AS frontend-build
 
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+
 WORKDIR /build/frontend
 
 RUN corepack enable
