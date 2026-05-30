@@ -3,13 +3,11 @@
 ## 分层与目录
 
 - 前端和后端必须分离：`frontend/` 只放 React/Vite 工程，`backend/` 只放 Django 工程。
-- 程序代码、业务数据、地理数据、非地理数据分离存放。三类数据根目录只从 TOML 配置读取。
+- 程序代码、业务数据、科研数据分离存放。两类数据根目录只从 TOML 配置读取。
 - 业务数据固定子目录：`database/`、`media/`、`uploads/`、`exports/`、`logs/`、`static/`。
-- 地理数据固定子目录：`vector/`、`raster/original/`、`raster/preprocessed/`、`raster/metadata/source/`、`raster/metadata/preprocessed/`。
-- 非地理数据固定子目录：`gene/`、`table/`。
+- 科研数据固定子目录：`vector/`、`raster/original/`、`raster/preprocessed/`、`raster/metadata/source/`、`raster/metadata/preprocessed/`、`gene/`、`table/`。
 - 当前本机业务数据根目录为 `/Users/gx/Documents/Source/huyang_system_data/appdata`，通过 TOML 的 `storage.app_data` 指定，不在程序中硬编码。
-- 当前本机地理数据根目录为 `/Users/gx/Documents/Source/huyang_system_data/geodata`，通过 TOML 的 `storage.geographic_data_root` 指定，不在程序中硬编码。
-- 当前本机非地理数据根目录为 `/Users/gx/Documents/Source/huyang_system_data/nongeodata`，通过 TOML 的 `storage.non_geographic_data_root` 指定，不在程序中硬编码。
+- 当前本机科研数据根目录为 `/Users/gx/Documents/Source/huyang_system_data/research_data`，通过 TOML 的 `storage.research_data_root` 指定，不在程序中硬编码。
 
 ## 后端模块结构
 

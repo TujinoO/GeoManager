@@ -13,16 +13,12 @@ def app_path(*parts: str) -> Path:
     return _safe_join(settings.PROJECT_CONFIG.app_data, *parts)
 
 
-def geographic_path(*parts: str) -> Path:
-    return _safe_join(settings.PROJECT_CONFIG.geographic_data_root, *parts)
-
-
-def non_geographic_path(*parts: str) -> Path:
-    return _safe_join(settings.PROJECT_CONFIG.non_geographic_data_root, *parts)
+def research_path(*parts: str) -> Path:
+    return _safe_join(settings.PROJECT_CONFIG.research_data_root, *parts)
 
 
 def vector_geopackage_path() -> Path:
-    return geographic_path("vector", "vector.gpkg")
+    return research_path("vector", "vector.gpkg")
 
 
 def validate_vector_layer_name(layer_name: str) -> str:
@@ -38,23 +34,23 @@ def validate_vector_layer_name(layer_name: str) -> str:
 
 
 def raster_source_path(relative_path: str) -> Path:
-    return geographic_path("raster", "original", relative_path)
+    return research_path("raster", "original", relative_path)
 
 
 def raster_processed_path(relative_path: str) -> Path:
-    return geographic_path("raster", "preprocessed", relative_path)
+    return research_path("raster", "preprocessed", relative_path)
 
 
 def raster_metadata_path(relative_path: str) -> Path:
-    return geographic_path("raster", "metadata", relative_path)
+    return research_path("raster", "metadata", relative_path)
 
 
 def gene_data_path(relative_path: str = "") -> Path:
-    return non_geographic_path("gene", relative_path) if relative_path else non_geographic_path("gene")
+    return research_path("gene", relative_path) if relative_path else research_path("gene")
 
 
 def table_data_path(relative_path: str = "") -> Path:
-    return non_geographic_path("table", relative_path) if relative_path else non_geographic_path("table")
+    return research_path("table", relative_path) if relative_path else research_path("table")
 
 
 def _safe_join(root: Path, *parts: str) -> Path:

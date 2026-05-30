@@ -12,12 +12,11 @@ from apps.core.config import load_project_config
 from apps.core.models import SystemSetting
 from apps.core.storage import (
     StoragePathError,
-    geographic_path,
     gene_data_path,
-    non_geographic_path,
     raster_metadata_path,
     raster_processed_path,
     raster_source_path,
+    research_path,
     table_data_path,
 )
 
@@ -115,20 +114,18 @@ class FeaturePermissionTests(TestCase):
 
 
 class StoragePathTests(SimpleTestCase):
-    def test_geographic_path_rejects_parent_traversal(self):
+    def test_research_path_rejects_parent_traversal(self):
         with self.assertRaises(StoragePathError):
-            geographic_path("vector", "../secret.gpkg")
-
-    def test_non_geographic_path_rejects_parent_traversal(self):
+            research_path("vector", "../secret.gpkg")
         with self.assertRaises(StoragePathError):
-            non_geographic_path("gene", "../secret.fasta")
+            research_path("gene", "../secret.fasta")
 
     def test_raster_paths_are_under_raster_root(self):
         self.assertTrue(str(raster_source_path("a.tif")).endswith("/raster/original/a.tif"))
         self.assertTrue(str(raster_processed_path("a.cog.tif")).endswith("/raster/preprocessed/a.cog.tif"))
         self.assertTrue(str(raster_metadata_path("source/a.tif.gdalinfo.json")).endswith("/raster/metadata/source/a.tif.gdalinfo.json"))
 
-    def test_non_geographic_paths_are_under_fixed_subdirectories(self):
+    def test_gene_and_table_paths_are_under_fixed_subdirectories(self):
         self.assertTrue(str(gene_data_path("sample.fasta")).endswith("/gene/sample.fasta"))
         self.assertTrue(str(table_data_path("survey.csv")).endswith("/table/survey.csv"))
 
@@ -139,8 +136,7 @@ class ConfigLoaderTests(SimpleTestCase):
             root = Path(tmpdir)
             config_path = root / "app.toml"
             business_root = root / "app"
-            geographic_root = root / "geo"
-            non_geographic_root = root / "nongeo"
+            research_root = root / "research"
             config_path.write_text(
                 f"""
 [system]
@@ -150,8 +146,7 @@ allow_registration = true
 
 [storage]
 app_data = "{business_root}"
-geographic_data_root = "{geographic_root}"
-non_geographic_data_root = "{non_geographic_root}"
+research_data_root = "{research_root}"
 auto_create_directories = true
 
 [map]
@@ -173,14 +168,14 @@ default_symbolizer_script = "scripts/raster_symbolizers/basic_gradient.py"
             config = load_project_config(config_path, program_root=Path("/opt/data-sharing-platform"))
 
             self.assertTrue(config.app_path("database").is_dir())
-            self.assertTrue(config.geographic_path("vector").is_dir())
-            self.assertTrue(config.geographic_path("raster").is_dir())
-            self.assertTrue(config.geographic_path("raster", "original").is_dir())
-            self.assertTrue(config.geographic_path("raster", "preprocessed").is_dir())
-            self.assertTrue(config.geographic_path("raster", "metadata", "source").is_dir())
-            self.assertTrue(config.geographic_path("raster", "metadata", "preprocessed").is_dir())
-            self.assertTrue(config.non_geographic_path("gene").is_dir())
-            self.assertTrue(config.non_geographic_path("table").is_dir())
+            self.assertTrue(config.research_path("vector").is_dir())
+            self.assertTrue(config.research_path("raster").is_dir())
+            self.assertTrue(config.research_path("raster", "original").is_dir())
+            self.assertTrue(config.research_path("raster", "preprocessed").is_dir())
+            self.assertTrue(config.research_path("raster", "metadata", "source").is_dir())
+            self.assertTrue(config.research_path("raster", "metadata", "preprocessed").is_dir())
+            self.assertTrue(config.research_path("gene").is_dir())
+            self.assertTrue(config.research_path("table").is_dir())
 
 
 def grant(user, *specs):

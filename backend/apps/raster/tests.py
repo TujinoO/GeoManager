@@ -59,9 +59,9 @@ class RasterScanPathTests(TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             config = self._config(root)
-            source_file = config.geographic_path("raster", "original", "source.tif")
-            processed_file = config.geographic_path("raster", "preprocessed", "processed.tif")
-            loose_file = config.geographic_path("raster", "loose.tif")
+            source_file = config.research_path("raster", "original", "source.tif")
+            processed_file = config.research_path("raster", "preprocessed", "processed.tif")
+            loose_file = config.research_path("raster", "loose.tif")
             source_file.write_bytes(b"not a real tif")
             processed_file.write_bytes(b"not a source tif")
             loose_file.write_bytes(b"not a source tif")
@@ -78,8 +78,7 @@ class RasterScanPathTests(TestCase):
     def _config(self, root: Path):
         config_path = root / "app.toml"
         business_root = root / "app"
-        geographic_root = root / "geo"
-        non_geographic_root = root / "nongeo"
+        research_root = root / "research"
         config_path.write_text(
             f"""
 [system]
@@ -89,8 +88,7 @@ allow_registration = true
 
 [storage]
 app_data = "{business_root}"
-geographic_data_root = "{geographic_root}"
-non_geographic_data_root = "{non_geographic_root}"
+research_data_root = "{research_root}"
 auto_create_directories = true
 
 [map]

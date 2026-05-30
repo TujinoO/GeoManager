@@ -14,10 +14,9 @@
 - 前端静态目录：`/usr/share/nginx/html`
 - 默认配置路径：`/config/app.toml`
 - 默认业务数据根目录：`/data/app`
-- 默认地理数据根目录：`/data/geographic`
-- 默认非地理数据根目录：`/data/nongeographic`
+- 默认科研数据根目录：`/data/research`
 
-业务数据、地理数据和非地理数据通过宿主机目录挂载进入容器，不能打包进镜像。容器内程序目录使用通用路径，不包含项目名。
+业务数据和科研数据通过宿主机目录挂载进入容器，不能打包进镜像。容器内程序目录使用通用路径，不包含项目名。
 
 ## 2. 准备配置文件
 
@@ -31,8 +30,7 @@ allow_registration = true
 
 [storage]
 app_data = "/data/app"
-geographic_data_root = "/data/geographic"
-non_geographic_data_root = "/data/nongeographic"
+research_data_root = "/data/research"
 auto_create_directories = true
 
 [map]
@@ -49,7 +47,7 @@ symbolizer_timeout_seconds = 120
 default_symbolizer_script = "scripts/raster_symbolizers/basic_gradient.py"
 ```
 
-配置文件中的 `storage.app_data`、`storage.geographic_data_root` 和 `storage.non_geographic_data_root` 是容器内的路径，通过 Docker volume 挂载映射到宿主机目录。
+配置文件中的 `storage.app_data` 和 `storage.research_data_root` 是容器内的路径，通过 Docker volume 挂载映射到宿主机目录。
 
 ## 3. 配置环境变量
 
@@ -137,7 +135,7 @@ logs/
 static/
 ```
 
-地理数据根目录下使用固定子目录：
+科研数据根目录下使用固定子目录：
 
 ```text
 vector/
@@ -147,9 +145,11 @@ raster/
   metadata/
     source/
     preprocessed/
+gene/
+table/
 ```
 
-GeoPackage 矢量数据放入 `/data/geographic/vector`，原始栅格数据放入 `/data/geographic/raster/original`。栅格符号化在后端完成，前端只加载后端生成的 PNG 或瓦片结果。
+GeoPackage 矢量数据放入 `/data/research/vector`，原始栅格数据放入 `/data/research/raster/original`，基因数据放入 `/data/research/gene`，表格数据放入 `/data/research/table`。栅格符号化在后端完成，前端只加载后端生成的 PNG 或瓦片结果。
 
 ## 8. 常用运维命令
 

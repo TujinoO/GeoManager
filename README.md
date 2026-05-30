@@ -39,7 +39,7 @@ pnpm install
 pnpm dev
 ```
 
-默认开发配置使用 `config/app.example.toml`，业务数据目录为 `/Users/gx/Documents/Source/huyang_system_data/appdata`，地理数据目录为 `/Users/gx/Documents/Source/huyang_system_data/geodata`。所有矢量数据统一从 `geodata/vector/vector.gpkg` 读取，业务库中矢量资源和图层填写该 GeoPackage 内的图层名。栅格数据统一放在 `geodata/raster/` 下，后端扫描 `raster/original/`，预处理和元数据分别写入 `raster/preprocessed/` 和 `raster/metadata/`。生产部署时通过 `APP_CONFIG=/path/to/app.toml` 指定实际配置文件。
+默认开发配置使用 `config/app.example.toml`，业务数据目录为 `/Users/gx/Documents/Source/huyang_system_data/appdata`，科研数据目录为 `/Users/gx/Documents/Source/huyang_system_data/research_data`。所有矢量数据统一从 `research_data/vector/vector.gpkg` 读取，业务库中矢量资源和图层填写该 GeoPackage 内的图层名。栅格数据统一放在 `research_data/raster/` 下，后端扫描 `raster/original/`，预处理和元数据分别写入 `raster/preprocessed/` 和 `raster/metadata/`。基因和表格数据分别放在 `research_data/gene/` 和 `research_data/table/` 下。生产部署时通过 `APP_CONFIG=/path/to/app.toml` 指定实际配置文件。
 
 ## Docker 部署
 

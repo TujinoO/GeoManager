@@ -8,15 +8,16 @@ from typing import Any
 
 
 APP_SUBDIRS = ("database", "media", "uploads", "exports", "logs", "static")
-GEOGRAPHIC_SUBDIRS = (
+RESEARCH_SUBDIRS = (
     "vector",
     "raster",
     "raster/original",
     "raster/preprocessed",
     "raster/metadata/source",
     "raster/metadata/preprocessed",
+    "gene",
+    "table",
 )
-NONGEOGRAPHIC_SUBDIRS = ("gene", "table")
 
 
 class ConfigValidationError(RuntimeError):
@@ -49,8 +50,7 @@ class ProjectConfig:
     mode: str
     allow_registration: bool
     app_data: Path
-    geographic_data_root: Path
-    non_geographic_data_root: Path
+    research_data_root: Path
     auto_create_directories: bool
     map: MapConfig
     limits: LimitConfig
@@ -59,11 +59,8 @@ class ProjectConfig:
     def app_path(self, *parts: str) -> Path:
         return self.app_data.joinpath(*parts)
 
-    def geographic_path(self, *parts: str) -> Path:
-        return self.geographic_data_root.joinpath(*parts)
-
-    def non_geographic_path(self, *parts: str) -> Path:
-        return self.non_geographic_data_root.joinpath(*parts)
+    def research_path(self, *parts: str) -> Path:
+        return self.research_data_root.joinpath(*parts)
 
 
 def load_project_config(config_path: Path, program_root: Path) -> ProjectConfig:
@@ -85,9 +82,8 @@ def load_project_config(config_path: Path, program_root: Path) -> ProjectConfig:
     raster = _table(raw, "raster")
 
     app_root = _absolute_path(storage.get("app_data"), "storage.app_data")
-    geographic_root = _absolute_path(storage.get("geographic_data_root"), "storage.geographic_data_root")
-    non_geographic_root = _absolute_path(storage.get("non_geographic_data_root"), "storage.non_geographic_data_root")
-    _validate_separate_roots(program_root, app_root, geographic_root, non_geographic_root)
+    research_root = _absolute_path(storage.get("research_data_root"), "storage.research_data_root")
+    _validate_separate_roots(program_root, app_root, research_root)
 
     project_config = ProjectConfig(
         config_path=config_path,
@@ -95,8 +91,7 @@ def load_project_config(config_path: Path, program_root: Path) -> ProjectConfig:
         mode=_string(system.get("mode"), "system.mode"),
         allow_registration=bool(system.get("allow_registration", False)),
         app_data=app_root,
-        geographic_data_root=geographic_root,
-        non_geographic_data_root=non_geographic_root,
+        research_data_root=research_root,
         auto_create_directories=bool(storage.get("auto_create_directories", False)),
         map=MapConfig(
             default_center=_center(map_config.get("default_center")),
@@ -159,11 +154,10 @@ def _center(value: Any) -> tuple[float, float]:
     return lon, lat
 
 
-def _validate_separate_roots(program_root: Path, app_root: Path, geographic_root: Path, non_geographic_root: Path) -> None:
+def _validate_separate_roots(program_root: Path, app_root: Path, research_root: Path) -> None:
     roots = {
         "业务数据总目录": app_root,
-        "地理数据总目录": geographic_root,
-        "非地理数据总目录": non_geographic_root,
+        "科研数据总目录": research_root,
     }
     seen: dict[Path, str] = {}
     for label, root in roots.items():
@@ -182,8 +176,7 @@ def _validate_separate_roots(program_root: Path, app_root: Path, geographic_root
 def _prepare_fixed_directories(config: ProjectConfig) -> None:
     required_paths = [
         *(config.app_path(subdir) for subdir in APP_SUBDIRS),
-        *(config.geographic_path(subdir) for subdir in GEOGRAPHIC_SUBDIRS),
-        *(config.non_geographic_path(subdir) for subdir in NONGEOGRAPHIC_SUBDIRS),
+        *(config.research_path(subdir) for subdir in RESEARCH_SUBDIRS),
     ]
     for directory in required_paths:
         if config.auto_create_directories:

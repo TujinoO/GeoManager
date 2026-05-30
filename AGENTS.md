@@ -16,12 +16,12 @@ Central Asia Poplar Forest Ecosystem Protection Data Sharing Platform (中亚胡
 - **Frontend**: React + Vite + Ant Design + Mapbox GL JS
 - **Backend**: Python + Django + GeoPandas + GDAL + Rasterio
 - **Data**: SQLite (business), GeoPackage `.gpkg` (vector), raw raster files, PNG cache
-- **Config**: TOML — defines business-data root dir, geographic-data root dir, cache limits, raster symbolization interface
+- **Config**: TOML — defines business-data root dir, research-data root dir, cache limits, raster symbolization interface
 
 ## Architecture principles (must-follow)
 
-- Program code, business data, and geographic data must be stored in separate directory trees.
-- Business-data root and geographic-data root are set in the TOML config file, not hardcoded.
+- Program code, business data, and research data must be stored in separate directory trees.
+- Business-data root and research-data root are set in the TOML config file, not hardcoded.
 - Subdirectory layout under the two data roots is fixed by convention, not configurable per-item.
 - Raster files are never symbolized in the browser. Backend Python scripts generate PNG; frontend loads the PNG.
 - Each raster type can have its own symbolization script, invoked through a unified interface with stdin/stdout contract.

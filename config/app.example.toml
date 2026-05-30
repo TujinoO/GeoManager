@@ -4,9 +4,8 @@ mode = "development"
 allow_registration = true
 
 [storage]
-app_data = "/path/to/data/business"
-geographic_data_root = "/path/to/data/geographic"
-non_geographic_data_root = "/path/to/data/nongeographic"
+app_data = "/path/to/data/appdata"
+research_data_root = "/path/to/data/research"
 auto_create_directories = true
 
 [map]
