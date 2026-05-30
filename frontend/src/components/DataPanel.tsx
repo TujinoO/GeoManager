@@ -435,9 +435,7 @@ export default function DataPanel({
             )}
             {permissions.canLoadVectorLayer && (
               <Button
-                disabled={
-                  !queryResult || queryResult.returnedCount === 0
-                }
+                disabled={!queryResult || queryResult.returnedCount === 0}
                 onClick={onLoadResult}
               >
                 加载到图层
