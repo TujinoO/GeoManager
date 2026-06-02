@@ -6,6 +6,7 @@ Central Asia Poplar Forest Ecosystem Protection Data Sharing Platform (中亚胡
 
 - Summarise the details into documents (docs/) for reference during the coding process.
 - format code before commiting git. 
+- **API doc sync**: Whenever a backend API endpoint is added, removed, or modified (URL, request params, response format, permissions, etc.), update `docs/api.md` accordingly.
 
 ## Key reference
 

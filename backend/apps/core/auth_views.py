@@ -2,8 +2,6 @@ import json
 
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -62,12 +60,9 @@ def register_view(request):
         return JsonResponse({"detail": "两次输入的密码不一致"}, status=400)
 
     User = get_user_model()
+    if len(password) < 6:
+        return JsonResponse({"detail": "密码至少 6 位"}, status=400)
     user = User(username=username, email=email)
-    try:
-        validate_password(password, user)
-    except ValidationError as exc:
-        return JsonResponse({"detail": "；".join(exc.messages)}, status=400)
-
     try:
         with transaction.atomic():
             is_first_user = not User.objects.select_for_update().exists()
