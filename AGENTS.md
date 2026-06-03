@@ -55,7 +55,7 @@ refer to pnpm scripts:
 
 ### backend
 
-activate python and run `ruff format . --line-length=160`
+activate python and run `ruff format .`
 
 ## Version management
 

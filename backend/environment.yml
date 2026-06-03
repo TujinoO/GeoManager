@@ -1,0 +1,23 @@
+name: zyhy
+channels:
+  - conda-forge
+dependencies:
+  - django
+  - fiona
+  - gdal
+  - geopandas
+  - gunicorn
+  - libgdal-arrow-parquet
+  - numba
+  - openpyxl
+  - pandas
+  - pillow
+  - pip
+  - pyarrow
+  - python=3.14
+  - rasterio
+  - ruff
+  - pip:
+    - xlrd==2.0.2
+
+prefix: "/Users/gx/.local/share/mamba/envs/zyhy"

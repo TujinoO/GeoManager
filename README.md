@@ -18,7 +18,7 @@
 "fix": "biome check . --write"
 ```
 
-后端：首先激活python环境，然后`ruff format . --line-length=160`
+后端：首先激活python环境，然后`ruff format .`
 
 ## 本地运行
 
