@@ -51,10 +51,6 @@ export default defineConfig({
     },
     // 启用 CSS 代码分割
     cssCodeSplit: true,
-    // 使用 esbuild 进行代码压缩（比 terser 快得多，内存占用更少）
-    minify: "esbuild",
-    // 降低 target 减少 polyfill
-    target: "es2020",
     // 调整 chunk 大小警告阈值（mapbox-gl 本身就很大）
     chunkSizeWarningLimit: 2000,
   },
@@ -62,9 +58,5 @@ export default defineConfig({
   optimizeDeps: {
     // 预构建这些大型依赖，避免开发时重复编译
     include: ["mapbox-gl", "antd", "lucide-react"],
-  },
-  // esbuild 配置
-  esbuild: {
-    target: "es2020",
   },
 });

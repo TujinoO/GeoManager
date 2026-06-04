@@ -5,7 +5,6 @@ import {
   Descriptions,
   Empty,
   Input,
-  List,
   Select,
   Space,
   Tag,
@@ -140,7 +139,7 @@ export default function DataPanel({
         <Search size={15} />
         <Typography.Text strong>元数据筛选</Typography.Text>
       </div>
-      <Space direction="vertical" className="full-width compact-stack">
+      <Space orientation="vertical" className="full-width compact-stack">
         <Input
           prefix={<Search size={15} />}
           placeholder="数据名称或编号"
@@ -199,27 +198,31 @@ export default function DataPanel({
         <ListFilter size={15} />
         <Typography.Text strong>数据资源</Typography.Text>
       </div>
-      <List
-        className="resource-list"
-        dataSource={resources}
-        locale={{
-          emptyText: (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="暂无数据资源"
-            />
-          ),
-        }}
-        renderItem={(resource) => (
-          <List.Item
-            className={
-              resource.id === selectedResourceId
-                ? "resource-row resource-row-active"
-                : "resource-row"
-            }
-            actions={[
+      {resources.length > 0 ? (
+        <ul className="resource-list" aria-label="数据资源">
+          {resources.map((resource) => (
+            <li
+              key={resource.id}
+              className={
+                resource.id === selectedResourceId
+                  ? "resource-row resource-row-active"
+                  : "resource-row"
+              }
+            >
+              <div className="resource-row-content">
+                <Typography.Text strong className="resource-row-title">
+                  {resource.name}
+                  {!resource.isQueryable && !resource.isRenderable && (
+                    <Tag>仅元数据</Tag>
+                  )}
+                  {resource.isRenderable && <Tag color="blue">栅格</Tag>}
+                </Typography.Text>
+                <Typography.Text type="secondary" className="resource-row-meta">
+                  {resource.category?.name ?? "未分类"} ·{" "}
+                  {resource.fileFormat || resource.dataType}
+                </Typography.Text>
+              </div>
               <Button
-                key="select"
                 size="small"
                 type={
                   resource.id === selectedResourceId ? "primary" : "default"
@@ -228,24 +231,16 @@ export default function DataPanel({
                 onClick={() => onSelectResource(resource)}
               >
                 选择
-              </Button>,
-            ]}
-          >
-            <List.Item.Meta
-              title={
-                <span>
-                  {resource.name}
-                  {!resource.isQueryable && !resource.isRenderable && (
-                    <Tag>仅元数据</Tag>
-                  )}
-                  {resource.isRenderable && <Tag color="blue">栅格</Tag>}
-                </span>
-              }
-              description={`${resource.category?.name ?? "未分类"} · ${resource.fileFormat || resource.dataType}`}
-            />
-          </List.Item>
-        )}
-      />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description="暂无数据资源"
+        />
+      )}
 
       {profile && (
         <>
@@ -281,22 +276,19 @@ export default function DataPanel({
               className="inline-alert"
               type="info"
               showIcon
-              message="正在读取字段信息"
+              title="正在读取字段信息"
             />
           ) : (
-            <List
-              size="small"
-              className="field-list"
-              dataSource={profile.fields}
-              renderItem={(item) => (
-                <List.Item>
+            <ul className="field-list" aria-label="字段列表">
+              {profile.fields.map((item) => (
+                <li className="field-row" key={item.name}>
                   <Typography.Text>{item.name}</Typography.Text>
                   <Typography.Text type="secondary">
                     {item.type}
                   </Typography.Text>
-                </List.Item>
-              )}
-            />
+                </li>
+              ))}
+            </ul>
           )}
         </>
       )}
@@ -307,7 +299,7 @@ export default function DataPanel({
             <Plus size={15} />
             <Typography.Text strong>属性查询</Typography.Text>
           </div>
-          <Space direction="vertical" className="full-width compact-stack">
+          <Space orientation="vertical" className="full-width compact-stack">
             <Select
               placeholder="选择字段"
               value={field}
@@ -394,7 +386,7 @@ export default function DataPanel({
           className="inline-alert"
           type="success"
           showIcon
-          message={`查询命中 ${queryResult.totalCount} 条，返回 ${queryResult.returnedCount} 条`}
+          title={`查询命中 ${queryResult.totalCount} 条，返回 ${queryResult.returnedCount} 条`}
         />
       )}
     </section>

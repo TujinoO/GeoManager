@@ -673,13 +673,15 @@ GET /api/catalog/resources/{id}/profile/
       "name": "species",
       "type": "object",
       "nullable": false,
-      "sampleValues": ["Populus euphratica", "Tamarix ramosissima"]
+      "sampleValues": ["Populus euphratica", "Tamarix ramosissima"],
+      "description": "树种名称"
     },
     {
       "name": "area_ha",
       "type": "float64",
       "nullable": true,
-      "sampleValues": [125.5, 89.3, 42.1]
+      "sampleValues": [125.5, 89.3, 42.1],
+      "description": "面积（公顷）"
     }
   ],
   "featureCount": 1520,
@@ -688,6 +690,16 @@ GET /api/catalog/resources/{id}/profile/
   "raster": null
 }
 ```
+
+**字段说明**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| name | string | 字段名称 |
+| type | string | 数据类型（如 object、float64、int64） |
+| nullable | boolean | 是否可为空 |
+| sampleValues | array | 样本值（最多8个） |
+| description | string | 字段说明（从 GeoPackage 元数据读取，可能为空字符串） |
 
 **栅格资源响应**（`dataType` 为 `raster` 时）：
 
@@ -822,7 +834,8 @@ POST /api/catalog/resources/{id}/query/
       "name": "species",
       "type": "object",
       "nullable": false,
-      "sampleValues": ["Populus euphratica"]
+      "sampleValues": ["Populus euphratica"],
+      "description": "树种名称"
     }
   ],
   "geojson": {
@@ -841,6 +854,18 @@ POST /api/catalog/resources/{id}/query/
   }
 }
 ```
+
+**字段说明**：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| resourceId | number | 资源 ID |
+| resourceName | string | 资源名称 |
+| totalCount | number | 符合条件的总记录数 |
+| returnedCount | number | 本次返回的记录数 |
+| limit | number | 查询结果上限 |
+| fields | array | 字段信息数组（含 description 字段） |
+| geojson | object | GeoJSON FeatureCollection |
 
 **错误响应**：
 

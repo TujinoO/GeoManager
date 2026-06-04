@@ -14,6 +14,7 @@ import { Download, Info, MousePointer2, Upload, X } from "lucide-react";
 import { useRef } from "react";
 import type { DrawMode } from "../map/spatialDraw";
 import type { GeoJsonGeometry, LoadedLayer, SpatialFilter } from "../types";
+import { downloadBlob } from "../utils/download";
 
 type DrawPurpose = "query";
 
@@ -44,7 +45,7 @@ export default function WorkspaceBottomPanel({
     <Tabs
       className="workspace-bottom-tabs"
       size="small"
-      tabPosition="bottom"
+      tabPlacement="bottom"
       items={[
         {
           key: "draw",
@@ -206,17 +207,13 @@ function DrawingPanel({
     const blob = new Blob([JSON.stringify(geojson, null, 2)], {
       type: "application/geo+json;charset=utf-8",
     });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `spatial-range-${new Date()
-      .toISOString()
-      .slice(0, 19)
-      .replace(/[-:T]/g, "")}.geojson`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    downloadBlob(
+      blob,
+      `spatial-range-${new Date()
+        .toISOString()
+        .slice(0, 19)
+        .replace(/[-:T]/g, "")}.geojson`,
+    );
   }
 
   return (

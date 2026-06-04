@@ -34,6 +34,7 @@ import type {
   ResourceQueryResult,
   SpatialFilter,
 } from "../types";
+import { downloadBlob } from "../utils/download";
 import {
   boundsFromImageCoordinates,
   combinedFeatureBounds,
@@ -518,14 +519,7 @@ export default function MapPage() {
           throw new Error("导出文件下载地址缺失");
         }
         const { blob, filename } = await api.downloadExport(downloadUrl);
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(url);
+        downloadBlob(blob, filename);
         message.success("导出任务已完成");
       } catch (error) {
         message.error(error instanceof Error ? error.message : "导出失败");
@@ -612,7 +606,21 @@ export default function MapPage() {
                 placement="bottomLeft"
                 open={dataPanelOpen}
                 onOpenChange={setDataPanelOpen}
-                overlayClassName="data-popover"
+                classNames={{ root: "data-popover" }}
+                styles={{
+                  content: {
+                    width: "min(440px, calc(100vw - 32px))",
+                    maxHeight: "calc(100vh - 110px)",
+                    padding: 0,
+                    overflow: "auto",
+                    background: "rgba(248, 250, 247, 0.92)",
+                    border: "1px solid rgba(255, 255, 255, 0.34)",
+                    borderRadius: 8,
+                    boxShadow:
+                      "0 22px 62px rgba(8, 28, 24, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.38)",
+                    backdropFilter: "blur(24px) saturate(1.28)",
+                  },
+                }}
                 content={dataPanel}
               >
                 <Button icon={<Layers size={16} />}>数据管理</Button>

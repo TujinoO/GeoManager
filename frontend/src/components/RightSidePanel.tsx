@@ -12,7 +12,7 @@ export default function RightSidePanel({ selectedFeature }: Props) {
     <Tabs
       className="right-side-tabs"
       size="small"
-      tabPosition="bottom"
+      tabPlacement="bottom"
       items={[
         {
           key: "feature",

@@ -290,7 +290,7 @@ function LayerGroupNode({
     <div className="layer-tree-node layer-tree-node-group">
       <div className="layer-row-main">
         <div className="layer-heading">
-          <Tooltip title={expanded ? "折叠图层组" : "展开图层组"}>
+          <Tooltip title={expanded ? "折叠" : "展开"}>
             <Button
               className="layer-icon-button"
               type="text"
@@ -333,7 +333,7 @@ function LayerGroupNode({
             canUseCustomSymbolization={ctx.canUseCustomSymbolization}
             canExportData={ctx.canExportData}
           />
-          <Tooltip title="拖动排序">
+          <Tooltip title="排序">
             <Button
               className="layer-drag-handle action-btn"
               type="text"
@@ -630,8 +630,8 @@ function NodeActions({
         <Tooltip title="数据表">
           <Button
             className="action-btn"
-            size="small"
             type="text"
+            size="small"
             aria-label={`${subjectName}数据表`}
             icon={<Table2 size={14} />}
             onClick={onOpenTable}
@@ -641,74 +641,74 @@ function NodeActions({
       <Tooltip title="定位">
         <Button
           className="action-btn"
-          size="small"
           type="text"
+          size="small"
           aria-label={`定位${subjectName}`}
           icon={<Crosshair size={14} />}
           onClick={onLocate}
         />
       </Tooltip>
-      <Popover
-        trigger="click"
-        placement="leftTop"
-        overlayClassName="symbolization-popover"
-        open={exportOpen}
-        onOpenChange={handleExportOpenChange}
-        content={
-          <ExportOptionsCard
-            title={`导出 ${subjectName}`}
-            epsg={exportEpsg}
-            reproject={exportReproject}
-            clip={exportClip}
-            clipReady={Boolean(ctx.exportClipGeometry)}
-            running={exportRunning}
-            progress={exportProgress}
-            messages={exportMessages}
-            onEpsgChange={setExportEpsg}
-            onReprojectChange={setExportReproject}
-            onClipChange={setExportClip}
-            onClearClip={ctx.clearExportClipGeometry}
-            onExport={confirmExport}
-          />
-        }
-      >
-        {canExportData && (
+      {canExportData && (
+        <Popover
+          trigger="click"
+          placement="leftTop"
+          classNames={{ root: "symbolization-popover" }}
+          open={exportOpen}
+          onOpenChange={handleExportOpenChange}
+          content={
+            <ExportOptionsCard
+              title={`导出 ${subjectName}`}
+              epsg={exportEpsg}
+              reproject={exportReproject}
+              clip={exportClip}
+              clipReady={Boolean(ctx.exportClipGeometry)}
+              running={exportRunning}
+              progress={exportProgress}
+              messages={exportMessages}
+              onEpsgChange={setExportEpsg}
+              onReprojectChange={setExportReproject}
+              onClipChange={setExportClip}
+              onClearClip={ctx.clearExportClipGeometry}
+              onExport={confirmExport}
+            />
+          }
+        >
           <Tooltip title="导出">
             <Button
               className="action-btn"
-              size="small"
               type="text"
+              size="small"
               aria-label={`导出${subjectName}`}
               icon={<Download size={14} />}
             />
           </Tooltip>
-        )}
-      </Popover>
-      <Popover
-        trigger="click"
-        placement="leftTop"
-        overlayClassName="symbolization-popover"
-        open={symbolizationOpen}
-        onOpenChange={handleSymbolizationOpenChange}
-        content={renderSymbolizationEditor()}
-      >
-        {canUseCustomSymbolization && (
+        </Popover>
+      )}
+      {canUseCustomSymbolization && (
+        <Popover
+          trigger="click"
+          placement="leftTop"
+          classNames={{ root: "symbolization-popover" }}
+          open={symbolizationOpen}
+          onOpenChange={handleSymbolizationOpenChange}
+          content={renderSymbolizationEditor()}
+        >
           <Tooltip title="符号化">
             <Button
               className="action-btn"
-              size="small"
               type="text"
+              size="small"
               aria-label={`${subjectName}符号化`}
               icon={<Palette size={14} />}
             />
           </Tooltip>
-        )}
-      </Popover>
+        </Popover>
+      )}
       <Tooltip title="移除">
         <Button
           className="action-btn"
-          size="small"
           type="text"
+          size="small"
           aria-label={`移除${subjectName}`}
           icon={<Trash2 size={14} />}
           onClick={onRemove}
@@ -792,7 +792,7 @@ function ExportOptionsCard({
     messages.length > 0 ? messages[messages.length - 1] : "";
   return (
     <Card className="symbolization-card export-card" size="small" title={title}>
-      <Space direction="vertical" className="full-width symbolization-stack">
+      <Space orientation="vertical" className="full-width symbolization-stack">
         <div className="export-option-row">
           <Typography.Text strong>重投影</Typography.Text>
           <Switch checked={reproject} onChange={onReprojectChange} />
@@ -816,7 +816,7 @@ function ExportOptionsCard({
           <Switch checked={clip} onChange={onClipChange} />
         </div>
         {clip && (
-          <Space direction="vertical" className="full-width compact-stack">
+          <Space orientation="vertical" className="full-width compact-stack">
             <div className="export-clip-actions">
               <Typography.Text type={clipReady ? "success" : "secondary"}>
                 {clipReady
@@ -830,10 +830,10 @@ function ExportOptionsCard({
           </Space>
         )}
         {running && (
-          <Space direction="vertical" className="full-width compact-stack">
+          <Space orientation="vertical" className="full-width compact-stack">
             <Progress percent={progress} size="small" />
             {latestMessage && (
-              <Alert type="info" showIcon message={latestMessage} />
+              <Alert type="info" showIcon title={latestMessage} />
             )}
           </Space>
         )}

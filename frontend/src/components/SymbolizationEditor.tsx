@@ -149,7 +149,7 @@ export function VectorSymbolizationEditor({
             label: "通用",
             children: (
               <Space
-                direction="vertical"
+                orientation="vertical"
                 className="full-width symbolization-stack"
               >
                 <ControlRow label="透明度">
@@ -184,7 +184,7 @@ export function VectorSymbolizationEditor({
             label: "circle",
             children: (
               <Space
-                direction="vertical"
+                orientation="vertical"
                 className="full-width symbolization-stack"
               >
                 <ColorField
@@ -288,7 +288,7 @@ export function VectorSymbolizationEditor({
             label: "symbol",
             children: (
               <Space
-                direction="vertical"
+                orientation="vertical"
                 className="full-width symbolization-stack"
               >
                 <Typography.Text strong>layout</Typography.Text>
@@ -524,7 +524,7 @@ export function VectorSymbolizationEditor({
             label: "text",
             children: (
               <Space
-                direction="vertical"
+                orientation="vertical"
                 className="full-width symbolization-stack"
               >
                 <Typography.Text strong>text layout</Typography.Text>
@@ -746,7 +746,7 @@ export function VectorSymbolizationEditor({
             label: "line",
             children: (
               <Space
-                direction="vertical"
+                orientation="vertical"
                 className="full-width symbolization-stack"
               >
                 <ColorField
@@ -849,7 +849,7 @@ export function VectorSymbolizationEditor({
             label: "fill",
             children: (
               <Space
-                direction="vertical"
+                orientation="vertical"
                 className="full-width symbolization-stack"
               >
                 <ColorField
@@ -1055,7 +1055,7 @@ export function RasterSymbolizationEditor({
             label: "渲染",
             children: (
               <Space
-                direction="vertical"
+                orientation="vertical"
                 className="full-width symbolization-stack"
               >
                 <ControlRow label="透明度">
@@ -1138,7 +1138,7 @@ export function RasterSymbolizationEditor({
             label: "拉伸",
             children: (
               <Space
-                direction="vertical"
+                orientation="vertical"
                 className="full-width symbolization-stack"
               >
                 <BooleanField
@@ -1193,7 +1193,7 @@ export function RasterSymbolizationEditor({
             label: "唯一值",
             children: (
               <Space
-                direction="vertical"
+                orientation="vertical"
                 className="full-width symbolization-stack"
               >
                 <ControlRow label="分类波段">
@@ -1210,7 +1210,7 @@ export function RasterSymbolizationEditor({
                   <Alert
                     type="warning"
                     showIcon
-                    message="唯一值分类仅支持整型波段，浮点型波段不适用。"
+                    title="唯一值分类仅支持整型波段，浮点型波段不适用。"
                   />
                 )}
                 <Button

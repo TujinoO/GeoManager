@@ -515,20 +515,6 @@ body {
   backdrop-filter: blur(12px);
 }
 
-.data-popover .ant-popover-inner {
-  width: min(440px, calc(100vw - 32px));
-  max-height: calc(100vh - 110px);
-  padding: 0;
-  overflow: auto;
-  background: rgba(248, 250, 247, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  border-radius: 8px;
-  box-shadow:
-    0 22px 62px rgba(8, 28, 24, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.38);
-  backdrop-filter: blur(24px) saturate(1.28);
-}
-
 .panel-section {
   padding: 16px;
 }
@@ -619,11 +605,18 @@ body {
 .field-list {
   max-height: 220px;
   overflow: auto;
+  padding: 0;
+  margin: 0;
   border-top: 1px solid rgba(23, 63, 57, 0.12);
   border-bottom: 1px solid rgba(23, 63, 57, 0.12);
+  list-style: none;
 }
 
-.resource-row.ant-list-item {
+.resource-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 10px 0;
 }
 
@@ -631,15 +624,26 @@ body {
   background: rgba(47, 125, 98, 0.08);
 }
 
-.resource-row .ant-list-item-meta-title {
-  margin-bottom: 2px;
+.resource-row-content {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.resource-row-title,
+.resource-row-meta {
+  display: block;
+  min-width: 0;
 }
 
 .resource-row .ant-tag {
   margin-left: 6px;
 }
 
-.field-list .ant-list-item {
+.field-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
   padding: 7px 0;
 }
 
@@ -819,18 +823,6 @@ body {
   width: 24px;
   height: 24px;
   padding: 0;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}
-
-.action-btn:hover,
-.action-btn:focus,
-.layer-icon-button:hover,
-.layer-icon-button:focus,
-.layer-drag-handle:hover,
-.layer-drag-handle:focus {
-  background: transparent;
 }
 
 .layer-drag-handle {

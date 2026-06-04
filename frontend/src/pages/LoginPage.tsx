@@ -1,5 +1,3 @@
-import LockOutlined from "@ant-design/icons/LockOutlined";
-import UserOutlined from "@ant-design/icons/UserOutlined";
 import {
   Alert,
   App,
@@ -10,7 +8,7 @@ import {
   Input,
   Typography,
 } from "antd";
-import { LogIn } from "lucide-react";
+import { Lock, LogIn, User } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
@@ -95,7 +93,7 @@ export default function LoginPage() {
               rules={[{ required: true, message: "请输入账号" }]}
             >
               <Input
-                prefix={<UserOutlined />}
+                prefix={<User size={16} />}
                 placeholder="请输入账号"
                 autoComplete="username"
               />
@@ -106,7 +104,7 @@ export default function LoginPage() {
               rules={[{ required: true, message: "请输入密码" }]}
             >
               <Input.Password
-                prefix={<LockOutlined />}
+                prefix={<Lock size={16} />}
                 placeholder="请输入密码"
                 autoComplete="current-password"
               />
@@ -120,7 +118,7 @@ export default function LoginPage() {
               </Button>
             </div>
             {!bootstrap.allowRegistration && (
-              <Alert type="info" showIcon message="当前系统未开放自助注册" />
+              <Alert type="info" showIcon title="当前系统未开放自助注册" />
             )}
             <Button
               type="primary"
@@ -150,7 +148,7 @@ export default function LoginPage() {
               rules={[{ required: true, message: "请输入账号" }]}
             >
               <Input
-                prefix={<UserOutlined />}
+                prefix={<User size={16} />}
                 placeholder="请输入账号"
                 autoComplete="username"
               />
@@ -168,7 +166,7 @@ export default function LoginPage() {
               rules={[{ required: true, message: "请输入密码" }]}
             >
               <Input.Password
-                prefix={<LockOutlined />}
+                prefix={<Lock size={16} />}
                 placeholder="请输入密码"
                 autoComplete="new-password"
               />
@@ -190,7 +188,7 @@ export default function LoginPage() {
               ]}
             >
               <Input.Password
-                prefix={<LockOutlined />}
+                prefix={<Lock size={16} />}
                 placeholder="请再次输入密码"
                 autoComplete="new-password"
               />

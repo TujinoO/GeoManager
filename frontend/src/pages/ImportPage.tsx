@@ -215,7 +215,7 @@ export default function ImportPage() {
               <Alert
                 type="info"
                 showIcon
-                message="导入限制"
+                title="导入限制"
                 description={preview.limitations.join("；")}
               />
               <div className="import-config-grid">
@@ -338,7 +338,7 @@ export default function ImportPage() {
                 <Alert
                   type="warning"
                   showIcon
-                  message="未自动识别经纬度列"
+                  title="未自动识别经纬度列"
                   description="可以手动选择经度列和纬度列后按地理数据导入，也可以保留为非地理数据导入。"
                 />
               )}

@@ -13,28 +13,28 @@
     "lint": "biome lint .",
     "check": "biome check .",
     "fix": "biome check . --write",
-    "version:patch": "npm version patch",
-    "version:minor": "npm version minor",
-    "version:major": "npm version major",
-    "version:prerelease": "npm version prerelease"
+    "version:patch": "pnpm version patch",
+    "version:minor": "pnpm version minor",
+    "version:major": "pnpm version major",
+    "version:prerelease": "pnpm version prerelease"
   },
   "dependencies": {
-    "@ant-design/icons": "^5.5.1",
-    "antd": "^5.22.0",
-    "lucide-react": "^0.468.0",
-    "mapbox-gl": "^3.8.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "@ant-design/icons": "^6.2.5",
+    "antd": "^6.4.3",
+    "lucide-react": "^1.17.0",
+    "mapbox-gl": "^3.24.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "react-router-dom": "^7.16.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.15",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "^5.7.2",
-    "vite": "^6.0.1",
-    "vitest": "^4.1.7"
+    "@biomejs/biome": "^2.4.16",
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8"
   },
   "packageManager": "pnpm@11.5.0"
 }
