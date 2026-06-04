@@ -26,47 +26,69 @@ class Migration(migrations.Migration):
                 ("name", models.CharField(max_length=160, verbose_name="数据名称")),
                 (
                     "code",
-                    models.SlugField(max_length=96, unique=True, verbose_name="数据编号"),
+                    models.SlugField(
+                        max_length=96, unique=True, verbose_name="数据编号"
+                    ),
                 ),
                 (
                     "source_relative_path",
-                    models.CharField(max_length=500, unique=True, verbose_name="源文件相对路径"),
+                    models.CharField(
+                        max_length=500, unique=True, verbose_name="源文件相对路径"
+                    ),
                 ),
                 (
                     "processed_relative_path",
-                    models.CharField(blank=True, max_length=500, verbose_name="预处理文件相对路径"),
+                    models.CharField(
+                        blank=True, max_length=500, verbose_name="预处理文件相对路径"
+                    ),
                 ),
                 (
                     "source_metadata_relative_path",
-                    models.CharField(blank=True, max_length=500, verbose_name="源文件元数据路径"),
+                    models.CharField(
+                        blank=True, max_length=500, verbose_name="源文件元数据路径"
+                    ),
                 ),
                 (
                     "processed_metadata_relative_path",
-                    models.CharField(blank=True, max_length=500, verbose_name="预处理文件元数据路径"),
+                    models.CharField(
+                        blank=True, max_length=500, verbose_name="预处理文件元数据路径"
+                    ),
                 ),
                 (
                     "source_gdalinfo",
-                    models.JSONField(blank=True, default=dict, verbose_name="源文件 GDAL 元数据"),
+                    models.JSONField(
+                        blank=True, default=dict, verbose_name="源文件 GDAL 元数据"
+                    ),
                 ),
                 (
                     "processed_gdalinfo",
-                    models.JSONField(blank=True, default=dict, verbose_name="预处理文件 GDAL 元数据"),
+                    models.JSONField(
+                        blank=True, default=dict, verbose_name="预处理文件 GDAL 元数据"
+                    ),
                 ),
                 (
                     "default_rules",
-                    models.JSONField(blank=True, default=dict, verbose_name="默认符号化规则"),
+                    models.JSONField(
+                        blank=True, default=dict, verbose_name="默认符号化规则"
+                    ),
                 ),
                 (
                     "bounds_3857",
-                    models.JSONField(blank=True, default=list, verbose_name="EPSG:3857 范围"),
+                    models.JSONField(
+                        blank=True, default=list, verbose_name="EPSG:3857 范围"
+                    ),
                 ),
                 (
                     "bounds_4326",
-                    models.JSONField(blank=True, default=list, verbose_name="经纬度范围"),
+                    models.JSONField(
+                        blank=True, default=list, verbose_name="经纬度范围"
+                    ),
                 ),
                 (
                     "image_coordinates",
-                    models.JSONField(blank=True, default=list, verbose_name="Mapbox 图片角点"),
+                    models.JSONField(
+                        blank=True, default=list, verbose_name="Mapbox 图片角点"
+                    ),
                 ),
                 (
                     "band_count",
@@ -74,11 +96,15 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "source_file_size",
-                    models.PositiveBigIntegerField(default=0, verbose_name="源文件大小"),
+                    models.PositiveBigIntegerField(
+                        default=0, verbose_name="源文件大小"
+                    ),
                 ),
                 (
                     "processed_file_size",
-                    models.PositiveBigIntegerField(default=0, verbose_name="预处理文件大小"),
+                    models.PositiveBigIntegerField(
+                        default=0, verbose_name="预处理文件大小"
+                    ),
                 ),
                 (
                     "status",
@@ -105,7 +131,9 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "processed_at",
-                    models.DateTimeField(blank=True, null=True, verbose_name="预处理完成时间"),
+                    models.DateTimeField(
+                        blank=True, null=True, verbose_name="预处理完成时间"
+                    ),
                 ),
                 (
                     "updated_at",

@@ -1,4 +1,5 @@
 import {
+  App,
   Button,
   Descriptions,
   Empty,
@@ -9,11 +10,12 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { Crop, Info, MousePointer2, PenTool, X } from "lucide-react";
+import { Download, Info, MousePointer2, Upload, X } from "lucide-react";
+import { useRef } from "react";
 import type { DrawMode } from "../map/spatialDraw";
 import type { GeoJsonGeometry, LoadedLayer, SpatialFilter } from "../types";
 
-type DrawPurpose = "query" | "exportClip";
+type DrawPurpose = "query";
 
 interface Props {
   selectedLayer: LoadedLayer | null;
@@ -22,10 +24,9 @@ interface Props {
   layerExtentVisible: boolean;
   activeDraw: { purpose: DrawPurpose; mode: NonNullable<DrawMode> } | null;
   onStartQueryDraw: (mode: DrawMode | null) => void;
-  onStartExportClipDraw: (mode: DrawMode) => void;
   onLayerExtentVisibleChange: (visible: boolean) => void;
   onClearSpatialFilter: () => void;
-  onClearExportClipGeometry: () => void;
+  onImportSpatialFilter: (filter: SpatialFilter) => void;
 }
 
 export default function WorkspaceBottomPanel({
@@ -35,10 +36,9 @@ export default function WorkspaceBottomPanel({
   layerExtentVisible,
   activeDraw,
   onStartQueryDraw,
-  onStartExportClipDraw,
   onLayerExtentVisibleChange,
   onClearSpatialFilter,
-  onClearExportClipGeometry,
+  onImportSpatialFilter,
 }: Props) {
   return (
     <Tabs
@@ -50,8 +50,8 @@ export default function WorkspaceBottomPanel({
           key: "draw",
           label: (
             <span className="tab-label">
-              <PenTool size={14} />
-              图形绘制
+              <MousePointer2 size={14} />
+              空间范围
             </span>
           ),
           children: (
@@ -60,9 +60,8 @@ export default function WorkspaceBottomPanel({
               exportClipGeometry={exportClipGeometry}
               activeDraw={activeDraw}
               onStartQueryDraw={onStartQueryDraw}
-              onStartExportClipDraw={onStartExportClipDraw}
               onClearSpatialFilter={onClearSpatialFilter}
-              onClearExportClipGeometry={onClearExportClipGeometry}
+              onImportSpatialFilter={onImportSpatialFilter}
             />
           ),
         },
@@ -159,25 +158,73 @@ function DrawingPanel({
   exportClipGeometry,
   activeDraw,
   onStartQueryDraw,
-  onStartExportClipDraw,
   onClearSpatialFilter,
-  onClearExportClipGeometry,
+  onImportSpatialFilter,
 }: Omit<
   Props,
   "selectedLayer" | "layerExtentVisible" | "onLayerExtentVisibleChange"
 >) {
+  const { message } = App.useApp();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const currentGeometry = spatialFilter?.geometry ?? exportClipGeometry;
+
+  async function handleImportGeojson(file: File) {
+    try {
+      const geometry = geometryFromGeojson(JSON.parse(await file.text()));
+      if (!geometry) {
+        message.warning("GeoJSON 中未找到可用的面状范围");
+        return;
+      }
+      onImportSpatialFilter({ mode: inferSpatialMode(geometry), geometry });
+      message.success("空间范围已导入");
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : "GeoJSON 文件读取失败",
+      );
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }
+
+  function handleExportGeojson() {
+    if (!currentGeometry) {
+      message.warning("请先绘制或导入空间范围");
+      return;
+    }
+    const geojson = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { purpose: "spatial-range" },
+          geometry: currentGeometry,
+        },
+      ],
+    };
+    const blob = new Blob([JSON.stringify(geojson, null, 2)], {
+      type: "application/geo+json;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `spatial-range-${new Date()
+      .toISOString()
+      .slice(0, 19)
+      .replace(/[-:T]/g, "")}.geojson`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="drawing-panel-grid">
       <section className="drawing-control-block">
-        <div className="drawing-control-title">
-          <MousePointer2 size={15} />
-          <Typography.Text strong>空间查询范围</Typography.Text>
-          {spatialFilter && (
-            <Tag color="green">已绘制{spatialModeName(spatialFilter.mode)}</Tag>
-          )}
-        </div>
         <Segmented
           block
+          className="spatial-range-mode-selector"
           value={activeDraw?.purpose === "query" ? activeDraw.mode : "none"}
           options={[
             { label: "无", value: "none" },
@@ -192,47 +239,47 @@ function DrawingPanel({
             )
           }
         />
-        <Button
-          size="small"
-          icon={<X size={13} />}
-          disabled={!spatialFilter}
-          onClick={onClearSpatialFilter}
-        >
-          清除查询范围
-        </Button>
-      </section>
-
-      <section className="drawing-control-block">
-        <div className="drawing-control-title">
-          <Crop size={15} />
-          <Typography.Text strong>导出裁切范围</Typography.Text>
-          {exportClipGeometry && <Tag color="blue">已绘制</Tag>}
-        </div>
-        <Segmented
-          block
-          value={
-            activeDraw?.purpose === "exportClip" ? activeDraw.mode : "none"
-          }
-          options={[
-            { label: "无", value: "none" },
-            { label: "矩形", value: "rectangle" },
-            { label: "圆", value: "circle" },
-            { label: "多边形", value: "polygon" },
-          ]}
-          onChange={(nextValue) => {
-            if (nextValue !== "none") {
-              onStartExportClipDraw(nextValue as DrawMode);
-            }
+        <input
+          ref={fileInputRef}
+          className="visually-hidden-file-input"
+          type="file"
+          accept=".geojson,.json,application/geo+json,application/json"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void handleImportGeojson(file);
           }}
         />
-        <Button
-          size="small"
-          icon={<X size={13} />}
-          disabled={!exportClipGeometry}
-          onClick={onClearExportClipGeometry}
-        >
-          清除裁切范围
-        </Button>
+        <Space size={8} wrap className="spatial-range-actions">
+          {spatialFilter && (
+            <Tag color="green">已绘制{spatialModeName(spatialFilter.mode)}</Tag>
+          )}
+          {!spatialFilter && exportClipGeometry && (
+            <Tag color="blue">已设置</Tag>
+          )}
+          <Button
+            size="small"
+            icon={<X size={13} />}
+            disabled={!currentGeometry}
+            onClick={onClearSpatialFilter}
+          >
+            清除
+          </Button>
+          <Button
+            size="small"
+            icon={<Upload size={13} />}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            导入
+          </Button>
+          <Button
+            size="small"
+            icon={<Download size={13} />}
+            disabled={!currentGeometry}
+            onClick={handleExportGeojson}
+          >
+            导出
+          </Button>
+        </Space>
       </section>
     </div>
   );
@@ -246,4 +293,47 @@ function spatialModeName(mode: SpatialFilter["mode"]) {
     polygon: "多边形",
   };
   return names[mode];
+}
+
+function geometryFromGeojson(value: unknown): GeoJsonGeometry | null {
+  if (!isGeojsonObject(value)) return null;
+  if (isSupportedGeometry(value)) return value;
+  if (value.type === "Feature" && isSupportedGeometry(value.geometry)) {
+    return value.geometry;
+  }
+  if (value.type === "FeatureCollection" && Array.isArray(value.features)) {
+    for (const feature of value.features) {
+      if (isGeojsonObject(feature) && isSupportedGeometry(feature.geometry)) {
+        return feature.geometry;
+      }
+    }
+  }
+  return null;
+}
+
+function isGeojsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isSupportedGeometry(value: unknown): value is GeoJsonGeometry {
+  if (!isGeojsonObject(value)) return false;
+  return (
+    typeof value.type === "string" &&
+    ["Polygon", "MultiPolygon"].includes(value.type) &&
+    "coordinates" in value
+  );
+}
+
+function inferSpatialMode(geometry: GeoJsonGeometry): SpatialFilter["mode"] {
+  if (geometry.type === "Polygon" && isRectanglePolygon(geometry.coordinates)) {
+    return "rectangle";
+  }
+  return "polygon";
+}
+
+function isRectanglePolygon(coordinates: unknown) {
+  if (!Array.isArray(coordinates) || !Array.isArray(coordinates[0])) {
+    return false;
+  }
+  return coordinates[0].length === 5;
 }

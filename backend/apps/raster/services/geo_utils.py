@@ -14,7 +14,10 @@ from apps.raster.services.constants import DEFAULT_TILE_SIZE, WEB_MERCATOR_HALF_
 
 def bounds_from_gdalinfo(metadata: dict[str, Any]) -> list[float]:
     corners = metadata.get("cornerCoordinates") or {}
-    points = [corners.get(key) for key in ("upperLeft", "lowerLeft", "lowerRight", "upperRight")]
+    points = [
+        corners.get(key)
+        for key in ("upperLeft", "lowerLeft", "lowerRight", "upperRight")
+    ]
     points = [point for point in points if isinstance(point, list) and len(point) >= 2]
     if not points:
         return []
@@ -69,9 +72,16 @@ def tile_bounds_3857(z: int, x: int, y: int) -> tuple[float, float, float, float
     return minx, miny, maxx, maxy
 
 
-def intersects_bounds(bounds: tuple[float, float, float, float], dataset_bounds: Any) -> bool:
+def intersects_bounds(
+    bounds: tuple[float, float, float, float], dataset_bounds: Any
+) -> bool:
     minx, miny, maxx, maxy = bounds
-    return not (maxx <= dataset_bounds.left or minx >= dataset_bounds.right or maxy <= dataset_bounds.bottom or miny >= dataset_bounds.top)
+    return not (
+        maxx <= dataset_bounds.left
+        or minx >= dataset_bounds.right
+        or maxy <= dataset_bounds.bottom
+        or miny >= dataset_bounds.top
+    )
 
 
 def transparent_png() -> bytes:

@@ -29,7 +29,9 @@ def validate_vector_layer_name(layer_name: str) -> str:
     if path_part.is_absolute() or len(path_part.parts) != 1 or ".." in path_part.parts:
         raise StoragePathError(f"非法 GeoPackage 图层名：{layer_name}")
     if layer_name.endswith(".gpkg"):
-        raise StoragePathError("矢量数据字段应填写 GeoPackage 内的图层名，不是 .gpkg 文件路径")
+        raise StoragePathError(
+            "矢量数据字段应填写 GeoPackage 内的图层名，不是 .gpkg 文件路径"
+        )
     return layer_name
 
 
@@ -46,11 +48,17 @@ def raster_metadata_path(relative_path: str) -> Path:
 
 
 def gene_data_path(relative_path: str = "") -> Path:
-    return research_path("gene", relative_path) if relative_path else research_path("gene")
+    return (
+        research_path("gene", relative_path) if relative_path else research_path("gene")
+    )
 
 
 def table_data_path(relative_path: str = "") -> Path:
-    return research_path("table", relative_path) if relative_path else research_path("table")
+    return (
+        research_path("table", relative_path)
+        if relative_path
+        else research_path("table")
+    )
 
 
 def _safe_join(root: Path, *parts: str) -> Path:

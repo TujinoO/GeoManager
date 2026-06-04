@@ -56,7 +56,9 @@ class PalettesTests(SimpleTestCase):
         hex_pattern = re.compile(r"^#[0-9a-fA-F]{6}$")
         for name, colors in PALETTES.items():
             for color in colors:
-                self.assertRegex(color, hex_pattern, f"Palette '{name}' has invalid color: {color}")
+                self.assertRegex(
+                    color, hex_pattern, f"Palette '{name}' has invalid color: {color}"
+                )
 
 
 class UniqueColorsTests(SimpleTestCase):

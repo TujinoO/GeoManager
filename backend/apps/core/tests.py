@@ -23,7 +23,9 @@ from apps.core.storage import (
 
 class BootstrapApiTests(TestCase):
     def test_bootstrap_returns_public_runtime_settings(self):
-        SystemSetting.objects.update_or_create(pk=1, defaults={"allow_registration": False})
+        SystemSetting.objects.update_or_create(
+            pk=1, defaults={"allow_registration": False}
+        )
 
         response = self.client.get("/api/bootstrap/")
 
@@ -45,7 +47,9 @@ class CsrfSettingsTests(SimpleTestCase):
 
 class RegistrationApiTests(TestCase):
     def test_first_registered_user_becomes_system_admin(self):
-        SystemSetting.objects.update_or_create(pk=1, defaults={"allow_registration": True})
+        SystemSetting.objects.update_or_create(
+            pk=1, defaults={"allow_registration": True}
+        )
 
         response = self.client.post(
             "/api/auth/register/",
@@ -66,7 +70,9 @@ class RegistrationApiTests(TestCase):
         self.assertTrue(user.is_superuser)
 
     def test_registration_can_be_closed_by_system_setting(self):
-        SystemSetting.objects.update_or_create(pk=1, defaults={"allow_registration": False})
+        SystemSetting.objects.update_or_create(
+            pk=1, defaults={"allow_registration": False}
+        )
 
         response = self.client.post(
             "/api/auth/register/",
@@ -85,7 +91,9 @@ class RegistrationApiTests(TestCase):
 
 class FeaturePermissionTests(TestCase):
     def test_admin_requires_access_admin_permission_not_staff_flag(self):
-        user = get_user_model().objects.create_user(username="staff-no-access", password="pass12345", is_staff=True)
+        user = get_user_model().objects.create_user(
+            username="staff-no-access", password="pass12345", is_staff=True
+        )
         group = Group.objects.create(name="普通用户")
         user.groups.add(group)
         self.client.force_login(user)
@@ -96,7 +104,9 @@ class FeaturePermissionTests(TestCase):
         self.assertIn("当前用户组“普通用户”无权限", response.content.decode("utf-8"))
 
     def test_access_admin_permission_allows_non_staff_admin_entry(self):
-        user = get_user_model().objects.create_user(username="admin-access", password="pass12345", is_staff=False)
+        user = get_user_model().objects.create_user(
+            username="admin-access", password="pass12345", is_staff=False
+        )
         grant(user, ("core", "access_admin"))
         self.client.force_login(user)
 
@@ -106,8 +116,12 @@ class FeaturePermissionTests(TestCase):
 
     def test_feature_group_form_preserves_non_feature_permissions(self):
         group = Group.objects.create(name="科研用户")
-        add_user = Permission.objects.get(content_type__app_label="auth", codename="add_user")
-        browse_data = Permission.objects.get(content_type__app_label="core", codename="browse_data")
+        add_user = Permission.objects.get(
+            content_type__app_label="auth", codename="add_user"
+        )
+        browse_data = Permission.objects.get(
+            content_type__app_label="core", codename="browse_data"
+        )
         group.permissions.add(add_user)
         form = FeatureGroupForm(
             data={"name": group.name, "feature_permissions": [browse_data.id]},
@@ -130,13 +144,27 @@ class StoragePathTests(SimpleTestCase):
             research_path("gene", "../secret.fasta")
 
     def test_raster_paths_are_under_raster_root(self):
-        self.assertTrue(str(raster_source_path("a.tif")).endswith("/raster/original/a.tif"))
-        self.assertTrue(str(raster_processed_path("a.cog.tif")).endswith("/raster/preprocessed/a.cog.tif"))
-        self.assertTrue(str(raster_metadata_path("source/a.tif.gdalinfo.json")).endswith("/raster/metadata/source/a.tif.gdalinfo.json"))
+        self.assertTrue(
+            str(raster_source_path("a.tif")).endswith("/raster/original/a.tif")
+        )
+        self.assertTrue(
+            str(raster_processed_path("a.cog.tif")).endswith(
+                "/raster/preprocessed/a.cog.tif"
+            )
+        )
+        self.assertTrue(
+            str(raster_metadata_path("source/a.tif.gdalinfo.json")).endswith(
+                "/raster/metadata/source/a.tif.gdalinfo.json"
+            )
+        )
 
     def test_gene_and_table_paths_are_under_fixed_subdirectories(self):
-        self.assertTrue(str(gene_data_path("sample.fasta")).endswith("/gene/sample.fasta"))
-        self.assertTrue(str(table_data_path("survey.csv")).endswith("/table/survey.csv"))
+        self.assertTrue(
+            str(gene_data_path("sample.fasta")).endswith("/gene/sample.fasta")
+        )
+        self.assertTrue(
+            str(table_data_path("survey.csv")).endswith("/table/survey.csv")
+        )
 
 
 class ConfigLoaderTests(SimpleTestCase):
@@ -173,20 +201,28 @@ default_symbolizer_script = "scripts/raster_symbolizers/basic_gradient.py"
                 encoding="utf-8",
             )
 
-            config = load_project_config(config_path, program_root=Path("/opt/data-sharing-platform"))
+            config = load_project_config(
+                config_path, program_root=Path("/opt/data-sharing-platform")
+            )
 
             self.assertTrue(config.app_path("database").is_dir())
             self.assertTrue(config.research_path("vector").is_dir())
             self.assertTrue(config.research_path("raster").is_dir())
             self.assertTrue(config.research_path("raster", "original").is_dir())
             self.assertTrue(config.research_path("raster", "preprocessed").is_dir())
-            self.assertTrue(config.research_path("raster", "metadata", "source").is_dir())
-            self.assertTrue(config.research_path("raster", "metadata", "preprocessed").is_dir())
+            self.assertTrue(
+                config.research_path("raster", "metadata", "source").is_dir()
+            )
+            self.assertTrue(
+                config.research_path("raster", "metadata", "preprocessed").is_dir()
+            )
             self.assertTrue(config.research_path("gene").is_dir())
             self.assertTrue(config.research_path("table").is_dir())
 
 
 def grant(user, *specs):
     for app_label, codename in specs:
-        permission = Permission.objects.get(content_type__app_label=app_label, codename=codename)
+        permission = Permission.objects.get(
+            content_type__app_label=app_label, codename=codename
+        )
         user.user_permissions.add(permission)

@@ -1,4 +1,4 @@
-FROM mambaorg/micromamba:latest AS django
+FROM mambaorg/micromamba:latest
 
 ENV DEBIAN_FRONTEND=noninteractive \
     MAMBA_ROOT_PREFIX=/opt/conda \
@@ -41,29 +41,3 @@ EXPOSE 8000
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/app-entrypoint"]
 CMD ["serve"]
-
-
-FROM node:22-bookworm-slim AS frontend-build
-
-ENV NODE_OPTIONS="--max-old-space-size=2048"
-
-WORKDIR /build/frontend
-
-RUN corepack enable
-
-COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
-
-COPY frontend ./
-RUN pnpm build
-
-
-FROM nginx:1.27-alpine AS nginx
-
-ENV DJANGO_UPSTREAM=django:8000 \
-    APP_DATA_ROOT=/data/app
-
-COPY --from=frontend-build /build/frontend/dist /usr/share/nginx/html
-COPY docker/app.conf.template /etc/nginx/templates/default.conf.template
-
-EXPOSE 80

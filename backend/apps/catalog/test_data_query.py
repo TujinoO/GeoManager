@@ -104,7 +104,13 @@ class NormalizeForGeojsonTests(SimpleTestCase):
         import geopandas as gpd
         from shapely.geometry import Point
 
-        gdf = gpd.GeoDataFrame({"name": ["A"], "date": pd.to_datetime(["2025-01-01"]), "geometry": [Point(0, 0)]})
+        gdf = gpd.GeoDataFrame(
+            {
+                "name": ["A"],
+                "date": pd.to_datetime(["2025-01-01"]),
+                "geometry": [Point(0, 0)],
+            }
+        )
         result = normalize_for_geojson(gdf)
         self.assertEqual(result["date"].iloc[0], "2025-01-01")
 
@@ -112,7 +118,9 @@ class NormalizeForGeojsonTests(SimpleTestCase):
         import geopandas as gpd
         from shapely.geometry import Point
 
-        gdf = gpd.GeoDataFrame({"name": ["A"], "value": [42], "geometry": [Point(0, 0)]})
+        gdf = gpd.GeoDataFrame(
+            {"name": ["A"], "value": [42], "geometry": [Point(0, 0)]}
+        )
         result = normalize_for_geojson(gdf)
         self.assertEqual(result["name"].iloc[0], "A")
         self.assertEqual(result["value"].iloc[0], 42)

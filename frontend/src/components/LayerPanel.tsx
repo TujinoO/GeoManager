@@ -556,7 +556,7 @@ function NodeActions({
       return;
     }
     if (exportClip && !ctx.exportClipGeometry) {
-      message.warning("请先在地图上绘制裁切范围");
+      message.warning("请先在底部图形绘制中设置空间范围");
       return;
     }
     setExportRunning(true);
@@ -666,10 +666,7 @@ function NodeActions({
             messages={exportMessages}
             onEpsgChange={setExportEpsg}
             onReprojectChange={setExportReproject}
-            onClipChange={(checked) => {
-              setExportClip(checked);
-              if (!checked) ctx.clearExportClipGeometry();
-            }}
+            onClipChange={setExportClip}
             onClearClip={ctx.clearExportClipGeometry}
             onExport={confirmExport}
           />
@@ -823,8 +820,8 @@ function ExportOptionsCard({
             <div className="export-clip-actions">
               <Typography.Text type={clipReady ? "success" : "secondary"}>
                 {clipReady
-                  ? "已绘制裁切范围"
-                  : "请在底部图形绘制中设置裁切范围"}
+                  ? "已设置空间范围"
+                  : "请在底部图形绘制中设置空间范围"}
               </Typography.Text>
               <Button size="small" onClick={onClearClip} disabled={!clipReady}>
                 清除

@@ -13,9 +13,15 @@ from rasterio.enums import Resampling
 
 
 PALETTES = {
-    "poplar": np.array([[24, 80, 71], [104, 148, 84], [232, 186, 94]], dtype=np.float32),
-    "water": np.array([[34, 84, 120], [66, 145, 166], [184, 218, 214]], dtype=np.float32),
-    "thermal": np.array([[35, 52, 76], [196, 92, 70], [246, 205, 112]], dtype=np.float32),
+    "poplar": np.array(
+        [[24, 80, 71], [104, 148, 84], [232, 186, 94]], dtype=np.float32
+    ),
+    "water": np.array(
+        [[34, 84, 120], [66, 145, 166], [184, 218, 214]], dtype=np.float32
+    ),
+    "thermal": np.array(
+        [[35, 52, 76], [196, 92, 70], [246, 205, 112]], dtype=np.float32
+    ),
 }
 
 
@@ -74,8 +80,12 @@ def colorize(data, palette: np.ndarray, opacity: float) -> np.ndarray:
 
     stops = np.array([0.0, 0.5, 1.0], dtype=np.float32)
     for channel in range(3):
-        output[..., channel] = np.interp(scaled, stops, palette[:, channel]).astype(np.uint8)
-    output[..., 3] = np.where(valid, int(np.clip(opacity, 0, 1) * 255), 0).astype(np.uint8)
+        output[..., channel] = np.interp(scaled, stops, palette[:, channel]).astype(
+            np.uint8
+        )
+    output[..., 3] = np.where(valid, int(np.clip(opacity, 0, 1) * 255), 0).astype(
+        np.uint8
+    )
     return output
 
 

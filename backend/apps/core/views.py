@@ -9,7 +9,9 @@ from apps.core.models import SystemSetting
 
 
 def registration_allowed() -> bool:
-    system_setting = SystemSetting.objects.filter(pk=1).only("allow_registration").first()
+    system_setting = (
+        SystemSetting.objects.filter(pk=1).only("allow_registration").first()
+    )
     if system_setting is None:
         return settings.PROJECT_CONFIG.allow_registration
     return system_setting.allow_registration
@@ -26,7 +28,7 @@ def bootstrap(request):
                 "defaultCenter": config.map.default_center,
                 "defaultZoom": config.map.default_zoom,
                 "defaultBasemap": config.map.default_basemap,
-                "mapboxAccessToken": os.environ.get("MAPBOX_ACCESS_TOKEN", ""),
+                "mapboxAccessToken": config.map.mapbox_access_token,
             },
             "limits": {
                 "uploadMaxMb": config.limits.upload_max_mb,

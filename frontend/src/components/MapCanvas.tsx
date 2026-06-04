@@ -42,20 +42,31 @@ const globeOverviewZoom = 2.4;
 const spatialFilterSourceId = "query-spatial-filter";
 const spatialFilterFillId = "query-spatial-filter-fill";
 const spatialFilterLineId = "query-spatial-filter-line";
-const exportClipSourceId = "export-clip-filter";
-const exportClipFillId = "export-clip-filter-fill";
-const exportClipLineId = "export-clip-filter-line";
 const layerExtentSourceId = "selected-layer-extent";
 const layerExtentFillId = "selected-layer-extent-fill";
 const layerExtentLineId = "selected-layer-extent-line";
+const spatialRangeStyle = {
+  fillColor: "#ef4444",
+  fillOpacity: 0.16,
+  lineColor: "#ef4444",
+  lineOpacity: 0.95,
+  lineWidth: 2,
+};
+const layerExtentStyle = {
+  fillColor: "#000000",
+  fillOpacity: 0.16,
+  lineColor: "#000000",
+  lineOpacity: 1,
+  lineWidth: 2,
+};
 
 interface Props {
   bootstrap: Bootstrap;
   loadedLayers: LoadedLayer[];
   drawMode: DrawMode | null;
   spatialFilter: SpatialFilter | null;
-  exportClipGeometry: GeoJsonGeometry | null;
   layerExtentGeometry: GeoJsonGeometry | null;
+  layerExtentTargetLayer: LoadedLayer | null;
   onDrawComplete: (mode: DrawMode, geometry: GeoJsonGeometry) => void;
   onFeatureSelect?: (feature: FeatureInfo | null) => void;
   onMapReady?: (map: MapboxMap) => void;
@@ -67,8 +78,8 @@ export default function MapCanvas({
   loadedLayers,
   drawMode,
   spatialFilter,
-  exportClipGeometry,
   layerExtentGeometry,
+  layerExtentTargetLayer,
   onDrawComplete,
   onFeatureSelect,
   onMapReady,
@@ -145,7 +156,7 @@ export default function MapCanvas({
         spatialFilterFillId,
         spatialFilterLineId,
         spatialFilter.geometry,
-        0.16,
+        spatialRangeStyle,
       );
     } else {
       removeLayerGroup(
@@ -160,36 +171,17 @@ export default function MapCanvas({
   useEffect(() => {
     const map = mapRef.current;
     if (!map?.isStyleLoaded()) return;
-    if (exportClipGeometry) {
-      upsertPolygonLayer(
-        map,
-        exportClipSourceId,
-        exportClipFillId,
-        exportClipLineId,
-        exportClipGeometry,
-        0.14,
-      );
-    } else {
-      removeLayerGroup(
-        map,
-        exportClipSourceId,
-        [exportClipFillId, exportClipLineId],
-        { cleanInteraction: false },
-      );
-    }
-  }, [exportClipGeometry]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map?.isStyleLoaded()) return;
     if (layerExtentGeometry) {
+      const beforeId = layerExtentTargetLayer
+        ? firstStyleLayerIdForLayer(map, layerExtentTargetLayer)
+        : undefined;
       upsertPolygonLayer(
         map,
         layerExtentSourceId,
         layerExtentFillId,
         layerExtentLineId,
         layerExtentGeometry,
-        0.08,
+        { ...layerExtentStyle, beforeId },
       );
     } else {
       removeLayerGroup(
@@ -199,7 +191,7 @@ export default function MapCanvas({
         { cleanInteraction: false },
       );
     }
-  }, [layerExtentGeometry]);
+  }, [layerExtentGeometry, layerExtentTargetLayer]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -263,6 +255,20 @@ export default function MapCanvas({
       </div>
     </div>
   );
+}
+
+function firstStyleLayerIdForLayer(map: MapboxMap, layer: LoadedLayer) {
+  const sourceId = sourceIdFor(layer.id);
+  const candidates =
+    layer.layerType === "raster"
+      ? [`${sourceId}-raster`]
+      : [
+          `${sourceId}-fill`,
+          `${sourceId}-line`,
+          `${sourceId}-point`,
+          `${sourceId}-symbol`,
+        ];
+  return candidates.find((id) => map.getLayer(id));
 }
 
 function syncLoadedLayers(

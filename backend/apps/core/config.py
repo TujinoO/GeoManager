@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import os
-import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import tomllib
 
 APP_SUBDIRS = ("database", "media", "uploads", "exports", "logs", "static")
 RESEARCH_SUBDIRS = (
@@ -29,6 +29,7 @@ class MapConfig:
     default_center: tuple[float, float]
     default_zoom: float
     default_basemap: str
+    mapbox_access_token: str
 
 
 @dataclass(frozen=True)
@@ -81,7 +82,9 @@ def load_project_config(config_path: Path, program_root: Path) -> ProjectConfig:
     raster = _table(raw, "raster")
 
     app_root = _absolute_path(storage.get("app_data"), "storage.app_data")
-    research_root = _absolute_path(storage.get("research_data_root"), "storage.research_data_root")
+    research_root = _absolute_path(
+        storage.get("research_data_root"), "storage.research_data_root"
+    )
     _validate_separate_roots(program_root, app_root, research_root)
 
     project_config = ProjectConfig(
@@ -94,11 +97,20 @@ def load_project_config(config_path: Path, program_root: Path) -> ProjectConfig:
         map=MapConfig(
             default_center=_center(map_config.get("default_center")),
             default_zoom=float(map_config.get("default_zoom", 4.5)),
-            default_basemap=_string(map_config.get("default_basemap"), "map.default_basemap"),
+            default_basemap=_string(
+                map_config.get("default_basemap"), "map.default_basemap"
+            ),
+            mapbox_access_token=_string(
+                map_config.get("mapbox_access_token"), "map.mapbox_access_token"
+            ),
         ),
         limits=LimitConfig(
-            upload_max_mb=_positive_int(limits.get("upload_max_mb"), "limits.upload_max_mb"),
-            query_result_limit=_positive_int(limits.get("query_result_limit"), "limits.query_result_limit"),
+            upload_max_mb=_positive_int(
+                limits.get("upload_max_mb"), "limits.upload_max_mb"
+            ),
+            query_result_limit=_positive_int(
+                limits.get("query_result_limit"), "limits.query_result_limit"
+            ),
         ),
         raster=RasterConfig(
             symbolizer_timeout_seconds=_positive_int(
@@ -152,7 +164,9 @@ def _center(value: Any) -> tuple[float, float]:
     return lon, lat
 
 
-def _validate_separate_roots(program_root: Path, app_root: Path, research_root: Path) -> None:
+def _validate_separate_roots(
+    program_root: Path, app_root: Path, research_root: Path
+) -> None:
     roots = {
         "业务数据总目录": app_root,
         "科研数据总目录": research_root,

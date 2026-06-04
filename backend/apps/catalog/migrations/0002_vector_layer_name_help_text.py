@@ -20,6 +20,8 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name="maplayer",
             name="source_path",
-            field=models.CharField(blank=True, max_length=255, verbose_name="数据图层名或相对路径"),
+            field=models.CharField(
+                blank=True, max_length=255, verbose_name="数据图层名或相对路径"
+            ),
         ),
     ]

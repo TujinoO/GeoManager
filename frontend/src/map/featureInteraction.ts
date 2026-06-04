@@ -52,11 +52,23 @@ export function addVectorInteraction(
     const feature = event.features?.[0];
     if (!feature) return;
     event.preventDefault();
-    clearFeatureState(map, "selectedFeature", "selected");
     const target = featureStateTarget(feature);
+    const state = getMapState(map);
+    const selected = state.selectedFeature;
+    if (
+      target &&
+      selected &&
+      selected.source === target.source &&
+      selected.id === target.id
+    ) {
+      clearFeatureState(map, "selectedFeature", "selected");
+      onFeatureSelect?.(null);
+      return;
+    }
+    clearFeatureState(map, "selectedFeature", "selected");
     if (target) {
       map.setFeatureState(target, { selected: true });
-      getMapState(map).selectedFeature = target;
+      state.selectedFeature = target;
     }
     const sourceId = String(feature.source ?? "");
     const layer = layerBySourceId.get(sourceId);

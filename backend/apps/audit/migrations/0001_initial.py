@@ -38,7 +38,9 @@ class Migration(migrations.Migration):
                 ("message", models.TextField(blank=True, verbose_name="说明")),
                 (
                     "ip_address",
-                    models.GenericIPAddressField(blank=True, null=True, verbose_name="IP 地址"),
+                    models.GenericIPAddressField(
+                        blank=True, null=True, verbose_name="IP 地址"
+                    ),
                 ),
                 (
                     "created_at",
@@ -64,7 +66,9 @@ class Migration(migrations.Migration):
                         fields=["module", "action"],
                         name="audit_opera_module_596fad_idx",
                     ),
-                    models.Index(fields=["created_at"], name="audit_opera_created_837649_idx"),
+                    models.Index(
+                        fields=["created_at"], name="audit_opera_created_837649_idx"
+                    ),
                 ],
             },
         ),

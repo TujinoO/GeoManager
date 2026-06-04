@@ -34,8 +34,12 @@ def serialize_resource(resource: DataResource) -> dict:
         "description": resource.description,
         "qualityNote": resource.quality_note,
         "status": resource.status,
-        "isQueryable": bool(resource.data_type == DataResource.DataType.VECTOR and resource.storage_path),
-        "isRenderable": bool(resource.data_type == DataResource.DataType.RASTER and resource.storage_path),
+        "isQueryable": bool(
+            resource.data_type == DataResource.DataType.VECTOR and resource.storage_path
+        ),
+        "isRenderable": bool(
+            resource.data_type == DataResource.DataType.RASTER and resource.storage_path
+        ),
         "updatedAt": resource.updated_at.isoformat(),
     }
 
@@ -48,7 +52,9 @@ def serialize_catalog(catalog: DataCatalog) -> dict:
         "parentId": catalog.parent_id,
         "description": catalog.description,
         "sortOrder": catalog.sort_order,
-        "resources": [serialize_resource(resource) for resource in catalog.resources.all()],
+        "resources": [
+            serialize_resource(resource) for resource in catalog.resources.all()
+        ],
     }
 
 

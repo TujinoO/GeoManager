@@ -14,8 +14,12 @@ def upsert_catalog_records(
     default_rules: dict[str, Any],
     bounds_4326: list[float],
 ) -> tuple[DataResource, MapLayer]:
-    spatial_extent = ",".join(f"{value:.6f}" for value in bounds_4326) if bounds_4326 else ""
-    coordinate_system = f"EPSG:{(processed_info.get('stac') or {}).get('proj:epsg', 3857)}"
+    spatial_extent = (
+        ",".join(f"{value:.6f}" for value in bounds_4326) if bounds_4326 else ""
+    )
+    coordinate_system = (
+        f"EPSG:{(processed_info.get('stac') or {}).get('proj:epsg', 3857)}"
+    )
     data_resource, _ = DataResource.objects.update_or_create(
         code=dataset.code,
         defaults={

@@ -128,7 +128,9 @@ class NormalizeStretchBandsTests(SimpleTestCase):
         self.assertEqual(set(result.keys()), {"1", "2", "3"})
 
     def test_ensures_max_greater_than_min(self):
-        result = normalize_stretch_bands({"1": {"min": 50, "max": 50}}, _single_band_metadata())
+        result = normalize_stretch_bands(
+            {"1": {"min": 50, "max": 50}}, _single_band_metadata()
+        )
         self.assertGreater(result["1"]["max"], result["1"]["min"])
 
 
@@ -149,4 +151,6 @@ class IntegerBandTests(SimpleTestCase):
         self.assertTrue(is_integer_band({"bands": [{"band": 1, "type": "UInt16"}]}, 1))
 
     def test_rejects_float_band(self):
-        self.assertFalse(is_integer_band({"bands": [{"band": 1, "type": "Float32"}]}, 1))
+        self.assertFalse(
+            is_integer_band({"bands": [{"band": 1, "type": "Float32"}]}, 1)
+        )

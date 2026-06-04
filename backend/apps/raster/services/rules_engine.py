@@ -6,7 +6,9 @@ from apps.raster.services.constants import UNIQUE_COLORS
 from apps.raster.services.exceptions import RasterRenderError
 
 
-def default_raster_rules(metadata: dict[str, Any], fallback_metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+def default_raster_rules(
+    metadata: dict[str, Any], fallback_metadata: dict[str, Any] | None = None
+) -> dict[str, Any]:
     bands = metadata.get("bands") or []
     band_count = len(bands)
     if band_count <= 1:
@@ -65,12 +67,16 @@ def normalize_rules(rules: dict[str, Any], metadata: dict[str, Any]) -> dict[str
         "stretch": normalized_stretch,
         "palette": str(raw.get("palette") or "poplar"),
         "uniqueValues": normalize_unique_values(raw.get("uniqueValues"), metadata),
-        "alphaBand": normalize_alpha_band(raw.get("alphaBand", defaults.get("alphaBand")), band_count),
+        "alphaBand": normalize_alpha_band(
+            raw.get("alphaBand", defaults.get("alphaBand")), band_count
+        ),
         "nodata": normalize_nodata(raw.get("nodata")),
     }
 
 
-def normalize_stretch_bands(value: Any, metadata: dict[str, Any]) -> dict[str, dict[str, float]]:
+def normalize_stretch_bands(
+    value: Any, metadata: dict[str, Any]
+) -> dict[str, dict[str, float]]:
     result: dict[str, dict[str, float]] = {}
     source = value if isinstance(value, dict) else {}
     for index in range(1, max(1, len(metadata.get("bands") or [])) + 1):
@@ -84,7 +90,9 @@ def normalize_stretch_bands(value: Any, metadata: dict[str, Any]) -> dict[str, d
     return result
 
 
-def normalize_unique_values(value: Any, metadata: dict[str, Any]) -> list[dict[str, Any]]:
+def normalize_unique_values(
+    value: Any, metadata: dict[str, Any]
+) -> list[dict[str, Any]]:
     if isinstance(value, list) and value:
         items = value
     else:
@@ -173,11 +181,18 @@ def band_data_type(metadata: dict[str, Any], band_index: int) -> str:
 
 def is_integer_band(metadata: dict[str, Any], band_index: int) -> bool:
     data_type = band_data_type(metadata, band_index).lower()
-    return any(token in data_type for token in ("byte", "int", "uint")) and "float" not in data_type
+    return (
+        any(token in data_type for token in ("byte", "int", "uint"))
+        and "float" not in data_type
+    )
 
 
-def stretch_min_max(rules: dict[str, Any], metadata: dict[str, Any], band_index: int) -> tuple[float, float]:
-    per_band = ((rules.get("stretch") or {}).get("perBand") or {}).get(str(band_index)) or {}
+def stretch_min_max(
+    rules: dict[str, Any], metadata: dict[str, Any], band_index: int
+) -> tuple[float, float]:
+    per_band = ((rules.get("stretch") or {}).get("perBand") or {}).get(
+        str(band_index)
+    ) or {}
     default_min, default_max = band_min_max(metadata, band_index)
     minimum = float(per_band.get("min", default_min))
     maximum = float(per_band.get("max", default_max))

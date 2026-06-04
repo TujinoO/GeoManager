@@ -24,7 +24,9 @@ def bump_version(version: str, bump_type: str) -> str:
     """Bump version according to semver rules."""
     parts = version.split(".")
     if len(parts) != 3:
-        print(f"Error: Invalid version format '{version}'. Expected 'major.minor.patch'")
+        print(
+            f"Error: Invalid version format '{version}'. Expected 'major.minor.patch'"
+        )
         sys.exit(1)
 
     major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
@@ -39,7 +41,9 @@ def bump_version(version: str, bump_type: str) -> str:
     elif bump_type == "patch":
         patch += 1
     else:
-        print(f"Error: Invalid bump type '{bump_type}'. Use 'major', 'minor', or 'patch'")
+        print(
+            f"Error: Invalid bump type '{bump_type}'. Use 'major', 'minor', or 'patch'"
+        )
         sys.exit(1)
 
     return f"{major}.{minor}.{patch}"
@@ -48,15 +52,25 @@ def bump_version(version: str, bump_type: str) -> str:
 def update_version_in_file(pyproject_path: Path, new_version: str) -> None:
     """Update version in pyproject.toml file."""
     content = pyproject_path.read_text()
-    new_content = re.sub(r'version\s*=\s*"[^"]+"', f'version = "{new_version}"', content)
+    new_content = re.sub(
+        r'version\s*=\s*"[^"]+"', f'version = "{new_version}"', content
+    )
     pyproject_path.write_text(new_content)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Bump version in pyproject.toml")
-    parser.add_argument("bump_type", choices=["major", "minor", "patch"], help="Type of version bump")
-    parser.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
-    parser.add_argument("--tag", action="store_true", help="Create git tag after bumping version")
+    parser.add_argument(
+        "bump_type", choices=["major", "minor", "patch"], help="Type of version bump"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without making changes",
+    )
+    parser.add_argument(
+        "--tag", action="store_true", help="Create git tag after bumping version"
+    )
 
     args = parser.parse_args()
 
@@ -86,8 +100,14 @@ def main():
 
         try:
             subprocess.run(["git", "add", "pyproject.toml"], check=True)
-            subprocess.run(["git", "commit", "-m", f"chore: bump version to {new_version}"], check=True)
-            subprocess.run(["git", "tag", "-a", f"v{new_version}", "-m", f"Version {new_version}"], check=True)
+            subprocess.run(
+                ["git", "commit", "-m", f"chore: bump version to {new_version}"],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "tag", "-a", f"v{new_version}", "-m", f"Version {new_version}"],
+                check=True,
+            )
             print(f"Created git tag v{new_version}")
         except subprocess.CalledProcessError as e:
             print(f"Error creating git tag: {e}")

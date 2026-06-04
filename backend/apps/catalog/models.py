@@ -12,7 +12,9 @@ class DictionaryItem(models.Model):
         REGION = "region", "空间范围"
         PUBLIC_SCOPE = "public_scope", "公开范围"
 
-    dict_type = models.CharField(max_length=32, choices=DictType.choices, verbose_name="字典类型")
+    dict_type = models.CharField(
+        max_length=32, choices=DictType.choices, verbose_name="字典类型"
+    )
     code = models.SlugField(max_length=64, verbose_name="编码")
     name = models.CharField(max_length=128, verbose_name="名称")
     description = models.TextField(blank=True, verbose_name="说明")
@@ -24,7 +26,9 @@ class DictionaryItem(models.Model):
         verbose_name_plural = "字典项"
         ordering = ("dict_type", "sort_order", "id")
         constraints = [
-            models.UniqueConstraint(fields=("dict_type", "code"), name="uniq_dictionary_type_code"),
+            models.UniqueConstraint(
+                fields=("dict_type", "code"), name="uniq_dictionary_type_code"
+            ),
         ]
 
     def __str__(self) -> str:
@@ -46,7 +50,9 @@ class DataResource(models.Model):
 
     name = models.CharField(max_length=160, verbose_name="数据名称")
     code = models.SlugField(max_length=80, unique=True, verbose_name="数据编号")
-    data_type = models.CharField(max_length=24, choices=DataType.choices, verbose_name="数据类型")
+    data_type = models.CharField(
+        max_length=24, choices=DataType.choices, verbose_name="数据类型"
+    )
     category = models.ForeignKey(
         DictionaryItem,
         null=True,
@@ -58,8 +64,12 @@ class DataResource(models.Model):
     source = models.CharField(max_length=160, blank=True, verbose_name="数据来源")
     provider = models.CharField(max_length=160, blank=True, verbose_name="提供单位")
     data_date = models.DateField(null=True, blank=True, verbose_name="数据时间")
-    spatial_extent = models.CharField(max_length=255, blank=True, verbose_name="空间范围")
-    coordinate_system = models.CharField(max_length=120, blank=True, verbose_name="坐标信息")
+    spatial_extent = models.CharField(
+        max_length=255, blank=True, verbose_name="空间范围"
+    )
+    coordinate_system = models.CharField(
+        max_length=120, blank=True, verbose_name="坐标信息"
+    )
     file_format = models.CharField(max_length=40, blank=True, verbose_name="数据格式")
     storage_path = models.CharField(
         max_length=255,
@@ -69,7 +79,9 @@ class DataResource(models.Model):
     )
     description = models.TextField(blank=True, verbose_name="数据说明")
     quality_note = models.TextField(blank=True, verbose_name="数据质量说明")
-    access_groups = models.ManyToManyField(Group, blank=True, related_name="data_resources", verbose_name="访问角色")
+    access_groups = models.ManyToManyField(
+        Group, blank=True, related_name="data_resources", verbose_name="访问角色"
+    )
     maintainer = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
@@ -112,8 +124,12 @@ class DataCatalog(models.Model):
         verbose_name="上级目录",
     )
     description = models.TextField(blank=True, verbose_name="说明")
-    resources = models.ManyToManyField(DataResource, blank=True, related_name="catalogs", verbose_name="数据资源")
-    access_groups = models.ManyToManyField(Group, blank=True, related_name="data_catalogs", verbose_name="访问角色")
+    resources = models.ManyToManyField(
+        DataResource, blank=True, related_name="catalogs", verbose_name="数据资源"
+    )
+    access_groups = models.ManyToManyField(
+        Group, blank=True, related_name="data_catalogs", verbose_name="访问角色"
+    )
     sort_order = models.PositiveIntegerField(default=100, verbose_name="排序")
     is_active = models.BooleanField(default=True, verbose_name="启用")
 
@@ -139,7 +155,9 @@ class MapLayer(models.Model):
 
     name = models.CharField(max_length=160, verbose_name="图层名称")
     code = models.SlugField(max_length=80, unique=True, verbose_name="图层编码")
-    layer_type = models.CharField(max_length=16, choices=LayerType.choices, verbose_name="图层类型")
+    layer_type = models.CharField(
+        max_length=16, choices=LayerType.choices, verbose_name="图层类型"
+    )
     geometry_type = models.CharField(
         max_length=16,
         choices=GeometryType.choices,
@@ -162,16 +180,28 @@ class MapLayer(models.Model):
         related_name="map_layers",
         verbose_name="数据资源",
     )
-    source_path = models.CharField(max_length=255, blank=True, verbose_name="数据图层名或相对路径")
+    source_path = models.CharField(
+        max_length=255, blank=True, verbose_name="数据图层名或相对路径"
+    )
     sort_order = models.PositiveIntegerField(default=100, verbose_name="排序")
     default_visible = models.BooleanField(default=False, verbose_name="默认显示")
-    default_opacity = models.PositiveSmallIntegerField(default=85, verbose_name="默认透明度")
-    symbolization = models.JSONField(default=dict, blank=True, verbose_name="矢量符号化")
+    default_opacity = models.PositiveSmallIntegerField(
+        default=85, verbose_name="默认透明度"
+    )
+    symbolization = models.JSONField(
+        default=dict, blank=True, verbose_name="矢量符号化"
+    )
     bounds = models.JSONField(default=list, blank=True, verbose_name="边界范围")
     legend = models.TextField(blank=True, verbose_name="图例说明")
-    raster_symbolizer_script = models.CharField(max_length=255, blank=True, verbose_name="栅格符号化脚本")
-    raster_rules = models.JSONField(default=dict, blank=True, verbose_name="栅格符号化规则")
-    access_groups = models.ManyToManyField(Group, blank=True, related_name="map_layers", verbose_name="访问角色")
+    raster_symbolizer_script = models.CharField(
+        max_length=255, blank=True, verbose_name="栅格符号化脚本"
+    )
+    raster_rules = models.JSONField(
+        default=dict, blank=True, verbose_name="栅格符号化规则"
+    )
+    access_groups = models.ManyToManyField(
+        Group, blank=True, related_name="map_layers", verbose_name="访问角色"
+    )
     is_active = models.BooleanField(default=True, verbose_name="启用")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
@@ -206,8 +236,12 @@ class Achievement(models.Model):
     )
     summary = models.TextField(blank=True, verbose_name="成果说明")
     source = models.CharField(max_length=160, blank=True, verbose_name="成果来源")
-    image_path = models.CharField(max_length=255, blank=True, verbose_name="图片相对路径")
-    attachment_path = models.CharField(max_length=255, blank=True, verbose_name="附件相对路径")
+    image_path = models.CharField(
+        max_length=255, blank=True, verbose_name="图片相对路径"
+    )
+    attachment_path = models.CharField(
+        max_length=255, blank=True, verbose_name="附件相对路径"
+    )
     related_layer = models.ForeignKey(
         MapLayer,
         null=True,
@@ -216,9 +250,13 @@ class Achievement(models.Model):
         related_name="achievements",
         verbose_name="关联图层",
     )
-    access_groups = models.ManyToManyField(Group, blank=True, related_name="achievements", verbose_name="访问角色")
+    access_groups = models.ManyToManyField(
+        Group, blank=True, related_name="achievements", verbose_name="访问角色"
+    )
     display_order = models.PositiveIntegerField(default=100, verbose_name="展示排序")
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT, verbose_name="状态")
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT, verbose_name="状态"
+    )
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
 

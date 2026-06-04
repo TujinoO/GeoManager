@@ -9,7 +9,9 @@ from apps.raster.services.exceptions import RasterImportError
 
 
 def gdalinfo_json(path: Path) -> dict[str, Any]:
-    result = subprocess.run(["gdalinfo", "-json", str(path)], capture_output=True, text=True, check=False)
+    result = subprocess.run(
+        ["gdalinfo", "-json", str(path)], capture_output=True, text=True, check=False
+    )
     if result.returncode != 0:
         raise RasterImportError(result.stderr.strip() or "gdalinfo 执行失败")
     try:
@@ -18,7 +20,9 @@ def gdalinfo_json(path: Path) -> dict[str, Any]:
         raise RasterImportError("gdalinfo 未返回有效 JSON") from exc
 
 
-def run_gdal_command(command: list[str], progress: Callable[[str], None] | None = None) -> str:
+def run_gdal_command(
+    command: list[str], progress: Callable[[str], None] | None = None
+) -> str:
     process = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,

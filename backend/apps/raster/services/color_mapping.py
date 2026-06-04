@@ -21,7 +21,9 @@ def palette_array(name: str) -> np.ndarray:
     return np.array([hex_to_rgba(color)[:3] for color in colors], dtype=np.float32)
 
 
-def scale_array(values: np.ndarray, rules: dict[str, Any], metadata: dict[str, Any], band_index: int) -> np.ndarray:
+def scale_array(
+    values: np.ndarray, rules: dict[str, Any], metadata: dict[str, Any], band_index: int
+) -> np.ndarray:
     from apps.raster.services.rules_engine import stretch_min_max
 
     if not rules.get("stretch", {}).get("enabled", True):
@@ -31,7 +33,9 @@ def scale_array(values: np.ndarray, rules: dict[str, Any], metadata: dict[str, A
     return np.clip(scaled * 255.0, 0, 255).astype(np.uint8)
 
 
-def array_to_rgba(data: np.ma.MaskedArray, rules: dict[str, Any], metadata: dict[str, Any]) -> np.ndarray:
+def array_to_rgba(
+    data: np.ma.MaskedArray, rules: dict[str, Any], metadata: dict[str, Any]
+) -> np.ndarray:
     from apps.raster.services.rules_engine import output_source_bands
 
     mode = rules["mode"]
@@ -47,7 +51,9 @@ def array_to_rgba(data: np.ma.MaskedArray, rules: dict[str, Any], metadata: dict
         for index, band_index in enumerate(output_source_bands(rules)[:3]):
             output[..., index] = scale_array(values[index], rules, metadata, band_index)
         if values.shape[0] > 3:
-            output[..., 3] = np.where(valid, np.clip(values[3], 0, 255), 0).astype(np.uint8)
+            output[..., 3] = np.where(valid, np.clip(values[3], 0, 255), 0).astype(
+                np.uint8
+            )
         else:
             output[..., 3] = np.where(valid, 255, 0).astype(np.uint8)
         return output
@@ -63,14 +69,23 @@ def array_to_rgba(data: np.ma.MaskedArray, rules: dict[str, Any], metadata: dict
     if mode == "unique":
         integer_values = values[0].astype(np.int64)
         for item in rules["uniqueValues"]:
-            output[integer_values == int(item["value"])] = hex_to_rgba(str(item["color"]))
+            output[integer_values == int(item["value"])] = hex_to_rgba(
+                str(item["color"])
+            )
         output[..., 3] = np.where(valid, output[..., 3], 0).astype(np.uint8)
         return output
 
-    scaled = scale_array(values[0], rules, metadata, output_source_bands(rules)[0]).astype(np.float32) / 255.0
+    scaled = (
+        scale_array(values[0], rules, metadata, output_source_bands(rules)[0]).astype(
+            np.float32
+        )
+        / 255.0
+    )
     palette = palette_array(str(rules.get("palette") or "poplar"))
     stops = np.linspace(0.0, 1.0, len(palette), dtype=np.float32)
     for channel in range(3):
-        output[..., channel] = np.interp(scaled, stops, palette[:, channel]).astype(np.uint8)
+        output[..., channel] = np.interp(scaled, stops, palette[:, channel]).astype(
+            np.uint8
+        )
     output[..., 3] = np.where(valid, 255, 0).astype(np.uint8)
     return output

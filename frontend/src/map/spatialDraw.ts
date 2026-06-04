@@ -1,12 +1,27 @@
 import type { GeoJsonGeometry, SpatialFilter } from "../types";
 import { geometryFromPoints } from "../utils/geometry";
-import { addLayerIfMissing } from "./styleHelpers";
 import { removeLayerGroup } from "./vectorLayerSync";
 
 const previewSourceId = "query-draw-preview";
 const previewFillId = "query-draw-preview-fill";
 const previewLineId = "query-draw-preview-line";
+const defaultRangeStyle: PolygonLayerStyle = {
+  fillColor: "#ef4444",
+  fillOpacity: 0.16,
+  lineColor: "#ef4444",
+  lineOpacity: 0.95,
+  lineWidth: 2,
+};
 export type DrawMode = SpatialFilter["mode"];
+
+export interface PolygonLayerStyle {
+  fillColor: string;
+  fillOpacity: number;
+  lineColor: string;
+  lineOpacity: number;
+  lineWidth: number;
+  beforeId?: string;
+}
 
 export function showDrawPreview(map: mapboxgl.Map, geometry: GeoJsonGeometry) {
   upsertPolygonLayer(
@@ -15,7 +30,7 @@ export function showDrawPreview(map: mapboxgl.Map, geometry: GeoJsonGeometry) {
     previewFillId,
     previewLineId,
     geometry,
-    0.18,
+    { ...defaultRangeStyle, fillOpacity: 0.18 },
   );
 }
 
@@ -100,7 +115,7 @@ export function upsertPolygonLayer(
   fillId: string,
   lineId: string,
   geometry: GeoJsonGeometry,
-  fillOpacity: number,
+  style: PolygonLayerStyle = defaultRangeStyle,
 ) {
   const data = {
     type: "FeatureCollection",
@@ -111,16 +126,55 @@ export function upsertPolygonLayer(
   } else {
     (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(data as never);
   }
-  addLayerIfMissing(map, {
-    id: fillId,
-    type: "fill",
-    source: sourceId,
-    paint: { "fill-color": "#d9a441", "fill-opacity": fillOpacity },
-  });
-  addLayerIfMissing(map, {
-    id: lineId,
-    type: "line",
-    source: sourceId,
-    paint: { "line-color": "#d9a441", "line-width": 2, "line-opacity": 0.9 },
-  });
+  upsertStyledLayer(
+    map,
+    {
+      id: fillId,
+      type: "fill",
+      source: sourceId,
+      paint: {
+        "fill-color": style.fillColor,
+        "fill-opacity": style.fillOpacity,
+      },
+    },
+    style.beforeId,
+  );
+  upsertStyledLayer(
+    map,
+    {
+      id: lineId,
+      type: "line",
+      source: sourceId,
+      paint: {
+        "line-color": style.lineColor,
+        "line-width": style.lineWidth,
+        "line-opacity": style.lineOpacity,
+      },
+    },
+    style.beforeId,
+  );
+}
+
+function upsertStyledLayer(
+  map: mapboxgl.Map,
+  layer: mapboxgl.AnyLayer,
+  beforeId?: string,
+) {
+  if (!map.getLayer(layer.id)) {
+    map.addLayer(layer, beforeId);
+  } else {
+    const writableMap = map as unknown as {
+      setPaintProperty: (
+        layerId: string,
+        property: string,
+        value: unknown,
+      ) => void;
+    };
+    for (const [property, value] of Object.entries(layer.paint ?? {})) {
+      writableMap.setPaintProperty(layer.id, property, value);
+    }
+  }
+  if (beforeId && map.getLayer(beforeId) && map.getLayer(layer.id)) {
+    map.moveLayer(layer.id, beforeId);
+  }
 }

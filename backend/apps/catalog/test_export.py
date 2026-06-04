@@ -114,7 +114,13 @@ class ExportLayersZipTests(SimpleTestCase):
             export_layers_zip([], 4326)
 
     def test_rejects_invalid_epsg_with_reproject(self):
-        items = [{"layerType": "vector", "name": "test", "geojson": {"type": "FeatureCollection", "features": []}}]
+        items = [
+            {
+                "layerType": "vector",
+                "name": "test",
+                "geojson": {"type": "FeatureCollection", "features": []},
+            }
+        ]
         with self.assertRaises(ExportError):
             export_layers_zip(items, 100, reproject=True)
 

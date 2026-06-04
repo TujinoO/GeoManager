@@ -38,14 +38,20 @@ def export_layers_zip(
         root = Path(tmpdir)
         zip_path = root / "layers.zip"
         cutline_path = write_cutline(root, clip_geometry) if clip_geometry else None
-        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        with zipfile.ZipFile(
+            zip_path, "w", compression=zipfile.ZIP_DEFLATED
+        ) as archive:
             for index, item in enumerate(items, start=1):
                 layer_type = item.get("layerType")
                 name = safe_filename(str(item.get("name") or f"layer-{index}"))
                 prefix = f"{index:02d}-{name}"
                 if layer_type == "vector":
                     output = root / f"{prefix}.geojson"
-                    export_vector_geojson(item.get("geojson"), epsg if reproject and epsg else 4326, output)
+                    export_vector_geojson(
+                        item.get("geojson"),
+                        epsg if reproject and epsg else 4326,
+                        output,
+                    )
                     archive.write(output, output.name)
                 elif layer_type == "raster":
                     output = root / f"{prefix}.tif"
@@ -72,7 +78,9 @@ def export_vector_geojson(geojson: Any, epsg: int, output: Path) -> None:
     features = geojson.get("features") or []
     if not features:
         output.write_text(
-            json.dumps({"type": "FeatureCollection", "features": []}, ensure_ascii=False),
+            json.dumps(
+                {"type": "FeatureCollection", "features": []}, ensure_ascii=False
+            ),
             encoding="utf-8",
         )
         return
@@ -96,7 +104,9 @@ def export_raster_tif(
     clip_cutline: Path | None = None,
     progress: ProgressCallback | None = None,
 ) -> None:
-    dataset = RasterDataset.objects.filter(pk=dataset_id, status=RasterDataset.Status.READY).first()
+    dataset = RasterDataset.objects.filter(
+        pk=dataset_id, status=RasterDataset.Status.READY
+    ).first()
     if not dataset or not dataset.source_relative_path:
         raise ExportError("栅格数据集不可导出")
     source = raster_source_path(dataset.source_relative_path)
@@ -120,7 +130,9 @@ def export_raster_tif(
         if epsg:
             command.extend(["-t_srs", f"EPSG:{epsg}"])
         if clip_cutline:
-            command.extend(["-cutline", str(clip_cutline), "-crop_to_cutline", "-dstalpha"])
+            command.extend(
+                ["-cutline", str(clip_cutline), "-crop_to_cutline", "-dstalpha"]
+            )
         command.extend([str(source), str(output)])
         run_gdal_command(command, progress=progress)
     except Exception as exc:
@@ -128,14 +140,19 @@ def export_raster_tif(
 
 
 def write_cutline(root: Path, geometry: dict[str, Any]) -> Path:
-    if not isinstance(geometry, dict) or geometry.get("type") not in {"Polygon", "MultiPolygon"}:
+    if not isinstance(geometry, dict) or geometry.get("type") not in {
+        "Polygon",
+        "MultiPolygon",
+    }:
         raise ExportError("裁切图形必须是 Polygon 或 MultiPolygon")
     path = root / "export-cutline.geojson"
     path.write_text(
         json.dumps(
             {
                 "type": "FeatureCollection",
-                "features": [{"type": "Feature", "properties": {}, "geometry": geometry}],
+                "features": [
+                    {"type": "Feature", "properties": {}, "geometry": geometry}
+                ],
             },
             ensure_ascii=False,
         ),

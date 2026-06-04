@@ -1,4 +1,4 @@
-import type { TableColumnsType, TableProps } from "antd";
+import type { TableColumnsType } from "antd";
 import {
   Button,
   Checkbox,
@@ -12,16 +12,23 @@ import {
   Typography,
 } from "antd";
 import { Database, EyeOff } from "lucide-react";
-import { useMemo, useState } from "react";
+import type React from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { LoadedLayer, LoadedVectorLayer } from "../types";
 
 interface Props {
   layer: LoadedLayer | null;
   open: boolean;
   onClose: () => void;
+  onSelectionChange?: (featureIds: (string | number)[]) => void;
 }
 
-export default function LayerDataTableModal({ layer, open, onClose }: Props) {
+export default function LayerDataTableModal({
+  layer,
+  open,
+  onClose,
+  onSelectionChange,
+}: Props) {
   return (
     <Modal
       title={layer ? `${layer.name} 数据表` : "数据表"}
@@ -39,14 +46,12 @@ export default function LayerDataTableModal({ layer, open, onClose }: Props) {
           style={{ padding: 24 }}
         />
       ) : layer.layerType === "vector" ? (
-        <VectorAttributeTable layer={layer} />
+        <VectorAttributeTable
+          layer={layer}
+          onSelectionChange={onSelectionChange}
+        />
       ) : (
-        <Descriptions
-          size="small"
-          column={2}
-          bordered
-          style={{ padding: 16 }}
-        >
+        <Descriptions size="small" column={2} bordered style={{ padding: 16 }}>
           <Descriptions.Item label="图层">{layer.name}</Descriptions.Item>
           <Descriptions.Item label="类型">栅格</Descriptions.Item>
           <Descriptions.Item label="波段数">
@@ -62,14 +67,28 @@ export default function LayerDataTableModal({ layer, open, onClose }: Props) {
 }
 
 type RowData = Record<string, unknown> & { __rowKey: string };
+const defaultDataColumnWidth = 160;
+const minDataColumnWidth = 88;
+const indexColumnPaddingWidth = 38;
+const indexDigitWidth = 9;
 
-function VectorAttributeTable({ layer }: { layer: LoadedVectorLayer }) {
+function VectorAttributeTable({
+  layer,
+  onSelectionChange,
+}: {
+  layer: LoadedVectorLayer;
+  onSelectionChange?: (featureIds: (string | number)[]) => void;
+}) {
   const fieldNames = layer.fields.length
     ? layer.fields.map((field) => field.name)
     : inferPropertyNames(layer);
-  const rows = useMemo(() => buildTableRows(layer, fieldNames), [layer, fieldNames]);
+  const rows = useMemo(
+    () => buildTableRows(layer, fieldNames),
+    [layer, fieldNames],
+  );
 
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   const toggleHidden = (key: string) => {
@@ -82,44 +101,143 @@ function VectorAttributeTable({ layer }: { layer: LoadedVectorLayer }) {
   };
 
   const visibleFieldNames = fieldNames.filter((n) => !hiddenKeys.has(n));
+  const indexColumnWidth = Math.max(
+    48,
+    String(Math.max(rows.length, 1)).length * indexDigitWidth +
+      indexColumnPaddingWidth,
+  );
+  const resizeColumn = useCallback((key: string, width: number) => {
+    setColumnWidths((prev) => ({ ...prev, [key]: width }));
+  }, []);
+  const selectedKeySet = useMemo(
+    () => new Set(selectedRowKeys),
+    [selectedRowKeys],
+  );
+
+  const handleSelectionChange = useCallback(
+    (newSelectedRowKeys: React.Key[]) => {
+      setSelectedRowKeys(newSelectedRowKeys);
+
+      if (onSelectionChange) {
+        const featureIds = newSelectedRowKeys
+          .map((key) => extractFeatureIdFromRowKey(String(key)))
+          .filter((id): id is string | number => id !== null);
+        onSelectionChange(featureIds);
+      }
+    },
+    [onSelectionChange],
+  );
+
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: handleSelectionChange,
+    columnWidth: 40,
+    selections: [
+      Table.SELECTION_ALL,
+      Table.SELECTION_INVERT,
+      Table.SELECTION_NONE,
+    ],
+  };
 
   const columns: TableColumnsType<RowData> = useMemo(() => {
     const indexCol: TableColumnsType<RowData>[number] = {
       title: "#",
       key: "__index",
-      width: 56,
+      width: indexColumnWidth,
       fixed: "left",
+      rowSpan: 2,
       render: (_, __, index) => index + 1,
+      onCell: (record) => ({
+        className: selectedKeySet.has(record.__rowKey)
+          ? "layer-table-cell-selected"
+          : "",
+      }),
     };
 
     const dataCols: TableColumnsType<RowData> = visibleFieldNames.map(
-      (fieldName) => ({
-        title: fieldName,
-        dataIndex: fieldName,
-        key: fieldName,
-        ellipsis: true,
-        sorter: (a, b) => {
-          const va = String(a[fieldName] ?? "");
-          const vb = String(b[fieldName] ?? "");
-          return va.localeCompare(vb, "zh-CN", { numeric: true });
-        },
-        filters: buildColumnFilters(rows, fieldName),
-        onFilter: (value, record) =>
-          String(record[fieldName] ?? "").includes(String(value)),
-        filterSearch: true,
-        render: (value: unknown) => String(value ?? "-"),
-      }),
+      (fieldName) => {
+        const field = layer.fields.find((f) => f.name === fieldName);
+        const hasDescription =
+          field?.description && field.description.trim() !== "";
+
+        return {
+          title: fieldName,
+          dataIndex: fieldName,
+          key: fieldName,
+          width: columnWidths[fieldName] ?? defaultDataColumnWidth,
+          ellipsis: true,
+          onCell: (record: RowData) => ({
+            className: selectedKeySet.has(record.__rowKey)
+              ? "layer-table-cell-selected"
+              : "",
+          }),
+          onHeaderCell: () =>
+            ({
+              width: columnWidths[fieldName] ?? defaultDataColumnWidth,
+              onResize: (width: number) => resizeColumn(fieldName, width),
+            }) as React.ThHTMLAttributes<HTMLTableCellElement>,
+          // 如果有描述，使用children实现两层表头
+          ...(hasDescription
+            ? {
+                children: [
+                  {
+                    title: field.description,
+                    dataIndex: fieldName,
+                    key: `${fieldName}__desc`,
+                    width: columnWidths[fieldName] ?? defaultDataColumnWidth,
+                    ellipsis: true,
+                    sorter: (a: RowData, b: RowData) => {
+                      const va = String(a[fieldName] ?? "");
+                      const vb = String(b[fieldName] ?? "");
+                      return va.localeCompare(vb, "zh-CN", { numeric: true });
+                    },
+                    filters: buildColumnFilters(rows, fieldName),
+                    onFilter: (value: boolean | React.Key, record: RowData) =>
+                      String(record[fieldName] ?? "").includes(String(value)),
+                    filterSearch: true,
+                    render: (value: unknown) => String(value ?? "-"),
+                    onCell: (record: RowData) => ({
+                      className: selectedKeySet.has(record.__rowKey)
+                        ? "layer-table-cell-selected"
+                        : "",
+                    }),
+                  },
+                ],
+              }
+            : {
+                sorter: (a: RowData, b: RowData) => {
+                  const va = String(a[fieldName] ?? "");
+                  const vb = String(b[fieldName] ?? "");
+                  return va.localeCompare(vb, "zh-CN", { numeric: true });
+                },
+                filters: buildColumnFilters(rows, fieldName),
+                onFilter: (value: boolean | React.Key, record: RowData) =>
+                  String(record[fieldName] ?? "").includes(String(value)),
+                filterSearch: true,
+                render: (value: unknown) => String(value ?? "-"),
+              }),
+        };
+      },
     );
 
     return [indexCol, ...dataCols];
-  }, [visibleFieldNames, rows]);
-
-  const rowSelection: TableProps<RowData>["rowSelection"] = {
-    selectedRowKeys,
-    onChange: setSelectedRowKeys,
-    selections: [Table.SELECTION_ALL, Table.SELECTION_INVERT, Table.SELECTION_NONE],
-  };
-
+  }, [
+    columnWidths,
+    indexColumnWidth,
+    layer.fields,
+    resizeColumn,
+    selectedKeySet,
+    visibleFieldNames,
+    rows,
+  ]);
+  const tableScrollX = Math.max(
+    960,
+    indexColumnWidth +
+      visibleFieldNames.reduce(
+        (total, name) => total + (columnWidths[name] ?? defaultDataColumnWidth),
+        0,
+      ),
+  );
   const hasSelected = selectedRowKeys.length > 0;
 
   return (
@@ -129,7 +247,9 @@ function VectorAttributeTable({ layer }: { layer: LoadedVectorLayer }) {
           <Database size={15} />
           <Typography.Text strong>{layer.name}</Typography.Text>
           <Tag color="green">{rows.length} 条</Tag>
-          {hasSelected && <Tag color="blue">已选 {selectedRowKeys.length} 条</Tag>}
+          {hasSelected && (
+            <Tag color="blue">已选 {selectedRowKeys.length} 条</Tag>
+          )}
         </Space>
         <Space size={8}>
           <Dropdown
@@ -156,13 +276,18 @@ function VectorAttributeTable({ layer }: { layer: LoadedVectorLayer }) {
         </Space>
       </div>
       <Table<RowData>
+        virtual
         size="small"
         rowKey="__rowKey"
         dataSource={rows}
         columns={columns}
         rowSelection={rowSelection}
-        pagination={{ pageSize: 20, showSizeChanger: true, size: "small" }}
-        scroll={{ x: "max-content", y: 420 }}
+        rowClassName={(record) =>
+          selectedKeySet.has(record.__rowKey) ? "layer-table-row-selected" : ""
+        }
+        components={{ header: { cell: ResizableHeaderCell } }}
+        pagination={false}
+        scroll={{ x: tableScrollX, y: 460 }}
         showSorterTooltip={{ target: "sorter-icon" }}
       />
     </div>
@@ -180,6 +305,67 @@ function buildColumnFilters(
   }
   const values = Array.from(unique).slice(0, 50);
   return values.map((v) => ({ text: v, value: v }));
+}
+
+interface ResizableHeaderCellProps
+  extends React.ThHTMLAttributes<HTMLTableCellElement> {
+  width?: number;
+  onResize?: (width: number) => void;
+}
+
+function ResizableHeaderCell({
+  width,
+  onResize,
+  children,
+  ...restProps
+}: ResizableHeaderCellProps) {
+  // 如果没有onResize，直接使用默认的header cell（如checkbox列）
+  if (!onResize) {
+    return <th {...restProps}>{children}</th>;
+  }
+
+  function handleResizeStart(event: React.MouseEvent<HTMLSpanElement>) {
+    if (!width) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startWidth = width;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const nextWidth = Math.max(
+        minDataColumnWidth,
+        startWidth + moveEvent.clientX - startX,
+      );
+      onResize?.(nextWidth);
+    };
+    const handleMouseUp = () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  }
+
+  return (
+    <th {...restProps} style={{ ...restProps.style, width }}>
+      <div className="resizable-table-header">
+        <span className="resizable-table-title">{children}</span>
+        <button
+          type="button"
+          aria-label="调整列宽"
+          className="resizable-table-handle"
+          onMouseDown={handleResizeStart}
+        />
+      </div>
+    </th>
+  );
 }
 
 function inferPropertyNames(layer: LoadedVectorLayer) {
@@ -225,4 +411,19 @@ function stableFeatureKey(feature: Record<string, unknown>) {
     hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
   }
   return `feature-${hash.toString(16)}`;
+}
+
+function extractFeatureIdFromRowKey(rowKey: string): string | number | null {
+  // 从 "feature-{id}" 格式中提取id
+  const match = rowKey.match(/^feature-(.+)$/);
+  if (!match) return null;
+
+  const idStr = match[1];
+  // 尝试解析为数字
+  const numId = Number(idStr);
+  if (!Number.isNaN(numId) && String(numId) === idStr) {
+    return numId;
+  }
+  // 否则作为字符串返回
+  return idStr;
 }

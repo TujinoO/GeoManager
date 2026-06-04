@@ -102,15 +102,23 @@ def serialize_user(user):
     groups = list(user.groups.values_list("name", flat=True))
     permissions = {
         "canAccessAdmin": has_feature_perm(user, "core.access_admin"),
-        "canManageFeaturePermissions": has_feature_perm(user, "core.manage_feature_permissions"),
+        "canManageFeaturePermissions": has_feature_perm(
+            user, "core.manage_feature_permissions"
+        ),
         "canBrowseData": has_feature_perm(user, "core.browse_data"),
         "canQueryData": has_feature_perm(user, "core.query_data"),
         "canLoadVectorLayer": has_feature_perm(user, "core.load_vector_layer"),
         "canLoadRasterLayer": has_feature_perm(user, "core.load_raster_layer"),
-        "canUseCustomSymbolization": has_feature_perm(user, "core.custom_symbolization"),
-        "canExportData": user.has_perm("catalog.export_dataresource") or user.is_superuser,
-        "canMaintainData": user.has_perm("catalog.maintain_dataresource") or user.is_superuser,
-        "canManageRasterData": user.has_perm("raster.manage_raster_dataset") or user.has_perm("catalog.maintain_dataresource") or user.is_superuser,
+        "canUseCustomSymbolization": has_feature_perm(
+            user, "core.custom_symbolization"
+        ),
+        "canExportData": user.has_perm("catalog.export_dataresource")
+        or user.is_superuser,
+        "canMaintainData": user.has_perm("catalog.maintain_dataresource")
+        or user.is_superuser,
+        "canManageRasterData": user.has_perm("raster.manage_raster_dataset")
+        or user.has_perm("catalog.maintain_dataresource")
+        or user.is_superuser,
     }
     return {
         "id": user.id,

@@ -9,7 +9,11 @@ from django.views.decorators.http import require_GET, require_POST
 
 from apps.catalog.data_query import DataQueryError, get_resource_profile, query_resource
 from apps.catalog.export import ExportError, export_layers_zip, validate_epsg
-from apps.catalog.importer import ImportDataError, import_uploaded_table, preview_uploaded_table
+from apps.catalog.importer import (
+    ImportDataError,
+    import_uploaded_table,
+    preview_uploaded_table,
+)
 from apps.catalog.models import Achievement, DataCatalog, DataResource, MapLayer
 from apps.catalog.permissions import filter_accessible, user_can_access
 from apps.catalog.serializers import (
@@ -25,7 +29,12 @@ from apps.core.storage import (
     validate_vector_layer_name,
     vector_geopackage_path,
 )
-from apps.raster.services import RasterJobError, get_job, get_job_artifact_path, start_export_job
+from apps.raster.services import (
+    RasterJobError,
+    get_job,
+    get_job_artifact_path,
+    start_export_job,
+)
 
 
 @require_GET
@@ -33,7 +42,9 @@ from apps.raster.services import RasterJobError, get_job, get_job_artifact_path,
 def directories(request):
     if not has_feature_perm(request.user, "core.browse_data"):
         return feature_denied_response(request.user)
-    queryset = DataCatalog.objects.filter(is_active=True).prefetch_related("resources", "resources__category")
+    queryset = DataCatalog.objects.filter(is_active=True).prefetch_related(
+        "resources", "resources__category"
+    )
     catalogs = filter_accessible(queryset, request.user)
     return JsonResponse({"items": [serialize_catalog(item) for item in catalogs]})
 
@@ -43,7 +54,9 @@ def directories(request):
 def resources(request):
     if not has_feature_perm(request.user, "core.browse_data"):
         return feature_denied_response(request.user)
-    queryset = DataResource.objects.filter(status=DataResource.Status.ACTIVE).select_related("category")
+    queryset = DataResource.objects.filter(
+        status=DataResource.Status.ACTIVE
+    ).select_related("category")
     query = request.GET.get("q", "").strip()
     if query:
         queryset = queryset.filter(name__icontains=query)
@@ -75,7 +88,12 @@ def scan_sources(request):
     if not has_feature_perm(request.user, "core.browse_data"):
         return feature_denied_response(request.user)
     resources = scan_catalog_sources()
-    return JsonResponse({"items": [serialize_resource(item) for item in resources], "count": len(resources)})
+    return JsonResponse(
+        {
+            "items": [serialize_resource(item) for item in resources],
+            "count": len(resources),
+        }
+    )
 
 
 @require_POST
@@ -185,7 +203,9 @@ def export_loaded_layers(request):
     for item in items:
         resource_id = item.get("resourceId")
         if resource_id:
-            resource = get_object_or_404(DataResource, pk=resource_id, status=DataResource.Status.ACTIVE)
+            resource = get_object_or_404(
+                DataResource, pk=resource_id, status=DataResource.Status.ACTIVE
+            )
             if not user_can_access(resource, request.user):
                 return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
 
@@ -230,13 +250,17 @@ def export_loaded_layers_async(request):
     for item in items:
         resource_id = item.get("resourceId")
         if resource_id:
-            resource = get_object_or_404(DataResource, pk=resource_id, status=DataResource.Status.ACTIVE)
+            resource = get_object_or_404(
+                DataResource, pk=resource_id, status=DataResource.Status.ACTIVE
+            )
             if not user_can_access(resource, request.user):
                 return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
 
     clip_geometry = payload.get("clipGeometry") if payload.get("clip") else None
     try:
-        job = start_export_job(items=items, epsg=epsg, reproject=reproject, clip_geometry=clip_geometry)
+        job = start_export_job(
+            items=items, epsg=epsg, reproject=reproject, clip_geometry=clip_geometry
+        )
     except ExportError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
     return JsonResponse(job.as_dict(), status=202)
@@ -256,8 +280,15 @@ def export_job_download(request, job_id: str):
         return JsonResponse({"detail": "导出任务尚未完成"}, status=409)
     if not path.exists():
         return JsonResponse({"detail": "导出文件不存在或已过期"}, status=404)
-    filename = (job.result or {}).get("filename") or f"layers-export-{datetime.now().strftime('%Y%m%d%H%M%S')}.zip"
-    return FileResponse(path.open("rb"), as_attachment=True, filename=filename, content_type="application/zip")
+    filename = (job.result or {}).get(
+        "filename"
+    ) or f"layers-export-{datetime.now().strftime('%Y%m%d%H%M%S')}.zip"
+    return FileResponse(
+        path.open("rb"),
+        as_attachment=True,
+        filename=filename,
+        content_type="application/zip",
+    )
 
 
 @require_GET
@@ -265,7 +296,9 @@ def export_job_download(request, job_id: str):
 def layers(request):
     if not has_feature_perm(request.user, "core.browse_data"):
         return feature_denied_response(request.user)
-    queryset = MapLayer.objects.filter(is_active=True).select_related("category", "data_resource")
+    queryset = MapLayer.objects.filter(is_active=True).select_related(
+        "category", "data_resource"
+    )
     layers_qs = filter_accessible(queryset, request.user)
     return JsonResponse({"items": [serialize_layer(item) for item in layers_qs]})
 
@@ -281,7 +314,9 @@ def layer_features(request, pk: int):
     if layer.layer_type != MapLayer.LayerType.VECTOR:
         return JsonResponse({"detail": "该图层不是矢量图层"}, status=400)
 
-    source_path = layer.source_path or (layer.data_resource.storage_path if layer.data_resource else "")
+    source_path = layer.source_path or (
+        layer.data_resource.storage_path if layer.data_resource else ""
+    )
     if not source_path:
         return JsonResponse({"detail": "图层未配置 GeoPackage 图层名"}, status=400)
 
@@ -292,10 +327,14 @@ def layer_features(request, pk: int):
         return JsonResponse({"detail": str(exc)}, status=400)
 
     if not geopackage_path.exists():
-        return JsonResponse({"detail": f"统一 GeoPackage 文件不存在：{geopackage_path}"}, status=404)
+        return JsonResponse(
+            {"detail": f"统一 GeoPackage 文件不存在：{geopackage_path}"}, status=404
+        )
 
     try:
-        limit = int(request.GET.get("limit", settings.PROJECT_CONFIG.limits.query_result_limit))
+        limit = int(
+            request.GET.get("limit", settings.PROJECT_CONFIG.limits.query_result_limit)
+        )
     except ValueError:
         limit = settings.PROJECT_CONFIG.limits.query_result_limit
     limit = min(max(limit, 1), settings.PROJECT_CONFIG.limits.query_result_limit)
@@ -311,7 +350,9 @@ def layer_features(request, pk: int):
             gdf = gdf.head(limit)
         geojson = json.loads(gdf.to_json())
     except Exception as exc:
-        return JsonResponse({"detail": f"读取 GeoPackage 图层失败：{layer_name}，{exc}"}, status=500)
+        return JsonResponse(
+            {"detail": f"读取 GeoPackage 图层失败：{layer_name}，{exc}"}, status=500
+        )
 
     return JsonResponse(geojson)
 
@@ -321,9 +362,13 @@ def layer_features(request, pk: int):
 def achievements(request):
     if not has_feature_perm(request.user, "core.browse_data"):
         return feature_denied_response(request.user)
-    queryset = Achievement.objects.filter(status=Achievement.Status.PUBLISHED).select_related("category", "related_layer")
+    queryset = Achievement.objects.filter(
+        status=Achievement.Status.PUBLISHED
+    ).select_related("category", "related_layer")
     achievements_qs = filter_accessible(queryset, request.user)
-    return JsonResponse({"items": [serialize_achievement(item) for item in achievements_qs]})
+    return JsonResponse(
+        {"items": [serialize_achievement(item) for item in achievements_qs]}
+    )
 
 
 @require_GET
@@ -335,14 +380,22 @@ def search(request):
     if not query:
         return JsonResponse({"resources": [], "achievements": []})
 
-    resource_qs = DataResource.objects.filter(status=DataResource.Status.ACTIVE, name__icontains=query).select_related("category")
+    resource_qs = DataResource.objects.filter(
+        status=DataResource.Status.ACTIVE, name__icontains=query
+    ).select_related("category")
     achievement_qs = Achievement.objects.filter(
         status=Achievement.Status.PUBLISHED,
         title__icontains=query,
     ).select_related("category")
     return JsonResponse(
         {
-            "resources": [serialize_resource(item) for item in filter_accessible(resource_qs, request.user)],
-            "achievements": [serialize_achievement(item) for item in filter_accessible(achievement_qs, request.user)],
+            "resources": [
+                serialize_resource(item)
+                for item in filter_accessible(resource_qs, request.user)
+            ],
+            "achievements": [
+                serialize_achievement(item)
+                for item in filter_accessible(achievement_qs, request.user)
+            ],
         }
     )

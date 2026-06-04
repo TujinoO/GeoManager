@@ -29,7 +29,11 @@ from apps.raster.services.rules_engine import default_raster_rules
 
 
 def is_raster_file(path: Path) -> bool:
-    return path.is_file() and not path.name.startswith(".") and path.suffix.lower() in RASTER_EXTENSIONS
+    return (
+        path.is_file()
+        and not path.name.startswith(".")
+        and path.suffix.lower() in RASTER_EXTENSIONS
+    )
 
 
 def store_source_file(input_path: Path) -> tuple[Path, str]:
@@ -64,10 +68,14 @@ def stable_code(prefix: str, value: str) -> str:
 def save_metadata(relative_path: str, metadata: dict[str, Any]) -> None:
     path = raster_metadata_path(relative_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+    path.write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
-def handle_import_progress(dataset: RasterDataset, text: str, progress: Callable[[str], None] | None = None) -> None:
+def handle_import_progress(
+    dataset: RasterDataset, text: str, progress: Callable[[str], None] | None = None
+) -> None:
     cleaned = normalize_progress_text(text)
     if not cleaned:
         return
@@ -80,7 +88,9 @@ def append_dataset_progress(dataset: RasterDataset, text: str) -> None:
     cleaned = normalize_progress_text(text)
     if not cleaned:
         return
-    dataset.progress_log = "\n".join([*(dataset.progress_log.splitlines()[-160:]), cleaned]).strip()
+    dataset.progress_log = "\n".join(
+        [*(dataset.progress_log.splitlines()[-160:]), cleaned]
+    ).strip()
     dataset.save(update_fields=("progress_log", "updated_at"))
 
 
@@ -96,9 +106,19 @@ def scan_unprocessed_source_files(
         if not is_raster_file(source_path):
             continue
         source_relative = source_path.relative_to(source_root).as_posix()
-        dataset = RasterDataset.objects.filter(source_relative_path=source_relative).first()
-        processed_exists = bool(dataset and dataset.processed_relative_path and raster_processed_path(dataset.processed_relative_path).exists())
-        if dataset and dataset.status == RasterDataset.Status.READY and processed_exists:
+        dataset = RasterDataset.objects.filter(
+            source_relative_path=source_relative
+        ).first()
+        processed_exists = bool(
+            dataset
+            and dataset.processed_relative_path
+            and raster_processed_path(dataset.processed_relative_path).exists()
+        )
+        if (
+            dataset
+            and dataset.status == RasterDataset.Status.READY
+            and processed_exists
+        ):
             continue
         if progress:
             progress(f"发现未处理源文件：{source_relative}")
@@ -139,7 +159,9 @@ def import_raster_file(
     processed_relative = processed_relative_path(source_relative)
     processed_path = raster_processed_path(processed_relative)
     source_metadata_relative = metadata_relative_path("source", source_relative)
-    processed_metadata_relative = metadata_relative_path("preprocessed", processed_relative)
+    processed_metadata_relative = metadata_relative_path(
+        "preprocessed", processed_relative
+    )
 
     dataset, _ = RasterDataset.objects.update_or_create(
         source_relative_path=source_relative,
@@ -168,7 +190,9 @@ def import_raster_file(
 
         append_dataset_progress(dataset, "开始 gdalwarp 预处理到 EPSG:3857 COG")
         if progress:
-            progress("gdalwarp -t_srs EPSG:3857 -r nearest -co COMPRESS=DEFLATE -of COG")
+            progress(
+                "gdalwarp -t_srs EPSG:3857 -r nearest -co COMPRESS=DEFLATE -of COG"
+            )
         run_gdal_command(
             [
                 "gdalwarp",
@@ -224,7 +248,9 @@ def import_raster_file(
         dataset.status = RasterDataset.Status.FAILED
         dataset.error_message = str(exc)
         append_dataset_progress(dataset, f"导入失败：{exc}")
-        dataset.save(update_fields=("status", "error_message", "progress_log", "updated_at"))
+        dataset.save(
+            update_fields=("status", "error_message", "progress_log", "updated_at")
+        )
         raise
 
 
@@ -234,11 +260,15 @@ def dataset_for_layer(layer: Any) -> RasterDataset:
 
     if layer.layer_type != MapLayer.LayerType.RASTER:
         raise RasterRenderError("该图层不是栅格图层")
-    dataset = RasterDataset.objects.filter(map_layer=layer, status=RasterDataset.Status.READY).first()
+    dataset = RasterDataset.objects.filter(
+        map_layer=layer, status=RasterDataset.Status.READY
+    ).first()
     if dataset:
         return dataset
     if layer.data_resource_id:
-        dataset = RasterDataset.objects.filter(data_resource=layer.data_resource, status=RasterDataset.Status.READY).first()
+        dataset = RasterDataset.objects.filter(
+            data_resource=layer.data_resource, status=RasterDataset.Status.READY
+        ).first()
         if dataset:
             return dataset
     raise RasterRenderError("该图层没有关联已预处理的栅格数据集")

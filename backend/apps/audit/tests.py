@@ -26,7 +26,9 @@ class OperationLogModelTests(TestCase):
 
 class LogOperationTests(TestCase):
     def test_creates_log_for_authenticated_user(self):
-        user = get_user_model().objects.create_user(username="logger-test", password="pass12345")
+        user = get_user_model().objects.create_user(
+            username="logger-test", password="pass12345"
+        )
 
         log_operation(user, "catalog", "export", "success", "导出成功")
 
@@ -56,7 +58,9 @@ class LogOperationTests(TestCase):
         self.assertIsNone(log.user)
 
     def test_extracts_ip_from_request(self):
-        user = get_user_model().objects.create_user(username="ip-test", password="pass12345")
+        user = get_user_model().objects.create_user(
+            username="ip-test", password="pass12345"
+        )
         factory = RequestFactory()
         request = factory.get("/api/test/")
         request.META["REMOTE_ADDR"] = "192.168.1.100"
@@ -67,7 +71,9 @@ class LogOperationTests(TestCase):
         self.assertEqual(log.ip_address, "192.168.1.100")
 
     def test_extracts_ip_from_x_forwarded_for(self):
-        user = get_user_model().objects.create_user(username="forwarded-test", password="pass12345")
+        user = get_user_model().objects.create_user(
+            username="forwarded-test", password="pass12345"
+        )
         factory = RequestFactory()
         request = factory.get("/api/test/")
         request.META["HTTP_X_FORWARDED_FOR"] = "10.0.0.1, 10.0.0.2"
@@ -78,7 +84,9 @@ class LogOperationTests(TestCase):
         self.assertEqual(log.ip_address, "10.0.0.1")
 
     def test_handles_none_request(self):
-        user = get_user_model().objects.create_user(username="no-request-test", password="pass12345")
+        user = get_user_model().objects.create_user(
+            username="no-request-test", password="pass12345"
+        )
 
         log_operation(user, "core", "test", "success")
 

@@ -25,17 +25,29 @@ class FeatureGroupForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        queryset = feature_permission_queryset().order_by("content_type__app_label", "codename")
+        queryset = feature_permission_queryset().order_by(
+            "content_type__app_label", "codename"
+        )
         self.fields["feature_permissions"].queryset = queryset
         if self.instance.pk:
-            self.fields["feature_permissions"].initial = self.instance.permissions.filter(id__in=queryset)
+            self.fields[
+                "feature_permissions"
+            ].initial = self.instance.permissions.filter(id__in=queryset)
 
     def save(self, commit=True):
         group = super().save(commit=commit)
         if commit:
-            selected = set(self.cleaned_data["feature_permissions"].values_list("id", flat=True))
-            feature_ids = set(feature_permission_queryset().values_list("id", flat=True))
-            current_non_feature = set(group.permissions.exclude(id__in=feature_ids).values_list("id", flat=True))
+            selected = set(
+                self.cleaned_data["feature_permissions"].values_list("id", flat=True)
+            )
+            feature_ids = set(
+                feature_permission_queryset().values_list("id", flat=True)
+            )
+            current_non_feature = set(
+                group.permissions.exclude(id__in=feature_ids).values_list(
+                    "id", flat=True
+                )
+            )
             group.permissions.set([*current_non_feature, *selected])
         return group
 
@@ -83,7 +95,9 @@ class SystemSettingAdmin(admin.ModelAdmin):
         return has_feature_perm(request.user, "core.access_admin")
 
     def has_add_permission(self, request):
-        return not SystemSetting.objects.exists() and has_feature_perm(request.user, "core.access_admin")
+        return not SystemSetting.objects.exists() and has_feature_perm(
+            request.user, "core.access_admin"
+        )
 
     def has_change_permission(self, request, obj=None):
         return has_feature_perm(request.user, "core.access_admin")

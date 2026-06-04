@@ -22,13 +22,17 @@ def serialize_raster_dataset(dataset: RasterDataset) -> dict[str, Any]:
         "bounds3857": dataset.bounds_3857,
         "bounds4326": dataset.bounds_4326,
         "imageCoordinates": dataset.image_coordinates,
-        "defaultRules": dataset.map_layer.raster_rules if dataset.map_layer_id and dataset.map_layer.raster_rules else dataset.default_rules,
+        "defaultRules": dataset.map_layer.raster_rules
+        if dataset.map_layer_id and dataset.map_layer.raster_rules
+        else dataset.default_rules,
         "sourceFileSize": dataset.source_file_size,
         "processedFileSize": dataset.processed_file_size,
         "progressLog": dataset.progress_log,
         "errorMessage": dataset.error_message,
         "importedAt": dataset.imported_at.isoformat() if dataset.imported_at else None,
-        "processedAt": dataset.processed_at.isoformat() if dataset.processed_at else None,
+        "processedAt": dataset.processed_at.isoformat()
+        if dataset.processed_at
+        else None,
         "metadata": compact_raster_metadata(
             dataset.processed_gdalinfo or dataset.source_gdalinfo,
             dataset.source_gdalinfo,
@@ -36,7 +40,9 @@ def serialize_raster_dataset(dataset: RasterDataset) -> dict[str, Any]:
     }
 
 
-def compact_raster_metadata(metadata: dict[str, Any], fallback_metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+def compact_raster_metadata(
+    metadata: dict[str, Any], fallback_metadata: dict[str, Any] | None = None
+) -> dict[str, Any]:
     bands = []
     for band in metadata.get("bands") or []:
         band_number = int(band.get("band") or len(bands) + 1)

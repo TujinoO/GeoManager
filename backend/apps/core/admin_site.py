@@ -9,7 +9,9 @@ class HuyangAdminSite(AdminSite):
     index_title = "后台管理"
 
     def has_permission(self, request):
-        return request.user.is_active and has_feature_perm(request.user, "core.access_admin")
+        return request.user.is_active and has_feature_perm(
+            request.user, "core.access_admin"
+        )
 
     def permission_denied(self, request):
         from django.core.exceptions import PermissionDenied

@@ -16,7 +16,9 @@ from apps.core.storage import gene_data_path, table_data_path, vector_geopackage
 
 class LayerApiTests(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username="tester", password="pass12345")
+        self.user = get_user_model().objects.create_user(
+            username="tester", password="pass12345"
+        )
         grant(self.user, ("core", "browse_data"))
         self.client.force_login(self.user)
 
@@ -51,7 +53,9 @@ class LayerApiTests(TestCase):
 
 class ResourceQueryApiTests(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username="resource-tester", password="pass12345")
+        self.user = get_user_model().objects.create_user(
+            username="resource-tester", password="pass12345"
+        )
         grant(
             self.user,
             ("core", "browse_data"),
@@ -97,7 +101,9 @@ class ResourceQueryApiTests(TestCase):
         )
 
     def test_resource_profile_returns_fields_and_metadata(self):
-        response = self.client.get(f"/api/catalog/resources/{self.resource.id}/profile/")
+        response = self.client.get(
+            f"/api/catalog/resources/{self.resource.id}/profile/"
+        )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -109,7 +115,9 @@ class ResourceQueryApiTests(TestCase):
         response = self.client.post(
             f"/api/catalog/resources/{self.resource.id}/query/",
             data={
-                "attributeFilters": [{"field": "height", "operator": "gte", "value": "8"}],
+                "attributeFilters": [
+                    {"field": "height", "operator": "gte", "value": "8"}
+                ],
                 "limit": 10,
             },
             content_type="application/json",
@@ -118,12 +126,16 @@ class ResourceQueryApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["totalCount"], 1)
-        self.assertEqual(payload["geojson"]["features"][0]["properties"]["name"], "样点二")
+        self.assertEqual(
+            payload["geojson"]["features"][0]["properties"]["name"], "样点二"
+        )
 
 
 class CatalogScanTests(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username="catalog-scanner", password="pass12345")
+        self.user = get_user_model().objects.create_user(
+            username="catalog-scanner", password="pass12345"
+        )
         grant(self.user, ("core", "browse_data"))
         self.client.force_login(self.user)
         self.layer_name = "scan_test_points"
@@ -143,7 +155,9 @@ class CatalogScanTests(TestCase):
     def test_scan_vector_geopackage_registers_resources_and_layers(self):
         resources = scan_vector_geopackage()
 
-        self.assertEqual([resource.storage_path for resource in resources], [self.layer_name])
+        self.assertEqual(
+            [resource.storage_path for resource in resources], [self.layer_name]
+        )
         resource = DataResource.objects.get(storage_path=self.layer_name)
         layer = MapLayer.objects.get(source_path=self.layer_name)
         self.assertEqual(resource.data_type, DataResource.DataType.VECTOR)
@@ -153,12 +167,16 @@ class CatalogScanTests(TestCase):
     def test_scan_endpoint_requires_browse_permission(self):
         self.user.user_permissions.clear()
 
-        response = self.client.post("/api/catalog/scan/", data={}, content_type="application/json")
+        response = self.client.post(
+            "/api/catalog/scan/", data={}, content_type="application/json"
+        )
 
         self.assertEqual(response.status_code, 403)
 
     def test_scan_endpoint_registers_sources(self):
-        response = self.client.post("/api/catalog/scan/", data={}, content_type="application/json")
+        response = self.client.post(
+            "/api/catalog/scan/", data={}, content_type="application/json"
+        )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -177,14 +195,22 @@ class CatalogScanTests(TestCase):
 
         resources = scan_catalog_sources()
 
-        resource_types = {resource.storage_path: resource.data_type for resource in resources}
-        self.assertEqual(resource_types["gene/populus.fasta"], DataResource.DataType.GENE)
-        self.assertEqual(resource_types["table/survey.csv"], DataResource.DataType.TABLE)
+        resource_types = {
+            resource.storage_path: resource.data_type for resource in resources
+        }
+        self.assertEqual(
+            resource_types["gene/populus.fasta"], DataResource.DataType.GENE
+        )
+        self.assertEqual(
+            resource_types["table/survey.csv"], DataResource.DataType.TABLE
+        )
 
 
 class DataImportApiTests(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username="importer", password="pass12345")
+        self.user = get_user_model().objects.create_user(
+            username="importer", password="pass12345"
+        )
         grant(self.user, ("catalog", "maintain_dataresource"))
         self.client.force_login(self.user)
         self.vector_path = vector_geopackage_path()
@@ -197,7 +223,11 @@ class DataImportApiTests(TestCase):
     def test_import_preview_detects_coordinate_columns_and_quantization_error(self):
         response = self.client.post(
             "/api/catalog/import/preview/",
-            data={"file": self._csv_file("sample.csv", "name,longitude,latitude\nA,87.600,43.80\n")},
+            data={
+                "file": self._csv_file(
+                    "sample.csv", "name,longitude,latitude\nA,87.600,43.80\n"
+                )
+            },
         )
 
         self.assertEqual(response.status_code, 200)
@@ -206,7 +236,9 @@ class DataImportApiTests(TestCase):
         self.assertEqual(payload["detected"]["longitudeColumn"], "longitude")
         self.assertEqual(payload["detected"]["latitudeColumn"], "latitude")
         self.assertEqual(payload["detected"]["coordinateStats"]["validRows"], 1)
-        self.assertGreater(payload["detected"]["coordinateStats"]["quantizationErrorMeters"]["max"], 0)
+        self.assertGreater(
+            payload["detected"]["coordinateStats"]["quantizationErrorMeters"]["max"], 0
+        )
 
     def test_import_geographic_table_writes_gpkg_metadata_and_catalog_records(self):
         response = self.client.post(
@@ -222,7 +254,11 @@ class DataImportApiTests(TestCase):
                         "latitudeColumn": "lat",
                         "missingCoordinatePolicy": "cancel",
                         "overwrite": False,
-                        "fieldMetadata": {"name": "样点名称", "lon": "经度", "lat": "纬度"},
+                        "fieldMetadata": {
+                            "name": "样点名称",
+                            "lon": "经度",
+                            "lat": "纬度",
+                        },
                     }
                 ),
             },
@@ -270,7 +306,9 @@ class DataImportApiTests(TestCase):
         response = self.client.post(
             "/api/catalog/import/commit/",
             data={
-                "file": self._csv_file("points.csv", "name,lon,lat\nA,87.600,43.800\nB,,43.900\n"),
+                "file": self._csv_file(
+                    "points.csv", "name,lon,lat\nA,87.600,43.800\nB,,43.900\n"
+                ),
                 "payload": json.dumps(
                     {
                         "name": "导入点位",
@@ -324,12 +362,16 @@ class DataImportApiTests(TestCase):
         self.assertEqual(description, "数值")
 
     def _csv_file(self, name: str, content: str) -> SimpleUploadedFile:
-        return SimpleUploadedFile(name, content.encode("utf-8"), content_type="text/csv")
+        return SimpleUploadedFile(
+            name, content.encode("utf-8"), content_type="text/csv"
+        )
 
 
 class ExportApiTests(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username="exporter", password="pass12345")
+        self.user = get_user_model().objects.create_user(
+            username="exporter", password="pass12345"
+        )
         grant(self.user, ("core", "browse_data"))
         self.client.force_login(self.user)
         self.resource = DataResource.objects.create(
@@ -375,7 +417,9 @@ class ExportApiTests(TestCase):
             self.assertEqual(len(names), 1)
             self.assertTrue(names[0].endswith(".geojson"))
             exported = json.loads(archive.read(names[0]).decode("utf-8"))
-            self.assertEqual(exported["features"][0]["properties"]["name"], "空间查询结果")
+            self.assertEqual(
+                exported["features"][0]["properties"]["name"], "空间查询结果"
+            )
 
     def _vector_item(self):
         return {
@@ -388,5 +432,7 @@ class ExportApiTests(TestCase):
 
 def grant(user, *specs):
     for app_label, codename in specs:
-        permission = Permission.objects.get(content_type__app_label=app_label, codename=codename)
+        permission = Permission.objects.get(
+            content_type__app_label=app_label, codename=codename
+        )
         user.user_permissions.add(permission)

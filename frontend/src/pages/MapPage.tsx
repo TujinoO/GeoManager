@@ -18,6 +18,7 @@ import {
 } from "../hooks/LayerContext";
 import { useLayerGroups } from "../hooks/useLayerGroups";
 import { useRasterRender } from "../hooks/useRasterRender";
+import { clearFeatureState, getMapState } from "../map/mapState";
 import type { DrawMode } from "../map/spatialDraw";
 import type {
   AttributeFilter,
@@ -38,13 +39,14 @@ import {
   combinedFeatureBounds,
   fitGeojsonBounds,
   geometryFromBoundsText,
+  sourceIdFor,
 } from "../utils/geometry";
 import {
   createRasterLayerGroup,
   createVectorLayerGroup,
 } from "../utils/layerFactory";
 
-type DrawPurpose = "query" | "exportClip";
+type DrawPurpose = "query";
 
 const emptyPermissions = {
   canAccessAdmin: false,
@@ -80,8 +82,6 @@ export default function MapPage() {
     purpose: DrawPurpose;
     mode: NonNullable<DrawMode>;
   } | null>(null);
-  const [exportClipGeometry, setExportClipGeometry] =
-    useState<GeoJsonGeometry | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [querying, setQuerying] = useState(false);
   const [dataPanelOpen, setDataPanelOpen] = useState(false);
@@ -146,6 +146,8 @@ export default function MapPage() {
         selectedLayer.sourceResource.spatialExtent,
     );
   }, [layerExtentVisible, selectedLayer]);
+
+  const sharedSpatialGeometry = spatialFilter?.geometry ?? null;
 
   const loadResources = useCallback(
     async (filters: ResourceFilters) => {
@@ -228,22 +230,14 @@ export default function MapPage() {
 
   const handleDrawComplete = useCallback(
     (mode: NonNullable<DrawMode>, geometry: GeoJsonGeometry) => {
-      if (activeDraw?.purpose === "exportClip") {
-        setExportClipGeometry(geometry);
-      } else {
-        setSpatialFilter({ mode, geometry });
-      }
+      setSpatialFilter({ mode, geometry });
       setActiveDraw(null);
     },
-    [activeDraw?.purpose],
+    [],
   );
 
   const setQueryDrawMode = useCallback((mode: DrawMode | null) => {
     setActiveDraw(mode ? { purpose: "query", mode } : null);
-  }, []);
-
-  const setExportClipDrawMode = useCallback((mode: DrawMode) => {
-    setActiveDraw({ purpose: "exportClip", mode });
   }, []);
 
   async function handleQuery(attributeFilters: AttributeFilter[]) {
@@ -418,6 +412,54 @@ export default function MapPage() {
     [layerGroups.groups, message],
   );
 
+  const handleSelectionChange = useCallback(
+    (featureIds: (string | number)[]) => {
+      const map = mapInstanceRef.current;
+      if (!map) return;
+
+      // 清除之前的选中状态
+      clearFeatureState(map, "selectedFeature", "selected");
+
+      if (
+        featureIds.length > 0 &&
+        tableLayer &&
+        tableLayer.layerType === "vector"
+      ) {
+        const sourceId = sourceIdFor(tableLayer.id);
+
+        // 设置所有选中要素的状态
+        for (const featureId of featureIds) {
+          const target = { source: sourceId, id: featureId };
+          map.setFeatureState(target, { selected: true });
+        }
+
+        // 更新地图内部状态（使用第一个选中的要素）
+        const state = getMapState(map);
+        state.selectedFeature = { source: sourceId, id: featureIds[0] };
+
+        // 查找第一个选中要素的属性信息
+        const feature = tableLayer.geojson.features.find((f) => {
+          const fId = f.id;
+          if (typeof fId === "string" || typeof fId === "number") {
+            return featureIds.includes(fId);
+          }
+          return false;
+        });
+
+        if (feature) {
+          setSelectedFeature({
+            layerId: tableLayer.id,
+            layerName: tableLayer.name,
+            properties: (feature.properties ?? {}) as Record<string, unknown>,
+          });
+        }
+      } else {
+        setSelectedFeature(null);
+      }
+    },
+    [tableLayer],
+  );
+
   async function handleLogout() {
     try {
       await api.logout();
@@ -523,8 +565,8 @@ export default function MapPage() {
     mapRef: mapInstanceRef,
     canUseCustomSymbolization: permissions.canUseCustomSymbolization,
     canExportData: permissions.canExportData,
-    exportClipGeometry,
-    clearExportClipGeometry: () => setExportClipGeometry(null),
+    exportClipGeometry: sharedSpatialGeometry,
+    clearExportClipGeometry: () => setSpatialFilter(null),
     exportLayers,
   };
 
@@ -601,8 +643,8 @@ export default function MapPage() {
             loadedLayers={mapLayers}
             drawMode={activeDraw?.mode ?? null}
             spatialFilter={spatialFilter}
-            exportClipGeometry={exportClipGeometry}
             layerExtentGeometry={selectedLayerExtentGeometry}
+            layerExtentTargetLayer={selectedLayer}
             onDrawComplete={handleDrawComplete}
             onFeatureSelect={setSelectedFeature}
             onMapReady={handleMapReady}
@@ -612,6 +654,12 @@ export default function MapPage() {
         <aside className="floating-panel floating-panel-left">
           <LayerContext.Provider value={layerContextValue}>
             <LayerPanel />
+            <LayerDataTableModal
+              layer={tableLayer}
+              open={Boolean(tableLayer)}
+              onClose={() => setTableLayer(null)}
+              onSelectionChange={handleSelectionChange}
+            />
           </LayerContext.Provider>
         </aside>
         <aside
@@ -626,22 +674,16 @@ export default function MapPage() {
         >
           <WorkspaceBottomPanel
             selectedLayer={selectedLayer}
-            exportClipGeometry={exportClipGeometry}
+            exportClipGeometry={sharedSpatialGeometry}
             spatialFilter={spatialFilter}
             layerExtentVisible={layerExtentVisible}
             activeDraw={activeDraw}
             onStartQueryDraw={setQueryDrawMode}
-            onStartExportClipDraw={setExportClipDrawMode}
             onLayerExtentVisibleChange={setLayerExtentVisible}
             onClearSpatialFilter={() => setSpatialFilter(null)}
-            onClearExportClipGeometry={() => setExportClipGeometry(null)}
+            onImportSpatialFilter={setSpatialFilter}
           />
         </aside>
-        <LayerDataTableModal
-          layer={tableLayer}
-          open={Boolean(tableLayer)}
-          onClose={() => setTableLayer(null)}
-        />
       </div>
     </Layout>
   );

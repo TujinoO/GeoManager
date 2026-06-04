@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from dataclasses import dataclass
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -36,7 +38,9 @@ def get_resource_profile(resource: DataResource) -> ResourceProfile:
 
         raster_info = get_raster_profile(resource)
         if not raster_info:
-            return ResourceProfile(fields=[], feature_count=None, geometry_type="Raster", bounds=[])
+            return ResourceProfile(
+                fields=[], feature_count=None, geometry_type="Raster", bounds=[]
+            )
         return ResourceProfile(
             fields=raster_info["fields"],
             feature_count=None,
@@ -45,13 +49,28 @@ def get_resource_profile(resource: DataResource) -> ResourceProfile:
             raster=raster_info["raster"],
         )
     if resource.data_type != DataResource.DataType.VECTOR or not resource.storage_path:
-        return ResourceProfile(fields=[], feature_count=None, geometry_type="", bounds=[])
+        return ResourceProfile(
+            fields=[], feature_count=None, geometry_type="", bounds=[]
+        )
     gdf = read_vector_resource(resource)
+
+    # 读取字段元数据
+    field_metadata: dict[str, str] = {}
+    try:
+        layer_name = validate_vector_layer_name(resource.storage_path)
+        path = vector_geopackage_path()
+        if path.exists():
+            field_metadata = read_field_metadata(path, layer_name)
+    except Exception:
+        pass
+
     return ResourceProfile(
-        fields=field_profiles(gdf),
+        fields=field_profiles(gdf, field_metadata),
         feature_count=len(gdf),
         geometry_type=geometry_type(gdf),
-        bounds=[round(float(value), 6) for value in gdf.total_bounds.tolist()] if len(gdf) else [],
+        bounds=[round(float(value), 6) for value in gdf.total_bounds.tolist()]
+        if len(gdf)
+        else [],
     )
 
 
@@ -62,6 +81,17 @@ def query_resource(resource: DataResource, payload: dict[str, Any]) -> dict[str,
     gdf = read_vector_resource(resource)
     gdf = apply_spatial_filter(gdf, payload.get("spatialFilter"))
     gdf = apply_attribute_filters(gdf, payload.get("attributeFilters") or [])
+
+    # 读取字段元数据
+    field_metadata: dict[str, str] = {}
+    try:
+        if resource.storage_path:
+            layer_name = validate_vector_layer_name(resource.storage_path)
+            path = vector_geopackage_path()
+            if path.exists():
+                field_metadata = read_field_metadata(path, layer_name)
+    except Exception:
+        pass
 
     limit = _limit(payload.get("limit"))
     total_count = len(gdf)
@@ -74,7 +104,7 @@ def query_resource(resource: DataResource, payload: dict[str, Any]) -> dict[str,
         "totalCount": total_count,
         "returnedCount": len(returned),
         "limit": limit,
-        "fields": field_profiles(gdf),
+        "fields": field_profiles(gdf, field_metadata),
         "geojson": json.loads(returned.to_json()),
     }
 
@@ -102,8 +132,30 @@ def read_vector_resource(resource: DataResource):
     return gdf
 
 
-def field_profiles(gdf) -> list[dict[str, Any]]:
-    geometry_name = gdf.geometry.name if getattr(gdf, "geometry", None) is not None else "geometry"
+def read_field_metadata(path: Path, table_name: str) -> dict[str, str]:
+    """从 GeoPackage 或 SQLite 文件中读取字段元数据（说明信息）"""
+    metadata: dict[str, str] = {}
+    try:
+        with sqlite3.connect(path) as connection:
+            # 尝试读取 GeoPackage 的 gpkg_data_columns 表
+            cursor = connection.execute(
+                "SELECT column_name, description FROM gpkg_data_columns WHERE table_name = ?",
+                (table_name,),
+            )
+            for column_name, description in cursor.fetchall():
+                if description:
+                    metadata[column_name] = description
+    except Exception:
+        pass
+    return metadata
+
+
+def field_profiles(
+    gdf, field_metadata: dict[str, str] | None = None
+) -> list[dict[str, Any]]:
+    geometry_name = (
+        gdf.geometry.name if getattr(gdf, "geometry", None) is not None else "geometry"
+    )
     fields = []
     for column in gdf.columns:
         if column == geometry_name:
@@ -112,12 +164,14 @@ def field_profiles(gdf) -> list[dict[str, Any]]:
         samples = []
         for value in series.dropna().head(8).tolist():
             samples.append(_json_value(value))
+        description = (field_metadata or {}).get(column, "")
         fields.append(
             {
                 "name": column,
                 "type": str(series.dtype),
                 "nullable": bool(series.isna().any()),
                 "sampleValues": samples,
+                "description": description,
             }
         )
     return fields
@@ -157,7 +211,9 @@ def apply_attribute_filters(gdf, filters: list[dict[str, Any]]):
         series = gdf[field]
         value = filter_item.get("value")
         if operator == "contains":
-            mask = series.astype(str).str.contains(str(value or ""), case=False, na=False)
+            mask = series.astype(str).str.contains(
+                str(value or ""), case=False, na=False
+            )
         elif operator == "eq":
             mask = series == _coerce_value(series, value)
         elif operator == "ne":

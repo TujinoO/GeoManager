@@ -29,7 +29,9 @@ class Migration(migrations.Migration):
                 ("name", models.CharField(max_length=160, verbose_name="数据名称")),
                 (
                     "code",
-                    models.SlugField(max_length=80, unique=True, verbose_name="数据编号"),
+                    models.SlugField(
+                        max_length=80, unique=True, verbose_name="数据编号"
+                    ),
                 ),
                 (
                     "data_type",
@@ -47,11 +49,15 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "source",
-                    models.CharField(blank=True, max_length=160, verbose_name="数据来源"),
+                    models.CharField(
+                        blank=True, max_length=160, verbose_name="数据来源"
+                    ),
                 ),
                 (
                     "provider",
-                    models.CharField(blank=True, max_length=160, verbose_name="提供单位"),
+                    models.CharField(
+                        blank=True, max_length=160, verbose_name="提供单位"
+                    ),
                 ),
                 (
                     "data_date",
@@ -59,15 +65,21 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "spatial_extent",
-                    models.CharField(blank=True, max_length=255, verbose_name="空间范围"),
+                    models.CharField(
+                        blank=True, max_length=255, verbose_name="空间范围"
+                    ),
                 ),
                 (
                     "coordinate_system",
-                    models.CharField(blank=True, max_length=120, verbose_name="坐标信息"),
+                    models.CharField(
+                        blank=True, max_length=120, verbose_name="坐标信息"
+                    ),
                 ),
                 (
                     "file_format",
-                    models.CharField(blank=True, max_length=40, verbose_name="数据格式"),
+                    models.CharField(
+                        blank=True, max_length=40, verbose_name="数据格式"
+                    ),
                 ),
                 (
                     "storage_path",
@@ -146,7 +158,9 @@ class Migration(migrations.Migration):
                 ("name", models.CharField(max_length=120, verbose_name="目录名称")),
                 (
                     "code",
-                    models.SlugField(max_length=80, unique=True, verbose_name="目录编码"),
+                    models.SlugField(
+                        max_length=80, unique=True, verbose_name="目录编码"
+                    ),
                 ),
                 ("description", models.TextField(blank=True, verbose_name="说明")),
                 (
@@ -230,7 +244,11 @@ class Migration(migrations.Migration):
                 "verbose_name": "字典项",
                 "verbose_name_plural": "字典项",
                 "ordering": ("dict_type", "sort_order", "id"),
-                "constraints": [models.UniqueConstraint(fields=("dict_type", "code"), name="uniq_dictionary_type_code")],
+                "constraints": [
+                    models.UniqueConstraint(
+                        fields=("dict_type", "code"), name="uniq_dictionary_type_code"
+                    )
+                ],
             },
         ),
         migrations.AddField(
@@ -260,7 +278,9 @@ class Migration(migrations.Migration):
                 ("name", models.CharField(max_length=160, verbose_name="图层名称")),
                 (
                     "code",
-                    models.SlugField(max_length=80, unique=True, verbose_name="图层编码"),
+                    models.SlugField(
+                        max_length=80, unique=True, verbose_name="图层编码"
+                    ),
                 ),
                 (
                     "layer_type",
@@ -286,7 +306,9 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "source_path",
-                    models.CharField(blank=True, max_length=255, verbose_name="数据相对路径"),
+                    models.CharField(
+                        blank=True, max_length=255, verbose_name="数据相对路径"
+                    ),
                 ),
                 (
                     "sort_order",
@@ -298,11 +320,15 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "default_opacity",
-                    models.PositiveSmallIntegerField(default=85, verbose_name="默认透明度"),
+                    models.PositiveSmallIntegerField(
+                        default=85, verbose_name="默认透明度"
+                    ),
                 ),
                 (
                     "symbolization",
-                    models.JSONField(blank=True, default=dict, verbose_name="矢量符号化"),
+                    models.JSONField(
+                        blank=True, default=dict, verbose_name="矢量符号化"
+                    ),
                 ),
                 (
                     "bounds",
@@ -311,11 +337,15 @@ class Migration(migrations.Migration):
                 ("legend", models.TextField(blank=True, verbose_name="图例说明")),
                 (
                     "raster_symbolizer_script",
-                    models.CharField(blank=True, max_length=255, verbose_name="栅格符号化脚本"),
+                    models.CharField(
+                        blank=True, max_length=255, verbose_name="栅格符号化脚本"
+                    ),
                 ),
                 (
                     "raster_rules",
-                    models.JSONField(blank=True, default=dict, verbose_name="栅格符号化规则"),
+                    models.JSONField(
+                        blank=True, default=dict, verbose_name="栅格符号化规则"
+                    ),
                 ),
                 ("is_active", models.BooleanField(default=True, verbose_name="启用")),
                 (
@@ -380,20 +410,28 @@ class Migration(migrations.Migration):
                 ("title", models.CharField(max_length=180, verbose_name="成果标题")),
                 (
                     "code",
-                    models.SlugField(max_length=80, unique=True, verbose_name="成果编码"),
+                    models.SlugField(
+                        max_length=80, unique=True, verbose_name="成果编码"
+                    ),
                 ),
                 ("summary", models.TextField(blank=True, verbose_name="成果说明")),
                 (
                     "source",
-                    models.CharField(blank=True, max_length=160, verbose_name="成果来源"),
+                    models.CharField(
+                        blank=True, max_length=160, verbose_name="成果来源"
+                    ),
                 ),
                 (
                     "image_path",
-                    models.CharField(blank=True, max_length=255, verbose_name="图片相对路径"),
+                    models.CharField(
+                        blank=True, max_length=255, verbose_name="图片相对路径"
+                    ),
                 ),
                 (
                     "attachment_path",
-                    models.CharField(blank=True, max_length=255, verbose_name="附件相对路径"),
+                    models.CharField(
+                        blank=True, max_length=255, verbose_name="附件相对路径"
+                    ),
                 ),
                 (
                     "display_order",

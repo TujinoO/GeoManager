@@ -10,7 +10,17 @@ from apps.catalog.models import DataResource, MapLayer
 from apps.core.storage import gene_data_path, table_data_path, vector_geopackage_path
 
 
-GENE_FILE_EXTENSIONS = {".fa", ".fasta", ".fq", ".fastq", ".vcf", ".gff", ".gff3", ".gb", ".gbk"}
+GENE_FILE_EXTENSIONS = {
+    ".fa",
+    ".fasta",
+    ".fq",
+    ".fastq",
+    ".vcf",
+    ".gff",
+    ".gff3",
+    ".gb",
+    ".gbk",
+}
 TABLE_FILE_EXTENSIONS = {".csv", ".tsv", ".xls", ".xlsx"}
 
 
@@ -45,8 +55,16 @@ def scan_vector_geopackage_safely() -> None:
 
 def scan_nongeographic_files() -> list[DataResource]:
     resources: list[DataResource] = []
-    resources.extend(_scan_nongeographic_kind(DataResource.DataType.GENE, gene_data_path(), GENE_FILE_EXTENSIONS))
-    resources.extend(_scan_nongeographic_kind(DataResource.DataType.TABLE, table_data_path(), TABLE_FILE_EXTENSIONS))
+    resources.extend(
+        _scan_nongeographic_kind(
+            DataResource.DataType.GENE, gene_data_path(), GENE_FILE_EXTENSIONS
+        )
+    )
+    resources.extend(
+        _scan_nongeographic_kind(
+            DataResource.DataType.TABLE, table_data_path(), TABLE_FILE_EXTENSIONS
+        )
+    )
     return resources
 
 
@@ -69,7 +87,11 @@ def scan_catalog_sources_safely() -> None:
 def upsert_vector_catalog_records(layer_name: str) -> DataResource:
     profile = _vector_layer_profile(layer_name)
     code = stable_catalog_code("vector", layer_name)
-    spatial_extent = ",".join(f"{value:.6f}" for value in profile["bounds"]) if profile["bounds"] else ""
+    spatial_extent = (
+        ",".join(f"{value:.6f}" for value in profile["bounds"])
+        if profile["bounds"]
+        else ""
+    )
     data_resource, _ = DataResource.objects.update_or_create(
         code=code,
         defaults={
@@ -104,10 +126,14 @@ def upsert_vector_catalog_records(layer_name: str) -> DataResource:
     return data_resource
 
 
-def upsert_nongeographic_catalog_record(data_type: DataResource.DataType, path) -> DataResource:
+def upsert_nongeographic_catalog_record(
+    data_type: DataResource.DataType, path
+) -> DataResource:
     relative_path = path.relative_to(gene_data_path().parent).as_posix()
     code = stable_catalog_code(data_type.value, relative_path)
-    data_type_label = "基因数据" if data_type == DataResource.DataType.GENE else "表格数据"
+    data_type_label = (
+        "基因数据" if data_type == DataResource.DataType.GENE else "表格数据"
+    )
     resource, _ = DataResource.objects.update_or_create(
         code=code,
         defaults={
@@ -131,10 +157,14 @@ def _vector_layer_names(path) -> list[str]:
     layers = gpd.list_layers(path)
     if hasattr(layers, "columns") and "name" in layers.columns:
         return [str(name) for name in layers["name"].dropna().tolist()]
-    return [str(item[0] if isinstance(item, (list, tuple)) else item) for item in layers]
+    return [
+        str(item[0] if isinstance(item, (list, tuple)) else item) for item in layers
+    ]
 
 
-def _scan_nongeographic_kind(data_type: DataResource.DataType, root, extensions: set[str]) -> list[DataResource]:
+def _scan_nongeographic_kind(
+    data_type: DataResource.DataType, root, extensions: set[str]
+) -> list[DataResource]:
     if not root.exists():
         return []
     resources: list[DataResource] = []
@@ -150,10 +180,16 @@ def _vector_layer_profile(layer_name: str) -> dict[str, Any]:
     gdf = gpd.read_file(path, layer=layer_name)
     if gdf.crs and gdf.crs.to_epsg() != 4326:
         gdf = gdf.to_crs(4326)
-    bounds = [round(float(value), 6) for value in gdf.total_bounds.tolist()] if len(gdf) else []
+    bounds = (
+        [round(float(value), 6) for value in gdf.total_bounds.tolist()]
+        if len(gdf)
+        else []
+    )
     return {
         "bounds": bounds,
-        "coordinate_system": f"EPSG:{gdf.crs.to_epsg()}" if gdf.crs and gdf.crs.to_epsg() else str(gdf.crs or ""),
+        "coordinate_system": f"EPSG:{gdf.crs.to_epsg()}"
+        if gdf.crs and gdf.crs.to_epsg()
+        else str(gdf.crs or ""),
         "geometry_type": _map_geometry_type(gdf),
     }
 

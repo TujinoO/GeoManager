@@ -28,10 +28,32 @@ class ImportDataError(ValueError):
 MAX_PREVIEW_ROWS = 8
 MAX_TABLE_NAME_LENGTH = 63
 TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
-LATITUDE_ALIASES = {"lat", "latitude", "纬度", "y", "decimal_latitude", "lat_deg", "lat_dd"}
-LONGITUDE_ALIASES = {"lon", "lng", "long", "longitude", "经度", "x", "decimal_longitude", "lon_deg", "lon_dd"}
-NORMALIZED_LATITUDE_ALIASES = {re.sub(r"[\s\-_()（）]+", "", alias.strip().lower()) for alias in LATITUDE_ALIASES}
-NORMALIZED_LONGITUDE_ALIASES = {re.sub(r"[\s\-_()（）]+", "", alias.strip().lower()) for alias in LONGITUDE_ALIASES}
+LATITUDE_ALIASES = {
+    "lat",
+    "latitude",
+    "纬度",
+    "y",
+    "decimal_latitude",
+    "lat_deg",
+    "lat_dd",
+}
+LONGITUDE_ALIASES = {
+    "lon",
+    "lng",
+    "long",
+    "longitude",
+    "经度",
+    "x",
+    "decimal_longitude",
+    "lon_deg",
+    "lon_dd",
+}
+NORMALIZED_LATITUDE_ALIASES = {
+    re.sub(r"[\s\-_()（）]+", "", alias.strip().lower()) for alias in LATITUDE_ALIASES
+}
+NORMALIZED_LONGITUDE_ALIASES = {
+    re.sub(r"[\s\-_()（）]+", "", alias.strip().lower()) for alias in LONGITUDE_ALIASES
+}
 
 
 @dataclass(frozen=True)
@@ -73,10 +95,14 @@ def preview_uploaded_table(uploaded_file) -> dict[str, Any]:
 
 
 @transaction.atomic
-def import_uploaded_table(uploaded_file, payload: dict[str, Any], user) -> dict[str, Any]:
+def import_uploaded_table(
+    uploaded_file, payload: dict[str, Any], user
+) -> dict[str, Any]:
     df = read_uploaded_table(uploaded_file)
     name = _required_text(payload.get("name"), "数据名称")
-    table_name = validate_import_table_name(_required_text(payload.get("tableName"), "入库表名"))
+    table_name = validate_import_table_name(
+        _required_text(payload.get("tableName"), "入库表名")
+    )
     metadata = _metadata_map(payload.get("fieldMetadata"), set(df.columns))
     import_mode = str(payload.get("importMode") or "").strip()
     longitude_column = str(payload.get("longitudeColumn") or "").strip()
@@ -141,7 +167,9 @@ def import_geographic_table(
     geometries = []
     for index, row in working.iterrows():
         if bool(valid_mask.loc[index]):
-            geometries.append(Point(float(row[longitude_column]), float(row[latitude_column])))
+            geometries.append(
+                Point(float(row[longitude_column]), float(row[latitude_column]))
+            )
         else:
             geometries.append(None)
 
@@ -152,7 +180,14 @@ def import_geographic_table(
     gdf.to_file(path, layer=table_name, driver="GPKG")
     write_geopackage_field_metadata(path, table_name, metadata)
 
-    bounds = [round(float(value), 6) for value in gdf[gdf.geometry.notna()].total_bounds.tolist()] if stats.valid_rows else []
+    bounds = (
+        [
+            round(float(value), 6)
+            for value in gdf[gdf.geometry.notna()].total_bounds.tolist()
+        ]
+        if stats.valid_rows
+        else []
+    )
     code = stable_catalog_code("vector", table_name)
     spatial_extent = ",".join(f"{value:.6f}" for value in bounds) if bounds else ""
     resource, _ = DataResource.objects.update_or_create(
@@ -254,7 +289,13 @@ def read_uploaded_table(uploaded_file) -> pd.DataFrame:
         if suffix == ".csv":
             df = _read_csv_bytes(raw)
         elif suffix in {".xls", ".xlsx"}:
-            df = pd.read_excel(BytesIO(raw), sheet_name=0, dtype=str, keep_default_na=False, na_filter=False)
+            df = pd.read_excel(
+                BytesIO(raw),
+                sheet_name=0,
+                dtype=str,
+                keep_default_na=False,
+                na_filter=False,
+            )
         else:
             raise ImportDataError("仅支持 .csv、.xls、.xlsx 文件")
     except ImportDataError:
@@ -274,7 +315,9 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     normalized.columns = _unique_column_names(normalized.columns)
     normalized = normalized.fillna("")
     for column in normalized.columns:
-        normalized[column] = normalized[column].map(lambda value: "" if pd.isna(value) else str(value).strip())
+        normalized[column] = normalized[column].map(
+            lambda value: "" if pd.isna(value) else str(value).strip()
+        )
     return normalized
 
 
@@ -286,7 +329,9 @@ def infer_coordinate_columns(df: pd.DataFrame) -> tuple[str | None, str | None]:
     return None, None
 
 
-def coordinate_stats_for(df: pd.DataFrame, longitude_column: str, latitude_column: str) -> CoordinateStats:
+def coordinate_stats_for(
+    df: pd.DataFrame, longitude_column: str, latitude_column: str
+) -> CoordinateStats:
     valid_mask = _valid_coordinate_mask(df, longitude_column, latitude_column)
     errors = []
     for _, row in df[valid_mask].iterrows():
@@ -305,7 +350,9 @@ def coordinate_stats_for(df: pd.DataFrame, longitude_column: str, latitude_colum
 def validate_import_table_name(table_name: str) -> str:
     table_name = table_name.strip()
     if not TABLE_NAME_PATTERN.fullmatch(table_name):
-        raise ImportDataError("入库表名只能使用英文字母、数字和下划线，且必须以字母或下划线开头，最长 63 个字符")
+        raise ImportDataError(
+            "入库表名只能使用英文字母、数字和下划线，且必须以字母或下划线开头，最长 63 个字符"
+        )
     return table_name
 
 
@@ -319,7 +366,9 @@ def suggest_table_name(source_name: str) -> str:
     return candidate[:MAX_TABLE_NAME_LENGTH]
 
 
-def write_geopackage_field_metadata(path: Path, table_name: str, metadata: dict[str, str]) -> None:
+def write_geopackage_field_metadata(
+    path: Path, table_name: str, metadata: dict[str, str]
+) -> None:
     with sqlite3.connect(path) as connection:
         connection.execute(
             """
@@ -359,7 +408,9 @@ def write_geopackage_field_metadata(path: Path, table_name: str, metadata: dict[
         _replace_field_metadata(connection, "gpkg_data_columns", table_name, metadata)
 
 
-def write_sqlite_field_metadata(connection: sqlite3.Connection, table_name: str, metadata: dict[str, str]) -> None:
+def write_sqlite_field_metadata(
+    connection: sqlite3.Connection, table_name: str, metadata: dict[str, str]
+) -> None:
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS data_columns (
@@ -373,7 +424,10 @@ def write_sqlite_field_metadata(connection: sqlite3.Connection, table_name: str,
     connection.execute("DELETE FROM data_columns WHERE table_name = ?", (table_name,))
     connection.executemany(
         "INSERT INTO data_columns (table_name, column_name, description) VALUES (?, ?, ?)",
-        [(table_name, column_name, description) for column_name, description in metadata.items()],
+        [
+            (table_name, column_name, description)
+            for column_name, description in metadata.items()
+        ],
     )
 
 
@@ -381,17 +435,31 @@ def _read_csv_bytes(raw: bytes) -> pd.DataFrame:
     last_error: Exception | None = None
     for encoding in ("utf-8-sig", "gb18030"):
         try:
-            return pd.read_csv(BytesIO(raw), dtype=str, keep_default_na=False, na_filter=False, encoding=encoding)
+            return pd.read_csv(
+                BytesIO(raw),
+                dtype=str,
+                keep_default_na=False,
+                na_filter=False,
+                encoding=encoding,
+            )
         except UnicodeDecodeError as exc:
             last_error = exc
     raise ImportDataError(f"CSV 编码无法识别：{last_error}")
 
 
-def _replace_field_metadata(connection: sqlite3.Connection, table_name: str, data_table: str, metadata: dict[str, str]) -> None:
+def _replace_field_metadata(
+    connection: sqlite3.Connection,
+    table_name: str,
+    data_table: str,
+    metadata: dict[str, str],
+) -> None:
     connection.execute(f"DELETE FROM {table_name} WHERE table_name = ?", (data_table,))
     connection.executemany(
         f"INSERT INTO {table_name} (table_name, column_name, name, title, description, mime_type, constraint_name) VALUES (?, ?, NULL, NULL, ?, NULL, NULL)",
-        [(data_table, column_name, description) for column_name, description in metadata.items()],
+        [
+            (data_table, column_name, description)
+            for column_name, description in metadata.items()
+        ],
     )
 
 
@@ -409,7 +477,9 @@ def _metadata_map(raw: Any, columns: set[str]) -> dict[str, str]:
     return metadata
 
 
-def _valid_coordinate_mask(df: pd.DataFrame, longitude_column: str, latitude_column: str) -> pd.Series:
+def _valid_coordinate_mask(
+    df: pd.DataFrame, longitude_column: str, latitude_column: str
+) -> pd.Series:
     lon = pd.to_numeric(df[longitude_column], errors="coerce")
     lat = pd.to_numeric(df[latitude_column], errors="coerce")
     return lon.between(-180, 180) & lat.between(-90, 90)
@@ -438,8 +508,12 @@ def _half_unit_degree(value: str) -> Decimal:
     return Decimal("0.5") * (Decimal(10) ** Decimal(-decimals))
 
 
-def _best_coordinate_column(df: pd.DataFrame, aliases: set[str], *, is_longitude: bool) -> str | None:
-    normalized_aliases = NORMALIZED_LONGITUDE_ALIASES if is_longitude else NORMALIZED_LATITUDE_ALIASES
+def _best_coordinate_column(
+    df: pd.DataFrame, aliases: set[str], *, is_longitude: bool
+) -> str | None:
+    normalized_aliases = (
+        NORMALIZED_LONGITUDE_ALIASES if is_longitude else NORMALIZED_LATITUDE_ALIASES
+    )
     candidates: list[tuple[float, str]] = []
     for column in df.columns:
         normalized = _normalize_column_name(column)
@@ -453,7 +527,9 @@ def _best_coordinate_column(df: pd.DataFrame, aliases: set[str], *, is_longitude
         if score <= 0:
             continue
         values = pd.to_numeric(df[column], errors="coerce")
-        in_range = values.between(-180, 180) if is_longitude else values.between(-90, 90)
+        in_range = (
+            values.between(-180, 180) if is_longitude else values.between(-90, 90)
+        )
         valid_ratio = float(in_range.sum()) / max(len(df), 1)
         if valid_ratio <= 0:
             continue
@@ -496,14 +572,20 @@ def _serialize_coordinate_stats(stats: CoordinateStats | None) -> dict[str, Any]
     }
 
 
-def _ensure_table_can_be_written(path: Path, table_name: str, overwrite: bool, *, geographic: bool) -> None:
+def _ensure_table_can_be_written(
+    path: Path, table_name: str, overwrite: bool, *, geographic: bool
+) -> None:
     if not path.exists():
         return
     if geographic:
         import geopandas as gpd
 
         layers = gpd.list_layers(path)
-        existing_names = set(layers["name"].astype(str).tolist()) if hasattr(layers, "columns") and "name" in layers.columns else set()
+        existing_names = (
+            set(layers["name"].astype(str).tolist())
+            if hasattr(layers, "columns") and "name" in layers.columns
+            else set()
+        )
         if table_name in existing_names and not overwrite:
             raise ImportDataError(f"GeoPackage 图层已存在：{table_name}")
         return

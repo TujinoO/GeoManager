@@ -26,7 +26,9 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "cache_key",
-                    models.CharField(max_length=64, unique=True, verbose_name="缓存标识"),
+                    models.CharField(
+                        max_length=64, unique=True, verbose_name="缓存标识"
+                    ),
                 ),
                 (
                     "raster_relative_path",
@@ -38,7 +40,9 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "rules",
-                    models.JSONField(blank=True, default=dict, verbose_name="符号化规则"),
+                    models.JSONField(
+                        blank=True, default=dict, verbose_name="符号化规则"
+                    ),
                 ),
                 ("output_width", models.PositiveIntegerField(verbose_name="输出宽度")),
                 ("output_height", models.PositiveIntegerField(verbose_name="输出高度")),

@@ -22,11 +22,15 @@ from apps.raster.services.geo_utils import (
 from apps.raster.services.rules_engine import normalize_rules, read_source_bands
 
 
-def register_tile_style(dataset: RasterDataset, rules: dict[str, Any] | None) -> dict[str, Any]:
+def register_tile_style(
+    dataset: RasterDataset, rules: dict[str, Any] | None
+) -> dict[str, Any]:
     if dataset.status != RasterDataset.Status.READY:
         raise RasterRenderError("栅格数据集尚未完成预处理")
     raster_path = raster_processed_path(dataset.processed_relative_path)
-    normalized_rules = normalize_rules(rules or dataset.default_rules, dataset.processed_gdalinfo)
+    normalized_rules = normalize_rules(
+        rules or dataset.default_rules, dataset.processed_gdalinfo
+    )
     sh = style_hash_for(raster_path, normalized_rules)
 
     from apps.raster.services.jobs import _LOCK, _TILE_STYLES
@@ -61,7 +65,9 @@ def render_xyz_tile(dataset_id: int, style_hash: str, z: int, x: int, y: int) ->
         style = _TILE_STYLES.get((dataset_id, style_hash))
     if not style:
         raise RasterRenderError("符号化瓦片样式不存在或已过期")
-    dataset = RasterDataset.objects.get(pk=dataset_id, status=RasterDataset.Status.READY)
+    dataset = RasterDataset.objects.get(
+        pk=dataset_id, status=RasterDataset.Status.READY
+    )
     raster_path = raster_processed_path(dataset.processed_relative_path)
     bounds = tile_bounds_3857(z, x, y)
 

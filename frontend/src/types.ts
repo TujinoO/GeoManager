@@ -73,6 +73,7 @@ export interface ResourceField {
   type: string;
   nullable: boolean;
   sampleValues: Array<string | number | boolean | null>;
+  description: string;
 }
 
 export interface DataResourceProfile {

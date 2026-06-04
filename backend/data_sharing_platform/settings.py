@@ -9,7 +9,9 @@ PROGRAM_ROOT = BASE_DIR.parent
 
 _app_config = os.environ.get("APP_CONFIG")
 if not _app_config:
-    raise ImproperlyConfigured("环境变量 APP_CONFIG 未设置。请在 .env 文件或系统环境变量中指定 TOML 配置文件路径。")
+    raise ImproperlyConfigured(
+        "环境变量 APP_CONFIG 未设置。请在 .env 文件或系统环境变量中指定 TOML 配置文件路径。"
+    )
 CONFIG_PATH = Path(_app_config)
 
 try:
@@ -35,11 +37,20 @@ def _get_secret_key() -> str:
 
 SECRET_KEY = _get_secret_key()
 DEBUG = os.environ.get("DEBUG", "False").lower() in ("true", "1", "yes")
-ALLOWED_HOSTS = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",") if h.strip()]
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
+    if h.strip()
+]
 
 
 def _default_csrf_trusted_origins(allowed_hosts: list[str], debug: bool) -> list[str]:
-    origins = {origin for host in allowed_hosts if host != "*" for origin in (f"http://{host}", f"https://{host}")}
+    origins = {
+        origin
+        for host in allowed_hosts
+        if host != "*"
+        for origin in (f"http://{host}", f"https://{host}")
+    }
     if debug:
         origins.update(
             {
@@ -52,7 +63,9 @@ def _default_csrf_trusted_origins(allowed_hosts: list[str], debug: bool) -> list
 
 _env_csrf_origins = os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 if _env_csrf_origins:
-    CSRF_TRUSTED_ORIGINS = [o.strip() for o in _env_csrf_origins.split(",") if o.strip()]
+    CSRF_TRUSTED_ORIGINS = [
+        o.strip() for o in _env_csrf_origins.split(",") if o.strip()
+    ]
 else:
     CSRF_TRUSTED_ORIGINS = _default_csrf_trusted_origins(ALLOWED_HOSTS, DEBUG)
 
@@ -107,7 +120,10 @@ DATABASES = {
 }
 
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 6}},
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 6},
+    },
 ]
 
 LANGUAGE_CODE = "zh-hans"

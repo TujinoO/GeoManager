@@ -11,6 +11,7 @@ auto_create_directories = true
 default_center = [80.0, 41.5]
 default_zoom = 4.5
 default_basemap = "osm"
+mapbox_access_token = "your_mapbox_access_token_here"
 
 [limits]
 upload_max_mb = 512

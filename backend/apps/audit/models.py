@@ -16,9 +16,13 @@ class OperationLog(models.Model):
     )
     module = models.CharField(max_length=64, verbose_name="模块")
     action = models.CharField(max_length=64, verbose_name="操作")
-    status = models.CharField(max_length=16, choices=Status.choices, verbose_name="结果")
+    status = models.CharField(
+        max_length=16, choices=Status.choices, verbose_name="结果"
+    )
     message = models.TextField(blank=True, verbose_name="说明")
-    ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name="IP 地址")
+    ip_address = models.GenericIPAddressField(
+        null=True, blank=True, verbose_name="IP 地址"
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="操作时间")
 
     class Meta:

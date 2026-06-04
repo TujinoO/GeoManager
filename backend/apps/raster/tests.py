@@ -12,7 +12,9 @@ from apps.raster.services import scan_unprocessed_source_files
 
 class RasterPermissionApiTests(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username="raster-user", password="pass12345")
+        self.user = get_user_model().objects.create_user(
+            username="raster-user", password="pass12345"
+        )
         self.client.force_login(self.user)
 
     def test_render_async_requires_raster_load_permission(self):
@@ -60,14 +62,18 @@ class RasterScanPathTests(TestCase):
             root = Path(tmpdir)
             config = self._config(root)
             source_file = config.research_path("raster", "original", "source.tif")
-            processed_file = config.research_path("raster", "preprocessed", "processed.tif")
+            processed_file = config.research_path(
+                "raster", "preprocessed", "processed.tif"
+            )
             loose_file = config.research_path("raster", "loose.tif")
             source_file.write_bytes(b"not a real tif")
             processed_file.write_bytes(b"not a source tif")
             loose_file.write_bytes(b"not a source tif")
 
             with override_settings(PROJECT_CONFIG=config):
-                with patch("apps.raster.services.importer.import_raster_file") as import_raster_file:
+                with patch(
+                    "apps.raster.services.importer.import_raster_file"
+                ) as import_raster_file:
                     import_raster_file.side_effect = lambda path, progress=None: path
 
                     imported = scan_unprocessed_source_files()
@@ -105,10 +111,14 @@ default_symbolizer_script = "scripts/raster_symbolizers/basic_gradient.py"
 """,
             encoding="utf-8",
         )
-        return load_project_config(config_path, program_root=Path("/opt/data-sharing-platform"))
+        return load_project_config(
+            config_path, program_root=Path("/opt/data-sharing-platform")
+        )
 
 
 def grant(user, *specs):
     for app_label, codename in specs:
-        permission = Permission.objects.get(content_type__app_label=app_label, codename=codename)
+        permission = Permission.objects.get(
+            content_type__app_label=app_label, codename=codename
+        )
         user.user_permissions.add(permission)

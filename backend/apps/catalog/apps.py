@@ -22,7 +22,11 @@ class CatalogConfig(AppConfig):
             return
         if len(sys.argv) > 1 and sys.argv[1] not in {"runserver"}:
             return
-        if len(sys.argv) > 1 and sys.argv[1] == "runserver" and os.environ.get("RUN_MAIN") != "true":
+        if (
+            len(sys.argv) > 1
+            and sys.argv[1] == "runserver"
+            and os.environ.get("RUN_MAIN") != "true"
+        ):
             return
 
         def run_scan() -> None:
@@ -30,4 +34,6 @@ class CatalogConfig(AppConfig):
 
             scan_catalog_sources_safely()
 
-        threading.Thread(target=run_scan, name="catalog-startup-scan", daemon=True).start()
+        threading.Thread(
+            target=run_scan, name="catalog-startup-scan", daemon=True
+        ).start()

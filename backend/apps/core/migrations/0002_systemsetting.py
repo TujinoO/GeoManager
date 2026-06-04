@@ -19,9 +19,23 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="SystemSetting",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
-                ("allow_registration", models.BooleanField(default=True, verbose_name="开放自助注册")),
-                ("updated_at", models.DateTimeField(auto_now=True, verbose_name="更新时间")),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "allow_registration",
+                    models.BooleanField(default=True, verbose_name="开放自助注册"),
+                ),
+                (
+                    "updated_at",
+                    models.DateTimeField(auto_now=True, verbose_name="更新时间"),
+                ),
             ],
             options={
                 "verbose_name": "系统设置",

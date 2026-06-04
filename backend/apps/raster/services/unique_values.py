@@ -27,7 +27,9 @@ def classify_unique_values(dataset: RasterDataset, band_index: int) -> dict[str,
     except StoragePathError as exc:
         raise RasterRenderError(str(exc)) from exc
     if not Path(raster_path).exists():
-        raise RasterRenderError(f"预处理栅格文件不存在：{dataset.processed_relative_path}")
+        raise RasterRenderError(
+            f"预处理栅格文件不存在：{dataset.processed_relative_path}"
+        )
 
     import rasterio
 
@@ -46,7 +48,9 @@ def classify_unique_values(dataset: RasterDataset, band_index: int) -> dict[str,
                 continue
             values.update(int(value) for value in np.unique(data))
             if len(values) > MAX_UNIQUE_VALUES:
-                raise RasterRenderError(f"唯一值超过 {MAX_UNIQUE_VALUES} 个，不适合使用唯一值分类")
+                raise RasterRenderError(
+                    f"唯一值超过 {MAX_UNIQUE_VALUES} 个，不适合使用唯一值分类"
+                )
 
     items = [
         {

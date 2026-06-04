@@ -141,11 +141,15 @@ def start_scan_job() -> RasterJob:
     def runner() -> None:
         try:
             _set_job_running(job.id, "开始扫描栅格源数据目录", 1)
-            datasets = scan_unprocessed_source_files(progress=lambda text: _append_job(job.id, text))
+            datasets = scan_unprocessed_source_files(
+                progress=lambda text: _append_job(job.id, text)
+            )
             _finish_job(
                 job.id,
                 {
-                    "items": [serialize_raster_dataset(dataset) for dataset in datasets],
+                    "items": [
+                        serialize_raster_dataset(dataset) for dataset in datasets
+                    ],
                     "count": len(datasets),
                 },
                 "ready",
@@ -175,12 +179,20 @@ def start_render_job(
         try:
             _set_job_running(job.id, "准备栅格符号化", 5)
             layer = MapLayer.objects.filter(pk=layer_id).first() if layer_id else None
-            dataset = RasterDataset.objects.filter(pk=dataset_id).first() if dataset_id else None
+            dataset = (
+                RasterDataset.objects.filter(pk=dataset_id).first()
+                if dataset_id
+                else None
+            )
             if dataset is None and layer is not None:
                 dataset = dataset_for_layer(layer)
             if dataset is None:
                 raise RasterRenderError("未找到可渲染的栅格数据集")
-            render_rules = rules or (layer.raster_rules if layer and layer.raster_rules else dataset.default_rules)
+            render_rules = rules or (
+                layer.raster_rules
+                if layer and layer.raster_rules
+                else dataset.default_rules
+            )
             result = register_tile_style(dataset, render_rules)
             _finish_job(job.id, result, "ready")
         except Exception as exc:
@@ -213,7 +225,9 @@ def start_export_job(
                 clip_geometry=clip_geometry,
                 progress=lambda text: _append_job(job.id, text),
             )
-            with NamedTemporaryFile(prefix=f"layers-export-{job.id}-", suffix=".zip", delete=False) as output:
+            with NamedTemporaryFile(
+                prefix=f"layers-export-{job.id}-", suffix=".zip", delete=False
+            ) as output:
                 output.write(content)
                 artifact = Path(output.name)
             _set_job_artifact(job.id, artifact)
@@ -228,7 +242,9 @@ def start_export_job(
         except Exception as exc:
             _fail_job(job.id, str(exc))
 
-    threading.Thread(target=runner, name=f"catalog-export-{job.id}", daemon=True).start()
+    threading.Thread(
+        target=runner, name=f"catalog-export-{job.id}", daemon=True
+    ).start()
     return job
 
 
