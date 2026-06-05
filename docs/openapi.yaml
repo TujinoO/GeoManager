@@ -1,0 +1,1897 @@
+openapi: 3.1.0
+info:
+  title: 中亚胡杨林生态系统保护数据共享平台 API
+  description: |
+    中亚胡杨林生态系统保护数据共享平台后端接口文档。
+
+    ## 认证方式
+    本平台使用 Django Session 认证机制：
+    1. `GET /api/auth/csrf/` 获取 CSRF Token
+    2. `POST /api/auth/login/` 登录建立 Session
+    3. 后续请求携带 `sessionid` Cookie 和 `X-CSRFToken` 请求头
+
+    ## 权限体系
+    - **功能权限**：10 项细粒度功能权限，通过用户组分配
+    - **数据访问权限**：基于 `access_groups` 的数据隔离
+
+    ## 错误处理
+    所有错误响应包含 `detail` 字段描述错误原因。
+  version: 0.1.0
+  contact:
+    name: API Support
+    email: support@huyang.example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000
+    description: 开发环境
+  - url: https://api.huyang.example.com
+    description: 生产环境
+
+tags:
+  - name: 公共接口
+    description: 无需认证的公共接口
+  - name: 认证接口
+    description: 用户认证相关接口
+  - name: 数据目录
+    description: 数据资源管理接口
+  - name: 图层
+    description: 地图图层接口
+  - name: 成果
+    description: 研究成果接口
+  - name: 搜索
+    description: 全局搜索接口
+  - name: 栅格数据
+    description: 栅格数据管理接口
+  - name: 异步任务
+    description: 异步任务状态查询接口
+
+paths:
+  /api/bootstrap/:
+    get:
+      tags: [公共接口]
+      summary: 获取系统启动配置
+      description: 获取前端应用初始化所需的全局配置信息
+      operationId: getBootstrap
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootstrapResponse'
+
+  /api/health/:
+    get:
+      tags: [公共接口]
+      summary: 健康检查
+      operationId: getHealth
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/auth/csrf/:
+    get:
+      tags: [认证接口]
+      summary: 获取 CSRF Cookie
+      description: 设置 csrftoken Cookie，后续所有非 GET 请求需读取此 Cookie 值
+      operationId: getCsrfCookie
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+
+  /api/auth/login/:
+    post:
+      tags: [认证接口]
+      summary: 用户登录
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/auth/register/:
+    post:
+      tags: [认证接口]
+      summary: 用户注册
+      description: |
+        注册新用户。首个注册的用户将自动成为系统管理员。
+        注册功能受系统配置 `allowRegistration` 控制。
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/auth/logout/:
+    post:
+      tags: [认证接口]
+      summary: 用户登出
+      operationId: logout
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/me/:
+    get:
+      tags: [认证接口]
+      summary: 获取当前用户信息
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: 已认证用户信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfoResponse'
+        '401':
+          description: 未认证
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authenticated:
+                    type: boolean
+                    example: false
+
+  /api/catalog/directories/:
+    get:
+      tags: [数据目录]
+      summary: 获取数据目录树
+      description: 返回所有已激活的数据目录及其关联的数据资源
+      operationId: getDirectories
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DirectoryTreeResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/catalog/resources/:
+    get:
+      tags: [数据目录]
+      summary: 获取数据资源列表
+      description: 支持多条件筛选的数据资源分页列表
+      operationId: getResources
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 按名称模糊搜索
+        - name: dataType
+          in: query
+          schema:
+            type: string
+            enum: [vector, raster, gene, table, document, image]
+          description: 数据类型筛选
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: 分类代码精确匹配
+        - name: source
+          in: query
+          schema:
+            type: string
+          description: 数据来源模糊匹配
+        - name: provider
+          in: query
+          schema:
+            type: string
+          description: 提供者模糊匹配
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 数据日期起始
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 数据日期截止
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/catalog/scan/:
+    post:
+      tags: [数据目录]
+      summary: 扫描数据源
+      description: 触发一次数据目录源扫描，发现并同步新的数据资源
+      operationId: scanCatalogSources
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 扫描完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/catalog/import/preview/:
+    post:
+      tags: [数据目录]
+      summary: 导入数据预检
+      description: |
+        解析上传的 Excel/CSV 第一张表，按文本读取字段，自动推测经纬度列，
+        并返回样例行和字段列表。该接口不执行坐标数据校验，不写入数据。
+      operationId: importPreview
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: .csv / .xls / .xlsx 文件
+      responses:
+        '200':
+          description: 预检成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportPreviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/catalog/import/validate/:
+    post:
+      tags: [数据目录]
+      summary: 上传数据校验
+      description: 按当前表单选择的导入类型和经纬度列校验上传文件，不写入数据
+      operationId: importValidate
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, payload]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 与预检一致的文件
+                payload:
+                  type: string
+                  description: JSON 字符串，包含 importMode、longitudeColumn、latitudeColumn
+      responses:
+        '200':
+          description: 校验成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportValidateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/catalog/import/commit/:
+    post:
+      tags: [数据目录]
+      summary: 提交数据导入
+      description: |
+        将预检后的 Excel/CSV 导入统一存储。选择地理数据时写入 GeoPackage，
+        选择非地理数据时写入 SQLite。接口会同步创建或更新 DataResource。
+      operationId: importCommit
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, payload]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                payload:
+                  type: string
+                  description: JSON 字符串，包含导入配置
+      responses:
+        '201':
+          description: 导入成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportCommitResponse'
+        '400':
+          description: 校验失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/catalog/resources/{id}/profile/:
+    get:
+      tags: [数据目录]
+      summary: 获取数据资源详情
+      description: 获取指定数据资源的元数据、字段信息及空间范围
+      operationId: getResourceProfile
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceProfileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/catalog/resources/{id}/query/:
+    post:
+      tags: [数据目录]
+      summary: 查询矢量数据
+      description: 对矢量数据资源执行属性 + 空间联合查询，返回 GeoJSON FeatureCollection
+      operationId: queryResource
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/catalog/export/:
+    post:
+      tags: [数据目录]
+      summary: 同步导出图层
+      description: 将指定图层数据导出为 ZIP 文件（含 Shapefile 或 GeoTIFF）
+      operationId: exportLayers
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequest'
+      responses:
+        '200':
+          description: 导出成功
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/catalog/export/async/:
+    post:
+      tags: [数据目录]
+      summary: 异步导出图层
+      description: 与同步导出参数相同，但以异步任务方式执行
+      operationId: exportLayersAsync
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportRequest'
+      responses:
+        '202':
+          description: 任务已提交
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncJobResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/catalog/export/jobs/{job_id}/download/:
+    get:
+      tags: [数据目录]
+      summary: 下载导出文件
+      operationId: downloadExport
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          description: 下载成功
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 任务未完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+
+  /api/layers/:
+    get:
+      tags: [图层]
+      summary: 获取图层列表
+      operationId: getLayers
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LayerListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/layers/{id}/features/:
+    get:
+      tags: [图层]
+      summary: 获取图层 GeoJSON 要素
+      description: |
+        获取矢量图层的全部要素（GeoJSON FeatureCollection 格式）。
+        返回前会忽略无几何、经度越界、纬度越界的数据，相关警告通过 `warnings` 字段返回。
+      operationId: getLayerFeatures
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 图层 ID
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          description: 返回要素上限
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LayerFeaturesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/achievements/:
+    get:
+      tags: [成果]
+      summary: 获取成果列表
+      operationId: getAchievements
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AchievementListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/search/:
+    get:
+      tags: [搜索]
+      summary: 全局搜索
+      description: 同时搜索数据资源和研究成果。`q` 为空时返回空结果。
+      operationId: search
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            default: ''
+          description: 搜索关键词，为空时返回空结果
+      responses:
+        '200':
+          description: 搜索成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/raster/datasets/:
+    get:
+      tags: [栅格数据]
+      summary: 获取栅格数据集列表
+      operationId: getRasterDatasets
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RasterDatasetListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/raster/import/:
+    post:
+      tags: [栅格数据]
+      summary: 导入栅格文件
+      operationId: importRaster
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RasterImportRequest'
+      responses:
+        '201':
+          description: 同步导入成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RasterDataset'
+        '202':
+          description: 异步任务已提交
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncJobResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/raster/scan/:
+    post:
+      tags: [栅格数据]
+      summary: 扫描栅格源目录
+      description: 扫描研究数据目录中的未处理栅格文件，自动创建数据集
+      operationId: scanRasterSources
+      security:
+        - sessionAuth: []
+      responses:
+        '202':
+          description: 任务已提交
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncJobResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/raster/render/:
+    post:
+      tags: [栅格数据]
+      summary: 注册栅格渲染样式（同步）
+      description: 为栅格图层注册瓦片样式并返回 XYZ 瓦片 URL
+      operationId: renderRaster
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RasterRenderRequest'
+      responses:
+        '200':
+          description: 渲染成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RasterRenderResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/raster/render/async/:
+    post:
+      tags: [栅格数据]
+      summary: 异步注册栅格渲染样式
+      operationId: renderRasterAsync
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RasterRenderAsyncRequest'
+      responses:
+        '202':
+          description: 任务已提交
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncJobResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/raster/unique-values/:
+    post:
+      tags: [栅格数据]
+      summary: 获取栅格唯一值分类
+      description: 获取指定栅格数据集某一波段的唯一值列表，用于唯一值符号化
+      operationId: getUniqueValues
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UniqueValuesRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UniqueValuesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/raster/jobs/{job_id}/:
+    get:
+      tags: [异步任务]
+      summary: 查询异步任务状态
+      description: 所有异步操作（栅格导入、扫描、渲染、导出）均返回统一的任务对象
+      operationId: getJobStatus
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AsyncJobResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/raster/tiles/{dataset_id}/{style_hash}/{z}/{x}/{y}.png:
+    get:
+      tags: [栅格数据]
+      summary: 获取 XYZ 瓦片
+      description: 获取渲染后的栅格 PNG 瓦片，供 Mapbox GL JS 消费
+      operationId: getTile
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: dataset_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 栅格数据集 ID
+        - name: style_hash
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 样式哈希
+        - name: z
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 缩放级别
+        - name: x
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 瓦片列号
+        - name: y
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 瓦片行号
+      responses:
+        '200':
+          description: PNG 瓦片
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+      description: Django Session Cookie
+
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: 资源 ID
+
+    JobId:
+      name: job_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: 异步任务 ID
+
+  responses:
+    BadRequest:
+      description: 请求错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            detail: 请求参数错误
+
+    Unauthorized:
+      description: 未认证
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            detail: 认证凭据未提供
+
+    Forbidden:
+      description: 权限不足
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            detail: 当前用户组无权限
+
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            detail: 未找到请求的资源
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+          description: 错误描述信息
+
+    DetailResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+
+    BootstrapResponse:
+      type: object
+      properties:
+        systemName:
+          type: string
+          example: 中亚胡杨林生态系统保护数据共享平台
+        allowRegistration:
+          type: boolean
+          example: true
+        map:
+          $ref: '#/components/schemas/MapConfig'
+        limits:
+          $ref: '#/components/schemas/SystemLimits'
+
+    MapConfig:
+      type: object
+      properties:
+        defaultCenter:
+          type: array
+          items:
+            type: number
+          example: [87.6, 41.7]
+        defaultZoom:
+          type: number
+          example: 6.5
+        defaultBasemap:
+          type: string
+          example: mapbox://styles/mapbox/satellite-streets-v12
+        mapboxAccessToken:
+          type: string
+
+    SystemLimits:
+      type: object
+      properties:
+        uploadMaxMb:
+          type: integer
+          example: 500
+        queryResultLimit:
+          type: integer
+          example: 30000
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        configLoaded:
+          type: boolean
+          example: true
+        appSubdirs:
+          type: array
+          items:
+            type: string
+        researchSubdirs:
+          type: array
+          items:
+            type: string
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          description: 用户名
+        password:
+          type: string
+          format: password
+          description: 密码
+        remember:
+          type: boolean
+          default: false
+          description: 是否记住登录
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/UserInfo'
+
+    RegisterRequest:
+      type: object
+      required: [username, password, passwordConfirm]
+      properties:
+        username:
+          type: string
+          description: 用户名（唯一）
+        email:
+          type: string
+          format: email
+          description: 邮箱
+        password:
+          type: string
+          format: password
+          description: 密码
+        passwordConfirm:
+          type: string
+          format: password
+          description: 确认密码
+
+    RegisterResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/UserInfo'
+        detail:
+          type: string
+
+    UserInfoResponse:
+      type: object
+      properties:
+        authenticated:
+          type: boolean
+          example: true
+        user:
+          $ref: '#/components/schemas/UserInfo'
+
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+        isStaff:
+          type: boolean
+        isSuperuser:
+          type: boolean
+        roles:
+          type: array
+          items:
+            type: string
+        permissions:
+          $ref: '#/components/schemas/UserPermissions'
+
+    UserPermissions:
+      type: object
+      properties:
+        canAccessAdmin:
+          type: boolean
+        canManageFeaturePermissions:
+          type: boolean
+        canBrowseData:
+          type: boolean
+        canQueryData:
+          type: boolean
+        canLoadVectorLayer:
+          type: boolean
+        canLoadRasterLayer:
+          type: boolean
+        canUseCustomSymbolization:
+          type: boolean
+        canExportData:
+          type: boolean
+        canMaintainData:
+          type: boolean
+        canManageRasterData:
+          type: boolean
+
+    DictionaryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+
+    DataResource:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        dataType:
+          type: string
+          enum: [vector, raster, gene, table, document, image]
+        category:
+          $ref: '#/components/schemas/DictionaryItem'
+        source:
+          type: string
+        provider:
+          type: string
+        dataDate:
+          type: string
+          format: date
+          nullable: true
+        spatialExtent:
+          type: string
+        coordinateSystem:
+          type: string
+        fileFormat:
+          type: string
+        description:
+          type: string
+        qualityNote:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+        isQueryable:
+          type: boolean
+        isRenderable:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+
+    MapLayer:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        layerType:
+          type: string
+          enum: [vector, raster]
+        geometryType:
+          type: string
+          enum: [point, line, polygon, mixed]
+        category:
+          $ref: '#/components/schemas/DictionaryItem'
+        dataResourceId:
+          type: integer
+          nullable: true
+        sortOrder:
+          type: integer
+        defaultVisible:
+          type: boolean
+        defaultOpacity:
+          type: integer
+          minimum: 0
+          maximum: 100
+        symbolization:
+          type: object
+        bounds:
+          type: array
+          items:
+            type: number
+          minItems: 4
+          maxItems: 4
+        legend:
+          type: string
+        rasterRules:
+          type: object
+        isActive:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+
+    Achievement:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        code:
+          type: string
+        category:
+          $ref: '#/components/schemas/DictionaryItem'
+        summary:
+          type: string
+        source:
+          type: string
+        relatedLayerId:
+          type: integer
+          nullable: true
+        displayOrder:
+          type: integer
+        status:
+          type: string
+          enum: [draft, published, archived]
+        updatedAt:
+          type: string
+          format: date-time
+
+    RasterDataset:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, ready, failed]
+        sourcePath:
+          type: string
+        processedPath:
+          type: string
+        sourceMetadataPath:
+          type: string
+        processedMetadataPath:
+          type: string
+        dataResourceId:
+          type: integer
+          nullable: true
+        mapLayerId:
+          type: integer
+          nullable: true
+        bandCount:
+          type: integer
+        bounds3857:
+          type: array
+          items:
+            type: number
+        bounds4326:
+          type: array
+          items:
+            type: number
+        imageCoordinates:
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+        defaultRules:
+          type: object
+        sourceFileSize:
+          type: integer
+        processedFileSize:
+          type: integer
+        progressLog:
+          type: string
+        errorMessage:
+          type: string
+        importedAt:
+          type: string
+          format: date-time
+          nullable: true
+        processedAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          $ref: '#/components/schemas/RasterMetadata'
+
+    RasterMetadata:
+      type: object
+      properties:
+        size:
+          type: array
+          items:
+            type: integer
+        driver:
+          type: string
+        coordinateSystem:
+          type: string
+        bands:
+          type: array
+          items:
+            $ref: '#/components/schemas/RasterBandInfo'
+
+    RasterBandInfo:
+      type: object
+      properties:
+        band:
+          type: integer
+        type:
+          type: string
+        description:
+          type: string
+        colorInterpretation:
+          type: string
+        min:
+          type: number
+        max:
+          type: number
+        isInteger:
+          type: boolean
+
+    AsyncJobResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [import, scan, render, export]
+        status:
+          type: string
+          enum: [queued, running, ready, failed]
+        progressPercent:
+          type: integer
+          minimum: 0
+          maximum: 100
+        messages:
+          type: array
+          items:
+            type: string
+        result:
+          type: object
+          nullable: true
+        error:
+          type: string
+        startedAt:
+          type: number
+          format: double
+        finishedAt:
+          type: number
+          format: double
+          nullable: true
+
+    DirectoryTreeResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Directory'
+
+    Directory:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+        parentId:
+          type: integer
+          nullable: true
+        description:
+          type: string
+        sortOrder:
+          type: integer
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataResource'
+
+    ResourceListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataResource'
+
+    ScanResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+        count:
+          type: integer
+
+    ImportPreviewResponse:
+      type: object
+      properties:
+        columns:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            type: object
+        rowCount:
+          type: integer
+        suggestedTableName:
+          type: string
+        suggestedName:
+          type: string
+        detected:
+          $ref: '#/components/schemas/ImportDetectedInfo'
+        limitations:
+          type: array
+          items:
+            type: string
+
+    ImportDetectedInfo:
+      type: object
+      properties:
+        isGeographic:
+          type: boolean
+        longitudeColumn:
+          type: string
+          nullable: true
+        latitudeColumn:
+          type: string
+          nullable: true
+        coordinateStats:
+          type: object
+          nullable: true
+        validationIssues:
+          type: array
+          items:
+            type: object
+
+    ImportValidateResponse:
+      type: object
+      properties:
+        coordinateStats:
+          $ref: '#/components/schemas/CoordinateStats'
+        validationIssues:
+          type: array
+          items:
+            type: object
+
+    CoordinateStats:
+      type: object
+      properties:
+        totalRows:
+          type: integer
+        validRows:
+          type: integer
+        missingRows:
+          type: integer
+        quantizationErrorMeters:
+          type: object
+          properties:
+            min:
+              type: number
+            max:
+              type: number
+
+    ImportCommitResponse:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [geographic, table]
+        resourceId:
+          type: integer
+        layerId:
+          type: integer
+          nullable: true
+        tableName:
+          type: string
+        importedRows:
+          type: integer
+        skippedRows:
+          type: integer
+        coordinateStats:
+          $ref: '#/components/schemas/CoordinateStats'
+        validationIssues:
+          type: array
+          items:
+            type: object
+
+    ImportErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationIssue'
+
+    ValidationIssue:
+      type: object
+      properties:
+        code:
+          type: string
+        count:
+          type: integer
+          nullable: true
+        blocking:
+          type: boolean
+        message:
+          type: string
+
+    ResourceProfileResponse:
+      type: object
+      properties:
+        resource:
+          $ref: '#/components/schemas/DataResource'
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldInfo'
+        featureCount:
+          type: integer
+          nullable: true
+        geometryType:
+          type: string
+        bounds:
+          type: array
+          items:
+            type: number
+        raster:
+          $ref: '#/components/schemas/RasterDataset'
+          nullable: true
+
+    FieldInfo:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        nullable:
+          type: boolean
+        sampleValues:
+          type: array
+          items: {}
+        description:
+          type: string
+
+    QueryRequest:
+      type: object
+      properties:
+        attributeFilters:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttributeFilter'
+        spatialFilter:
+          $ref: '#/components/schemas/SpatialFilter'
+          nullable: true
+        limit:
+          type: integer
+          default: 30000
+
+    AttributeFilter:
+      type: object
+      required: [field, operator, value]
+      properties:
+        field:
+          type: string
+        operator:
+          type: string
+          enum: [contains, eq, ne, gt, gte, lt, lte, between]
+        value:
+          type: string
+        valueTo:
+          type: string
+          description: between 操作符时必填
+
+    SpatialFilter:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [rectangle, circle, ellipse, polygon]
+        geometry:
+          $ref: '#/components/schemas/GeoJSONGeometry'
+
+    QueryResponse:
+      type: object
+      properties:
+        resourceId:
+          type: integer
+        resourceName:
+          type: string
+        totalCount:
+          type: integer
+        returnedCount:
+          type: integer
+        limit:
+          type: integer
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldInfo'
+        geojson:
+          $ref: '#/components/schemas/GeoJSONFeatureCollection'
+        warnings:
+          type: array
+          description: 地理坐标校验警告
+          items:
+            $ref: '#/components/schemas/ValidationWarning'
+
+    ExportRequest:
+      type: object
+      required: [items]
+      properties:
+        epsg:
+          type: integer
+          default: 4326
+        reproject:
+          type: boolean
+          default: true
+        clip:
+          type: boolean
+          default: false
+        clipGeometry:
+          $ref: '#/components/schemas/GeoJSONGeometry'
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExportItem'
+
+    ExportItem:
+      type: object
+      required: [layerType, name, resourceId]
+      properties:
+        layerType:
+          type: string
+          enum: [vector, raster]
+        name:
+          type: string
+        resourceId:
+          type: integer
+        geojson:
+          $ref: '#/components/schemas/GeoJSONFeatureCollection'
+          nullable: true
+        datasetId:
+          type: integer
+          nullable: true
+        sourceCrs:
+          type: string
+          nullable: true
+
+    LayerListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MapLayer'
+
+    AchievementListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Achievement'
+
+    SearchResponse:
+      type: object
+      properties:
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataResource'
+        achievements:
+          type: array
+          items:
+            $ref: '#/components/schemas/Achievement'
+
+    RasterDatasetListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RasterDataset'
+
+    RasterImportRequest:
+      type: object
+      required: [sourcePath]
+      properties:
+        sourcePath:
+          type: string
+          description: 源文件相对路径（相对于研究数据根目录）
+        name:
+          type: string
+          description: 数据集名称，默认取文件名
+        async:
+          type: boolean
+          default: true
+          description: 是否异步执行
+
+    RasterRenderRequest:
+      type: object
+      required: [layerId]
+      properties:
+        layerId:
+          type: integer
+        rulesMode:
+          type: string
+          enum: [default, custom]
+          default: default
+        rules:
+          type: object
+          nullable: true
+
+    RasterRenderAsyncRequest:
+      type: object
+      properties:
+        layerId:
+          type: integer
+          nullable: true
+        datasetId:
+          type: integer
+          nullable: true
+        rulesMode:
+          type: string
+          enum: [default, custom]
+          default: default
+        rules:
+          type: object
+          nullable: true
+
+    RasterRenderResult:
+      type: object
+      properties:
+        delivery:
+          type: string
+          example: xyz
+        datasetId:
+          type: integer
+        layerId:
+          type: integer
+          nullable: true
+        styleHash:
+          type: string
+        tileUrl:
+          type: string
+        status:
+          type: string
+        bounds3857:
+          type: array
+          items:
+            type: number
+        bounds4326:
+          type: array
+          items:
+            type: number
+        imageCoordinates:
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+        rules:
+          type: object
+
+    UniqueValuesRequest:
+      type: object
+      required: [datasetId]
+      properties:
+        datasetId:
+          type: integer
+        band:
+          type: integer
+          default: 1
+
+    UniqueValuesResponse:
+      type: object
+      properties:
+        band:
+          type: integer
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: number
+              color:
+                type: string
+              label:
+                type: string
+
+    GeoJSONGeometry:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon]
+        coordinates:
+          oneOf:
+            - type: array
+              items:
+                type: number
+            - type: array
+              items:
+                type: array
+                items:
+                  type: number
+            - type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: number
+
+    LayerFeaturesResponse:
+      description: 矢量图层要素响应，包含 GeoJSON FeatureCollection 和校验警告
+      allOf:
+        - $ref: '#/components/schemas/GeoJSONFeatureCollection'
+        - type: object
+          properties:
+            warnings:
+              type: array
+              description: 地理坐标校验警告
+              items:
+                $ref: '#/components/schemas/ValidationWarning'
+
+    ValidationWarning:
+      type: object
+      properties:
+        code:
+          type: string
+          description: 警告代码，如 missing_geometry、invalid_longitude、coordinate_uncertainty 等
+        count:
+          type: integer
+          description: 受影响的记录数
+        message:
+          type: string
+          description: 警告描述
+
+    GeoJSONFeatureCollection:
+      type: object
+      properties:
+        type:
+          type: string
+          example: FeatureCollection
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeoJSONFeature'
+
+    GeoJSONFeature:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          example: Feature
+        geometry:
+          $ref: '#/components/schemas/GeoJSONGeometry'
+        properties:
+          type: object

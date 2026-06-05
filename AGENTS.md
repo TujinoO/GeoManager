@@ -5,8 +5,9 @@ Central Asia Poplar Forest Ecosystem Protection Data Sharing Platform (中亚胡
 ## Attention
 
 - Summarise the details into documents (docs/) for reference during the coding process.
-- format code before commiting git. 
+- format code before commiting git.
 - **API doc sync**: Whenever a backend API endpoint is added, removed, or modified (URL, request params, response format, permissions, etc.), update `docs/api.md` accordingly.
+- **OpenAPI specification**: All API endpoints MUST be defined in `docs/openapi.yaml` following OpenAPI 3.1.0 specification. See `docs/openapi-standards.md` for mandatory standards.
 
 ## Key reference
 
@@ -95,6 +96,37 @@ make tag
 2. Bump version using `make version-patch/minor/major`
 3. Create git tag using `make tag` or `git tag -a v{version} -m "Version {version}"`
 4. Push changes and tags: `git push && git push --tags`
+
+## OpenAPI Specification
+
+All backend API endpoints MUST be defined using OpenAPI 3.1.0 specification.
+
+### Key Files
+
+- **OpenAPI Definition**: `docs/openapi.yaml` — the authoritative API definition
+- **Standards Document**: `docs/openapi-standards.md` — mandatory standards and guidelines
+- **API Documentation**: `docs/api.md` — human-readable API documentation (must stay in sync with openapi.yaml)
+
+### Requirements
+
+1. All new API endpoints MUST be added to `docs/openapi.yaml` before implementation
+2. All API changes MUST update both `docs/openapi.yaml` and `docs/api.md`
+3. Every operation MUST have a unique `operationId` using camelCase
+4. All parameters and schemas MUST have complete `description` fields
+5. Error responses MUST use the standard `ErrorResponse` schema with `detail` field
+6. Authentication MUST be declared using `securitySchemes` in components
+
+### Validation
+
+Before committing API changes, validate the OpenAPI document:
+
+```bash
+# Install swagger-cli (if not installed)
+npm install -g @apidevtools/swagger-cli
+
+# Validate OpenAPI document
+swagger-cli validate docs/openapi.yaml
+```
 
 ## Other instructions:
 
