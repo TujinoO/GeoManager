@@ -7,7 +7,11 @@ from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 
-from apps.catalog.data_query import DataQueryError, get_resource_profile, query_resource
+from apps.catalog.data_query import (
+    DataQueryError,
+    get_vector_resource_profile,
+    query_vector_resource,
+)
 from apps.catalog.export import ExportError, export_layers_zip, validate_epsg
 from apps.catalog.geojson_validation import validate_geojson_geometries
 from apps.catalog.importer import (
@@ -23,8 +27,13 @@ from apps.catalog.serializers import (
     serialize_catalog,
     serialize_layer,
     serialize_resource,
+    serialize_vector_layer,
 )
-from apps.catalog.services import scan_catalog_sources
+from apps.catalog.services import (
+    get_vector_layer_info,
+    get_vector_layers_from_geopackage,
+    scan_catalog_sources,
+)
 from apps.core.permissions import feature_denied_response, has_feature_perm
 from apps.core.storage import (
     StoragePathError,
@@ -56,13 +65,17 @@ def directories(request):
 def resources(request):
     if not has_feature_perm(request.user, "core.browse_data"):
         return feature_denied_response(request.user)
+
+    data_type = request.GET.get("dataType", "").strip()
+    query = request.GET.get("q", "").strip()
+
+    items = []
+
     queryset = DataResource.objects.filter(
         status=DataResource.Status.ACTIVE
     ).select_related("category")
-    query = request.GET.get("q", "").strip()
     if query:
         queryset = queryset.filter(name__icontains=query)
-    data_type = request.GET.get("dataType", "").strip()
     if data_type:
         queryset = queryset.filter(data_type=data_type)
     category = request.GET.get("category", "").strip()
@@ -81,7 +94,23 @@ def resources(request):
     if date_to:
         queryset = queryset.filter(data_date__lte=date_to)
     resources_qs = filter_accessible(queryset, request.user)
-    return JsonResponse({"items": [serialize_resource(item) for item in resources_qs]})
+    items.extend(serialize_resource(item) for item in resources_qs)
+
+    if not data_type or data_type == DataResource.DataType.VECTOR:
+        metadata_filters = [category, provider, date_from, date_to]
+        if not any(metadata_filters):
+            registered_layers = _registered_vector_layer_names()
+            for layer_info in get_vector_layers_from_geopackage():
+                layer_name = layer_info["name"]
+                if layer_name in registered_layers:
+                    continue
+                if query and query.lower() not in layer_name.lower():
+                    continue
+                if source and source.lower() not in "geopackage 实时读取".lower():
+                    continue
+                items.append(serialize_vector_layer(layer_info))
+
+    return JsonResponse({"items": items})
 
 
 @require_POST
@@ -89,11 +118,18 @@ def resources(request):
 def scan_sources(request):
     if not has_feature_perm(request.user, "core.browse_data"):
         return feature_denied_response(request.user)
-    resources = scan_catalog_sources()
+    vector_layers, nongeographic_resources = scan_catalog_sources()
+    registered_layers = _registered_vector_layer_names()
+    items = [
+        serialize_vector_layer(layer)
+        for layer in vector_layers
+        if layer["name"] not in registered_layers
+    ]
+    items.extend(serialize_resource(item) for item in nongeographic_resources)
     return JsonResponse(
         {
-            "items": [serialize_resource(item) for item in resources],
-            "count": len(resources),
+            "items": items,
+            "count": len(items),
         }
     )
 
@@ -170,7 +206,7 @@ def resource_profile(request, pk: int):
     if not user_can_access(resource, request.user):
         return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
     try:
-        profile = get_resource_profile(resource)
+        profile = get_vector_resource_profile(resource)
     except DataQueryError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
     return JsonResponse(
@@ -181,6 +217,32 @@ def resource_profile(request, pk: int):
             "geometryType": profile.geometry_type,
             "bounds": profile.bounds,
             "raster": profile.raster,
+        }
+    )
+
+
+@require_GET
+@login_required
+def vector_layer_profile(request, layer_name: str):
+    if not has_feature_perm(request.user, "core.browse_data"):
+        return feature_denied_response(request.user)
+
+    layer_info = get_vector_layer_info(layer_name)
+    if not layer_info:
+        return JsonResponse({"detail": f"矢量图层不存在：{layer_name}"}, status=404)
+
+    try:
+        profile = get_vector_resource_profile(layer_name=layer_name)
+    except DataQueryError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+
+    return JsonResponse(
+        {
+            "resource": serialize_vector_layer(layer_info),
+            "fields": profile.fields,
+            "featureCount": profile.feature_count,
+            "geometryType": profile.geometry_type,
+            "bounds": profile.bounds,
         }
     )
 
@@ -204,7 +266,30 @@ def resource_query(request, pk: int):
     except json.JSONDecodeError:
         return JsonResponse({"detail": "请求体不是有效 JSON"}, status=400)
     try:
-        result = query_resource(resource, payload)
+        result = query_vector_resource(resource, payload)
+    except DataQueryError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    return JsonResponse(result)
+
+
+@require_POST
+@login_required
+def vector_layer_query(request, layer_name: str):
+    can_query = has_feature_perm(request.user, "core.query_data")
+    can_load_vector = has_feature_perm(request.user, "core.load_vector_layer")
+    if not can_query or not can_load_vector:
+        return feature_denied_response(request.user)
+
+    layer_info = get_vector_layer_info(layer_name)
+    if not layer_info:
+        return JsonResponse({"detail": f"矢量图层不存在：{layer_name}"}, status=404)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except json.JSONDecodeError:
+        return JsonResponse({"detail": "请求体不是有效 JSON"}, status=400)
+    try:
+        result = query_vector_resource(layer_name=layer_name, payload=payload)
     except DataQueryError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
     return JsonResponse(result)
@@ -324,32 +409,37 @@ def export_job_download(request, job_id: str):
 def layers(request):
     if not has_feature_perm(request.user, "core.browse_data"):
         return feature_denied_response(request.user)
-    queryset = MapLayer.objects.filter(is_active=True).select_related(
-        "category", "data_resource"
-    )
+
+    items = []
+
+    registered_layers = _registered_vector_layer_names()
+    vector_layers = get_vector_layers_from_geopackage()
+    for layer_info in vector_layers:
+        if layer_info["name"] in registered_layers:
+            continue
+        items.append(serialize_vector_layer(layer_info))
+
+    queryset = MapLayer.objects.filter(
+        is_active=True, layer_type=MapLayer.LayerType.RASTER
+    ).select_related("category", "data_resource")
     layers_qs = filter_accessible(queryset, request.user)
-    return JsonResponse({"items": [serialize_layer(item) for item in layers_qs]})
+    items.extend(serialize_layer(item) for item in layers_qs)
+
+    return JsonResponse({"items": items})
 
 
 @require_GET
 @login_required
-def layer_features(request, pk: int):
+def layer_features(request, layer_name: str):
     if not has_feature_perm(request.user, "core.load_vector_layer"):
         return feature_denied_response(request.user)
-    layer = get_object_or_404(MapLayer, pk=pk, is_active=True)
-    if not user_can_access(layer, request.user):
-        return JsonResponse({"detail": "无权访问该图层"}, status=403)
-    if layer.layer_type != MapLayer.LayerType.VECTOR:
-        return JsonResponse({"detail": "该图层不是矢量图层"}, status=400)
 
-    source_path = layer.source_path or (
-        layer.data_resource.storage_path if layer.data_resource else ""
-    )
-    if not source_path:
-        return JsonResponse({"detail": "图层未配置 GeoPackage 图层名"}, status=400)
+    layer_info = get_vector_layer_info(layer_name)
+    if not layer_info:
+        return JsonResponse({"detail": f"矢量图层不存在：{layer_name}"}, status=404)
 
     try:
-        layer_name = validate_vector_layer_name(source_path)
+        layer_name = validate_vector_layer_name(layer_name)
         geopackage_path = vector_geopackage_path()
     except StoragePathError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
@@ -409,22 +499,44 @@ def search(request):
     if not query:
         return JsonResponse({"resources": [], "achievements": []})
 
+    items = []
+    registered_layers = _registered_vector_layer_names()
+    vector_layers = get_vector_layers_from_geopackage()
+    for layer_info in vector_layers:
+        if layer_info["name"] in registered_layers:
+            continue
+        if query.lower() in layer_info["name"].lower():
+            items.append(serialize_vector_layer(layer_info))
+
     resource_qs = DataResource.objects.filter(
         status=DataResource.Status.ACTIVE, name__icontains=query
     ).select_related("category")
+    items.extend(
+        serialize_resource(item)
+        for item in filter_accessible(resource_qs, request.user)
+    )
+
     achievement_qs = Achievement.objects.filter(
         status=Achievement.Status.PUBLISHED,
         title__icontains=query,
     ).select_related("category")
     return JsonResponse(
         {
-            "resources": [
-                serialize_resource(item)
-                for item in filter_accessible(resource_qs, request.user)
-            ],
+            "resources": items,
             "achievements": [
                 serialize_achievement(item)
                 for item in filter_accessible(achievement_qs, request.user)
             ],
         }
+    )
+
+
+def _registered_vector_layer_names() -> set[str]:
+    return set(
+        DataResource.objects.filter(
+            status=DataResource.Status.ACTIVE,
+            data_type=DataResource.DataType.VECTOR,
+        )
+        .exclude(storage_path="")
+        .values_list("storage_path", flat=True)
     )

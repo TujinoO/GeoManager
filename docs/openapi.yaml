@@ -553,7 +553,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /api/layers/{id}/features/:
+  /api/layers/{layer_name}/features/:
     get:
       tags: [图层]
       summary: 获取图层 GeoJSON 要素
@@ -564,12 +564,7 @@ paths:
       security:
         - sessionAuth: []
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: 图层 ID
+        - $ref: '#/components/parameters/LayerName'
         - name: limit
           in: query
           schema:
@@ -582,6 +577,64 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LayerFeaturesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/layers/{layer_name}/profile/:
+    get:
+      tags: [图层]
+      summary: 获取统一 GeoPackage 矢量图层详情
+      description: 获取未登记为 DataResource 的 GeoPackage 图层元数据、字段信息及空间范围
+      operationId: getLayerProfile
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LayerName'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceProfileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/layers/{layer_name}/query/:
+    post:
+      tags: [图层]
+      summary: 查询统一 GeoPackage 矢量图层
+      description: 对未登记为 DataResource 的 GeoPackage 图层执行属性 + 空间联合查询
+      operationId: queryLayer
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/LayerName'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -896,8 +949,15 @@ components:
       required: true
       schema:
         type: string
-        format: uuid
       description: 异步任务 ID
+
+    LayerName:
+      name: layer_name
+      in: path
+      required: true
+      schema:
+        type: string
+      description: 统一 GeoPackage 中的矢量图层名称
 
   responses:
     BadRequest:
@@ -951,15 +1011,19 @@ components:
       properties:
         detail:
           type: string
+          description: 操作结果说明
 
     BootstrapResponse:
       type: object
+      required: [systemName, allowRegistration, map, limits]
       properties:
         systemName:
           type: string
+          description: 系统显示名称
           example: 中亚胡杨林生态系统保护数据共享平台
         allowRegistration:
           type: boolean
+          description: 是否允许用户自助注册
           example: true
         map:
           $ref: '#/components/schemas/MapConfig'
@@ -968,46 +1032,61 @@ components:
 
     MapConfig:
       type: object
+      required: [defaultCenter, defaultZoom, defaultBasemap, mapboxAccessToken]
       properties:
         defaultCenter:
           type: array
+          description: 默认地图中心点，经纬度顺序为 [longitude, latitude]
+          minItems: 2
+          maxItems: 2
           items:
             type: number
           example: [87.6, 41.7]
         defaultZoom:
           type: number
+          description: 默认地图缩放级别
           example: 6.5
         defaultBasemap:
           type: string
+          description: 默认 Mapbox 底图样式
           example: mapbox://styles/mapbox/satellite-streets-v12
         mapboxAccessToken:
           type: string
+          description: 前端加载 Mapbox 服务所需 token
 
     SystemLimits:
       type: object
+      required: [uploadMaxMb, queryResultLimit]
       properties:
         uploadMaxMb:
           type: integer
+          description: 单次上传文件大小上限，单位 MB
           example: 500
         queryResultLimit:
           type: integer
+          description: 单次查询返回结果上限
           example: 30000
 
     HealthResponse:
       type: object
+      required: [status, configLoaded, appSubdirs, researchSubdirs]
       properties:
         status:
           type: string
+          description: 服务健康状态
           example: ok
         configLoaded:
           type: boolean
+          description: TOML 配置是否已加载
           example: true
         appSubdirs:
           type: array
+          description: 业务数据根目录下固定子目录
           items:
             type: string
         researchSubdirs:
           type: array
+          description: 科研数据根目录下固定子目录
           items:
             type: string
 
@@ -1025,10 +1104,11 @@ components:
         remember:
           type: boolean
           default: false
-          description: 是否记住登录
+          description: 是否使用持久会话
 
     LoginResponse:
       type: object
+      required: [user]
       properties:
         user:
           $ref: '#/components/schemas/UserInfo'
@@ -1055,38 +1135,51 @@ components:
 
     RegisterResponse:
       type: object
+      required: [user, detail]
       properties:
         user:
           $ref: '#/components/schemas/UserInfo'
         detail:
           type: string
+          description: 注册结果说明
 
     UserInfoResponse:
       type: object
+      required: [authenticated, user]
       properties:
         authenticated:
           type: boolean
+          description: 当前请求是否已认证
           example: true
         user:
           $ref: '#/components/schemas/UserInfo'
 
     UserInfo:
       type: object
+      required:
+        [id, username, displayName, email, isStaff, isSuperuser, roles, permissions]
       properties:
         id:
           type: integer
+          description: 用户 ID
         username:
           type: string
+          description: 登录用户名
         displayName:
           type: string
+          description: 展示名称
         email:
           type: string
+          description: 用户邮箱
         isStaff:
           type: boolean
+          description: 是否可进入 Django admin
         isSuperuser:
           type: boolean
+          description: 是否为超级管理员
         roles:
           type: array
+          description: 用户所属 Django Group 名称列表
           items:
             type: string
         permissions:
@@ -1094,500 +1187,941 @@ components:
 
     UserPermissions:
       type: object
+      required:
+        - canAccessAdmin
+        - canManageFeaturePermissions
+        - canBrowseData
+        - canQueryData
+        - canLoadVectorLayer
+        - canLoadRasterLayer
+        - canUseCustomSymbolization
+        - canExportData
+        - canMaintainData
+        - canManageRasterData
       properties:
         canAccessAdmin:
           type: boolean
+          description: 是否可访问后台入口
         canManageFeaturePermissions:
           type: boolean
+          description: 是否可配置功能权限
         canBrowseData:
           type: boolean
+          description: 是否可浏览数据目录
         canQueryData:
           type: boolean
+          description: 是否可查询数据
         canLoadVectorLayer:
           type: boolean
+          description: 是否可加载矢量图层
         canLoadRasterLayer:
           type: boolean
+          description: 是否可加载栅格图层
         canUseCustomSymbolization:
           type: boolean
+          description: 是否可提交自定义符号化规则
         canExportData:
           type: boolean
+          description: 是否可导出数据
         canMaintainData:
           type: boolean
+          description: 是否可维护数据资源
         canManageRasterData:
           type: boolean
+          description: 是否可管理栅格数据集
 
     DictionaryItem:
       type: object
+      required: [id, type, code, name]
       properties:
         id:
           type: integer
+          description: 字典项 ID
         type:
           type: string
+          description: 字典类型
         code:
           type: string
+          description: 字典编码
         name:
           type: string
+          description: 字典显示名称
 
     DataResource:
       type: object
+      required:
+        - id
+        - name
+        - code
+        - dataType
+        - category
+        - source
+        - provider
+        - dataDate
+        - spatialExtent
+        - coordinateSystem
+        - fileFormat
+        - description
+        - qualityNote
+        - status
+        - isQueryable
+        - isRenderable
+        - updatedAt
       properties:
         id:
           type: integer
+          description: 数据资源 ID
         name:
           type: string
+          description: 数据资源名称
         code:
           type: string
+          description: 数据资源编码
         dataType:
           type: string
           enum: [vector, raster, gene, table, document, image]
+          description: 数据资源类型
         category:
-          $ref: '#/components/schemas/DictionaryItem'
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/DictionaryItem'
+          description: 数据分类，未分类时为 null
         source:
           type: string
+          description: 数据来源
         provider:
           type: string
+          description: 数据提供单位
         dataDate:
           type: string
           format: date
           nullable: true
+          description: 数据日期
         spatialExtent:
           type: string
+          description: 空间范围文本
         coordinateSystem:
           type: string
+          description: 坐标系统描述
         fileFormat:
           type: string
+          description: 文件格式
         description:
           type: string
+          description: 资源描述
         qualityNote:
           type: string
+          description: 数据质量说明
         status:
           type: string
           enum: [active, inactive]
+          description: 数据资源状态
         isQueryable:
           type: boolean
+          description: 是否支持矢量属性和空间查询
         isRenderable:
           type: boolean
+          description: 是否支持地图渲染
         updatedAt:
           type: string
           format: date-time
+          description: 最后更新时间
+
+    VectorLayerResource:
+      type: object
+      required:
+        - id
+        - name
+        - code
+        - dataType
+        - layerType
+        - geometryType
+        - bounds
+        - coordinateSystem
+        - featureCount
+        - source
+        - isQueryable
+        - isRenderable
+        - status
+      properties:
+        id:
+          type: string
+          description: 由 GeoPackage 图层名称生成的临时资源 ID
+        name:
+          type: string
+          description: GeoPackage 图层名称
+        code:
+          type: string
+          description: 由 GeoPackage 图层名称生成的临时资源编码
+        dataType:
+          type: string
+          enum: [vector]
+          description: 数据类型，统一 GeoPackage 图层固定为 vector
+        layerType:
+          type: string
+          enum: [vector]
+          description: 图层类型，统一 GeoPackage 图层固定为 vector
+        geometryType:
+          type: string
+          description: 几何类型
+        bounds:
+          type: array
+          description: WGS84 边界 [minLng, minLat, maxLng, maxLat]，无法计算时为空数组
+          items:
+            type: number
+        coordinateSystem:
+          type: string
+          description: 坐标系统描述
+        featureCount:
+          type: integer
+          nullable: true
+          description: 要素数量
+        source:
+          type: string
+          description: 数据来源说明
+        isQueryable:
+          type: boolean
+          description: 是否支持查询
+        isRenderable:
+          type: boolean
+          description: 是否支持栅格渲染
+        status:
+          type: string
+          enum: [active]
+          description: 临时矢量资源状态
+
+    ResourceListItem:
+      oneOf:
+        - $ref: '#/components/schemas/DataResource'
+        - $ref: '#/components/schemas/VectorLayerResource'
 
     MapLayer:
       type: object
+      required:
+        - id
+        - name
+        - code
+        - layerType
+        - geometryType
+        - category
+        - dataResourceId
+        - sortOrder
+        - defaultVisible
+        - defaultOpacity
+        - symbolization
+        - bounds
+        - legend
+        - rasterRules
+        - isActive
+        - updatedAt
       properties:
         id:
           type: integer
+          description: 图层 ID
         name:
           type: string
+          description: 图层名称
         code:
           type: string
+          description: 图层编码
         layerType:
           type: string
           enum: [vector, raster]
+          description: 图层类型
         geometryType:
           type: string
           enum: [point, line, polygon, mixed]
+          description: 几何类型
         category:
-          $ref: '#/components/schemas/DictionaryItem'
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/DictionaryItem'
+          description: 图层分类，未分类时为 null
         dataResourceId:
           type: integer
           nullable: true
+          description: 关联数据资源 ID
         sortOrder:
           type: integer
+          description: 排序值
         defaultVisible:
           type: boolean
+          description: 是否默认显示
         defaultOpacity:
           type: integer
           minimum: 0
           maximum: 100
+          description: 默认透明度百分比
         symbolization:
           type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: number
+              - type: boolean
+          description: 矢量默认符号化配置
         bounds:
           type: array
+          description: 图层边界
           items:
             type: number
-          minItems: 4
-          maxItems: 4
         legend:
           type: string
+          description: 图例说明
         rasterRules:
-          type: object
+          $ref: '#/components/schemas/RasterSymbolizationRules'
         isActive:
           type: boolean
+          description: 是否启用
         updatedAt:
           type: string
           format: date-time
+          description: 最后更新时间
 
     Achievement:
       type: object
+      required:
+        - id
+        - title
+        - code
+        - category
+        - summary
+        - source
+        - relatedLayerId
+        - displayOrder
+        - status
+        - updatedAt
       properties:
         id:
           type: integer
+          description: 成果 ID
         title:
           type: string
+          description: 成果标题
         code:
           type: string
+          description: 成果编码
         category:
-          $ref: '#/components/schemas/DictionaryItem'
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/DictionaryItem'
+          description: 成果分类，未分类时为 null
         summary:
           type: string
+          description: 成果摘要
         source:
           type: string
+          description: 成果来源
         relatedLayerId:
           type: integer
           nullable: true
+          description: 关联图层 ID
         displayOrder:
           type: integer
+          description: 展示排序值
         status:
           type: string
           enum: [draft, published, archived]
+          description: 成果发布状态
         updatedAt:
           type: string
           format: date-time
+          description: 最后更新时间
 
     RasterDataset:
       type: object
+      required:
+        - id
+        - name
+        - code
+        - status
+        - sourcePath
+        - processedPath
+        - sourceMetadataPath
+        - processedMetadataPath
+        - dataResourceId
+        - mapLayerId
+        - bandCount
+        - bounds3857
+        - bounds4326
+        - imageCoordinates
+        - defaultRules
+        - sourceFileSize
+        - processedFileSize
+        - progressLog
+        - errorMessage
+        - importedAt
+        - processedAt
+        - metadata
       properties:
         id:
           type: integer
+          description: 栅格数据集 ID
         name:
           type: string
+          description: 数据集名称
         code:
           type: string
+          description: 数据集编码
         status:
           type: string
           enum: [pending, processing, ready, failed]
+          description: 预处理状态
         sourcePath:
           type: string
+          description: 原始栅格相对路径
         processedPath:
           type: string
+          description: 预处理 COG 相对路径
         sourceMetadataPath:
           type: string
+          description: 原始文件元数据相对路径
         processedMetadataPath:
           type: string
+          description: 预处理文件元数据相对路径
         dataResourceId:
           type: integer
           nullable: true
+          description: 关联数据资源 ID
         mapLayerId:
           type: integer
           nullable: true
+          description: 关联地图图层 ID
         bandCount:
           type: integer
+          description: 波段数量
         bounds3857:
           type: array
+          description: EPSG:3857 边界
           items:
             type: number
         bounds4326:
           type: array
+          description: WGS84 边界
           items:
             type: number
         imageCoordinates:
           type: array
+          description: WGS84 图像角点坐标
           items:
             type: array
+            minItems: 2
+            maxItems: 2
             items:
               type: number
         defaultRules:
-          type: object
+          $ref: '#/components/schemas/RasterSymbolizationRules'
         sourceFileSize:
           type: integer
+          description: 原始文件大小，单位字节
         processedFileSize:
           type: integer
+          description: 预处理文件大小，单位字节
         progressLog:
           type: string
+          description: 导入或预处理日志
         errorMessage:
           type: string
+          description: 失败原因
         importedAt:
           type: string
           format: date-time
           nullable: true
+          description: 导入完成时间
         processedAt:
           type: string
           format: date-time
           nullable: true
+          description: 预处理完成时间
         metadata:
           $ref: '#/components/schemas/RasterMetadata'
 
     RasterMetadata:
       type: object
+      required: [size, driver, coordinateSystem, bands]
       properties:
         size:
           type: array
+          description: 栅格像素尺寸 [width, height]
           items:
             type: integer
         driver:
           type: string
+          description: GDAL 驱动简称
         coordinateSystem:
-          type: string
+          oneOf:
+            - type: string
+            - type: integer
+          description: 坐标系统 EPSG 或描述文本
         bands:
           type: array
+          description: 波段元数据
           items:
             $ref: '#/components/schemas/RasterBandInfo'
 
     RasterBandInfo:
       type: object
+      required: [band, type, description, colorInterpretation, min, max, isInteger]
       properties:
         band:
           type: integer
+          description: 1-based 波段编号
         type:
           type: string
+          description: GDAL 波段类型
         description:
           type: string
+          description: 波段描述
         colorInterpretation:
           type: string
+          description: 颜色解释
         min:
           type: number
+          description: 波段最小值
         max:
           type: number
+          description: 波段最大值
         isInteger:
           type: boolean
+          description: 是否为整型波段
+
+    RasterSymbolizationRules:
+      type: object
+      additionalProperties: true
+      description: 栅格符号化规则对象，具体结构由后端符号化规则引擎校验
 
     AsyncJobResponse:
       type: object
+      required:
+        [id, kind, status, progressPercent, messages, result, error, startedAt, finishedAt]
       properties:
         id:
           type: string
-          format: uuid
+          description: 异步任务 ID
         kind:
           type: string
           enum: [import, scan, render, export]
+          description: 任务类型
         status:
           type: string
           enum: [queued, running, ready, failed]
+          description: 任务状态
         progressPercent:
           type: integer
           minimum: 0
           maximum: 100
+          description: 任务进度百分比
         messages:
           type: array
+          description: 任务进度消息
           items:
             type: string
         result:
-          type: object
           nullable: true
+          oneOf:
+            - $ref: '#/components/schemas/RasterRenderResult'
+            - $ref: '#/components/schemas/RasterDataset'
+            - $ref: '#/components/schemas/RasterDatasetScanResult'
+            - $ref: '#/components/schemas/ExportJobResult'
+          description: 任务完成后的结果；未完成或失败时为 null
         error:
           type: string
+          description: 失败原因
         startedAt:
           type: number
           format: double
+          description: 任务创建时间戳
         finishedAt:
           type: number
           format: double
           nullable: true
+          description: 任务结束时间戳
 
-    DirectoryTreeResponse:
+    RasterDatasetScanResult:
       type: object
+      required: [items, count]
       properties:
         items:
           type: array
+          description: 扫描或导入得到的栅格数据集
+          items:
+            $ref: '#/components/schemas/RasterDataset'
+        count:
+          type: integer
+          description: 数据集数量
+
+    ExportJobResult:
+      type: object
+      required: [filename, downloadUrl]
+      properties:
+        filename:
+          type: string
+          description: 导出文件名
+        downloadUrl:
+          type: string
+          description: 导出文件下载路径
+
+    DirectoryTreeResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: 数据目录列表
           items:
             $ref: '#/components/schemas/Directory'
 
     Directory:
       type: object
+      required: [id, name, code, parentId, description, sortOrder, resources]
       properties:
         id:
           type: integer
+          description: 目录 ID
         name:
           type: string
+          description: 目录名称
         code:
           type: string
+          description: 目录编码
         parentId:
           type: integer
           nullable: true
+          description: 父目录 ID
         description:
           type: string
+          description: 目录描述
         sortOrder:
           type: integer
+          description: 排序值
         resources:
           type: array
+          description: 目录下的数据资源
           items:
             $ref: '#/components/schemas/DataResource'
 
     ResourceListResponse:
       type: object
+      required: [items]
       properties:
         items:
           type: array
+          description: 数据资源列表，可能包含统一 GeoPackage 中的临时矢量资源
           items:
-            $ref: '#/components/schemas/DataResource'
+            $ref: '#/components/schemas/ResourceListItem'
 
     ScanResponse:
       type: object
+      required: [items, count]
       properties:
         items:
           type: array
+          description: 本次扫描发现或同步的资源
           items:
-            type: object
+            $ref: '#/components/schemas/ResourceListItem'
         count:
           type: integer
+          description: 资源数量
 
     ImportPreviewResponse:
       type: object
+      required:
+        [columns, rows, rowCount, suggestedTableName, suggestedName, detected, limitations]
       properties:
         columns:
           type: array
+          description: 表格列名
           items:
             type: string
         rows:
           type: array
+          description: 前若干行预览数据，键为列名，值为文本
           items:
             type: object
+            additionalProperties:
+              type: string
         rowCount:
           type: integer
+          description: 总行数
         suggestedTableName:
           type: string
+          description: 建议入库表名
         suggestedName:
           type: string
+          description: 建议数据名称
         detected:
           $ref: '#/components/schemas/ImportDetectedInfo'
         limitations:
           type: array
+          description: 导入限制提示
           items:
             type: string
 
     ImportDetectedInfo:
       type: object
+      required:
+        [isGeographic, longitudeColumn, latitudeColumn, coordinateStats, validationIssues]
       properties:
         isGeographic:
           type: boolean
+          description: 是否自动识别为地理表
         longitudeColumn:
           type: string
           nullable: true
+          description: 自动识别的经度列
         latitudeColumn:
           type: string
           nullable: true
+          description: 自动识别的纬度列
         coordinateStats:
-          type: object
           nullable: true
+          allOf:
+            - $ref: '#/components/schemas/CoordinateStats'
+          description: 坐标统计，预览阶段为 null
         validationIssues:
           type: array
+          description: 坐标校验问题，预览阶段为空数组
           items:
-            type: object
+            $ref: '#/components/schemas/ValidationIssue'
 
     ImportValidateResponse:
       type: object
+      required: [coordinateStats, validationIssues]
       properties:
         coordinateStats:
-          $ref: '#/components/schemas/CoordinateStats'
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/CoordinateStats'
+          description: 坐标统计；非地理导入时为 null
         validationIssues:
           type: array
+          description: 坐标校验问题
           items:
-            type: object
+            $ref: '#/components/schemas/ValidationIssue'
 
     CoordinateStats:
       type: object
+      required: [totalRows, validRows, missingRows, quantizationErrorMeters]
       properties:
         totalRows:
           type: integer
+          description: 总行数
         validRows:
           type: integer
+          description: 坐标有效行数
         missingRows:
           type: integer
+          description: 缺少或无效坐标行数
         quantizationErrorMeters:
           type: object
+          required: [min, max]
+          description: 坐标文本小数位引入的位置误差范围，单位米
           properties:
             min:
               type: number
+              nullable: true
+              description: 最小估算误差
             max:
               type: number
+              nullable: true
+              description: 最大估算误差
 
     ImportCommitResponse:
+      oneOf:
+        - $ref: '#/components/schemas/GeographicImportCommitResponse'
+        - $ref: '#/components/schemas/TableImportCommitResponse'
+
+    GeographicImportCommitResponse:
       type: object
+      required:
+        [mode, resourceId, resourceName, layerName, tableName, importedRows, skippedRows, bounds, coordinateStats, validationIssues]
       properties:
         mode:
           type: string
-          enum: [geographic, table]
+          enum: [geographic]
+          description: 地理表导入模式
         resourceId:
           type: integer
-        layerId:
-          type: integer
-          nullable: true
+          description: 创建或更新的数据资源 ID
+        resourceName:
+          type: string
+          description: 创建或更新的数据资源名称
+        layerName:
+          type: string
+          description: 写入 GeoPackage 的图层名
         tableName:
           type: string
+          description: 写入 GeoPackage 的图层名，与 layerName 相同
         importedRows:
           type: integer
+          description: 成功导入行数
         skippedRows:
           type: integer
+          description: 跳过行数
+        bounds:
+          type: array
+          description: 导入数据边界 [minLng, minLat, maxLng, maxLat]，无有效坐标时为空数组
+          items:
+            type: number
         coordinateStats:
           $ref: '#/components/schemas/CoordinateStats'
         validationIssues:
           type: array
+          description: 导入时发现的坐标校验问题
           items:
-            type: object
+            $ref: '#/components/schemas/ValidationIssue'
+
+    TableImportCommitResponse:
+      type: object
+      required:
+        [mode, resourceId, resourceName, layerId, tableName, importedRows, skippedRows, coordinateStats, validationIssues]
+      properties:
+        mode:
+          type: string
+          enum: [table]
+          description: 非地理表导入模式
+        resourceId:
+          type: integer
+          description: 创建或更新的数据资源 ID
+        resourceName:
+          type: string
+          description: 创建或更新的数据资源名称
+        layerId:
+          type: integer
+          nullable: true
+          description: 非地理表不创建地图图层，固定为 null
+        tableName:
+          type: string
+          description: SQLite 表名
+        importedRows:
+          type: integer
+          description: 成功导入行数
+        skippedRows:
+          type: integer
+          description: 跳过行数
+        coordinateStats:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/CoordinateStats'
+          description: 非地理导入固定为 null
+        validationIssues:
+          type: array
+          description: 非地理导入固定为空数组
+          items:
+            $ref: '#/components/schemas/ValidationIssue'
 
     ImportErrorResponse:
       type: object
+      required: [detail]
       properties:
         detail:
           type: string
+          description: 导入失败说明
         issues:
           type: array
+          description: 导入校验问题
           items:
             $ref: '#/components/schemas/ValidationIssue'
 
     ValidationIssue:
       type: object
+      required: [code, message, blocking]
       properties:
         code:
           type: string
-        count:
-          type: integer
-          nullable: true
-        blocking:
-          type: boolean
+          description: 问题代码
         message:
           type: string
+          description: 问题说明
+        blocking:
+          type: boolean
+          description: 是否阻断导入
+        count:
+          type: integer
+          description: 受影响行数
+        minMeters:
+          type: number
+          description: 坐标不确定性最小误差，单位米
+        maxMeters:
+          type: number
+          description: 坐标不确定性最大误差，单位米
+        ratio:
+          type: number
+          description: 坐标不确定性误差倍率
 
     ResourceProfileResponse:
       type: object
+      required: [resource, fields, featureCount, geometryType, bounds]
       properties:
         resource:
-          $ref: '#/components/schemas/DataResource'
+          $ref: '#/components/schemas/ResourceListItem'
         fields:
           type: array
+          description: 属性字段信息
           items:
             $ref: '#/components/schemas/FieldInfo'
         featureCount:
           type: integer
           nullable: true
+          description: 矢量要素数量；栅格和非空间资源为 null
         geometryType:
           type: string
+          description: 几何类型
         bounds:
           type: array
+          description: WGS84 边界 [minLng, minLat, maxLng, maxLat]，无法计算时为空数组
           items:
             type: number
         raster:
-          $ref: '#/components/schemas/RasterDataset'
           nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RasterDataset'
+          description: 栅格资源详情；非栅格资源可能省略或为 null
 
     FieldInfo:
       type: object
+      required: [name, type, nullable, sampleValues, description]
       properties:
         name:
           type: string
+          description: 字段名
         type:
           type: string
+          description: 字段数据类型
         nullable:
           type: boolean
+          description: 是否存在空值
         sampleValues:
           type: array
-          items: {}
+          description: 非空样例值
+          items:
+            oneOf:
+              - type: string
+              - type: number
+              - type: boolean
+              - type: 'null'
         description:
           type: string
+          description: 字段描述
 
     QueryRequest:
       type: object
+      required: [attributeFilters, spatialFilter, limit]
       properties:
         attributeFilters:
           type: array
+          description: 属性过滤条件
           items:
             $ref: '#/components/schemas/AttributeFilter'
         spatialFilter:
-          $ref: '#/components/schemas/SpatialFilter'
           nullable: true
+          allOf:
+            - $ref: '#/components/schemas/SpatialFilter'
+          description: 空间过滤条件；不启用空间过滤时为 null
         limit:
           type: integer
           default: 30000
+          description: 返回结果上限
 
     AttributeFilter:
       type: object
@@ -1595,39 +2129,54 @@ components:
       properties:
         field:
           type: string
+          description: 字段名
         operator:
           type: string
           enum: [contains, eq, ne, gt, gte, lt, lte, between]
+          description: 过滤操作符
         value:
           type: string
+          description: 过滤值
         valueTo:
           type: string
-          description: between 操作符时必填
+          description: between 操作符时使用的结束值
 
     SpatialFilter:
       type: object
+      required: [mode, geometry]
       properties:
         mode:
           type: string
           enum: [rectangle, circle, ellipse, polygon]
+          description: 空间过滤绘制模式
         geometry:
           $ref: '#/components/schemas/GeoJSONGeometry'
 
     QueryResponse:
       type: object
+      required:
+        [resourceId, resourceName, totalCount, returnedCount, limit, fields, geojson, warnings]
       properties:
         resourceId:
-          type: integer
+          oneOf:
+            - type: integer
+            - type: string
+          description: 查询资源 ID；临时 GeoPackage 图层查询时为字符串 ID
         resourceName:
           type: string
+          description: 查询资源名称
         totalCount:
           type: integer
+          description: 过滤后的总数
         returnedCount:
           type: integer
+          description: 本次返回数量
         limit:
           type: integer
+          description: 返回上限
         fields:
           type: array
+          description: 查询结果字段
           items:
             $ref: '#/components/schemas/FieldInfo'
         geojson:
@@ -1640,79 +2189,107 @@ components:
 
     ExportRequest:
       type: object
-      required: [items]
+      required: [reproject, clip, items]
       properties:
         epsg:
           type: integer
           default: 4326
+          nullable: true
+          description: 目标 EPSG，reproject 为 true 时使用
         reproject:
           type: boolean
           default: true
+          description: 是否重投影导出
         clip:
           type: boolean
           default: false
+          description: 是否按空间范围裁切
         clipGeometry:
-          $ref: '#/components/schemas/GeoJSONGeometry'
           nullable: true
+          allOf:
+            - $ref: '#/components/schemas/GeoJSONGeometry'
+          description: 裁切 GeoJSON 几何
         items:
           type: array
+          description: 待导出图层
           items:
             $ref: '#/components/schemas/ExportItem'
 
     ExportItem:
       type: object
-      required: [layerType, name, resourceId]
+      required: [layerType, name]
       properties:
         layerType:
           type: string
           enum: [vector, raster]
+          description: 图层类型
         name:
           type: string
+          description: 导出图层名称
         resourceId:
           type: integer
-        geojson:
-          $ref: '#/components/schemas/GeoJSONFeatureCollection'
           nullable: true
+          description: 数据资源 ID；临时 GeoPackage 查询结果没有业务资源 ID，可省略或传 null
+        geojson:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/GeoJSONFeatureCollection'
+          description: 前端临时矢量查询结果
         datasetId:
           type: integer
           nullable: true
+          description: 栅格数据集 ID
         sourceCrs:
-          type: string
+          oneOf:
+            - type: string
+            - type: integer
           nullable: true
+          description: 源坐标系统
 
     LayerListResponse:
       type: object
+      required: [items]
       properties:
         items:
           type: array
+          description: 可加载图层列表
           items:
-            $ref: '#/components/schemas/MapLayer'
+            oneOf:
+              - $ref: '#/components/schemas/VectorLayerResource'
+              - $ref: '#/components/schemas/MapLayer'
 
     AchievementListResponse:
       type: object
+      required: [items]
       properties:
         items:
           type: array
+          description: 已发布成果列表
           items:
             $ref: '#/components/schemas/Achievement'
 
     SearchResponse:
       type: object
+      required: [resources, achievements]
       properties:
         resources:
           type: array
+          description: 匹配的数据资源
           items:
-            $ref: '#/components/schemas/DataResource'
+            $ref: '#/components/schemas/ResourceListItem'
         achievements:
           type: array
+          description: 匹配的研究成果
           items:
             $ref: '#/components/schemas/Achievement'
 
     RasterDatasetListResponse:
       type: object
+      required: [items]
       properties:
         items:
           type: array
+          description: 栅格数据集列表
           items:
             $ref: '#/components/schemas/RasterDataset'
 
@@ -1722,7 +2299,7 @@ components:
       properties:
         sourcePath:
           type: string
-          description: 源文件相对路径（相对于研究数据根目录）
+          description: 源文件相对路径（相对于科研数据根目录）
         name:
           type: string
           description: 数据集名称，默认取文件名
@@ -1737,13 +2314,17 @@ components:
       properties:
         layerId:
           type: integer
+          description: 栅格图层 ID
         rulesMode:
           type: string
           enum: [default, custom]
           default: default
+          description: 符号化规则模式
         rules:
-          type: object
           nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RasterSymbolizationRules'
+          description: 自定义符号化规则
 
     RasterRenderAsyncRequest:
       type: object
@@ -1751,50 +2332,69 @@ components:
         layerId:
           type: integer
           nullable: true
+          description: 栅格图层 ID
         datasetId:
           type: integer
           nullable: true
+          description: 栅格数据集 ID
         rulesMode:
           type: string
           enum: [default, custom]
           default: default
+          description: 符号化规则模式
         rules:
-          type: object
           nullable: true
+          allOf:
+            - $ref: '#/components/schemas/RasterSymbolizationRules'
+          description: 自定义符号化规则
 
     RasterRenderResult:
       type: object
+      required:
+        [delivery, datasetId, layerId, styleHash, tileUrl, status, bounds3857, bounds4326, imageCoordinates, rules]
       properties:
         delivery:
           type: string
-          example: xyz
+          enum: [xyz]
+          description: 栅格交付方式
         datasetId:
           type: integer
+          description: 栅格数据集 ID
         layerId:
           type: integer
           nullable: true
+          description: 关联图层 ID
         styleHash:
           type: string
+          description: 符号化样式哈希
         tileUrl:
           type: string
+          description: XYZ 瓦片 URL 模板
         status:
           type: string
+          enum: [ready]
+          description: 渲染结果状态
         bounds3857:
           type: array
+          description: EPSG:3857 边界
           items:
             type: number
         bounds4326:
           type: array
+          description: WGS84 边界
           items:
             type: number
         imageCoordinates:
           type: array
+          description: WGS84 图像角点坐标
           items:
             type: array
+            minItems: 2
+            maxItems: 2
             items:
               type: number
         rules:
-          type: object
+          $ref: '#/components/schemas/RasterSymbolizationRules'
 
     UniqueValuesRequest:
       type: object
@@ -1802,56 +2402,53 @@ components:
       properties:
         datasetId:
           type: integer
+          description: 栅格数据集 ID
         band:
           type: integer
           default: 1
+          description: 1-based 波段编号
 
     UniqueValuesResponse:
       type: object
+      required: [band, items]
       properties:
         band:
           type: integer
+          description: 1-based 波段编号
         items:
           type: array
+          description: 唯一值分类项
           items:
             type: object
+            required: [value, color, label]
             properties:
               value:
                 type: number
+                description: 栅格像元值
               color:
                 type: string
+                description: 分类颜色
               label:
                 type: string
+                description: 分类标签
 
     GeoJSONGeometry:
       type: object
+      required: [type, coordinates]
       properties:
         type:
           type: string
           enum: [Point, LineString, Polygon, MultiPoint, MultiLineString, MultiPolygon]
+          description: GeoJSON 几何类型
         coordinates:
-          oneOf:
-            - type: array
-              items:
-                type: number
-            - type: array
-              items:
-                type: array
-                items:
-                  type: number
-            - type: array
-              items:
-                type: array
-                items:
-                  type: array
-                  items:
-                    type: number
+          description: GeoJSON 坐标数组
 
     LayerFeaturesResponse:
       description: 矢量图层要素响应，包含 GeoJSON FeatureCollection 和校验警告
       allOf:
         - $ref: '#/components/schemas/GeoJSONFeatureCollection'
         - type: object
+          required: [warnings]
           properties:
             warnings:
               type: array
@@ -1861,37 +2458,57 @@ components:
 
     ValidationWarning:
       type: object
+      required: [code, message]
       properties:
         code:
           type: string
-          description: 警告代码，如 missing_geometry、invalid_longitude、coordinate_uncertainty 等
+          description: 警告代码，如 missing_geometry、invalid_longitude、coordinate_uncertainty
         count:
           type: integer
           description: 受影响的记录数
         message:
           type: string
           description: 警告描述
+        minMeters:
+          type: number
+          description: 坐标不确定性最小误差，单位米
+        maxMeters:
+          type: number
+          description: 坐标不确定性最大误差，单位米
+        ratio:
+          type: number
+          description: 坐标不确定性误差倍率
 
     GeoJSONFeatureCollection:
       type: object
+      required: [type, features]
       properties:
         type:
           type: string
-          example: FeatureCollection
+          enum: [FeatureCollection]
+          description: GeoJSON FeatureCollection 类型
         features:
           type: array
+          description: GeoJSON 要素列表
           items:
             $ref: '#/components/schemas/GeoJSONFeature'
 
     GeoJSONFeature:
       type: object
+      required: [type, geometry, properties]
       properties:
         id:
-          type: string
+          oneOf:
+            - type: string
+            - type: integer
+          description: GeoJSON 要素 ID
         type:
           type: string
-          example: Feature
+          enum: [Feature]
+          description: GeoJSON Feature 类型
         geometry:
           $ref: '#/components/schemas/GeoJSONGeometry'
         properties:
           type: object
+          additionalProperties: true
+          description: GeoJSON 属性对象

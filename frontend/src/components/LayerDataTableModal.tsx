@@ -1,3 +1,4 @@
+import { DatabaseOutlined, EyeInvisibleOutlined } from "@ant-design/icons";
 import type { TableColumnsType } from "antd";
 import {
   Button,
@@ -11,7 +12,6 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { Database, EyeOff } from "lucide-react";
 import type React from "react";
 import { useCallback, useMemo, useState } from "react";
 import type { LoadedLayer, LoadedVectorLayer } from "../types";
@@ -244,7 +244,7 @@ function VectorAttributeTable({
     <div className="layer-table-modal-content">
       <div className="bottom-table-heading">
         <Space size={8}>
-          <Database size={15} />
+          <DatabaseOutlined style={{ fontSize: 15 }} />
           <Typography.Text strong>{layer.name}</Typography.Text>
           <Tag color="green">{rows.length} 条</Tag>
           {hasSelected && (
@@ -268,7 +268,10 @@ function VectorAttributeTable({
             }}
             trigger={["click"]}
           >
-            <Button size="small" icon={<EyeOff size={14} />}>
+            <Button
+              size="small"
+              icon={<EyeInvisibleOutlined style={{ fontSize: 14 }} />}
+            >
               列显隐
             </Button>
           </Dropdown>
@@ -419,6 +422,7 @@ function extractFeatureIdFromRowKey(rowKey: string): string | number | null {
   if (!match) return null;
 
   const idStr = match[1];
+  if (!idStr) return null;
   // 尝试解析为数字
   const numId = Number(idStr);
   if (!Number.isNaN(numId) && String(numId) === idStr) {

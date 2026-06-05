@@ -363,6 +363,10 @@ const response = await fetch(`/api/catalog/resources/?${params}`, {
   credentials: "include",
 });
 const { items } = await response.json();
+
+// items 可能包含两类对象：
+// 1. 业务库 DataResource，id 为 number
+// 2. 统一 GeoPackage 临时矢量图层，id 为 string，使用 name 访问图层接口
 ```
 
 ```python
@@ -377,12 +381,16 @@ resources = response.json()["items"]
 
 #### Step 3: 获取资源详情
 
-获取指定数据资源的完整元数据，包括字段信息、空间范围等。
+获取指定数据资源或统一 GeoPackage 临时矢量图层的完整元数据，包括字段信息、空间范围等。
 
 ```javascript
 // JavaScript
-const resourceId = 1;
-const response = await fetch(`/api/catalog/resources/${resourceId}/profile/`, {
+const resource = items[0];
+const profileUrl =
+  typeof resource.id === "number"
+    ? `/api/catalog/resources/${resource.id}/profile/`
+    : `/api/layers/${encodeURIComponent(resource.name)}/profile/`;
+const response = await fetch(profileUrl, {
   credentials: "include",
 });
 const profile = await response.json();
@@ -399,6 +407,10 @@ console.log("字段列表:", profile.fields);
 resource_id = 1
 response = session.get(f"{base_url}/catalog/resources/{resource_id}/profile/")
 profile = response.json()
+
+# 统一 GeoPackage 临时矢量图层使用图层名称访问
+layer_name = "survey_points_2026"
+layer_profile = session.get(f"{base_url}/layers/{layer_name}/profile/").json()
 
 print(f"资源名称: {profile['resource']['name']}")
 print(f"要素数量: {profile['featureCount']}")
@@ -573,9 +585,14 @@ const response = await fetch("/api/catalog/import/commit/", {
 const result = await response.json();
 
 console.log("导入行数:", result.importedRows);
-console.log("资源ID:", result.resourceId);
-if (result.layerId) {
-  console.log("图层ID:", result.layerId);
+console.log("资源名称:", result.resourceName);
+if (result.mode === "geographic") {
+  console.log("资源ID:", result.resourceId);
+  console.log("GeoPackage 图层名:", result.layerName);
+  console.log("空间范围:", result.bounds);
+} else {
+  console.log("资源ID:", result.resourceId);
+  console.log("表名:", result.tableName);
 }
 ```
 
@@ -602,13 +619,19 @@ with open("survey_data.xlsx", "rb") as f:
     )
 result = response.json()
 print(f"导入行数: {result['importedRows']}")
+print(f"资源名称: {result['resourceName']}")
+if result["mode"] == "geographic":
+    print(f"资源ID: {result['resourceId']}")
+    print(f"GeoPackage 图层名: {result['layerName']}")
+else:
+    print(f"资源ID: {result['resourceId']}")
 ```
 
 ### 数据导入模式
 
-**地理数据（Geographic）**：包含经纬度坐标的数据，系统会将其写入 GeoPackage 矢量文件，并自动创建地图图层。
+**地理数据（Geographic）**：包含经纬度坐标的数据，系统会将其写入统一 GeoPackage 矢量文件，并创建或更新对应的 `DataResource`。提交响应返回 `mode: "geographic"`、`resourceId`、`resourceName`、`layerName`、`tableName`、`bounds`、`coordinateStats` 和 `validationIssues`。资源列表会显示 `resourceName` 对应的用户填写数据名称，`tableName/layerName` 仅作为后端存储标识。
 
-**非地理数据（Table）**：不包含坐标信息的纯表格数据，系统会将其写入 SQLite 数据库。
+**非地理数据（Table）**：不包含坐标信息的纯表格数据，系统会将其写入 SQLite 数据库。提交响应返回 `mode: "table"`、`resourceId`、`resourceName`、`tableName`，且 `layerId` 和 `coordinateStats` 为 `null`。
 
 ### 字段元数据规范
 
@@ -730,8 +753,12 @@ const queryBody = {
 
 ```javascript
 // JavaScript
-const resourceId = 1;
-const response = await fetch(`/api/catalog/resources/${resourceId}/query/`, {
+const resource = selectedResource;
+const queryUrl =
+  typeof resource.id === "number"
+    ? `/api/catalog/resources/${resource.id}/query/`
+    : `/api/layers/${encodeURIComponent(resource.name)}/query/`;
+const response = await fetch(queryUrl, {
   method: "POST",
   credentials: "include",
   headers: {
@@ -766,6 +793,8 @@ print(f"总记录数: {result['totalCount']}")
 print(f"返回记录数: {result['returnedCount']}")
 print(f"GeoJSON: {result['geojson']}")
 ```
+
+业务库资源使用 `/api/catalog/resources/{resourceId}/query/`；统一 GeoPackage 临时矢量图层使用 `/api/layers/{layer_name}/query/`。两者请求体和响应体一致，`QueryResponse.resourceId` 在临时图层场景为字符串。
 
 #### Step 3: 处理查询结果
 
@@ -1063,8 +1092,13 @@ const { items } = await response.json();
 items.forEach((layer) => {
   console.log(`图层: ${layer.name}`);
   console.log(`  类型: ${layer.layerType}`);
-  console.log(`  默认可见: ${layer.defaultVisible}`);
-  console.log(`  默认透明度: ${layer.defaultOpacity}%`);
+  if ("defaultVisible" in layer) {
+    console.log(`  默认可见: ${layer.defaultVisible}`);
+    console.log(`  默认透明度: ${layer.defaultOpacity}%`);
+  } else {
+    console.log(`  要素数: ${layer.featureCount}`);
+    console.log(`  几何类型: ${layer.geometryType}`);
+  }
 });
 ```
 
@@ -1076,29 +1110,35 @@ layers = response.json()["items"]
 for layer in layers:
     print(f"图层: {layer['name']}")
     print(f"  类型: {layer['layerType']}")
-    print(f"  默认可见: {layer['defaultVisible']}")
+    if "defaultVisible" in layer:
+        print(f"  默认可见: {layer['defaultVisible']}")
+    else:
+        print(f"  要素数: {layer['featureCount']}")
 ```
 
 #### Step 2: 加载矢量图层要素
 
 ```javascript
 // JavaScript
-const layerId = 1;
-const response = await fetch(`/api/layers/${layerId}/features/?limit=10000`, {
-  credentials: "include",
-});
+const layerName = "survey_points_2026";
+const response = await fetch(
+  `/api/layers/${encodeURIComponent(layerName)}/features/?limit=10000`,
+  {
+    credentials: "include",
+  },
+);
 const geojson = await response.json();
 
 // 添加到地图
-map.addSource(`layer-${layerId}`, {
+map.addSource(`layer-${layerName}`, {
   type: "geojson",
   data: geojson,
 });
 
 map.addLayer({
-  id: `layer-${layerId}`,
+  id: `layer-${layerName}`,
   type: "fill",
-  source: `layer-${layerId}`,
+  source: `layer-${layerName}`,
   paint: {
     "fill-color": "#228B22",
     "fill-opacity": 0.6,
@@ -1108,17 +1148,50 @@ map.addLayer({
 
 ```python
 # Python
-layer_id = 1
-response = session.get(f"{base_url}/layers/{layer_id}/features/", params={"limit": 10000})
+layer_name = "survey_points_2026"
+response = session.get(f"{base_url}/layers/{layer_name}/features/", params={"limit": 10000})
 geojson = response.json()
 print(f"要素数量: {len(geojson['features'])}")
 ```
 
+#### Step 3: 查询统一 GeoPackage 图层
+
+统一 GeoPackage 中未登记为业务 `DataResource` 的临时矢量图层，通过图层名称读取 profile 和执行查询。
+
+```javascript
+// JavaScript
+const layerName = "survey_points_2026";
+const profileRes = await fetch(
+  `/api/layers/${encodeURIComponent(layerName)}/profile/`,
+  {
+    credentials: "include",
+  },
+);
+const profile = await profileRes.json();
+
+const queryRes = await fetch(`/api/layers/${encodeURIComponent(layerName)}/query/`, {
+  method: "POST",
+  credentials: "include",
+  headers: {
+    "Content-Type": "application/json",
+    "X-CSRFToken": getCookie("csrftoken"),
+  },
+  body: JSON.stringify({
+    attributeFilters: [],
+    spatialFilter: null,
+    limit: 1000,
+  }),
+});
+const queryResult = await queryRes.json();
+console.log("字段:", profile.fields);
+console.log("返回记录数:", queryResult.returnedCount);
+```
+
 ### 图层类型
 
-**矢量图层（Vector）**：包含点、线、面等几何要素，支持属性查询和空间查询。
+**矢量图层（Vector）**：来自统一 GeoPackage 的临时图层，`id` 为字符串，使用 `name` 作为 `/api/layers/{layer_name}/...` 路径参数，支持属性查询和空间查询。
 
-**栅格图层（Raster）**：包含栅格数据，通过瓦片服务进行渲染。
+**栅格图层（Raster）**：来自业务库 `MapLayer`，包含栅格数据，通过瓦片服务进行渲染。
 
 ### 符号化配置
 
@@ -1556,6 +1629,7 @@ const { resources, achievements } = await response.json();
 
 console.log("找到数据资源:", resources.length, "个");
 console.log("找到研究成果:", achievements.length, "个");
+// resources 同样可能包含业务 DataResource 和统一 GeoPackage 临时矢量图层
 ```
 
 ```python

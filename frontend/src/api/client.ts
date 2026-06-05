@@ -2,7 +2,6 @@ import type {
   Achievement,
   Bootstrap,
   DataCatalog,
-  DataResource,
   DataResourceProfile,
   ExportLayersPayload,
   ImportCommitPayload,
@@ -10,16 +9,18 @@ import type {
   ImportPreview,
   ImportValidatePayload,
   ImportValidateResult,
-  MapLayer,
+  MapLayerListItem,
   RasterJob,
   RasterRenderResult,
   RasterUniqueValuesResult,
   ResourceFilters,
+  ResourceListItem,
   ResourceQueryPayload,
   ResourceQueryResult,
   SearchResult,
   User,
 } from "../types";
+import { isDataResource } from "../utils/resources";
 
 interface ListResponse<T> {
   items: T[];
@@ -114,7 +115,7 @@ function getCookie(name: string): string | null {
   const match = document.cookie
     .split("; ")
     .find((row) => row.startsWith(`${name}=`));
-  return match ? decodeURIComponent(match.split("=")[1]) : null;
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
 }
 
 export const api = {
@@ -144,11 +145,11 @@ export const api = {
   catalogs: () =>
     request<ListResponse<DataCatalog>>("/api/catalog/directories/"),
   resources: (filters: ResourceFilters = {}) =>
-    request<ListResponse<DataResource>>(
+    request<ListResponse<ResourceListItem>>(
       `/api/catalog/resources/?${toQueryString(filters)}`,
     ),
   scanCatalogSources: () =>
-    request<ListResponse<DataResource> & { count: number }>(
+    request<ListResponse<ResourceListItem> & { count: number }>(
       "/api/catalog/scan/",
       {
         method: "POST",
@@ -181,18 +182,13 @@ export const api = {
       body,
     });
   },
-  resourceProfile: (resourceId: number) =>
-    request<DataResourceProfile>(
-      `/api/catalog/resources/${resourceId}/profile/`,
-    ),
-  queryResource: (resourceId: number, payload: ResourceQueryPayload) =>
-    request<ResourceQueryResult>(
-      `/api/catalog/resources/${resourceId}/query/`,
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      },
-    ),
+  resourceProfile: (resource: ResourceListItem) =>
+    request<DataResourceProfile>(resourceEndpoint(resource, "profile")),
+  queryResource: (resource: ResourceListItem, payload: ResourceQueryPayload) =>
+    request<ResourceQueryResult>(resourceEndpoint(resource, "query"), {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   exportLayers: (payload: ExportLayersPayload) =>
     requestBlob("/api/catalog/export/", {
       method: "POST",
@@ -204,7 +200,7 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   downloadExport: (path: string) => requestBlob(path),
-  layers: () => request<ListResponse<MapLayer>>("/api/layers/"),
+  layers: () => request<ListResponse<MapLayerListItem>>("/api/layers/"),
   achievements: () => request<ListResponse<Achievement>>("/api/achievements/"),
   search: (query: string) =>
     request<SearchResult>(`/api/search/?q=${encodeURIComponent(query)}`),
@@ -249,6 +245,16 @@ function toQueryString(filters: ResourceFilters) {
     }
   });
   return params.toString();
+}
+
+function resourceEndpoint(
+  resource: ResourceListItem,
+  action: "profile" | "query",
+) {
+  if (isDataResource(resource)) {
+    return `/api/catalog/resources/${resource.id}/${action}/`;
+  }
+  return `/api/layers/${encodeURIComponent(resource.name)}/${action}/`;
 }
 
 export { ApiError };

@@ -57,6 +57,6 @@ export default defineConfig({
   // 优化依赖预构建
   optimizeDeps: {
     // 预构建这些大型依赖，避免开发时重复编译
-    include: ["mapbox-gl", "antd", "lucide-react"],
+    include: ["mapbox-gl", "antd", "@ant-design/icons"],
   },
 });

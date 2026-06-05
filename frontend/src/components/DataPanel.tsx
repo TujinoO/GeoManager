@@ -1,4 +1,12 @@
 import {
+  DatabaseOutlined,
+  EnvironmentOutlined,
+  FilterOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  UnorderedListOutlined,
+} from "@ant-design/icons";
+import {
   Alert,
   Button,
   DatePicker,
@@ -10,34 +18,33 @@ import {
   Tag,
   Typography,
 } from "antd";
-import {
-  Database,
-  Filter,
-  ListFilter,
-  MapPinned,
-  Plus,
-  Search,
-} from "lucide-react";
 import { useMemo, useState } from "react";
 import type {
   AttributeFilter,
-  DataResource,
   DataResourceProfile,
   ResourceFilters,
+  ResourceListItem,
   ResourceQueryResult,
   User,
 } from "../types";
+import {
+  resourceCategory,
+  resourceCategoryName,
+  resourceFormatLabel,
+  resourceProvider,
+  resourceSpatialExtent,
+} from "../utils/resources";
 
 interface Props {
-  resources: DataResource[];
+  resources: ResourceListItem[];
   profile: DataResourceProfile | null;
-  selectedResourceId: number | null;
+  selectedResourceId: ResourceListItem["id"] | null;
   queryResult: ResourceQueryResult | null;
   loadingProfile: boolean;
   querying: boolean;
   permissions: User["permissions"];
   onFilterResources: (filters: ResourceFilters) => void;
-  onSelectResource: (resource: DataResource) => void;
+  onSelectResource: (resource: ResourceListItem) => void;
   onQuery: (filters: AttributeFilter[]) => void;
   onLoadResult: () => void;
   onLoadRaster: () => void;
@@ -81,8 +88,9 @@ export default function DataPanel({
   const categoryOptions = useMemo(() => {
     const categories = new Map<string, string>();
     resources.forEach((resource) => {
-      if (resource.category) {
-        categories.set(resource.category.code, resource.category.name);
+      const category = resourceCategory(resource);
+      if (category) {
+        categories.set(category.code, category.name);
       }
     });
     return Array.from(categories, ([code, name]) => ({
@@ -131,17 +139,17 @@ export default function DataPanel({
   return (
     <section className="panel-section data-panel">
       <div className="panel-title">
-        <Database size={18} />
+        <DatabaseOutlined style={{ fontSize: 18 }} />
         <Typography.Title level={5}>数据管理</Typography.Title>
       </div>
 
       <div className="subsection-title">
-        <Search size={15} />
+        <SearchOutlined style={{ fontSize: 15 }} />
         <Typography.Text strong>元数据筛选</Typography.Text>
       </div>
       <Space orientation="vertical" className="full-width compact-stack">
         <Input
-          prefix={<Search size={15} />}
+          prefix={<SearchOutlined style={{ fontSize: 15 }} />}
           placeholder="数据名称或编号"
           value={resourceFilters.q}
           onChange={(event) => updateResourceFilter("q", event.target.value)}
@@ -187,7 +195,7 @@ export default function DataPanel({
         />
         <Button
           type="primary"
-          icon={<Filter size={15} />}
+          icon={<FilterOutlined style={{ fontSize: 15 }} />}
           onClick={() => onFilterResources(resourceFilters)}
         >
           筛选数据
@@ -195,7 +203,7 @@ export default function DataPanel({
       </Space>
 
       <div className="subsection-title">
-        <ListFilter size={15} />
+        <UnorderedListOutlined style={{ fontSize: 15 }} />
         <Typography.Text strong>数据资源</Typography.Text>
       </div>
       {resources.length > 0 ? (
@@ -218,8 +226,8 @@ export default function DataPanel({
                   {resource.isRenderable && <Tag color="blue">栅格</Tag>}
                 </Typography.Text>
                 <Typography.Text type="secondary" className="resource-row-meta">
-                  {resource.category?.name ?? "未分类"} ·{" "}
-                  {resource.fileFormat || resource.dataType}
+                  {resourceCategoryName(resource) ?? "未分类"} ·{" "}
+                  {resourceFormatLabel(resource)}
                 </Typography.Text>
               </div>
               <Button
@@ -245,7 +253,7 @@ export default function DataPanel({
       {profile && (
         <>
           <div className="subsection-title">
-            <MapPinned size={15} />
+            <EnvironmentOutlined style={{ fontSize: 15 }} />
             <Typography.Text strong>字段与元信息</Typography.Text>
           </div>
           <Descriptions size="small" column={1} bordered>
@@ -253,10 +261,10 @@ export default function DataPanel({
               {profile.resource.source || "-"}
             </Descriptions.Item>
             <Descriptions.Item label="提供单位">
-              {profile.resource.provider || "-"}
+              {resourceProvider(profile.resource) || "-"}
             </Descriptions.Item>
             <Descriptions.Item label="空间范围">
-              {profile.resource.spatialExtent || "-"}
+              {resourceSpatialExtent(profile.resource) || "-"}
             </Descriptions.Item>
             <Descriptions.Item label={selectedIsRaster ? "波段数" : "要素数"}>
               {selectedIsRaster
@@ -296,7 +304,7 @@ export default function DataPanel({
       {!selectedIsRaster && (
         <>
           <div className="subsection-title">
-            <Plus size={15} />
+            <PlusOutlined style={{ fontSize: 15 }} />
             <Typography.Text strong>属性查询</Typography.Text>
           </div>
           <Space orientation="vertical" className="full-width compact-stack">
@@ -325,7 +333,7 @@ export default function DataPanel({
               />
             )}
             <Button
-              icon={<Plus size={15} />}
+              icon={<PlusOutlined style={{ fontSize: 15 }} />}
               disabled={!field || !value.trim()}
               onClick={addAttributeFilter}
             >

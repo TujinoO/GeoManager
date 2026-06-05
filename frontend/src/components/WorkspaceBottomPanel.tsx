@@ -1,4 +1,11 @@
 import {
+  AimOutlined,
+  CloseOutlined,
+  DownloadOutlined,
+  InfoCircleOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
+import {
   App,
   Button,
   Descriptions,
@@ -10,11 +17,11 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { Download, Info, MousePointer2, Upload, X } from "lucide-react";
 import { useRef } from "react";
 import type { DrawMode } from "../map/spatialDraw";
 import type { GeoJsonGeometry, LoadedLayer, SpatialFilter } from "../types";
 import { downloadBlob } from "../utils/download";
+import { resourceSpatialExtent } from "../utils/resources";
 
 type DrawPurpose = "query";
 
@@ -51,7 +58,7 @@ export default function WorkspaceBottomPanel({
           key: "draw",
           label: (
             <span className="tab-label">
-              <MousePointer2 size={14} />
+              <AimOutlined style={{ fontSize: 14 }} />
               空间范围
             </span>
           ),
@@ -70,7 +77,7 @@ export default function WorkspaceBottomPanel({
           key: "metadata",
           label: (
             <span className="tab-label">
-              <Info size={14} />
+              <InfoCircleOutlined style={{ fontSize: 14 }} />
               元数据
             </span>
           ),
@@ -108,7 +115,8 @@ function MetadataPanel({
 
   const metadata = {
     ...layer.metadata,
-    空间范围: layer.metadata.空间范围 ?? layer.sourceResource.spatialExtent,
+    空间范围:
+      layer.metadata.空间范围 ?? resourceSpatialExtent(layer.sourceResource),
   };
   const entries = Object.entries(metadata).filter(
     ([, value]) => value !== undefined && value !== "",
@@ -118,7 +126,7 @@ function MetadataPanel({
     <section className="bottom-card-panel">
       <div className="bottom-card-heading">
         <Space size={8}>
-          <Info size={15} />
+          <InfoCircleOutlined style={{ fontSize: 15 }} />
           <Typography.Text strong>{layer.name}</Typography.Text>
           <Tag color={layer.layerType === "vector" ? "green" : "blue"}>
             {layer.layerType === "vector" ? "矢量" : "栅格"}
@@ -255,7 +263,7 @@ function DrawingPanel({
           )}
           <Button
             size="small"
-            icon={<X size={13} />}
+            icon={<CloseOutlined style={{ fontSize: 13 }} />}
             disabled={!currentGeometry}
             onClick={onClearSpatialFilter}
           >
@@ -263,14 +271,14 @@ function DrawingPanel({
           </Button>
           <Button
             size="small"
-            icon={<Upload size={13} />}
+            icon={<UploadOutlined style={{ fontSize: 13 }} />}
             onClick={() => fileInputRef.current?.click()}
           >
             导入
           </Button>
           <Button
             size="small"
-            icon={<Download size={13} />}
+            icon={<DownloadOutlined style={{ fontSize: 13 }} />}
             disabled={!currentGeometry}
             onClick={handleExportGeojson}
           >

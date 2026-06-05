@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import sqlite3
 from typing import Any
 
 import geopandas as gpd
 from django.db import OperationalError, ProgrammingError
 
-from apps.catalog.models import DataResource, MapLayer
+from apps.catalog.models import DataResource
 from apps.core.storage import gene_data_path, table_data_path, vector_geopackage_path
 
 
@@ -29,16 +30,59 @@ def stable_catalog_code(prefix: str, value: str) -> str:
     return f"{prefix}-{digest}"
 
 
-def scan_vector_geopackage() -> list[DataResource]:
+def get_vector_layers_from_geopackage() -> list[dict[str, Any]]:
     path = vector_geopackage_path()
     if not path.exists():
         return []
 
-    resources: list[DataResource] = []
+    layers_info: list[dict[str, Any]] = []
     for layer_name in _vector_layer_names(path):
-        resource = upsert_vector_catalog_records(layer_name)
-        resources.append(resource)
-    return resources
+        try:
+            profile = _vector_layer_profile(layer_name)
+            field_metadata = _read_field_metadata(path, layer_name)
+            layers_info.append(
+                {
+                    "name": layer_name,
+                    "layerName": layer_name,
+                    "geometryType": profile["geometry_type"],
+                    "bounds": profile["bounds"],
+                    "coordinateSystem": profile["coordinate_system"],
+                    "featureCount": profile["feature_count"],
+                    "fieldMetadata": field_metadata,
+                }
+            )
+        except Exception:
+            continue
+    return layers_info
+
+
+def get_vector_layer_info(layer_name: str) -> dict[str, Any] | None:
+    path = vector_geopackage_path()
+    if not path.exists():
+        return None
+
+    existing_layers = _vector_layer_names(path)
+    if layer_name not in existing_layers:
+        return None
+
+    try:
+        profile = _vector_layer_profile(layer_name)
+        field_metadata = _read_field_metadata(path, layer_name)
+        return {
+            "name": layer_name,
+            "layerName": layer_name,
+            "geometryType": profile["geometry_type"],
+            "bounds": profile["bounds"],
+            "coordinateSystem": profile["coordinate_system"],
+            "featureCount": profile["feature_count"],
+            "fieldMetadata": field_metadata,
+        }
+    except Exception:
+        return None
+
+
+def scan_vector_geopackage() -> list[dict[str, Any]]:
+    return get_vector_layers_from_geopackage()
 
 
 def scan_vector_geopackage_safely() -> None:
@@ -68,62 +112,23 @@ def scan_nongeographic_files() -> list[DataResource]:
     return resources
 
 
-def scan_catalog_sources() -> list[DataResource]:
-    return [*scan_vector_geopackage(), *scan_nongeographic_files()]
+def scan_catalog_sources() -> tuple[list[dict[str, Any]], list[DataResource]]:
+    vector_layers = scan_vector_geopackage()
+    nongeographic_resources = scan_nongeographic_files()
+    return vector_layers, nongeographic_resources
 
 
-def scan_catalog_sources_safely() -> None:
+def scan_catalog_sources_safely() -> tuple[list[dict[str, Any]], list[DataResource]]:
     import logging
 
     logger = logging.getLogger(__name__)
     try:
-        scan_catalog_sources()
+        return scan_catalog_sources()
     except (OperationalError, ProgrammingError):
         logger.debug("数据目录扫描跳过：数据库尚未就绪")
     except Exception:
         logger.exception("数据目录扫描失败")
-
-
-def upsert_vector_catalog_records(layer_name: str) -> DataResource:
-    profile = _vector_layer_profile(layer_name)
-    code = stable_catalog_code("vector", layer_name)
-    spatial_extent = (
-        ",".join(f"{value:.6f}" for value in profile["bounds"])
-        if profile["bounds"]
-        else ""
-    )
-    data_resource, _ = DataResource.objects.update_or_create(
-        code=code,
-        defaults={
-            "name": layer_name,
-            "data_type": DataResource.DataType.VECTOR,
-            "source": "矢量数据目录扫描",
-            "provider": "",
-            "spatial_extent": spatial_extent,
-            "coordinate_system": profile["coordinate_system"],
-            "file_format": "GPKG",
-            "storage_path": layer_name,
-            "description": f"自动扫描 GeoPackage 图层：{layer_name}",
-            "quality_note": "",
-            "status": DataResource.Status.ACTIVE,
-        },
-    )
-    MapLayer.objects.update_or_create(
-        code=code,
-        defaults={
-            "name": layer_name,
-            "layer_type": MapLayer.LayerType.VECTOR,
-            "geometry_type": profile["geometry_type"],
-            "data_resource": data_resource,
-            "source_path": layer_name,
-            "default_visible": True,
-            "default_opacity": 85,
-            "bounds": profile["bounds"],
-            "legend": "",
-            "is_active": True,
-        },
-    )
-    return data_resource
+    return [], []
 
 
 def upsert_nongeographic_catalog_record(
@@ -191,17 +196,34 @@ def _vector_layer_profile(layer_name: str) -> dict[str, Any]:
         if gdf.crs and gdf.crs.to_epsg()
         else str(gdf.crs or ""),
         "geometry_type": _map_geometry_type(gdf),
+        "feature_count": len(gdf),
     }
 
 
 def _map_geometry_type(gdf) -> str:
     if len(gdf) == 0:
-        return MapLayer.GeometryType.MIXED
+        return "mixed"
     values = set(gdf.geometry.geom_type.dropna().astype(str).tolist())
     if values and values <= {"Point", "MultiPoint"}:
-        return MapLayer.GeometryType.POINT
+        return "point"
     if values and values <= {"LineString", "MultiLineString"}:
-        return MapLayer.GeometryType.LINE
+        return "line"
     if values and values <= {"Polygon", "MultiPolygon"}:
-        return MapLayer.GeometryType.POLYGON
-    return MapLayer.GeometryType.MIXED
+        return "polygon"
+    return "mixed"
+
+
+def _read_field_metadata(path, table_name: str) -> dict[str, str]:
+    metadata: dict[str, str] = {}
+    try:
+        with sqlite3.connect(path) as connection:
+            cursor = connection.execute(
+                "SELECT column_name, description FROM gpkg_data_columns WHERE table_name = ?",
+                (table_name,),
+            )
+            for column_name, description in cursor.fetchall():
+                if description:
+                    metadata[column_name] = description
+    except Exception:
+        pass
+    return metadata

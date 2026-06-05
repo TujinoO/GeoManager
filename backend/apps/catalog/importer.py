@@ -16,7 +16,7 @@ from django.db import transaction
 from django.utils.text import slugify
 from shapely.geometry import Point
 
-from apps.catalog.models import DataResource, MapLayer
+from apps.catalog.models import DataResource
 from apps.catalog.services import stable_catalog_code
 from apps.core.storage import table_data_path, vector_geopackage_path
 
@@ -226,7 +226,7 @@ def import_geographic_table(
     path = vector_geopackage_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     _ensure_table_can_be_written(path, table_name, overwrite, geographic=True)
-    gdf.to_file(path, layer=table_name, driver="GPKG")
+    _write_geopackage_layer(path, table_name, gdf, overwrite=overwrite)
     write_geopackage_field_metadata(path, table_name, metadata)
 
     bounds = (
@@ -237,47 +237,23 @@ def import_geographic_table(
         if stats.valid_rows
         else []
     )
-    code = stable_catalog_code("vector", table_name)
-    spatial_extent = ",".join(f"{value:.6f}" for value in bounds) if bounds else ""
-    resource, _ = DataResource.objects.update_or_create(
-        code=code,
-        defaults={
-            "name": name,
-            "data_type": DataResource.DataType.VECTOR,
-            "source": "用户导入",
-            "provider": "",
-            "spatial_extent": spatial_extent,
-            "coordinate_system": "EPSG:4326",
-            "file_format": "GPKG",
-            "storage_path": table_name,
-            "description": "由 Excel/CSV 导入的点位数据",
-            "quality_note": _quality_note(stats, ignore_coordinate_uncertainty),
-            "maintainer": user if getattr(user, "is_authenticated", False) else None,
-            "status": DataResource.Status.ACTIVE,
-        },
-    )
-    layer, _ = MapLayer.objects.update_or_create(
-        code=code,
-        defaults={
-            "name": name,
-            "layer_type": MapLayer.LayerType.VECTOR,
-            "geometry_type": MapLayer.GeometryType.POINT,
-            "data_resource": resource,
-            "source_path": table_name,
-            "default_visible": True,
-            "default_opacity": 85,
-            "bounds": bounds,
-            "legend": "",
-            "is_active": True,
-        },
+    resource = _upsert_geographic_resource(
+        name=name,
+        table_name=table_name,
+        bounds=bounds,
+        stats=stats,
+        ignore_coordinate_uncertainty=ignore_coordinate_uncertainty,
+        user=user,
     )
     return {
         "mode": "geographic",
         "resourceId": resource.id,
-        "layerId": layer.id,
+        "resourceName": resource.name,
+        "layerName": table_name,
         "tableName": table_name,
         "importedRows": int(len(gdf)),
         "skippedRows": 0,
+        "bounds": bounds,
         "coordinateStats": _serialize_coordinate_stats(stats),
         "validationIssues": _serialize_validation_issues(validation_issues),
     }
@@ -320,6 +296,7 @@ def import_plain_table(
     return {
         "mode": "table",
         "resourceId": resource.id,
+        "resourceName": resource.name,
         "layerId": None,
         "tableName": table_name,
         "importedRows": int(len(df)),
@@ -807,6 +784,78 @@ def _ensure_table_can_be_written(
         ).fetchone()
     if exists and not overwrite:
         raise ImportDataError(f"SQLite 表已存在：{table_name}")
+
+
+def _write_geopackage_layer(
+    path: Path, table_name: str, gdf, *, overwrite: bool
+) -> None:
+    if path.exists():
+        if overwrite:
+            _drop_geopackage_layer(path, table_name)
+        gdf.to_file(path, layer=table_name, driver="GPKG", mode="a")
+    else:
+        gdf.to_file(path, layer=table_name, driver="GPKG")
+
+
+def _drop_geopackage_layer(path: Path, table_name: str) -> None:
+    import geopandas as gpd
+
+    layers = gpd.list_layers(path)
+    existing_names = (
+        set(layers["name"].astype(str).tolist())
+        if hasattr(layers, "columns") and "name" in layers.columns
+        else set()
+    )
+    if table_name not in existing_names:
+        return
+    with sqlite3.connect(path) as connection:
+        connection.execute(f'DROP TABLE IF EXISTS "{table_name}"')
+        connection.execute(
+            "DELETE FROM gpkg_contents WHERE table_name = ?", (table_name,)
+        )
+        connection.execute(
+            "DELETE FROM gpkg_geometry_columns WHERE table_name = ?",
+            (table_name,),
+        )
+        connection.execute(
+            "DELETE FROM gpkg_data_columns WHERE table_name = ?",
+            (table_name,),
+        )
+        connection.execute(
+            "DELETE FROM gpkg_extensions WHERE table_name = ?",
+            (table_name,),
+        )
+
+
+def _upsert_geographic_resource(
+    *,
+    name: str,
+    table_name: str,
+    bounds: list[float],
+    stats: CoordinateStats,
+    ignore_coordinate_uncertainty: bool,
+    user,
+) -> DataResource:
+    code = stable_catalog_code("vector", table_name)
+    spatial_extent = ",".join(f"{value:.6f}" for value in bounds) if bounds else ""
+    resource, _ = DataResource.objects.update_or_create(
+        code=code,
+        defaults={
+            "name": name,
+            "data_type": DataResource.DataType.VECTOR,
+            "source": "用户导入",
+            "provider": "",
+            "spatial_extent": spatial_extent,
+            "coordinate_system": "EPSG:4326",
+            "file_format": "GPKG",
+            "storage_path": table_name,
+            "description": f"由 Excel/CSV 导入的地理表：{table_name}",
+            "quality_note": _quality_note(stats, ignore_coordinate_uncertainty),
+            "maintainer": user if getattr(user, "is_authenticated", False) else None,
+            "status": DataResource.Status.ACTIVE,
+        },
+    )
+    return resource
 
 
 def _quality_note(stats: CoordinateStats, ignore_coordinate_uncertainty: bool) -> str:

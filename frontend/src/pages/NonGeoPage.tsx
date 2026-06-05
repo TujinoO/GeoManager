@@ -1,5 +1,10 @@
+import {
+  ArrowLeftOutlined,
+  ExperimentOutlined,
+  LogoutOutlined,
+  SafetyCertificateOutlined,
+} from "@ant-design/icons";
 import { Button, Layout, Typography } from "antd";
-import { ArrowLeft, Dna, LogOut, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAppContext } from "../contexts/AppContext";
@@ -25,21 +30,30 @@ export default function NonGeoPage() {
     <Layout className="nongeo-workspace">
       <Layout.Header className="portal-header">
         <div className="header-left">
-          <Button icon={<ArrowLeft size={16} />} onClick={() => navigate("/")}>
+          <Button
+            icon={<ArrowLeftOutlined style={{ fontSize: 16 }} />}
+            onClick={() => navigate("/")}
+          >
             返回入口
           </Button>
           <div className="brand-block">
-            <Dna size={22} />
+            <ExperimentOutlined style={{ fontSize: 22 }} />
             <Typography.Title level={4}>
               {bootstrap.systemName} / 非地理可视化
             </Typography.Title>
           </div>
         </div>
         <div className="header-account-actions">
-          <Button icon={<ShieldCheck size={16} />} className="user-button">
+          <Button
+            icon={<SafetyCertificateOutlined style={{ fontSize: 16 }} />}
+            className="user-button"
+          >
             {user.displayName}
           </Button>
-          <Button icon={<LogOut size={16} />} onClick={handleLogout}>
+          <Button
+            icon={<LogoutOutlined style={{ fontSize: 16 }} />}
+            onClick={handleLogout}
+          >
             退出
           </Button>
         </div>

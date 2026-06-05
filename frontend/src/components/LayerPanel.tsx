@@ -1,4 +1,20 @@
 import {
+  AimOutlined,
+  ApartmentOutlined,
+  BgColorsOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  DownOutlined,
+  EyeInvisibleOutlined,
+  EyeOutlined,
+  FileOutlined,
+  FolderOpenOutlined,
+  HolderOutlined,
+  RightOutlined,
+  SearchOutlined,
+  TableOutlined,
+} from "@ant-design/icons";
+import {
   Alert,
   App,
   Badge,
@@ -14,22 +30,6 @@ import {
   Tooltip,
   Typography,
 } from "antd";
-import {
-  ChevronDown,
-  ChevronRight,
-  Crosshair,
-  Download,
-  Eye,
-  EyeOff,
-  FileStack,
-  FolderTree,
-  GripVertical,
-  Layers,
-  Palette,
-  Search,
-  Table2,
-  Trash2,
-} from "lucide-react";
 import { type DragEvent, useEffect, useMemo, useState } from "react";
 import { type DropPlacement, useLayerContext } from "../hooks/LayerContext";
 import type {
@@ -44,6 +44,7 @@ import type {
   RasterBandMetadata,
   ResourceField,
 } from "../types";
+import { resourceExportId } from "../utils/resources";
 import {
   GroupSymbolizationEditor,
   RasterSymbolizationEditor,
@@ -167,7 +168,7 @@ export default function LayerPanel() {
   return (
     <section className="panel-section">
       <div className="panel-title">
-        <Layers size={18} />
+        <ApartmentOutlined style={{ fontSize: 18 }} />
         <Typography.Title level={5}>已加载图层</Typography.Title>
         <Badge
           count={groups.filter((group) => group.visible).length}
@@ -175,7 +176,7 @@ export default function LayerPanel() {
         />
       </div>
       <Input
-        prefix={<Search size={15} />}
+        prefix={<SearchOutlined style={{ fontSize: 15 }} />}
         placeholder="搜索图层组或图层"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
@@ -298,9 +299,9 @@ function LayerGroupNode({
               aria-label={expanded ? `折叠${group.name}` : `展开${group.name}`}
               icon={
                 expanded ? (
-                  <ChevronDown size={14} />
+                  <DownOutlined style={{ fontSize: 14 }} />
                 ) : (
-                  <ChevronRight size={14} />
+                  <RightOutlined style={{ fontSize: 14 }} />
                 )
               }
               onClick={(event) => {
@@ -313,11 +314,13 @@ function LayerGroupNode({
             className="visibility-switch"
             checked={group.visible}
             size="small"
-            checkedChildren={<Eye size={10} />}
-            unCheckedChildren={<EyeOff size={10} />}
+            checkedChildren={<EyeOutlined style={{ fontSize: 10 }} />}
+            unCheckedChildren={
+              <EyeInvisibleOutlined style={{ fontSize: 10 }} />
+            }
             onChange={(checked) => onVisibilityChange(group.id, checked)}
           />
-          <FolderTree size={14} />
+          <FolderOpenOutlined style={{ fontSize: 14 }} />
         </div>
         <div className="layer-row-tools">
           <NodeActions
@@ -340,7 +343,7 @@ function LayerGroupNode({
               size="small"
               aria-label={`拖动${group.name}排序`}
               draggable
-              icon={<GripVertical size={14} />}
+              icon={<HolderOutlined style={{ fontSize: 14 }} />}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
               onClick={(event) => event.stopPropagation()}
@@ -410,13 +413,15 @@ function LayerItemNode({
             className="visibility-switch"
             checked={layer.visible}
             size="small"
-            checkedChildren={<Eye size={10} />}
-            unCheckedChildren={<EyeOff size={10} />}
+            checkedChildren={<EyeOutlined style={{ fontSize: 10 }} />}
+            unCheckedChildren={
+              <EyeInvisibleOutlined style={{ fontSize: 10 }} />
+            }
             onChange={(checked) =>
               onVisibilityChange(groupId, layer.id, checked)
             }
           />
-          <FileStack size={14} />
+          <FileOutlined style={{ fontSize: 14 }} />
         </div>
         <NodeActions
           symbolization={layer.symbolization}
@@ -633,7 +638,7 @@ function NodeActions({
             type="text"
             size="small"
             aria-label={`${subjectName}数据表`}
-            icon={<Table2 size={14} />}
+            icon={<TableOutlined style={{ fontSize: 14 }} />}
             onClick={onOpenTable}
           />
         </Tooltip>
@@ -644,7 +649,7 @@ function NodeActions({
           type="text"
           size="small"
           aria-label={`定位${subjectName}`}
-          icon={<Crosshair size={14} />}
+          icon={<AimOutlined style={{ fontSize: 14 }} />}
           onClick={onLocate}
         />
       </Tooltip>
@@ -679,7 +684,7 @@ function NodeActions({
               type="text"
               size="small"
               aria-label={`导出${subjectName}`}
-              icon={<Download size={14} />}
+              icon={<DownloadOutlined style={{ fontSize: 14 }} />}
             />
           </Tooltip>
         </Popover>
@@ -699,7 +704,7 @@ function NodeActions({
               type="text"
               size="small"
               aria-label={`${subjectName}符号化`}
-              icon={<Palette size={14} />}
+              icon={<BgColorsOutlined style={{ fontSize: 14 }} />}
             />
           </Tooltip>
         </Popover>
@@ -710,7 +715,7 @@ function NodeActions({
           type="text"
           size="small"
           aria-label={`移除${subjectName}`}
-          icon={<Trash2 size={14} />}
+          icon={<DeleteOutlined style={{ fontSize: 14 }} />}
           onClick={onRemove}
         />
       </Tooltip>
@@ -740,7 +745,7 @@ function exportItemsForLayer(layer: LoadedLayer): ExportLayerItem[] {
       {
         layerType: "vector",
         name: layer.name,
-        resourceId: layer.sourceResource.id,
+        resourceId: resourceExportId(layer.sourceResource),
         geojson: layer.geojson,
         sourceCrs: layer.sourceResource.coordinateSystem,
       },
@@ -750,7 +755,7 @@ function exportItemsForLayer(layer: LoadedLayer): ExportLayerItem[] {
     {
       layerType: "raster",
       name: layer.name,
-      resourceId: layer.sourceResource.id,
+      resourceId: resourceExportId(layer.sourceResource),
       datasetId: layer.rasterDatasetId,
       sourceCrs:
         layer.rasterMetadata?.coordinateSystem ??
@@ -839,7 +844,7 @@ function ExportOptionsCard({
         )}
         <Button
           type="primary"
-          icon={<Download size={15} />}
+          icon={<DownloadOutlined style={{ fontSize: 15 }} />}
           loading={running}
           disabled={running || (clip && !clipReady)}
           onClick={onExport}

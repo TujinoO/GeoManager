@@ -1,12 +1,12 @@
-import { Button, Tooltip } from "antd";
 import {
-  Fullscreen,
-  Home,
-  LocateFixed,
-  RotateCcw,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react";
+  AimOutlined,
+  FullscreenOutlined,
+  HomeOutlined,
+  RotateLeftOutlined,
+  ZoomInOutlined,
+  ZoomOutOutlined,
+} from "@ant-design/icons";
+import { Button, Tooltip } from "antd";
 import mapboxgl, { type Map as MapboxMap } from "mapbox-gl";
 import { useEffect, useRef } from "react";
 import { syncVectorInteractions } from "../map/featureInteraction";
@@ -215,29 +215,32 @@ export default function MapCanvas({
       <div ref={containerRef} className="map-container" />
       <div className="map-toolbar">
         <Tooltip title="复位">
-          <Button icon={<Home size={16} />} onClick={resetView} />
+          <Button
+            icon={<HomeOutlined style={{ fontSize: 16 }} />}
+            onClick={resetView}
+          />
         </Tooltip>
         <Tooltip title="放大">
           <Button
-            icon={<ZoomIn size={16} />}
+            icon={<ZoomInOutlined style={{ fontSize: 16 }} />}
             onClick={() => mapRef.current?.zoomIn()}
           />
         </Tooltip>
         <Tooltip title="缩小">
           <Button
-            icon={<ZoomOut size={16} />}
+            icon={<ZoomOutOutlined style={{ fontSize: 16 }} />}
             onClick={() => mapRef.current?.zoomOut()}
           />
         </Tooltip>
         <Tooltip title="北向">
           <Button
-            icon={<RotateCcw size={16} />}
+            icon={<RotateLeftOutlined style={{ fontSize: 16 }} />}
             onClick={() => mapRef.current?.resetNorthPitch()}
           />
         </Tooltip>
         <Tooltip title="定位到项目范围">
           <Button
-            icon={<LocateFixed size={16} />}
+            icon={<AimOutlined style={{ fontSize: 16 }} />}
             onClick={() =>
               mapRef.current?.fitBounds([
                 [50, 35],
@@ -248,7 +251,7 @@ export default function MapCanvas({
         </Tooltip>
         <Tooltip title="全屏">
           <Button
-            icon={<Fullscreen size={16} />}
+            icon={<FullscreenOutlined style={{ fontSize: 16 }} />}
             onClick={() => containerRef.current?.requestFullscreen()}
           />
         </Tooltip>
@@ -336,11 +339,13 @@ function syncLoadedLayers(
 
   const allNewBounds = [...newVectorBounds, ...newRasterBounds];
   if (allNewBounds.length > 0) {
+    const firstBound = allNewBounds[0];
+    if (!firstBound) return;
     const combined = allNewBounds.reduce(
       (b, next) => b.extend(next),
       new mapboxgl.LngLatBounds(
-        allNewBounds[0].getSouthWest(),
-        allNewBounds[0].getNorthEast(),
+        firstBound.getSouthWest(),
+        firstBound.getNorthEast(),
       ),
     );
     map.fitBounds(combined, { padding: 80, duration: 900, essential: true });

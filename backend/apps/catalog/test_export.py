@@ -1,4 +1,5 @@
 import json
+import tempfile
 from pathlib import Path
 
 from django.test import SimpleTestCase
@@ -55,8 +56,8 @@ class ValidateEpsgTests(SimpleTestCase):
 
 class ExportVectorGeojsonTests(SimpleTestCase):
     def test_exports_empty_feature_collection(self):
-        output = Path("/tmp/test_export.geojson")
-        try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "test_export.geojson"
             export_vector_geojson(
                 {"type": "FeatureCollection", "features": []},
                 4326,
@@ -65,18 +66,18 @@ class ExportVectorGeojsonTests(SimpleTestCase):
             data = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(data["type"], "FeatureCollection")
             self.assertEqual(data["features"], [])
-        finally:
-            output.unlink(missing_ok=True)
 
     def test_rejects_invalid_geojson(self):
-        output = Path("/tmp/test_export.geojson")
-        with self.assertRaises(ExportError):
-            export_vector_geojson("not a dict", 4326, output)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "test_export.geojson"
+            with self.assertRaises(ExportError):
+                export_vector_geojson("not a dict", 4326, output)
 
     def test_rejects_non_feature_collection(self):
-        output = Path("/tmp/test_export.geojson")
-        with self.assertRaises(ExportError):
-            export_vector_geojson({"type": "Feature"}, 4326, output)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "test_export.geojson"
+            with self.assertRaises(ExportError):
+                export_vector_geojson({"type": "Feature"}, 4326, output)
 
 
 class WriteCutlineTests(SimpleTestCase):
@@ -85,27 +86,27 @@ class WriteCutlineTests(SimpleTestCase):
             "type": "Polygon",
             "coordinates": [[[80, 40], [80, 45], [85, 45], [85, 40], [80, 40]]],
         }
-        root = Path("/tmp")
-        path = write_cutline(root, geometry)
-        try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            path = write_cutline(root, geometry)
             self.assertTrue(path.exists())
             data = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(data["type"], "FeatureCollection")
             self.assertEqual(len(data["features"]), 1)
             self.assertEqual(data["features"][0]["geometry"]["type"], "Polygon")
-        finally:
-            path.unlink(missing_ok=True)
 
     def test_rejects_non_polygon_geometry(self):
         geometry = {"type": "Point", "coordinates": [80, 40]}
-        root = Path("/tmp")
-        with self.assertRaises(ExportError):
-            write_cutline(root, geometry)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            with self.assertRaises(ExportError):
+                write_cutline(root, geometry)
 
     def test_rejects_invalid_geometry(self):
-        root = Path("/tmp")
-        with self.assertRaises(ExportError):
-            write_cutline(root, "not a dict")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            with self.assertRaises(ExportError):
+                write_cutline(root, "not a dict")
 
 
 class ExportLayersZipTests(SimpleTestCase):

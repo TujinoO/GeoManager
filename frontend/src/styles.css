@@ -805,7 +805,8 @@ body {
   align-items: center;
 }
 
-.layer-heading > svg {
+.layer-heading > svg,
+.layer-heading > .anticon {
   flex-shrink: 0;
 }
 

@@ -1,3 +1,5 @@
+from typing import Any
+
 from apps.catalog.models import (
     Achievement,
     DataCatalog,
@@ -91,4 +93,22 @@ def serialize_achievement(achievement: Achievement) -> dict:
         "displayOrder": achievement.display_order,
         "status": achievement.status,
         "updatedAt": achievement.updated_at.isoformat(),
+    }
+
+
+def serialize_vector_layer(layer_info: dict[str, Any]) -> dict:
+    return {
+        "id": f"vector_{layer_info['name']}",
+        "name": layer_info["name"],
+        "code": f"vector_{layer_info['name']}",
+        "dataType": "vector",
+        "layerType": "vector",
+        "geometryType": layer_info.get("geometryType", ""),
+        "bounds": layer_info.get("bounds", []),
+        "coordinateSystem": layer_info.get("coordinateSystem", ""),
+        "featureCount": layer_info.get("featureCount"),
+        "source": "GeoPackage 实时读取",
+        "isQueryable": True,
+        "isRenderable": False,
+        "status": "active",
     }

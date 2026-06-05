@@ -56,9 +56,12 @@ export function bindGeometryDraw(
     if (mode === "polygon") {
       polygonPoints = [...polygonPoints, point];
       if (polygonPoints.length >= 2) {
+        const firstPoint = polygonPoints[0];
+        const secondPoint = polygonPoints[1];
+        if (!firstPoint || !secondPoint) return;
         showDrawPreview(
           map,
-          geometryFromPoints("polygon", polygonPoints[0], polygonPoints[1]),
+          geometryFromPoints("polygon", firstPoint, secondPoint),
         );
       }
       return;

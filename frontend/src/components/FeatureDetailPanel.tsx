@@ -1,5 +1,5 @@
+import { AimOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import { Descriptions, Empty, Tag, Typography } from "antd";
-import { Info, MousePointer2 } from "lucide-react";
 import type { FeatureInfo } from "../types";
 
 interface Props {
@@ -14,13 +14,13 @@ export default function FeatureDetailPanel({ feature }: Props) {
   return (
     <section className="panel-section feature-detail-panel">
       <div className="panel-title">
-        <Info size={18} />
+        <InfoCircleOutlined style={{ fontSize: 18 }} />
         <Typography.Title level={5}>要素信息</Typography.Title>
       </div>
       {feature ? (
         <>
           <div className="feature-detail-heading">
-            <MousePointer2 size={15} />
+            <AimOutlined style={{ fontSize: 15 }} />
             <Typography.Text strong>{feature.layerName}</Typography.Text>
             <Tag color="green">单击选中</Tag>
           </div>

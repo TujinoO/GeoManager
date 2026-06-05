@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "generate:api": "openapi-typescript ../docs/openapi.yaml --empty-objects-unknown --array-length --default-non-nullable false -o src/api/schema.d.ts",
+    "check:api": "openapi-typescript ../docs/openapi.yaml --empty-objects-unknown --array-length --default-non-nullable false -o src/api/schema.d.ts --check",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "build": "pnpm typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1",
@@ -21,7 +23,6 @@
   "dependencies": {
     "@ant-design/icons": "^6.2.5",
     "antd": "^6.4.3",
-    "lucide-react": "^1.17.0",
     "mapbox-gl": "^3.24.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -32,6 +33,7 @@
     "@types/react": "^19.2.16",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "openapi-typescript": "^7.13.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.8"

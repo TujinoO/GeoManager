@@ -18,7 +18,8 @@
     // 性能优化：减少类型检查范围
     "types": ["vite/client"],
     // 不生成 source map（Vite 自己处理）
-    "sourceMap": false
+    "sourceMap": false,
+    "noUncheckedIndexedAccess": true
   },
   "include": ["src"],
   // 排除测试文件和大型类型定义

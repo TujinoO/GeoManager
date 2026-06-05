@@ -37,7 +37,12 @@ export function geometryFromBoundsText(value: unknown): GeoJsonGeometry | null {
   if (!numbers || numbers.length < 4) {
     return null;
   }
-  const [minLng, minLat, maxLng, maxLat] = numbers;
+  const [minLng, minLat, maxLng, maxLat] = numbers as [
+    number,
+    number,
+    number,
+    number,
+  ];
   if (
     ![minLng, minLat, maxLng, maxLat].every(Number.isFinite) ||
     Math.abs(minLng) > 180 ||
@@ -93,8 +98,9 @@ export function polygonGeometry(
   points: Array<[number, number]>,
 ): GeoJsonGeometry {
   const ring = [...points];
-  if (ring.length > 0) {
-    ring.push(ring[0]);
+  const firstPoint = ring[0];
+  if (firstPoint) {
+    ring.push(firstPoint);
   }
   return { type: "Polygon", coordinates: [ring] };
 }
@@ -124,9 +130,11 @@ export function combinedFeatureBounds(
     }
   }
   if (points.length === 0) return null;
+  const firstPoint = points[0];
+  if (!firstPoint) return null;
   return points.reduce(
     (bounds, point) => bounds.extend(point),
-    new mapboxgl.LngLatBounds(points[0], points[0]),
+    new mapboxgl.LngLatBounds(firstPoint, firstPoint),
   );
 }
 
@@ -152,9 +160,11 @@ export function boundsFromImageCoordinates(
   coordinates: Array<[number, number]>,
 ): mapboxgl.LngLatBounds | null {
   if (coordinates.length === 0) return null;
+  const firstCoordinate = coordinates[0];
+  if (!firstCoordinate) return null;
   return coordinates.reduce(
     (bounds, point) => bounds.extend(point),
-    new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]),
+    new mapboxgl.LngLatBounds(firstCoordinate, firstCoordinate),
   );
 }
 
@@ -189,6 +199,7 @@ export function reorderLayerGroups(
     return groups;
   const next = [...groups];
   const [source] = next.splice(sourceIndex, 1);
+  if (!source) return groups;
   const adjustedTargetIndex = next.findIndex((g) => g.id === targetGroupId);
   next.splice(
     placement === "before" ? adjustedTargetIndex : adjustedTargetIndex + 1,

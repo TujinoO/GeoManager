@@ -66,7 +66,8 @@ backend/apps/
 - SQLite 数据库放在业务数据根目录的 `database/` 下。
 - 所有矢量数据统一从地理数据根目录下的 `vector/vector.gpkg` 读取；业务库中的矢量 `storage_path` 和图层 `source_path` 字段填写该 GeoPackage 内的图层名，后端读取并输出 GeoJSON。
 - Excel/CSV 导入分为预检与提交两步。预检只读取第一张表、按文本读取全部字段、自动推测常见经纬度列并计算坐标量化误差范围；提交时由用户选择地理/非地理导入、经纬度列、字段元数据和空坐标处理策略。
-- 导入的地理表统一写入 `vector/vector.gpkg` 的点图层，并在 GeoPackage `gpkg_data_columns` 中写入字段级描述，记录键为 `table_name + column_name + description`。强行导入空坐标时允许 GeoPackage 保留空几何记录，但图层要素接口和查询 GeoJSON 输出会过滤空几何，避免前端地图渲染异常。
+- 导入的地理表统一写入 `vector/vector.gpkg` 的点图层，并创建或更新对应 `DataResource`，`DataResource.name` 保存用户填写的数据名称，`storage_path` 保存 GeoPackage 图层名。资源列表优先展示业务库中的数据名称，已登记图层不会再以原始表名重复暴露为临时矢量资源。
+- 导入的地理表字段级描述写入 GeoPackage `gpkg_data_columns`，记录键为 `table_name + column_name + description`。强行导入空坐标时允许 GeoPackage 保留空几何记录，但图层要素接口和查询 GeoJSON 输出会过滤空几何，避免前端地图渲染异常。
 - 导入的非地理表统一写入 `table/data.sqlite`，业务表之外维护 `data_columns(table_name, column_name, description)` 作为 SQLite 侧字段元数据实现。非地理导入只登记 `DataResource`，不创建 `MapLayer`，资源 `storage_path` 记录 SQLite 内的表名。
 - 坐标量化误差按经纬度文本小数位数估算：每个坐标分量取最后一位小数半个单位作为最大角度误差，纬度方向按 111320 m/deg 换算，经度方向乘以 `cos(latitude)`，再合成平面最大可能误差；该值只表示坐标记录精度引入的位置不确定性，不包含测量设备误差。
 - 栅格数据统一放在地理数据根目录的 `raster/` 总目录下：源文件放在 `raster/original/`，导入后预处理 COG 放在 `raster/preprocessed/`，两份 `gdalinfo -json` 元数据放在 `raster/metadata/source/` 和 `raster/metadata/preprocessed/`。
@@ -91,11 +92,12 @@ backend/apps/
 frontend/src/
 ├── main.tsx                    # React 入口，Ant Design 中文 + 主题
 ├── App.tsx                     # 引导（bootstrap + auth），登录/工作台路由
-├── types.ts                    # 全局类型定义
+├── types.ts                    # 全局类型定义；后端 DTO 从 OpenAPI 生成类型派生
 ├── symbolization.ts            # 符号化类型、默认值、规则解析
 ├── styles.css                  # 全局样式
 ├── api/
-│   └── client.ts               # fetch 封装、CSRF、API 端点
+│   ├── client.ts               # fetch 封装、CSRF、API 端点
+│   └── schema.d.ts             # openapi-typescript 自动生成的 API 契约类型
 ├── pages/
 │   ├── LoginPage.tsx            # 登录页
 │   └── MapPage.tsx              # 地图工作台主页面（协调各组件）
@@ -130,6 +132,8 @@ frontend/src/
 - **WeakMap 替代属性挂载**：`mapState.ts` 用 `WeakMap<Map, MapInternalState>` 管理 Mapbox 实例的内部状态，避免在 map 对象上挂载自定义属性。
 - **Context 消除 props drilling**：`LayerContext` 提供图层组全部操作，`LayerPanel` 零 props 通过 `useLayerContext()` 消费。
 - **Discriminated union 类型安全**：`LoadedLayer = LoadedVectorLayer | LoadedRasterLayer`，通过 `layerType` 字段判别，编译期消除可选字段歧义。
+- **OpenAPI 契约驱动类型**：`frontend/src/api/schema.d.ts` 由 `docs/openapi.yaml` 通过 `openapi-typescript` 生成；`frontend/src/types.ts` 只保留前端运行态类型和少量 UI 扩展，后端 DTO 必须从生成 schema 派生。
+- **API 类型生成命令**：修改 `docs/openapi.yaml` 后运行 `pnpm run generate:api`，提交前运行 `pnpm run check:api` 确认生成文件未漂移。
 
 ## 首批前端边界
 
@@ -198,6 +202,7 @@ frontend/src/
   - `geometry.test.ts` — 几何计算、边界合并、坐标提取、格式化工具
   - `layerFactory.test.ts` — 矢量/栅格图层组构建
 - 类型检查：`pnpm run typecheck`（`tsc --noEmit`）
+- API 类型生成检查：`pnpm run check:api`
 - 生产构建：`pnpm run build`（typecheck + vite build）
 
 ## 前端依赖升级兼容记录

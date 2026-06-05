@@ -1,4 +1,12 @@
 import {
+  ArrowLeftOutlined,
+  CheckCircleOutlined,
+  CloudUploadOutlined,
+  FileExcelOutlined,
+  LogoutOutlined,
+  QuestionCircleOutlined,
+} from "@ant-design/icons";
+import {
   Alert,
   App as AntApp,
   Button,
@@ -18,14 +26,6 @@ import {
   Typography,
   Upload,
 } from "antd";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  FileSpreadsheet,
-  HelpCircle,
-  LogOut,
-  UploadCloud,
-} from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ApiError, api } from "../api/client";
@@ -247,11 +247,14 @@ export default function ImportPage() {
     <Layout className="import-workspace">
       <Layout.Header className="portal-header">
         <div className="header-left">
-          <Button icon={<ArrowLeft size={16} />} onClick={() => navigate("/")}>
+          <Button
+            icon={<ArrowLeftOutlined style={{ fontSize: 16 }} />}
+            onClick={() => navigate("/")}
+          >
             返回入口
           </Button>
           <div className="brand-block">
-            <FileSpreadsheet size={22} />
+            <FileExcelOutlined style={{ fontSize: 22 }} />
             <Typography.Title level={4}>
               {bootstrap.systemName} / 数据导入
             </Typography.Title>
@@ -259,7 +262,10 @@ export default function ImportPage() {
         </div>
         <div className="header-account-actions">
           <Button className="user-button">{user.displayName}</Button>
-          <Button icon={<LogOut size={16} />} onClick={handleLogout}>
+          <Button
+            icon={<LogoutOutlined style={{ fontSize: 16 }} />}
+            onClick={handleLogout}
+          >
             退出
           </Button>
         </div>
@@ -295,7 +301,7 @@ export default function ImportPage() {
                 setIgnoreCoordinateUncertainty(false);
               }}
             >
-              <UploadCloud size={34} />
+              <CloudUploadOutlined style={{ fontSize: 34 }} />
               <Typography.Title level={4}>
                 选择 Excel 或 CSV 文件
               </Typography.Title>
@@ -407,7 +413,9 @@ export default function ImportPage() {
                       </Form.Item>
                       <Space className="import-validation-actions">
                         <Button
-                          icon={<CheckCircle2 size={16} />}
+                          icon={
+                            <CheckCircleOutlined style={{ fontSize: 16 }} />
+                          }
                           loading={validating}
                           onClick={handleValidate}
                         >
@@ -531,14 +539,16 @@ export default function ImportPage() {
               <Space className="import-actions">
                 <Button
                   type="primary"
-                  icon={<CheckCircle2 size={16} />}
+                  icon={<CheckCircleOutlined style={{ fontSize: 16 }} />}
                   loading={importing}
                   onClick={handleImport}
                 >
                   提交导入
                 </Button>
                 {result && (
-                  <Tag color="green">已导入 {result.importedRows} 行</Tag>
+                  <Tag color="green">
+                    已导入 {result.resourceName} · {result.importedRows} 行
+                  </Tag>
                 )}
               </Space>
             </Form>
@@ -611,7 +621,9 @@ export default function ImportPage() {
                         <Button
                           type="text"
                           size="small"
-                          icon={<HelpCircle size={14} />}
+                          icon={
+                            <QuestionCircleOutlined style={{ fontSize: 14 }} />
+                          }
                           aria-label="坐标不确定性差距说明"
                         />
                       </Tooltip>

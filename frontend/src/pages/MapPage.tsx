@@ -1,5 +1,11 @@
+import {
+  ApartmentOutlined,
+  ArrowLeftOutlined,
+  DatabaseOutlined,
+  LogoutOutlined,
+  SafetyCertificateOutlined,
+} from "@ant-design/icons";
 import { App, Button, Layout, Popover, Tag, Typography } from "antd";
-import { ArrowLeft, Database, Layers, LogOut, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
@@ -22,7 +28,6 @@ import { clearFeatureState, getMapState } from "../map/mapState";
 import type { DrawMode } from "../map/spatialDraw";
 import type {
   AttributeFilter,
-  DataResource,
   DataResourceProfile,
   ExportLayerItem,
   FeatureInfo,
@@ -32,6 +37,7 @@ import type {
   LoadedRasterLayer,
   LoadedVectorLayer,
   ResourceFilters,
+  ResourceListItem,
   ResourceQueryResult,
   SpatialFilter,
 } from "../types";
@@ -47,6 +53,7 @@ import {
   createRasterLayerGroup,
   createVectorLayerGroup,
 } from "../utils/layerFactory";
+import { resourceSpatialExtent } from "../utils/resources";
 
 type DrawPurpose = "query";
 
@@ -68,10 +75,9 @@ export default function MapPage() {
   const { message, notification } = App.useApp();
   const navigate = useNavigate();
 
-  const [resources, setResources] = useState<DataResource[]>([]);
-  const [selectedResource, setSelectedResource] = useState<DataResource | null>(
-    null,
-  );
+  const [resources, setResources] = useState<ResourceListItem[]>([]);
+  const [selectedResource, setSelectedResource] =
+    useState<ResourceListItem | null>(null);
   const [resourceProfile, setResourceProfile] =
     useState<DataResourceProfile | null>(null);
   const [queryResult, setQueryResult] = useState<ResourceQueryResult | null>(
@@ -145,7 +151,7 @@ export default function MapPage() {
     }
     return geometryFromBoundsText(
       selectedLayer.metadata.空间范围 ??
-        selectedLayer.sourceResource.spatialExtent,
+        resourceSpatialExtent(selectedLayer.sourceResource),
     );
   }, [layerExtentVisible, selectedLayer]);
 
@@ -213,12 +219,12 @@ export default function MapPage() {
     void scanAndRefreshResources();
   }, [loadResources, message, permissions.canBrowseData, waitForJob]);
 
-  async function handleSelectResource(resource: DataResource) {
+  async function handleSelectResource(resource: ResourceListItem) {
     setSelectedResource(resource);
     setQueryResult(null);
     setLoadingProfile(true);
     try {
-      const profile = await api.resourceProfile(resource.id);
+      const profile = await api.resourceProfile(resource);
       setResourceProfile(profile);
     } catch (error) {
       setResourceProfile(null);
@@ -253,7 +259,7 @@ export default function MapPage() {
     }
     setQuerying(true);
     try {
-      const result = await api.queryResource(selectedResource.id, {
+      const result = await api.queryResource(selectedResource, {
         attributeFilters,
         spatialFilter,
         limit: bootstrap.limits.queryResultLimit,
@@ -290,7 +296,7 @@ export default function MapPage() {
       message.warning(permissionDeniedMessage);
       return;
     }
-    if (!selectedResource || !resourceProfile?.raster) {
+    if (selectedResource?.dataType !== "raster" || !resourceProfile?.raster) {
       message.warning("请先选择已完成预处理的栅格数据");
       return;
     }
@@ -398,8 +404,9 @@ export default function MapPage() {
           bounds.extend(rasterBound.getNorthEast());
         }
       }
-      if (!bounds && rasterBounds.length > 0) {
-        map.fitBounds(rasterBounds[0], {
+      const firstRasterBound = rasterBounds[0];
+      if (!bounds && firstRasterBound) {
+        map.fitBounds(firstRasterBound, {
           padding: 72,
           duration: 900,
           essential: true,
@@ -437,8 +444,10 @@ export default function MapPage() {
         }
 
         // 更新地图内部状态（使用第一个选中的要素）
+        const selectedFeatureId = featureIds[0];
+        if (selectedFeatureId === undefined) return;
         const state = getMapState(map);
-        state.selectedFeature = { source: sourceId, id: featureIds[0] };
+        state.selectedFeature = { source: sourceId, id: selectedFeatureId };
 
         // 查找第一个选中要素的属性信息
         const feature = tableLayer.geojson.features.find((f) => {
@@ -588,7 +597,7 @@ export default function MapPage() {
       <Layout.Header className="workspace-header">
         <div className="header-left">
           <div className="brand-block">
-            <Database size={22} />
+            <DatabaseOutlined style={{ fontSize: 22 }} />
             <div>
               <Typography.Title level={4}>
                 {bootstrap.systemName}
@@ -597,7 +606,7 @@ export default function MapPage() {
           </div>
           <div className="header-primary-actions">
             <Button
-              icon={<ArrowLeft size={16} />}
+              icon={<ArrowLeftOutlined style={{ fontSize: 16 }} />}
               onClick={() => navigate("/")}
             >
               返回入口
@@ -625,7 +634,9 @@ export default function MapPage() {
                 }}
                 content={dataPanel}
               >
-                <Button icon={<Layers size={16} />}>数据管理</Button>
+                <Button icon={<ApartmentOutlined style={{ fontSize: 16 }} />}>
+                  数据管理
+                </Button>
               </Popover>
             )}
           </div>
@@ -638,10 +649,16 @@ export default function MapPage() {
               </Tag>
             ))}
           </div>
-          <Button icon={<ShieldCheck size={16} />} className="user-button">
+          <Button
+            icon={<SafetyCertificateOutlined style={{ fontSize: 16 }} />}
+            className="user-button"
+          >
             {user?.displayName ?? ""}
           </Button>
-          <Button icon={<LogOut size={16} />} onClick={handleLogout}>
+          <Button
+            icon={<LogoutOutlined style={{ fontSize: 16 }} />}
+            onClick={handleLogout}
+          >
             退出
           </Button>
         </div>

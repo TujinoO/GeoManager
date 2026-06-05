@@ -10,11 +10,18 @@ import type {
   LoadedLayerGroup,
   LoadedRasterLayer,
   LoadedVectorLayer,
+  ResourceListItem,
   ResourceQueryResult,
 } from "../types";
+import {
+  resourceCategoryName,
+  resourceFormatLabel,
+  resourceProvider,
+  resourceSpatialExtent,
+} from "./resources";
 
 export function createVectorLayerGroup(
-  resource: DataResource,
+  resource: ResourceListItem,
   profile: DataResourceProfile,
   queryResult: ResourceQueryResult,
 ): LoadedLayerGroup {
@@ -25,11 +32,12 @@ export function createVectorLayerGroup(
     数据名称: resource.name,
     数据编号: resource.code,
     数据类型: resource.dataType,
-    数据分类: resource.category?.name,
+    数据分类: resourceCategoryName(resource),
     数据来源: resource.source,
-    提供单位: resource.provider,
-    空间范围: resource.spatialExtent,
+    提供单位: resourceProvider(resource),
+    空间范围: resourceSpatialExtent(resource),
     坐标系统: resource.coordinateSystem,
+    文件格式: resourceFormatLabel(resource),
     返回条数: queryResult.returnedCount,
     命中条数: queryResult.totalCount,
     加载时间: now.toLocaleString("zh-CN", { hour12: false }),

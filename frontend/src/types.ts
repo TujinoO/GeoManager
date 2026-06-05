@@ -1,131 +1,43 @@
+import type { components, operations } from "./api/schema";
 import type {
   GroupSymbolization,
   RasterSymbolization,
   VectorSymbolization,
 } from "./symbolization";
 
-export interface Bootstrap {
-  systemName: string;
-  allowRegistration: boolean;
-  map: {
-    defaultCenter: [number, number];
-    defaultZoom: number;
-    defaultBasemap: string;
-    mapboxAccessToken: string;
-  };
-  limits: {
-    uploadMaxMb: number;
-    queryResultLimit: number;
-  };
-}
+type Schemas = components["schemas"];
 
-export interface User {
-  id: number;
-  username: string;
-  displayName: string;
-  email: string;
-  isStaff: boolean;
-  isSuperuser: boolean;
-  roles: string[];
-  permissions: {
-    canAccessAdmin: boolean;
-    canManageFeaturePermissions: boolean;
-    canBrowseData: boolean;
-    canQueryData: boolean;
-    canLoadVectorLayer: boolean;
-    canLoadRasterLayer: boolean;
-    canUseCustomSymbolization: boolean;
-    canExportData: boolean;
-    canMaintainData: boolean;
-    canManageRasterData: boolean;
-  };
-}
+export type Bootstrap = Schemas["BootstrapResponse"];
+export type User = Schemas["UserInfo"];
+export type DictionaryItem = Schemas["DictionaryItem"];
+export type DataResource = Schemas["DataResource"];
+export type VectorLayerResource = Schemas["VectorLayerResource"];
+export type ResourceListItem = Schemas["ResourceListItem"];
+export type ResourceField = Schemas["FieldInfo"];
+export type ImportCoordinateStats = Schemas["CoordinateStats"];
+export type ImportValidationIssue = Schemas["ValidationIssue"];
+export type ImportPreview = Schemas["ImportPreviewResponse"];
+export type ImportValidateResult = Schemas["ImportValidateResponse"];
+export type ImportCommitResult = Schemas["ImportCommitResponse"];
+export type RasterBandMetadata = Schemas["RasterBandInfo"];
+export type RasterMetadata = Schemas["RasterMetadata"];
+export type RasterDatasetProfile = Schemas["RasterDataset"];
+export type AttributeFilterOperator = Schemas["AttributeFilter"]["operator"];
+export type GeoJsonGeometry = Schemas["GeoJSONGeometry"];
+export type GeoJsonValidationWarning = Schemas["ValidationWarning"];
+export type ResourceQueryResult = Schemas["QueryResponse"];
+export type ExportLayerItem = Schemas["ExportItem"];
+export type ExportLayersPayload = Schemas["ExportRequest"];
+export type DataCatalog = Schemas["Directory"];
+export type MapLayer = Schemas["MapLayer"];
+export type MapLayerListItem = Schemas["LayerListResponse"]["items"][number];
+export type RasterRenderResult = Schemas["RasterRenderResult"];
+export type RasterUniqueValuesResult = Schemas["UniqueValuesResponse"];
+export type RasterJob = Schemas["AsyncJobResponse"];
+export type Achievement = Schemas["Achievement"];
+export type SearchResult = Schemas["SearchResponse"];
 
-export interface DictionaryItem {
-  id: number;
-  type: string;
-  code: string;
-  name: string;
-}
-
-export interface DataResource {
-  id: number;
-  name: string;
-  code: string;
-  dataType: "vector" | "raster" | "gene" | "table" | "document" | "image";
-  category: DictionaryItem | null;
-  source: string;
-  provider: string;
-  dataDate: string | null;
-  spatialExtent: string;
-  coordinateSystem: string;
-  fileFormat: string;
-  description: string;
-  qualityNote: string;
-  status: string;
-  isQueryable: boolean;
-  isRenderable: boolean;
-  updatedAt: string;
-}
-
-export interface ResourceField {
-  name: string;
-  type: string;
-  nullable: boolean;
-  sampleValues: Array<string | number | boolean | null>;
-  description: string;
-}
-
-export interface DataResourceProfile {
-  resource: DataResource;
-  fields: ResourceField[];
-  featureCount: number | null;
-  geometryType: string;
-  bounds: number[];
-  raster?: RasterDatasetProfile | null;
-}
-
-export interface ImportCoordinateStats {
-  totalRows: number;
-  validRows: number;
-  missingRows: number;
-  quantizationErrorMeters: {
-    min: number | null;
-    max: number | null;
-  };
-}
-
-export interface ImportValidationIssue {
-  code:
-    | "missing_geometry"
-    | "invalid_coordinate_format"
-    | "invalid_longitude"
-    | "invalid_latitude"
-    | "coordinate_uncertainty"
-    | string;
-  message: string;
-  blocking: boolean;
-  count?: number;
-  minMeters?: number;
-  maxMeters?: number;
-  ratio?: number;
-}
-
-export interface ImportPreview {
-  columns: string[];
-  rows: Array<Record<string, string>>;
-  rowCount: number;
-  suggestedTableName: string;
-  suggestedName: string;
-  detected: {
-    isGeographic: boolean;
-    longitudeColumn: string | null;
-    latitudeColumn: string | null;
-    coordinateStats: ImportCoordinateStats | null;
-    validationIssues: ImportValidationIssue[];
-  };
-  limitations: string[];
-}
+export type DataResourceProfile = Schemas["ResourceProfileResponse"];
 
 export interface ImportCommitPayload {
   name: string;
@@ -145,105 +57,25 @@ export interface ImportValidatePayload {
   latitudeColumn?: string;
 }
 
-export interface ImportValidateResult {
-  coordinateStats: ImportCoordinateStats | null;
-  validationIssues: ImportValidationIssue[];
-}
-
-export interface ImportCommitResult {
-  mode: "geographic" | "table";
-  resourceId: number;
-  layerId: number | null;
-  tableName: string;
-  importedRows: number;
-  skippedRows: number;
-  coordinateStats: ImportCoordinateStats | null;
-  validationIssues: ImportValidationIssue[];
-}
-
-export interface RasterBandMetadata {
-  band: number;
-  type: string;
-  description: string;
-  colorInterpretation: string;
-  min: number;
-  max: number;
-  isInteger: boolean;
-}
-
-export interface RasterDatasetProfile {
-  id: number;
-  name: string;
-  code: string;
-  status: string;
-  sourcePath: string;
-  processedPath: string;
-  sourceMetadataPath: string;
-  processedMetadataPath: string;
-  dataResourceId: number | null;
-  mapLayerId: number | null;
-  bandCount: number;
-  bounds3857: number[];
-  bounds4326: number[];
-  imageCoordinates: Array<[number, number]>;
-  defaultRules: Partial<RasterSymbolization>;
-  sourceFileSize: number;
-  processedFileSize: number;
-  progressLog: string;
-  errorMessage: string;
-  importedAt: string | null;
-  processedAt: string | null;
-  metadata: {
-    size: number[];
-    driver: string;
-    coordinateSystem: string | number;
-    bands: RasterBandMetadata[];
-  };
-}
-
-export interface AttributeFilter {
+export type AttributeFilter = Schemas["AttributeFilter"] & {
   id: string;
-  field: string;
-  operator: "contains" | "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "between";
-  value: string;
-  valueTo?: string;
-}
+};
 
-export interface SpatialFilter {
-  mode: "rectangle" | "circle" | "ellipse" | "polygon";
+export type SpatialFilter = Schemas["SpatialFilter"] & {
   geometry: GeoJsonGeometry;
-}
+};
 
-export interface ResourceQueryPayload {
+export type ResourceQueryPayload = Omit<
+  Schemas["QueryRequest"],
+  "attributeFilters" | "spatialFilter"
+> & {
   attributeFilters: AttributeFilter[];
   spatialFilter: SpatialFilter | null;
-  limit: number;
-}
+};
 
-export interface GeoJsonGeometry {
-  type: string;
-  coordinates: unknown;
-}
-
-export interface GeoJsonFeatureCollection {
-  type: "FeatureCollection";
-  features: Array<Record<string, unknown>>;
+export type GeoJsonFeatureCollection = Schemas["GeoJSONFeatureCollection"] & {
   warnings?: GeoJsonValidationWarning[];
-}
-
-export interface GeoJsonValidationWarning {
-  code:
-    | "missing_geometry"
-    | "invalid_longitude"
-    | "invalid_latitude"
-    | "coordinate_uncertainty"
-    | string;
-  message: string;
-  count?: number;
-  minMeters?: number;
-  maxMeters?: number;
-  ratio?: number;
-}
+};
 
 export interface FeatureInfo {
   layerId: string;
@@ -251,22 +83,11 @@ export interface FeatureInfo {
   properties: Record<string, unknown>;
 }
 
-export interface ResourceQueryResult {
-  resourceId: number;
-  resourceName: string;
-  totalCount: number;
-  returnedCount: number;
-  limit: number;
-  fields: ResourceField[];
-  geojson: GeoJsonFeatureCollection;
-  warnings: GeoJsonValidationWarning[];
-}
-
 export interface LoadedVectorLayer {
   id: string;
   name: string;
   layerType: "vector";
-  sourceResource: DataResource;
+  sourceResource: ResourceListItem;
   geojson: GeoJsonFeatureCollection;
   geometryType: string;
   visible: boolean;
@@ -282,7 +103,7 @@ export interface LoadedRasterLayer {
   layerType: "raster";
   sourceResource: DataResource;
   tileUrl?: string;
-  imageCoordinates?: Array<[number, number]>;
+  imageCoordinates?: RasterRenderResult["imageCoordinates"];
   rasterDatasetId?: number;
   rasterLayerId?: number | null;
   rasterMetadata?: RasterDatasetProfile["metadata"];
@@ -303,7 +124,7 @@ export type LoadedLayer = LoadedVectorLayer | LoadedRasterLayer;
 export interface LoadedLayerGroup {
   id: string;
   name: string;
-  sourceResource: DataResource;
+  sourceResource: ResourceListItem;
   visible: boolean;
   summary: string;
   createdAt: string;
@@ -312,117 +133,9 @@ export interface LoadedLayerGroup {
   children: LoadedLayer[];
 }
 
-export interface ExportLayerItem {
-  layerType: "vector" | "raster";
-  name: string;
-  resourceId: number;
-  geojson?: GeoJsonFeatureCollection;
-  datasetId?: number;
-  sourceCrs?: string | number | null;
-}
-
-export interface ExportLayersPayload {
-  epsg?: number | null;
-  reproject: boolean;
-  clip: boolean;
-  clipGeometry?: GeoJsonGeometry | null;
-  items: ExportLayerItem[];
-}
-
-export interface DataCatalog {
-  id: number;
-  name: string;
-  code: string;
-  parentId: number | null;
-  description: string;
-  sortOrder: number;
-  resources: DataResource[];
-}
-
-export interface MapLayer {
-  id: number;
-  name: string;
-  code: string;
-  layerType: "vector" | "raster";
-  geometryType: "point" | "line" | "polygon" | "mixed";
-  category: DictionaryItem | null;
-  dataResourceId: number | null;
-  sortOrder: number;
-  defaultVisible: boolean;
-  defaultOpacity: number;
-  symbolization: Record<string, string | number | boolean>;
-  bounds: number[];
-  legend: string;
-  rasterRules: Record<string, unknown>;
-  isActive: boolean;
-  updatedAt: string;
-}
-
-export interface RasterRenderResult {
-  delivery: "xyz";
-  datasetId: number;
-  layerId: number | null;
-  styleHash: string;
-  tileUrl?: string;
-  status: string;
-  bounds3857: number[];
-  bounds4326: number[];
-  imageCoordinates: Array<[number, number]>;
-  rules: Partial<RasterSymbolization>;
-}
-
-export interface RasterUniqueValuesResult {
-  band: number;
-  items: Array<{
-    value: number;
-    color: string;
-    label: string;
-  }>;
-}
-
-export interface RasterJob {
-  id: string;
-  kind: "import" | "scan" | "render" | "export";
-  status: "queued" | "running" | "ready" | "failed";
-  progressPercent: number;
-  messages: string[];
-  result:
-    | RasterRenderResult
-    | RasterDatasetProfile
-    | { items: RasterDatasetProfile[]; count: number }
-    | null;
-  error: string;
-  startedAt: number;
-  finishedAt: number | null;
-}
-
-export interface Achievement {
-  id: number;
-  title: string;
-  code: string;
-  category: DictionaryItem | null;
-  summary: string;
-  source: string;
-  relatedLayerId: number | null;
-  displayOrder: number;
-  status: string;
-  updatedAt: string;
-}
-
-export interface SearchResult {
-  resources: DataResource[];
-  achievements: Achievement[];
-}
-
-export interface ResourceFilters {
-  q?: string;
-  dataType?: string;
-  category?: string;
-  source?: string;
-  provider?: string;
-  dateFrom?: string;
-  dateTo?: string;
-}
+export type ResourceFilters = NonNullable<
+  operations["getResources"]["parameters"]["query"]
+>;
 
 export interface LoginFormValues {
   username: string;

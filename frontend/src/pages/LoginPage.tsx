@@ -1,3 +1,4 @@
+import { LockOutlined, LoginOutlined, UserOutlined } from "@ant-design/icons";
 import {
   Alert,
   App,
@@ -8,7 +9,6 @@ import {
   Input,
   Typography,
 } from "antd";
-import { Lock, LogIn, User } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
@@ -93,7 +93,7 @@ export default function LoginPage() {
               rules={[{ required: true, message: "请输入账号" }]}
             >
               <Input
-                prefix={<User size={16} />}
+                prefix={<UserOutlined style={{ fontSize: 16 }} />}
                 placeholder="请输入账号"
                 autoComplete="username"
               />
@@ -104,7 +104,7 @@ export default function LoginPage() {
               rules={[{ required: true, message: "请输入密码" }]}
             >
               <Input.Password
-                prefix={<Lock size={16} />}
+                prefix={<LockOutlined style={{ fontSize: 16 }} />}
                 placeholder="请输入密码"
                 autoComplete="current-password"
               />
@@ -125,7 +125,7 @@ export default function LoginPage() {
               htmlType="submit"
               block
               loading={submitting}
-              icon={<LogIn size={16} />}
+              icon={<LoginOutlined style={{ fontSize: 16 }} />}
             >
               登录
             </Button>
@@ -148,7 +148,7 @@ export default function LoginPage() {
               rules={[{ required: true, message: "请输入账号" }]}
             >
               <Input
-                prefix={<User size={16} />}
+                prefix={<UserOutlined style={{ fontSize: 16 }} />}
                 placeholder="请输入账号"
                 autoComplete="username"
               />
@@ -166,7 +166,7 @@ export default function LoginPage() {
               rules={[{ required: true, message: "请输入密码" }]}
             >
               <Input.Password
-                prefix={<Lock size={16} />}
+                prefix={<LockOutlined style={{ fontSize: 16 }} />}
                 placeholder="请输入密码"
                 autoComplete="new-password"
               />
@@ -188,7 +188,7 @@ export default function LoginPage() {
               ]}
             >
               <Input.Password
-                prefix={<Lock size={16} />}
+                prefix={<LockOutlined style={{ fontSize: 16 }} />}
                 placeholder="请再次输入密码"
                 autoComplete="new-password"
               />
@@ -198,7 +198,7 @@ export default function LoginPage() {
               htmlType="submit"
               block
               loading={submitting}
-              icon={<LogIn size={16} />}
+              icon={<LoginOutlined style={{ fontSize: 16 }} />}
             >
               注册并进入
             </Button>

@@ -6,7 +6,7 @@ Central Asia Poplar Forest Ecosystem Protection Data Sharing Platform (中亚胡
 
 - Summarise the details into documents (docs/) for reference during the coding process.
 - format code before commiting git.
-- **API doc sync**: Whenever a backend API endpoint is added, removed, or modified (URL, request params, response format, permissions, etc.), update `docs/api.md` accordingly.
+- **API doc sync**: Whenever a backend API endpoint is added, removed, or modified (URL, request params, response format, permissions, etc.), update `docs/developer-guide.md` accordingly.
 - **OpenAPI specification**: All API endpoints MUST be defined in `docs/openapi.yaml` following OpenAPI 3.1.0 specification. See `docs/openapi-standards.md` for mandatory standards.
 
 ## Key reference
@@ -105,12 +105,12 @@ All backend API endpoints MUST be defined using OpenAPI 3.1.0 specification.
 
 - **OpenAPI Definition**: `docs/openapi.yaml` — the authoritative API definition
 - **Standards Document**: `docs/openapi-standards.md` — mandatory standards and guidelines
-- **API Documentation**: `docs/api.md` — human-readable API documentation (must stay in sync with openapi.yaml)
+- **API Documentation**: `docs/developer-guide.md` — human-readable API documentation (must stay in sync with openapi.yaml)
 
 ### Requirements
 
 1. All new API endpoints MUST be added to `docs/openapi.yaml` before implementation
-2. All API changes MUST update both `docs/openapi.yaml` and `docs/api.md`
+2. All API changes MUST update both `docs/openapi.yaml` and `docs/developer-guide.md`
 3. Every operation MUST have a unique `operationId` using camelCase
 4. All parameters and schemas MUST have complete `description` fields
 5. Error responses MUST use the standard `ErrorResponse` schema with `detail` field

@@ -178,13 +178,13 @@ dataType:
 
 1. **更新 Schema**：修改相关的数据结构定义
 2. **更新路径**：修改接口的参数、响应等定义
-3. **同步文档**：确保 `docs/api.md` 与 `openapi.yaml` 保持一致
+3. **同步文档**：确保 `docs/developer-guide.md` 与 `openapi.yaml` 保持一致
 4. **版本更新**：在 `info.version` 中更新版本号
 
 ### 4.3 文档同步要求
 
 - `openapi.yaml` 是 API 的权威定义
-- `docs/api.md` 是人类可读的说明文档
+- `docs/developer-guide.md` 是人类可读的说明文档
 - 两者必须保持同步，以 `openapi.yaml` 为准
 
 ---
@@ -233,7 +233,7 @@ swagger-cli bundle docs/openapi.yaml -o docs/openapi-bundled.yaml -t yaml
 - [ ] Schema 更新与代码实现一致
 - [ ] 响应格式与实际返回一致
 - [ ] 版本号已更新
-- [ ] api.md 文档已同步
+- [ ] developer-guide.md 文档已同步
 
 ---
 

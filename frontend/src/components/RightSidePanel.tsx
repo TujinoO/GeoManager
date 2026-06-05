@@ -1,5 +1,5 @@
+import { AimOutlined } from "@ant-design/icons";
 import { Tabs } from "antd";
-import { MousePointer2 } from "lucide-react";
 import type { FeatureInfo } from "../types";
 import FeatureDetailPanel from "./FeatureDetailPanel";
 
@@ -18,7 +18,7 @@ export default function RightSidePanel({ selectedFeature }: Props) {
           key: "feature",
           label: (
             <span className="tab-label">
-              <MousePointer2 size={14} />
+              <AimOutlined style={{ fontSize: 14 }} />
               要素属性
             </span>
           ),

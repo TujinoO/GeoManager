@@ -1,14 +1,14 @@
-import { Button, Card, Layout, Tag, Typography } from "antd";
 import {
-  Database,
-  Dna,
-  FileSpreadsheet,
-  LogOut,
-  MapPinned,
-  Settings,
-  ShieldCheck,
-  Table2,
-} from "lucide-react";
+  DatabaseOutlined,
+  EnvironmentOutlined,
+  ExperimentOutlined,
+  FileExcelOutlined,
+  LogoutOutlined,
+  SafetyCertificateOutlined,
+  SettingOutlined,
+  TableOutlined,
+} from "@ant-design/icons";
+import { Button, Card, Layout, Tag, Typography } from "antd";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAppContext } from "../contexts/AppContext";
@@ -34,7 +34,7 @@ export default function HomePage() {
     <Layout className="visualization-home">
       <Layout.Header className="portal-header">
         <div className="brand-block">
-          <Database size={22} />
+          <DatabaseOutlined style={{ fontSize: 22 }} />
           <Typography.Title level={4}>{bootstrap.systemName}</Typography.Title>
         </div>
         <div className="header-account-actions">
@@ -45,10 +45,16 @@ export default function HomePage() {
               </Tag>
             ))}
           </div>
-          <Button icon={<ShieldCheck size={16} />} className="user-button">
+          <Button
+            icon={<SafetyCertificateOutlined style={{ fontSize: 16 }} />}
+            className="user-button"
+          >
             {user.displayName}
           </Button>
-          <Button icon={<LogOut size={16} />} onClick={handleLogout}>
+          <Button
+            icon={<LogoutOutlined style={{ fontSize: 16 }} />}
+            onClick={handleLogout}
+          >
             退出
           </Button>
         </div>
@@ -68,7 +74,7 @@ export default function HomePage() {
             }}
           >
             <div className="choice-card-icon">
-              <MapPinned size={36} />
+              <EnvironmentOutlined style={{ fontSize: 36 }} />
             </div>
             <Typography.Title level={2}>地理可视化</Typography.Title>
             <div className="choice-card-tags">
@@ -89,8 +95,8 @@ export default function HomePage() {
             }}
           >
             <div className="choice-card-icon">
-              <Dna size={36} />
-              <Table2 size={30} />
+              <ExperimentOutlined style={{ fontSize: 36 }} />
+              <TableOutlined style={{ fontSize: 30 }} />
             </div>
             <Typography.Title level={2}>非地理可视化</Typography.Title>
             <div className="choice-card-tags">
@@ -112,8 +118,8 @@ export default function HomePage() {
               }}
             >
               <div className="choice-card-icon">
-                <FileSpreadsheet size={36} />
-                <Database size={30} />
+                <FileExcelOutlined style={{ fontSize: 36 }} />
+                <DatabaseOutlined style={{ fontSize: 30 }} />
               </div>
               <Typography.Title level={2}>数据导入</Typography.Title>
               <div className="choice-card-tags">
@@ -128,7 +134,7 @@ export default function HomePage() {
           <section className="portal-admin-entry">
             <Button
               size="large"
-              icon={<Settings size={18} />}
+              icon={<SettingOutlined style={{ fontSize: 18 }} />}
               onClick={() => window.location.assign("/admin/")}
             >
               管理后台

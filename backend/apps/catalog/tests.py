@@ -26,20 +26,22 @@ class LayerApiTests(TestCase):
         MapLayer.objects.create(
             name="公开图层",
             code="public-layer",
-            layer_type=MapLayer.LayerType.VECTOR,
+            layer_type=MapLayer.LayerType.RASTER,
             is_active=True,
         )
 
         response = self.client.get("/api/layers/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["items"][0]["code"], "public-layer")
+        items = response.json()["items"]
+        raster_items = [item for item in items if item.get("layerType") == "raster"]
+        self.assertEqual(raster_items[0]["code"], "public-layer")
 
     def test_layers_endpoint_hides_group_restricted_layers(self):
         layer = MapLayer.objects.create(
             name="受限图层",
             code="restricted-layer",
-            layer_type=MapLayer.LayerType.VECTOR,
+            layer_type=MapLayer.LayerType.RASTER,
             is_active=True,
         )
         restricted_group = Group.objects.create(name="科研用户")
@@ -48,7 +50,9 @@ class LayerApiTests(TestCase):
         response = self.client.get("/api/layers/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["items"], [])
+        items = response.json()["items"]
+        raster_items = [item for item in items if item.get("layerType") == "raster"]
+        self.assertEqual(raster_items, [])
 
 
 class ResourceQueryApiTests(TestCase):
@@ -91,19 +95,9 @@ class ResourceQueryApiTests(TestCase):
             crs="EPSG:4326",
         )
         gdf.to_file(self.path, layer=self.layer_name, driver="GPKG")
-        self.resource = DataResource.objects.create(
-            name="测试点位数据",
-            code="test-query-points",
-            data_type=DataResource.DataType.VECTOR,
-            file_format="GPKG",
-            storage_path=self.layer_name,
-            status=DataResource.Status.ACTIVE,
-        )
 
-    def test_resource_profile_returns_fields_and_metadata(self):
-        response = self.client.get(
-            f"/api/catalog/resources/{self.resource.id}/profile/"
-        )
+    def test_vector_layer_profile_returns_fields_and_metadata(self):
+        response = self.client.get(f"/api/layers/{self.layer_name}/profile/")
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -111,9 +105,9 @@ class ResourceQueryApiTests(TestCase):
         self.assertEqual(payload["geometryType"], "Point")
         self.assertIn("height", [field["name"] for field in payload["fields"]])
 
-    def test_resource_query_filters_by_attribute(self):
+    def test_vector_layer_query_filters_by_attribute(self):
         response = self.client.post(
-            f"/api/catalog/resources/{self.resource.id}/query/",
+            f"/api/layers/{self.layer_name}/query/",
             data={
                 "attributeFilters": [
                     {"field": "height", "operator": "gte", "value": "8"}
@@ -153,17 +147,13 @@ class CatalogScanTests(TestCase):
         )
         gdf.to_file(self.path, layer=self.layer_name, driver="GPKG")
 
-    def test_scan_vector_geopackage_registers_resources_and_layers(self):
-        resources = scan_vector_geopackage()
+    def test_scan_vector_geopackage_returns_layer_info(self):
+        layers = scan_vector_geopackage()
 
-        self.assertEqual(
-            [resource.storage_path for resource in resources], [self.layer_name]
-        )
-        resource = DataResource.objects.get(storage_path=self.layer_name)
-        layer = MapLayer.objects.get(source_path=self.layer_name)
-        self.assertEqual(resource.data_type, DataResource.DataType.VECTOR)
-        self.assertEqual(layer.geometry_type, MapLayer.GeometryType.POINT)
-        self.assertTrue(layer.default_visible)
+        self.assertEqual(len(layers), 1)
+        self.assertEqual(layers[0]["name"], self.layer_name)
+        self.assertEqual(layers[0]["geometryType"], "point")
+        self.assertEqual(layers[0]["featureCount"], 1)
 
     def test_scan_endpoint_requires_browse_permission(self):
         self.user.user_permissions.clear()
@@ -174,7 +164,7 @@ class CatalogScanTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
-    def test_scan_endpoint_registers_sources(self):
+    def test_scan_endpoint_returns_layers(self):
         response = self.client.post(
             "/api/catalog/scan/", data={}, content_type="application/json"
         )
@@ -194,10 +184,14 @@ class CatalogScanTests(TestCase):
         self.addCleanup(gene_file.unlink, missing_ok=True)
         self.addCleanup(table_file.unlink, missing_ok=True)
 
-        resources = scan_catalog_sources()
+        vector_layers, nongeographic_resources = scan_catalog_sources()
+
+        self.assertEqual(len(vector_layers), 1)
+        self.assertEqual(vector_layers[0]["name"], self.layer_name)
 
         resource_types = {
-            resource.storage_path: resource.data_type for resource in resources
+            resource.storage_path: resource.data_type
+            for resource in nongeographic_resources
         }
         self.assertEqual(
             resource_types["gene/populus.fasta"], DataResource.DataType.GENE
@@ -276,7 +270,7 @@ class DataImportApiTests(TestCase):
         self.assertEqual(payload["coordinateStats"]["totalRows"], 1)
         self.assertEqual(payload["validationIssues"][0]["code"], "invalid_longitude")
 
-    def test_import_geographic_table_writes_gpkg_metadata_and_catalog_records(self):
+    def test_import_geographic_table_writes_gpkg_metadata(self):
         response = self.client.post(
             "/api/catalog/import/commit/",
             data={
@@ -303,16 +297,54 @@ class DataImportApiTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["mode"], "geographic")
         self.assertEqual(payload["importedRows"], 1)
+        self.assertEqual(payload["layerName"], "import_points")
+        self.assertEqual(payload["tableName"], "import_points")
+        self.assertEqual(payload["resourceName"], "导入点位")
+
+        import geopandas as gpd
+
+        gdf = gpd.read_file(self.vector_path, layer="import_points")
+        self.assertEqual(len(gdf), 1)
+
         resource = DataResource.objects.get(storage_path="import_points")
-        layer = MapLayer.objects.get(source_path="import_points")
+        self.assertEqual(resource.name, "导入点位")
+        self.assertEqual(resource.id, payload["resourceId"])
         self.assertEqual(resource.data_type, DataResource.DataType.VECTOR)
-        self.assertEqual(layer.geometry_type, MapLayer.GeometryType.POINT)
+
         with sqlite3.connect(self.vector_path) as connection:
             description = connection.execute(
                 "SELECT description FROM gpkg_data_columns WHERE table_name = ? AND column_name = ?",
                 ("import_points", "name"),
             ).fetchone()[0]
         self.assertEqual(description, "样点名称")
+
+    def test_imported_geographic_table_resource_list_uses_display_name(self):
+        grant(self.user, ("core", "browse_data"))
+        response = self.client.post(
+            "/api/catalog/import/commit/",
+            data={
+                "file": self._csv_file("points.csv", "name,lon,lat\nA,87.600,43.800\n"),
+                "payload": json.dumps(
+                    {
+                        "name": "样地调查点",
+                        "tableName": "survey_points_2026",
+                        "importMode": "geographic",
+                        "longitudeColumn": "lon",
+                        "latitudeColumn": "lat",
+                        "overwrite": False,
+                        "fieldMetadata": {},
+                    }
+                ),
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+
+        resources_response = self.client.get("/api/catalog/resources/?dataType=vector")
+
+        self.assertEqual(resources_response.status_code, 200)
+        names = [item["name"] for item in resources_response.json()["items"]]
+        self.assertIn("样地调查点", names)
+        self.assertNotIn("survey_points_2026", names)
 
     def test_import_geographic_table_respects_included_columns(self):
         response = self.client.post(
@@ -499,6 +531,7 @@ class DataImportApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         payload = response.json()
         self.assertEqual(payload["mode"], "table")
+        self.assertEqual(payload["resourceName"], "调查表")
         resource = DataResource.objects.get(storage_path="survey_table")
         self.assertEqual(resource.data_type, DataResource.DataType.TABLE)
         with sqlite3.connect(self.table_path) as connection:
@@ -583,7 +616,7 @@ class ExportApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
-        self.assertIn("当前用户组“未分组”无权限", response.json()["detail"])
+        self.assertIn("当前用户组\u201c未分组\u201d无权限", response.json()["detail"])
 
     def test_export_vector_geojson_zip(self):
         grant(self.user, ("catalog", "export_dataresource"))

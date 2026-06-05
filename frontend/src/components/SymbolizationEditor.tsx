@@ -46,6 +46,7 @@ const anchorOptions: Anchor[] = [
 
 const alignmentOptions: Alignment[] = ["auto", "map", "viewport"];
 const mapViewportOptions: MapViewport[] = ["map", "viewport"];
+const rgbBandLabels = ["R", "G", "B"] as const;
 
 export function GroupSymbolizationEditor({
   value,
@@ -1081,21 +1082,22 @@ export function RasterSymbolizationEditor({
                     }
                   />
                 </ControlRow>
-                {selectedBands.map((band, index) => (
-                  <ControlRow
-                    key={value.mode === "rgb" ? ["R", "G", "B"][index] : "band"}
-                    label={
-                      value.mode === "rgb" ? ["R", "G", "B"][index] : "波段"
-                    }
-                  >
-                    <Select
-                      className="full-width"
-                      value={band}
-                      options={bandOptions}
-                      onChange={(nextBand) => updateBand(index, nextBand)}
-                    />
-                  </ControlRow>
-                ))}
+                {selectedBands.map((band, index) => {
+                  const label =
+                    value.mode === "rgb"
+                      ? (rgbBandLabels[index] ?? "band")
+                      : "波段";
+                  return (
+                    <ControlRow key={label} label={label}>
+                      <Select
+                        className="full-width"
+                        value={band}
+                        options={bandOptions}
+                        onChange={(nextBand) => updateBand(index, nextBand)}
+                      />
+                    </ControlRow>
+                  );
+                })}
                 {value.mode === "rgb" && (
                   <ControlRow label="A">
                     <Select

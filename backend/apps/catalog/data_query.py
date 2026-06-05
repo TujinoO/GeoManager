@@ -55,10 +55,40 @@ def get_resource_profile(resource: DataResource) -> ResourceProfile:
         )
     gdf = read_vector_resource(resource)
 
-    # 读取字段元数据
     field_metadata: dict[str, str] = {}
     try:
         layer_name = validate_vector_layer_name(resource.storage_path)
+        path = vector_geopackage_path()
+        if path.exists():
+            field_metadata = read_field_metadata(path, layer_name)
+    except Exception:
+        pass
+
+    return ResourceProfile(
+        fields=field_profiles(gdf, field_metadata),
+        feature_count=len(gdf),
+        geometry_type=geometry_type(gdf),
+        bounds=[round(float(value), 6) for value in gdf.total_bounds.tolist()]
+        if len(gdf)
+        else [],
+    )
+
+
+def get_vector_resource_profile(
+    resource: DataResource | None = None, layer_name: str | None = None
+) -> ResourceProfile:
+    if resource is not None:
+        return get_resource_profile(resource)
+
+    if layer_name is None:
+        return ResourceProfile(
+            fields=[], feature_count=None, geometry_type="", bounds=[]
+        )
+
+    gdf = read_vector_layer(layer_name)
+
+    field_metadata: dict[str, str] = {}
+    try:
         path = vector_geopackage_path()
         if path.exists():
             field_metadata = read_field_metadata(path, layer_name)
@@ -83,7 +113,6 @@ def query_resource(resource: DataResource, payload: dict[str, Any]) -> dict[str,
     gdf = apply_spatial_filter(gdf, payload.get("spatialFilter"))
     gdf = apply_attribute_filters(gdf, payload.get("attributeFilters") or [])
 
-    # 读取字段元数据
     field_metadata: dict[str, str] = {}
     try:
         if resource.storage_path:
@@ -103,6 +132,50 @@ def query_resource(resource: DataResource, payload: dict[str, Any]) -> dict[str,
     return {
         "resourceId": resource.id,
         "resourceName": resource.name,
+        "totalCount": total_count,
+        "returnedCount": len(returned),
+        "limit": limit,
+        "fields": field_profiles(gdf, field_metadata),
+        "geojson": json.loads(returned.to_json()),
+        "warnings": warnings,
+    }
+
+
+def query_vector_resource(
+    resource: DataResource | None = None,
+    payload: dict[str, Any] | None = None,
+    layer_name: str | None = None,
+) -> dict[str, Any]:
+    if payload is None:
+        payload = {}
+
+    if resource is not None:
+        return query_resource(resource, payload)
+
+    if layer_name is None:
+        raise DataQueryError("必须指定资源或图层名称")
+
+    gdf = read_vector_layer(layer_name)
+    gdf = apply_spatial_filter(gdf, payload.get("spatialFilter"))
+    gdf = apply_attribute_filters(gdf, payload.get("attributeFilters") or [])
+
+    field_metadata: dict[str, str] = {}
+    try:
+        path = vector_geopackage_path()
+        if path.exists():
+            field_metadata = read_field_metadata(path, layer_name)
+    except Exception:
+        pass
+
+    limit = _limit(payload.get("limit"))
+    total_count = len(gdf)
+    returned, warnings = validate_geojson_geometries(gdf)
+    returned = returned.head(limit).copy()
+    returned = normalize_for_geojson(returned)
+
+    return {
+        "resourceId": f"vector_{layer_name}",
+        "resourceName": layer_name,
         "totalCount": total_count,
         "returnedCount": len(returned),
         "limit": limit,
@@ -135,12 +208,33 @@ def read_vector_resource(resource: DataResource):
     return gdf
 
 
+def read_vector_layer(layer_name: str):
+    try:
+        validated_name = validate_vector_layer_name(layer_name)
+        path = vector_geopackage_path()
+    except StoragePathError as exc:
+        raise DataQueryError(str(exc)) from exc
+    if not path.exists():
+        raise DataQueryError(f"统一 GeoPackage 文件不存在：{path}")
+
+    try:
+        import geopandas as gpd
+
+        gdf = gpd.read_file(path, layer=validated_name)
+    except Exception as exc:
+        raise DataQueryError(
+            f"读取 GeoPackage 图层失败：{validated_name}，{exc}"
+        ) from exc
+
+    if gdf.crs and gdf.crs.to_epsg() != 4326:
+        gdf = gdf.to_crs(4326)
+    return gdf
+
+
 def read_field_metadata(path: Path, table_name: str) -> dict[str, str]:
-    """从 GeoPackage 或 SQLite 文件中读取字段元数据（说明信息）"""
     metadata: dict[str, str] = {}
     try:
         with sqlite3.connect(path) as connection:
-            # 尝试读取 GeoPackage 的 gpkg_data_columns 表
             cursor = connection.execute(
                 "SELECT column_name, description FROM gpkg_data_columns WHERE table_name = ?",
                 (table_name,),
