@@ -1,3 +1,9 @@
+import type {
+  AnyLayer,
+  GeoJSONSource,
+  Map as MapboxMap,
+  MapMouseEvent,
+} from "mapbox-gl";
 import type { GeoJsonGeometry, SpatialFilter } from "../types";
 import { geometryFromPoints } from "../utils/geometry";
 import { removeLayerGroup } from "./vectorLayerSync";
@@ -23,7 +29,7 @@ export interface PolygonLayerStyle {
   beforeId?: string;
 }
 
-export function showDrawPreview(map: mapboxgl.Map, geometry: GeoJsonGeometry) {
+function showDrawPreview(map: MapboxMap, geometry: GeoJsonGeometry) {
   upsertPolygonLayer(
     map,
     previewSourceId,
@@ -34,14 +40,14 @@ export function showDrawPreview(map: mapboxgl.Map, geometry: GeoJsonGeometry) {
   );
 }
 
-export function clearDrawPreview(map: mapboxgl.Map) {
+function clearDrawPreview(map: MapboxMap) {
   removeLayerGroup(map, previewSourceId, [previewFillId, previewLineId], {
     cleanInteraction: false,
   });
 }
 
 export function bindGeometryDraw(
-  map: mapboxgl.Map,
+  map: MapboxMap,
   mode: DrawMode,
   onComplete: (geometry: GeoJsonGeometry) => void,
 ) {
@@ -51,7 +57,7 @@ export function bindGeometryDraw(
   let start: [number, number] | null = null;
   let polygonPoints: Array<[number, number]> = [];
 
-  const handleClick = (event: mapboxgl.MapMouseEvent) => {
+  const handleClick = (event: MapMouseEvent) => {
     const point: [number, number] = [event.lngLat.lng, event.lngLat.lat];
     if (mode === "polygon") {
       polygonPoints = [...polygonPoints, point];
@@ -75,7 +81,7 @@ export function bindGeometryDraw(
     onComplete(geometry);
   };
 
-  const handleMouseMove = (event: mapboxgl.MapMouseEvent) => {
+  const handleMouseMove = (event: MapMouseEvent) => {
     const point: [number, number] = [event.lngLat.lng, event.lngLat.lat];
     if (mode === "polygon" && polygonPoints.length > 0) {
       showDrawPreview(map, {
@@ -87,7 +93,7 @@ export function bindGeometryDraw(
     }
   };
 
-  const handleDoubleClick = (event: mapboxgl.MapMouseEvent) => {
+  const handleDoubleClick = (event: MapMouseEvent) => {
     if (mode !== "polygon" || polygonPoints.length < 3) return;
     event.preventDefault();
     const geometry: GeoJsonGeometry = {
@@ -113,7 +119,7 @@ export function bindGeometryDraw(
 }
 
 export function upsertPolygonLayer(
-  map: mapboxgl.Map,
+  map: MapboxMap,
   sourceId: string,
   fillId: string,
   lineId: string,
@@ -127,7 +133,7 @@ export function upsertPolygonLayer(
   if (!map.getSource(sourceId)) {
     map.addSource(sourceId, { type: "geojson", data: data as never });
   } else {
-    (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(data as never);
+    (map.getSource(sourceId) as GeoJSONSource).setData(data as never);
   }
   upsertStyledLayer(
     map,
@@ -158,11 +164,7 @@ export function upsertPolygonLayer(
   );
 }
 
-function upsertStyledLayer(
-  map: mapboxgl.Map,
-  layer: mapboxgl.AnyLayer,
-  beforeId?: string,
-) {
+function upsertStyledLayer(map: MapboxMap, layer: AnyLayer, beforeId?: string) {
   if (!map.getLayer(layer.id)) {
     map.addLayer(layer, beforeId);
   } else {

@@ -1,27 +1,41 @@
 import { App as AntApp, Spin } from "antd";
-import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
-import AdminAuthPage from "./admin/AdminAuthPage";
-import AdminLayout from "./admin/AdminLayout";
-import AdminOperationLogsPage from "./admin/AdminOperationLogsPage";
-import AdminProfilePage from "./admin/AdminProfilePage";
-import AdminSystemSettingsPage from "./admin/AdminSystemSettingsPage";
 import { ApiError, api } from "./api/client";
 import { AppContext } from "./contexts/AppContext";
-import HomePage from "./pages/HomePage";
-import ImportPage from "./pages/ImportPage";
-import LoginPage from "./pages/LoginPage";
-import MapPage from "./pages/MapPage";
-import NonGeoPage from "./pages/NonGeoPage";
 import { RedirectIfAuth, RequireAdmin, RequireAuth } from "./router";
 import type { Bootstrap, User } from "./types";
 
+const AdminAuthPage = lazy(() => import("./admin/AdminAuthPage"));
+const AdminLayout = lazy(() => import("./admin/AdminLayout"));
+const AdminOperationLogsPage = lazy(
+  () => import("./admin/AdminOperationLogsPage"),
+);
+const AdminProfilePage = lazy(() => import("./admin/AdminProfilePage"));
+const AdminSystemSettingsPage = lazy(
+  () => import("./admin/AdminSystemSettingsPage"),
+);
+const HomePage = lazy(() => import("./pages/HomePage"));
+const ImportPage = lazy(() => import("./pages/ImportPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const MapPage = lazy(() => import("./pages/MapPage"));
+const NonGeoPage = lazy(() => import("./pages/NonGeoPage"));
+
 /** 为路由页面添加淡入过渡效果的包装组件 */
-function RouteTransition({ children }: { children: React.ReactNode }) {
+function RouteTransition({ children }: { children: ReactNode }) {
   const location = useLocation();
   return (
     <div className="route-enter" key={location.pathname}>
       {children}
+    </div>
+  );
+}
+
+function RouteLoading() {
+  return (
+    <div className="boot-screen">
+      <Spin size="large" />
     </div>
   );
 }
@@ -80,64 +94,66 @@ export default function App() {
 
   return (
     <AppContext.Provider value={{ bootstrap, user, setUser }}>
-      <Routes>
-        {/* 已登录用户访问登录页时重定向到首页 */}
-        <Route element={<RedirectIfAuth />}>
-          <Route
-            path="/login"
-            element={
-              <RouteTransition>
-                <LoginPage />
-              </RouteTransition>
-            }
-          />
-        </Route>
+      <Suspense fallback={<RouteLoading />}>
+        <Routes>
+          {/* 已登录用户访问登录页时重定向到首页 */}
+          <Route element={<RedirectIfAuth />}>
+            <Route
+              path="/login"
+              element={
+                <RouteTransition>
+                  <LoginPage />
+                </RouteTransition>
+              }
+            />
+          </Route>
 
-        {/* 需要登录才能访问的页面 */}
-        <Route element={<RequireAuth />}>
-          <Route
-            path="/"
-            element={
-              <RouteTransition>
-                <HomePage />
-              </RouteTransition>
-            }
-          />
-          <Route
-            path="/map"
-            element={
-              <RouteTransition>
-                <MapPage />
-              </RouteTransition>
-            }
-          />
-          <Route
-            path="/nongeo"
-            element={
-              <RouteTransition>
-                <NonGeoPage />
-              </RouteTransition>
-            }
-          />
-          <Route
-            path="/import"
-            element={
-              <RouteTransition>
-                <ImportPage />
-              </RouteTransition>
-            }
-          />
-          <Route element={<RequireAdmin />}>
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<Navigate to="profile" replace />} />
-              <Route path="profile" element={<AdminProfilePage />} />
-              <Route path="logs" element={<AdminOperationLogsPage />} />
-              <Route path="settings" element={<AdminSystemSettingsPage />} />
-              <Route path="auth" element={<AdminAuthPage />} />
+          {/* 需要登录才能访问的页面 */}
+          <Route element={<RequireAuth />}>
+            <Route
+              path="/"
+              element={
+                <RouteTransition>
+                  <HomePage />
+                </RouteTransition>
+              }
+            />
+            <Route
+              path="/map"
+              element={
+                <RouteTransition>
+                  <MapPage />
+                </RouteTransition>
+              }
+            />
+            <Route
+              path="/nongeo"
+              element={
+                <RouteTransition>
+                  <NonGeoPage />
+                </RouteTransition>
+              }
+            />
+            <Route
+              path="/import"
+              element={
+                <RouteTransition>
+                  <ImportPage />
+                </RouteTransition>
+              }
+            />
+            <Route element={<RequireAdmin />}>
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<Navigate to="profile" replace />} />
+                <Route path="profile" element={<AdminProfilePage />} />
+                <Route path="logs" element={<AdminOperationLogsPage />} />
+                <Route path="settings" element={<AdminSystemSettingsPage />} />
+                <Route path="auth" element={<AdminAuthPage />} />
+              </Route>
             </Route>
           </Route>
-        </Route>
-      </Routes>
+        </Routes>
+      </Suspense>
     </AppContext.Provider>
   );
 }

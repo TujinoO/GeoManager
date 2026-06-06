@@ -78,7 +78,7 @@ export function ellipseGeometry(
   );
 }
 
-export function ellipseRing(
+function ellipseRing(
   center: [number, number],
   radiusX: number,
   radiusY: number,

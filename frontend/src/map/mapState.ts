@@ -1,13 +1,18 @@
-import type mapboxgl from "mapbox-gl";
+import type {
+  MapboxGeoJSONFeature,
+  Map as MapboxMap,
+  MapLayerMouseEvent,
+  Popup,
+} from "mapbox-gl";
 
 export interface FeatureStateTarget {
   source: string;
   id: string | number;
 }
 
-export interface VectorInteractionHandlers {
-  click?: (event: mapboxgl.MapLayerMouseEvent) => void;
-  mousemove: (event: mapboxgl.MapLayerMouseEvent) => void;
+interface VectorInteractionHandlers {
+  click?: (event: MapLayerMouseEvent) => void;
+  mousemove: (event: MapLayerMouseEvent) => void;
   mouseleave: () => void;
 }
 
@@ -15,13 +20,13 @@ export interface MapInternalState {
   interactiveHandlers: Map<string, VectorInteractionHandlers>;
   hoveredFeature: FeatureStateTarget | undefined;
   selectedFeature: FeatureStateTarget | undefined;
-  popup: mapboxgl.Popup | undefined;
+  popup: Popup | undefined;
   rasterSourceKeys: Map<string, string>;
 }
 
-const mapStates = new WeakMap<mapboxgl.Map, MapInternalState>();
+const mapStates = new WeakMap<MapboxMap, MapInternalState>();
 
-export function getMapState(map: mapboxgl.Map): MapInternalState {
+export function getMapState(map: MapboxMap): MapInternalState {
   let state = mapStates.get(map);
   if (!state) {
     state = {
@@ -37,7 +42,7 @@ export function getMapState(map: mapboxgl.Map): MapInternalState {
 }
 
 export function clearFeatureState(
-  map: mapboxgl.Map,
+  map: MapboxMap,
   key: "hoveredFeature" | "selectedFeature",
   stateName: string,
 ) {
@@ -52,7 +57,7 @@ export function clearFeatureState(
 }
 
 export function featureStateTarget(
-  feature: mapboxgl.MapboxGeoJSONFeature,
+  feature: MapboxGeoJSONFeature,
 ): FeatureStateTarget | null {
   if (feature.id === undefined || !feature.source) return null;
   return { source: feature.source, id: feature.id };

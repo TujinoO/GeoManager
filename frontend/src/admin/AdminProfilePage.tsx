@@ -211,7 +211,7 @@ export default function AdminProfilePage() {
                     granted && !disabledPermissions.has(permission.id);
                   return (
                     <div key={permission.id} className="admin-permission-row">
-                      <Space direction="vertical" size={2}>
+                      <Space orientation="vertical" size={2}>
                         <Typography.Text strong>
                           {permission.label}
                         </Typography.Text>

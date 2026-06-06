@@ -1,4 +1,8 @@
-import type mapboxgl from "mapbox-gl";
+import type {
+  AnyLayer,
+  ExpressionSpecification,
+  Map as MapboxMap,
+} from "mapbox-gl";
 import type { VectorSymbolization } from "../symbolization";
 import { clamp } from "../utils/geometry";
 import { removeVectorInteraction } from "./featureInteraction";
@@ -11,7 +15,7 @@ export function stateColor(baseColor: string) {
     ["boolean", ["feature-state", "highlight"], false],
     "#f2c36d",
     baseColor,
-  ] as unknown as mapboxgl.ExpressionSpecification;
+  ] as unknown as ExpressionSpecification;
 }
 
 export function stateNumber(base: number, selected: number, highlight: number) {
@@ -22,10 +26,10 @@ export function stateNumber(base: number, selected: number, highlight: number) {
     ["boolean", ["feature-state", "highlight"], false],
     highlight,
     base,
-  ] as unknown as mapboxgl.ExpressionSpecification;
+  ] as unknown as ExpressionSpecification;
 }
 
-export function upsertLayer(map: mapboxgl.Map, layer: mapboxgl.AnyLayer) {
+export function upsertLayer(map: MapboxMap, layer: AnyLayer) {
   const existing = map.getLayer(layer.id);
   if (existing && existing.type !== layer.type) {
     removeStyleLayer(map, layer.id);
@@ -57,16 +61,10 @@ export function upsertLayer(map: mapboxgl.Map, layer: mapboxgl.AnyLayer) {
   }
 }
 
-export function removeStyleLayer(map: mapboxgl.Map, layerId: string) {
+export function removeStyleLayer(map: MapboxMap, layerId: string) {
   removeVectorInteraction(map, layerId);
   if (map.getLayer(layerId)) {
     map.removeLayer(layerId);
-  }
-}
-
-export function addLayerIfMissing(map: mapboxgl.Map, layer: mapboxgl.AnyLayer) {
-  if (!map.getLayer(layer.id)) {
-    map.addLayer(layer);
   }
 }
 

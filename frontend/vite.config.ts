@@ -30,20 +30,21 @@ export default defineConfig({
   build: {
     // 减少内存占用：不计算 gzip 大小
     reportCompressedSize: false,
+    modulePreload: {
+      resolveDependencies(_filename, deps, context) {
+        if (context.hostType !== "html") {
+          return deps;
+        }
+        return deps.filter(
+          (dep) =>
+            !/assets\/js\/(admin|mapbox)-/.test(dep) &&
+            !/assets\/css\/mapbox-/.test(dep),
+        );
+      },
+    },
     // 代码分割策略
     rollupOptions: {
       output: {
-        // 分包策略：只把最大的 mapbox-gl 单独拆分
-        manualChunks(id) {
-          // mapbox-gl 是最大的依赖（~1.8MB），单独分包
-          if (id.includes("mapbox-gl")) {
-            return "mapbox";
-          }
-          // 其他 node_modules 统一放入 vendor
-          if (id.includes("node_modules")) {
-            return "vendor";
-          }
-        },
         // 控制 chunk 文件命名
         chunkFileNames: "assets/js/[name]-[hash].js",
         entryFileNames: "assets/js/[name]-[hash].js",

@@ -204,7 +204,15 @@ frontend/src/
   - `layerFactory.test.ts` — 矢量/栅格图层组构建
 - 类型检查：`pnpm run typecheck`（`tsc --noEmit`）
 - API 类型生成检查：`pnpm run check:api`
-- 生产构建：`pnpm run build`（typecheck + vite build）
+- 快速生产构建：`pnpm run build`（仅执行 Vite 生产打包）
+- 发布/CI 构建验证：`pnpm run build:verify`（typecheck + vite build）
+
+## 前端构建优化记录
+
+- 路由页面使用 `React.lazy` 按需加载，登录、入口、地图、非地理、导入和后台页面不再全部由 `App.tsx` 首屏同步导入。
+- Vite 不再把所有 `node_modules` 合并到单个 `vendor` chunk；后台和地图等动态路由依赖由构建器按 `React.lazy` 的导入关系拆分，并过滤首屏 HTML 对后台/地图大包的预加载。
+- `mapbox-gl` 样式随地图组件加载，不再由全局入口首屏加载。
+- `pnpm run build` 定位为快速打包命令；需要类型检查的发布或 CI 流程使用 `pnpm run build:verify`。
 
 ## 前端依赖升级兼容记录
 

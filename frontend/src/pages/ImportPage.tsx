@@ -610,7 +610,7 @@ export default function ImportPage() {
               title: "问题项",
               dataIndex: "message",
               render: (value, record) => (
-                <Space direction="vertical" size={2}>
+                <Space orientation="vertical" size={2}>
                   <Typography.Text>{value}</Typography.Text>
                   <Space size={4} align="center">
                     <Tag color={record.blocking ? "red" : "gold"}>

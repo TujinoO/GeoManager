@@ -20,6 +20,10 @@
 
 后端：首先激活python环境，然后`ruff format .`
 
+## 测试
+
+测试体系和 CI 稳定性要求见 [`docs/testing.md`](docs/testing.md)。提交前至少运行后端 `python manage.py test` 和前端 `pnpm test`。
+
 ## 本地运行
 
 后端：

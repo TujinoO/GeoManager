@@ -1,4 +1,4 @@
-import type mapboxgl from "mapbox-gl";
+import type { Map as MapboxMap } from "mapbox-gl";
 import type { LoadedRasterLayer } from "../types";
 import { clamp, rasterSourceKey } from "../utils/geometry";
 import { getMapState } from "./mapState";
@@ -6,7 +6,7 @@ import { upsertLayer } from "./styleHelpers";
 import { removeLoadedLayerGroup } from "./vectorLayerSync";
 
 export function addRasterLayer(
-  map: mapboxgl.Map,
+  map: MapboxMap,
   sourceId: string,
   layer: LoadedRasterLayer,
 ) {

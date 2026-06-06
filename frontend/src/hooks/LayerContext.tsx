@@ -1,4 +1,4 @@
-import type mapboxgl from "mapbox-gl";
+import type { Map as MapboxMap } from "mapbox-gl";
 import { createContext, type RefObject, useContext } from "react";
 import type {
   GroupSymbolization,
@@ -73,7 +73,7 @@ export interface LayerContextValue {
   ) => void;
   locateLayer: (groupId: string, layerId: string) => void;
   locateGroup: (groupId: string) => void;
-  mapRef: RefObject<mapboxgl.Map | null>;
+  mapRef: RefObject<MapboxMap | null>;
   canUseCustomSymbolization: boolean;
   canExportData: boolean;
   exportClipGeometry: GeoJsonGeometry | null;

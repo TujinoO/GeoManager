@@ -223,7 +223,7 @@ describe("admin routes", () => {
     renderWithProviders(<AdminAuthPage />);
 
     expect(await screen.findByText("用户列表")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "admin" }));
+    fireEvent.click(screen.getByRole("button", { name: /admin/ }));
 
     await waitFor(() => {
       expect(screen.getByText("用户详情")).toBeInTheDocument();

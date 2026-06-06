@@ -350,8 +350,8 @@ def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def infer_coordinate_columns(df: pd.DataFrame) -> tuple[str | None, str | None]:
-    longitude = _best_coordinate_column(df, LONGITUDE_ALIASES, is_longitude=True)
-    latitude = _best_coordinate_column(df, LATITUDE_ALIASES, is_longitude=False)
+    longitude = _best_coordinate_column(df, is_longitude=True)
+    latitude = _best_coordinate_column(df, is_longitude=False)
     if longitude and latitude and longitude != latitude:
         return longitude, latitude
     return None, None
@@ -674,9 +674,7 @@ def _half_unit_degree(value: str) -> Decimal:
     return Decimal("0.5") * (Decimal(10) ** Decimal(-decimals))
 
 
-def _best_coordinate_column(
-    df: pd.DataFrame, aliases: set[str], *, is_longitude: bool
-) -> str | None:
+def _best_coordinate_column(df: pd.DataFrame, *, is_longitude: bool) -> str | None:
     normalized_aliases = (
         NORMALIZED_LONGITUDE_ALIASES if is_longitude else NORMALIZED_LATITUDE_ALIASES
     )

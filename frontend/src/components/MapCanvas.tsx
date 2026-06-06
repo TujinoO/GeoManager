@@ -9,6 +9,7 @@ import {
 import { Button, Tooltip } from "antd";
 import mapboxgl, { type Map as MapboxMap } from "mapbox-gl";
 import { useEffect, useRef } from "react";
+import "mapbox-gl/dist/mapbox-gl.css";
 import { syncVectorInteractions } from "../map/featureInteraction";
 import { addRasterLayer } from "../map/rasterLayerSync";
 import {

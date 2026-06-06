@@ -109,8 +109,11 @@ pnpm dev
 # 类型检查
 pnpm typecheck
 
-# 构建生产版本
+# 快速构建生产版本
 pnpm build
+
+# 发布/CI 构建验证（类型检查 + 生产构建）
+pnpm run build:verify
 
 # 代码格式化
 pnpm format

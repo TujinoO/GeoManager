@@ -1,10 +1,10 @@
-import type mapboxgl from "mapbox-gl";
+import type { Map as MapboxMap, MapLayerMouseEvent } from "mapbox-gl";
 import type { FeatureInfo, LoadedVectorLayer } from "../types";
 import { sourceIdFor } from "../utils/geometry";
 import { clearFeatureState, featureStateTarget, getMapState } from "./mapState";
 
 export function syncVectorInteractions(
-  map: mapboxgl.Map,
+  map: MapboxMap,
   layers: LoadedVectorLayer[],
   onFeatureSelect?: (feature: FeatureInfo | null) => void,
 ) {
@@ -37,8 +37,8 @@ export function syncVectorInteractions(
   }
 }
 
-export function addVectorInteraction(
-  map: mapboxgl.Map,
+function addVectorInteraction(
+  map: MapboxMap,
   layerId: string,
   layerBySourceId: Map<string, LoadedVectorLayer>,
   onFeatureSelect?: (feature: FeatureInfo | null) => void,
@@ -48,7 +48,7 @@ export function addVectorInteraction(
     removeVectorInteraction(map, layerId);
   }
 
-  const click = (event: mapboxgl.MapLayerMouseEvent) => {
+  const click = (event: MapLayerMouseEvent) => {
     const feature = event.features?.[0];
     if (!feature) return;
     event.preventDefault();
@@ -83,7 +83,7 @@ export function addVectorInteraction(
     );
   };
 
-  const mousemove = (event: mapboxgl.MapLayerMouseEvent) => {
+  const mousemove = (event: MapLayerMouseEvent) => {
     const feature = event.features?.[0];
     map.getCanvas().style.cursor = feature ? "pointer" : "";
     const target = feature ? featureStateTarget(feature) : null;
@@ -116,7 +116,7 @@ export function addVectorInteraction(
   handlers.set(layerId, { click, mousemove, mouseleave });
 }
 
-export function removeVectorInteraction(map: mapboxgl.Map, layerId: string) {
+export function removeVectorInteraction(map: MapboxMap, layerId: string) {
   const handlers = getMapState(map).interactiveHandlers;
   const handler = handlers.get(layerId);
   if (!handler) return;

@@ -125,6 +125,89 @@ class ResourceQueryApiTests(TestCase):
         )
         self.assertIn("warnings", payload)
 
+    def test_vector_layer_query_filters_by_spatial_polygon(self):
+        response = self.client.post(
+            f"/api/layers/{self.layer_name}/query/",
+            data=json.dumps(
+                {
+                    "spatialFilter": {
+                        "mode": "polygon",
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [
+                                [
+                                    [87.55, 43.75],
+                                    [87.65, 43.75],
+                                    [87.65, 43.85],
+                                    [87.55, 43.85],
+                                    [87.55, 43.75],
+                                ]
+                            ],
+                        },
+                    },
+                    "limit": 10,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["totalCount"], 1)
+        self.assertEqual(
+            payload["geojson"]["features"][0]["properties"]["name"], "样点一"
+        )
+
+    def test_vector_layer_query_rejects_unknown_attribute_operator(self):
+        response = self.client.post(
+            f"/api/layers/{self.layer_name}/query/",
+            data=json.dumps(
+                {
+                    "attributeFilters": [
+                        {
+                            "field": "height",
+                            "operator": "startsWith",
+                            "value": "8",
+                        }
+                    ]
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("不支持的属性操作符", response.json()["detail"])
+
+    def test_vector_layer_query_rejects_invalid_json_body(self):
+        response = self.client.post(
+            f"/api/layers/{self.layer_name}/query/",
+            data="{",
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "请求体不是有效 JSON")
+
+    def test_resource_query_denies_group_restricted_resource(self):
+        resource = DataResource.objects.create(
+            name="受限矢量资源",
+            code="restricted-query-resource",
+            data_type=DataResource.DataType.VECTOR,
+            storage_path=self.layer_name,
+            status=DataResource.Status.ACTIVE,
+        )
+        restricted_group = Group.objects.create(name="外部协作组")
+        resource.access_groups.add(restricted_group)
+
+        response = self.client.post(
+            f"/api/catalog/resources/{resource.id}/query/",
+            data=json.dumps({"limit": 10}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["detail"], "无权访问该数据资源")
+
 
 class CatalogScanTests(TestCase):
     def setUp(self):

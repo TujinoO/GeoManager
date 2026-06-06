@@ -11,14 +11,14 @@ export type Anchor =
 
 export type Alignment = "map" | "viewport" | "auto";
 export type MapViewport = "map" | "viewport";
-export type PointSymbolMode = "circle" | "symbol";
-export type SymbolPlacement = "point" | "line" | "line-center";
-export type SymbolZOrder = "auto" | "viewport-y" | "source";
-export type TextJustify = "auto" | "left" | "center" | "right";
-export type TextTransform = "none" | "uppercase" | "lowercase";
-export type IconTextFit = "none" | "width" | "height" | "both";
-export type LineCap = "butt" | "round" | "square";
-export type LineJoin = "bevel" | "round" | "miter" | "none";
+type PointSymbolMode = "circle" | "symbol";
+type SymbolPlacement = "point" | "line" | "line-center";
+type SymbolZOrder = "auto" | "viewport-y" | "source";
+type TextJustify = "auto" | "left" | "center" | "right";
+type TextTransform = "none" | "uppercase" | "lowercase";
+type IconTextFit = "none" | "width" | "height" | "both";
+type LineCap = "butt" | "round" | "square";
+type LineJoin = "bevel" | "round" | "miter" | "none";
 
 export interface GroupSymbolization {
   opacity: number;
@@ -143,14 +143,14 @@ export interface VectorSymbolization {
   fill: FillSymbolization;
 }
 
-export type RasterRenderMode = "gray" | "rgb" | "pseudocolor" | "unique";
+type RasterRenderMode = "gray" | "rgb" | "pseudocolor" | "unique";
 
-export interface RasterStretchBand {
+interface RasterStretchBand {
   min: number;
   max: number;
 }
 
-export interface RasterUniqueValue {
+interface RasterUniqueValue {
   value: number;
   color: string;
   label: string;

@@ -3,10 +3,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Permission
+from django.contrib.auth.models import Group, Permission
 from django.test import TestCase, override_settings
 
+from apps.catalog.models import DataResource
 from apps.core.config import load_project_config
+from apps.raster.models import RasterDataset
 from apps.raster.services import scan_unprocessed_source_files
 
 
@@ -54,6 +56,67 @@ class RasterPermissionApiTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertIn("当前用户组“未分组”无权限", response.json()["detail"])
+
+    def test_render_async_denies_group_restricted_dataset_resource(self):
+        grant(self.user, ("core", "load_raster_layer"))
+        resource = DataResource.objects.create(
+            name="受限栅格资源",
+            code="restricted-raster-resource",
+            data_type=DataResource.DataType.RASTER,
+            status=DataResource.Status.ACTIVE,
+        )
+        restricted_group = Group.objects.create(name="外部协作组")
+        resource.access_groups.add(restricted_group)
+        dataset = self._dataset("restricted-dataset", resource)
+
+        response = self.client.post(
+            "/api/raster/render/async/",
+            data={"datasetId": dataset.id, "rulesMode": "default"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["detail"], "无权访问该数据资源")
+
+    def test_datasets_endpoint_hides_group_restricted_datasets(self):
+        grant(self.user, ("core", "browse_data"))
+        public_resource = DataResource.objects.create(
+            name="公开栅格资源",
+            code="public-raster-resource",
+            data_type=DataResource.DataType.RASTER,
+            status=DataResource.Status.ACTIVE,
+        )
+        restricted_resource = DataResource.objects.create(
+            name="受限栅格资源",
+            code="restricted-raster-list-resource",
+            data_type=DataResource.DataType.RASTER,
+            status=DataResource.Status.ACTIVE,
+        )
+        restricted_group = Group.objects.create(name="受限组")
+        restricted_resource.access_groups.add(restricted_group)
+        self._dataset("public-dataset", public_resource)
+        self._dataset("hidden-dataset", restricted_resource)
+
+        response = self.client.get("/api/raster/datasets/")
+
+        self.assertEqual(response.status_code, 200)
+        names = [item["name"] for item in response.json()["items"]]
+        self.assertEqual(names, ["public-dataset"])
+
+    def _dataset(self, code: str, resource: DataResource) -> RasterDataset:
+        return RasterDataset.objects.create(
+            name=code,
+            code=code,
+            source_relative_path=f"{code}.tif",
+            processed_relative_path=f"{code}.cog.tif",
+            data_resource=resource,
+            processed_gdalinfo={
+                "bands": [{"band": 1, "type": "UInt16", "min": 0, "max": 100}]
+            },
+            default_rules={"mode": "gray", "bands": [1]},
+            band_count=1,
+            status=RasterDataset.Status.READY,
+        )
 
 
 class RasterScanPathTests(TestCase):

@@ -1,4 +1,4 @@
-import type mapboxgl from "mapbox-gl";
+import type { Map as MapboxMap } from "mapbox-gl";
 import type { LoadedLayer, LoadedVectorLayer } from "../types";
 import { clamp, sourceIdFor } from "../utils/geometry";
 import { removeVectorInteraction } from "./featureInteraction";
@@ -12,7 +12,7 @@ import {
 } from "./styleHelpers";
 
 export function addLoadedStyleLayers(
-  map: mapboxgl.Map,
+  map: MapboxMap,
   sourceId: string,
   layer: LoadedVectorLayer,
 ) {
@@ -210,7 +210,7 @@ export function addLoadedStyleLayers(
   }
 }
 
-export function removeLoadedLayerGroup(map: mapboxgl.Map, sourceId: string) {
+export function removeLoadedLayerGroup(map: MapboxMap, sourceId: string) {
   removeLayerGroup(map, sourceId, [
     `${sourceId}-raster`,
     `${sourceId}-fill`,
@@ -221,7 +221,7 @@ export function removeLoadedLayerGroup(map: mapboxgl.Map, sourceId: string) {
 }
 
 export function removeLayerGroup(
-  map: mapboxgl.Map,
+  map: MapboxMap,
   sourceId: string,
   layerIds: string[],
   options?: { cleanInteraction?: boolean },
@@ -236,7 +236,7 @@ export function removeLayerGroup(
 }
 
 export function reorderLoadedStyleLayers(
-  map: mapboxgl.Map,
+  map: MapboxMap,
   layers: LoadedLayer[],
 ) {
   for (const layer of [...layers].reverse()) {
