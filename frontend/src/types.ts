@@ -8,7 +8,16 @@ import type {
 type Schemas = components["schemas"];
 
 export type Bootstrap = Schemas["BootstrapResponse"];
+export type BaseUser = Schemas["BaseUserInfo"];
 export type User = Schemas["UserInfo"];
+export type UserCreateRequest = Schemas["UserCreateRequest"];
+export type UserCreateResponse = Schemas["UserCreateResponse"];
+export type UserListResponse = Schemas["UserListResponse"];
+export type UserGroupUpdateRequest = Schemas["UserGroupUpdateRequest"];
+export type Group = Schemas["Group"];
+export type GroupListResponse = Schemas["GroupListResponse"];
+export type GroupCreateRequest = Schemas["GroupCreateRequest"];
+export type GroupUpdateRequest = Schemas["GroupUpdateRequest"];
 export type AdminProfile = Schemas["AdminProfileResponse"];
 export type AdminProfileUpdate = Schemas["AdminProfileUpdateRequest"];
 export type AdminProfilePermissionsUpdate =
@@ -19,13 +28,6 @@ export type AdminOperationLog = Schemas["AdminOperationLog"];
 export type AdminOperationLogQuery = NonNullable<
   operations["listAdminOperationLogs"]["parameters"]["query"]
 >;
-export type AdminGroup = Schemas["AdminGroup"];
-export type AdminGroupListResponse = Schemas["AdminGroupListResponse"];
-export type AdminGroupCreate = Schemas["AdminGroupCreateRequest"];
-export type AdminGroupUpdate = Schemas["AdminGroupUpdateRequest"];
-export type AdminUser = Schemas["AdminUserInfo"];
-export type AdminUserCreate = Schemas["AdminUserCreateRequest"];
-export type AdminUserGroupUpdate = Schemas["AdminUserGroupUpdateRequest"];
 export type AdminSettings = Schemas["AdminSettingsResponse"];
 export type AdminSettingsUpdate = Schemas["AdminSettingsUpdateRequest"];
 export type DataResource = Schemas["DataResource"];

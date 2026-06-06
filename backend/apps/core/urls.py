@@ -2,7 +2,6 @@ from django.urls import path
 
 from apps.core import admin_api, auth_views, views
 
-
 urlpatterns = [
     path("bootstrap/", views.bootstrap, name="bootstrap"),
     path("health/", views.health, name="health"),
@@ -32,17 +31,27 @@ urlpatterns = [
         admin_api.update_admin_profile_password,
         name="admin-profile-password",
     ),
-    path("admin/users/", admin_api.admin_users, name="admin-users"),
     path(
-        "admin/users/<int:user_id>/groups/",
-        admin_api.update_admin_user_groups,
-        name="admin-user-groups",
+        "admin/profile/avatar/",
+        admin_api.upload_avatar,
+        name="admin-avatar-upload",
     ),
-    path("admin/groups/", admin_api.admin_groups, name="admin-groups"),
     path(
-        "admin/groups/<int:group_id>/",
-        admin_api.admin_group_detail,
-        name="admin-group-detail",
+        "users/<int:user_id>/avatar/",
+        admin_api.get_avatar,
+        name="user-avatar-get",
+    ),
+    path("users/", admin_api.user_list, name="user-list"),
+    path(
+        "users/<int:user_id>/groups/",
+        admin_api.update_user_groups,
+        name="user-groups",
+    ),
+    path("groups/", admin_api.group_list, name="group-list"),
+    path(
+        "groups/<int:group_id>/",
+        admin_api.group_detail,
+        name="group-detail",
     ),
     path("admin/settings/", admin_api.admin_settings, name="admin-settings"),
 ]

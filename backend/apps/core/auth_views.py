@@ -99,6 +99,7 @@ def me_view(request):
 
 def serialize_user(user):
     groups = list(user.groups.values_list("name", flat=True))
+    group_ids = list(user.groups.values_list("id", flat=True))
     profile = _profile_values(user)
     permissions = {
         "canAccessAdmin": has_feature_perm(user, "core.access_admin"),
@@ -128,6 +129,7 @@ def serialize_user(user):
         "isStaff": user.is_staff,
         "isSuperuser": user.is_superuser,
         "roles": groups,
+        "groupIds": group_ids,
         "permissions": permissions,
     }
 

@@ -65,6 +65,8 @@ const adminUser: User = {
   isStaff: false,
   isSuperuser: false,
   roles: ["系统管理员"],
+  groupIds: [1],
+  isActive: true,
   permissions: {
     canAccessAdmin: true,
     canManageFeaturePermissions: true,
@@ -221,21 +223,21 @@ describe("admin routes", () => {
 
     expect(await screen.findByText("修改密码")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("当前密码"), {
-      target: { value: "StrongPass12345" },
+      target: { value: "OldPass123" },
     });
     fireEvent.change(screen.getByLabelText("新密码"), {
-      target: { value: "NewStrongPass12345" },
+      target: { value: "NewPass123" },
     });
     fireEvent.change(screen.getByLabelText("确认新密码"), {
-      target: { value: "NewStrongPass12345" },
+      target: { value: "NewPass123" },
     });
     fireEvent.click(screen.getByRole("button", { name: /更新密码/ }));
 
     await waitFor(() => {
       expect(mockApi.updateAdminProfilePassword).toHaveBeenCalledWith({
-        currentPassword: "StrongPass12345",
-        newPassword: "NewStrongPass12345",
-        passwordConfirm: "NewStrongPass12345",
+        currentPassword: "OldPass123",
+        newPassword: "NewPass123",
+        passwordConfirm: "NewPass123",
       });
     });
   });

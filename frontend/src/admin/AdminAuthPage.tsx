@@ -29,7 +29,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { useAppContext } from "../contexts/AppContext";
-import type { AdminGroup, AdminPermissionItem, AdminUser } from "../types";
+import type { AdminPermissionItem, Group, User } from "../types";
 
 export default function AdminAuthPage() {
   const { message } = App.useApp();
@@ -48,14 +48,14 @@ export default function AdminAuthPage() {
     groupIds?: number[];
     isActive?: boolean;
   }>();
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [groups, setGroups] = useState<AdminGroup[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [availablePermissions, setAvailablePermissions] = useState<
     AdminPermissionItem[]
   >([]);
   const [loading, setLoading] = useState(true);
-  const [activeUser, setActiveUser] = useState<AdminUser | null>(null);
-  const [groupUser, setGroupUser] = useState<AdminUser | null>(null);
+  const [activeUser, setActiveUser] = useState<User | null>(null);
+  const [groupUser, setGroupUser] = useState<User | null>(null);
   const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [createUserOpen, setCreateUserOpen] = useState(false);
@@ -107,7 +107,7 @@ export default function AdminAuthPage() {
     [groups],
   );
 
-  const userColumns: ProColumns<AdminUser>[] = [
+  const userColumns: ProColumns<User>[] = [
     {
       title: "用户名",
       dataIndex: "username",
@@ -235,9 +235,8 @@ export default function AdminAuthPage() {
     if (!canCreateUser) return;
     try {
       const values = await createUserForm.validateFields();
-      await api.createAdminUser({
+      const result = await api.createAdminUser({
         username: values.username,
-        password: values.password,
         displayName: values.displayName ?? "",
         email: values.email ?? "",
         department: values.department ?? "",
@@ -246,14 +245,34 @@ export default function AdminAuthPage() {
       });
       createUserForm.resetFields();
       setCreateUserOpen(false);
-      message.success("用户已创建");
+      if (result.generatedPassword) {
+        Modal.success({
+          title: "用户创建成功",
+          content: (
+            <div>
+              <p>
+                用户 <strong>{result.username}</strong> 已创建成功。
+              </p>
+              <p>
+                初始密码：
+                <Typography.Text copyable>
+                  {result.generatedPassword}
+                </Typography.Text>
+              </p>
+              <p>请妥善保存此密码，关闭后将无法再次查看。</p>
+            </div>
+          ),
+        });
+      } else {
+        message.success("用户已创建");
+      }
       await loadAuthData();
     } catch (error) {
       message.error(formOrApiError(error, "用户创建失败"));
     }
   }
 
-  async function handleSaveGroup(group: AdminGroup) {
+  async function handleSaveGroup(group: Group) {
     if (!canManagePermissions || group.isProtected) return;
     const updated = await api.updateAdminGroup(group.id, {
       permissions: groupDrafts[group.id] ?? [],
@@ -268,7 +287,7 @@ export default function AdminAuthPage() {
     message.success(`${updated.name}权限已保存`);
   }
 
-  async function handleDeleteGroup(group: AdminGroup) {
+  async function handleDeleteGroup(group: Group) {
     if (!canManagePermissions || group.isProtected) return;
     await api.deleteAdminGroup(group.id);
     setGroups((current) => current.filter((item) => item.id !== group.id));
@@ -335,7 +354,7 @@ export default function AdminAuthPage() {
                 </Button>
               </div>
             ) : null}
-            <ProTable<AdminUser>
+            <ProTable<User>
               className="admin-table"
               rowKey="id"
               headerTitle="用户列表"
@@ -563,16 +582,6 @@ export default function AdminAuthPage() {
             rules={[{ required: true, message: "请输入用户名" }]}
           >
             <Input autoComplete="off" />
-          </Form.Item>
-          <Form.Item
-            name="password"
-            label="初始密码"
-            rules={[
-              { required: true, message: "请输入初始密码" },
-              { min: 6, message: "密码长度至少 6 位" },
-            ]}
-          >
-            <Input.Password autoComplete="new-password" />
           </Form.Item>
           <Form.Item name="displayName" label="显示名称">
             <Input />

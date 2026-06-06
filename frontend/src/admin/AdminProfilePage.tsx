@@ -4,6 +4,7 @@ import {
   LockOutlined,
   SaveOutlined,
   StopOutlined,
+  UploadOutlined,
   UserOutlined,
 } from "@ant-design/icons";
 import { ProCard, ProForm, ProFormText } from "@ant-design/pro-components";
@@ -19,6 +20,7 @@ import {
   Switch,
   Tag,
   Typography,
+  Upload,
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
@@ -29,6 +31,13 @@ import type {
   AdminProfileUpdate,
 } from "../types";
 
+function getCookie(name: string): string | null {
+  const match = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
+}
+
 export default function AdminProfilePage() {
   const { message } = App.useApp();
   const { setUser } = useAppContext();
@@ -37,6 +46,7 @@ export default function AdminProfilePage() {
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -117,6 +127,42 @@ export default function AdminProfilePage() {
     }
   }
 
+  // biome-ignore lint/suspicious/noExplicitAny: antd Upload customRequest type
+  const handleAvatarUpload = async (options: any) => {
+    const { file, onSuccess, onError } = options;
+    setAvatarUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("avatar", file);
+
+      const response = await fetch("/api/admin/profile/avatar/", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "X-CSRFToken": getCookie("csrftoken") ?? "",
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "上传失败");
+      }
+
+      const updated = await response.json();
+      setProfile(updated);
+      setUser(updated.user);
+      onSuccess?.(updated);
+      message.success("头像上传成功");
+    } catch (error) {
+      onError?.(error as Error);
+      message.error(error instanceof Error ? error.message : "头像上传失败");
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
   if (loading) {
     return (
       <ProCard className="admin-section-card">
@@ -159,11 +205,40 @@ export default function AdminProfilePage() {
         }
       >
         <div className="admin-profile-shell">
-          <Avatar
-            size={88}
-            src={profile?.avatarUrl || undefined}
-            icon={<UserOutlined />}
-          />
+          <Upload
+            name="avatar"
+            showUploadList={false}
+            customRequest={handleAvatarUpload}
+            beforeUpload={(file) => {
+              const isJpgOrPng =
+                file.type === "image/jpeg" || file.type === "image/png";
+              if (!isJpgOrPng) {
+                message.error("仅支持 JPG/PNG 格式的图片");
+              }
+              const isLt2M = file.size / 1024 / 1024 < 2;
+              if (!isLt2M) {
+                message.error("图片大小不能超过 2MB");
+              }
+              return isJpgOrPng && isLt2M;
+            }}
+            disabled={avatarUploading || !editing}
+          >
+            <div
+              className={`admin-avatar-wrapper${editing ? " admin-avatar-editable" : ""}`}
+            >
+              <Avatar
+                size={88}
+                src={profile?.avatarUrl || undefined}
+                icon={<UserOutlined />}
+              />
+              {editing && (
+                <div className="admin-avatar-overlay">
+                  <UploadOutlined />
+                  <span>{avatarUploading ? "上传中..." : "更换头像"}</span>
+                </div>
+              )}
+            </div>
+          </Upload>
           <ProForm<AdminProfileUpdate>
             form={form}
             layout="horizontal"
@@ -176,10 +251,15 @@ export default function AdminProfilePage() {
                 ? {
                     searchConfig: {
                       submitText: "保存信息",
-                      resetText: "重置",
+                      resetText: false,
                     },
                     submitButtonProps: {
                       icon: <SaveOutlined />,
+                    },
+                    resetButtonProps: {
+                      style: {
+                        display: "none",
+                      },
                     },
                   }
                 : false
@@ -189,7 +269,11 @@ export default function AdminProfilePage() {
               name="username"
               label="用户名"
               colProps={{ xs: 24, md: 12 }}
-              rules={[{ required: true, message: "请输入用户名" }]}
+              readonly
+              tooltip="用户名在创建时确定，不可修改"
+              fieldProps={{
+                style: { color: "rgba(0, 0, 0, 0.45)" },
+              }}
             />
             <ProFormText
               name="displayName"
@@ -211,6 +295,7 @@ export default function AdminProfilePage() {
               name="avatarUrl"
               label="头像 URL"
               colProps={{ xs: 24 }}
+              hidden
             />
           </ProForm>
         </div>
@@ -244,6 +329,9 @@ export default function AdminProfilePage() {
                   if (!password) return Promise.resolve();
                   if (password.length < 6) {
                     return Promise.reject(new Error("密码长度至少 6 位"));
+                  }
+                  if (password.length > 16) {
+                    return Promise.reject(new Error("密码长度不能超过 16 位"));
                   }
                   return Promise.resolve();
                 },
@@ -318,6 +406,22 @@ export default function AdminProfilePage() {
               </div>
             </section>
           ))}
+        </div>
+      </ProCard>
+
+      <ProCard title="我的用户组" className="admin-section-card">
+        <div className="admin-groups-info">
+          {profile?.user.roles && profile.user.roles.length > 0 ? (
+            <Space size={[8, 8]} wrap>
+              {profile.user.roles.map((role) => (
+                <Tag key={role} color="blue">
+                  {role}
+                </Tag>
+              ))}
+            </Space>
+          ) : (
+            <Typography.Text type="secondary">未分配用户组</Typography.Text>
+          )}
         </div>
       </ProCard>
     </div>

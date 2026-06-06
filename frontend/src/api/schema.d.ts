@@ -233,7 +233,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/users/": {
+    "/api/users/": {
         parameters: {
             query?: never;
             header?: never;
@@ -241,23 +241,23 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * 获取后台用户列表
-         * @description 返回管理员可配置用户及其用户组归属。需要 `core.manage_feature_permissions` 或 `core.create_user`。
+         * 获取用户列表
+         * @description 返回可配置用户及其用户组归属。需要 `core.manage_feature_permissions` 或 `core.create_user`。
          */
-        get: operations["listAdminUsers"];
+        get: operations["listUsers"];
         put?: never;
         /**
-         * 创建后台用户
-         * @description 具备 `core.create_user` 权限的管理员创建用户账号。该接口不受自助注册开关影响。
+         * 创建用户
+         * @description 具备 `core.create_user` 权限的管理员创建用户账号。密码由后端自动生成并返回。该接口不受自助注册开关影响。
          */
-        post: operations["createAdminUser"];
+        post: operations["createUser"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/admin/users/{userId}/groups/": {
+    "/api/users/{userId}/groups/": {
         parameters: {
             query?: never;
             header?: never;
@@ -272,12 +272,12 @@ export interface paths {
         head?: never;
         /**
          * 更新用户所属用户组
-         * @description 管理员为指定用户设置所属用户组。
+         * @description 为指定用户设置所属用户组。
          */
-        patch: operations["updateAdminUserGroups"];
+        patch: operations["updateUserGroups"];
         trace?: never;
     };
-    "/api/admin/groups/": {
+    "/api/groups/": {
         parameters: {
             query?: never;
             header?: never;
@@ -288,20 +288,20 @@ export interface paths {
          * 获取用户组列表
          * @description 返回全部 Django 用户组及其功能权限配置。需要 `core.manage_feature_permissions` 或 `core.create_user`。
          */
-        get: operations["listAdminGroups"];
+        get: operations["listGroups"];
         put?: never;
         /**
          * 创建用户组
          * @description 新增一个用户组并可同步设置功能权限。
          */
-        post: operations["createAdminGroup"];
+        post: operations["createGroup"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/admin/groups/{groupId}/": {
+    "/api/groups/{groupId}/": {
         parameters: {
             query?: never;
             header?: never;
@@ -315,14 +315,14 @@ export interface paths {
          * 删除空用户组
          * @description 仅当用户组没有任何关联用户时允许删除。
          */
-        delete: operations["deleteAdminGroup"];
+        delete: operations["deleteGroup"];
         options?: never;
         head?: never;
         /**
          * 更新用户组
          * @description 更新用户组名称和功能权限。
          */
-        patch: operations["updateAdminGroup"];
+        patch: operations["updateGroup"];
         trace?: never;
     };
     "/api/admin/settings/": {
@@ -966,9 +966,9 @@ export interface components {
              * @example true
              */
             authenticated: boolean;
-            user: components["schemas"]["UserInfo"];
+            user: components["schemas"]["BaseUserInfo"];
         };
-        UserInfo: {
+        BaseUserInfo: {
             /** @description 用户 ID */
             id: number;
             /** @description 登录用户名 */
@@ -1111,20 +1111,15 @@ export interface components {
             /** @description 符合筛选条件的总记录数 */
             total: number;
         };
-        AdminUserInfo: components["schemas"]["UserInfo"] & {
+        UserInfo: components["schemas"]["BaseUserInfo"] & {
             /** @description 用户所属用户组 ID 列表 */
             groupIds: number[];
             /** @description 用户账号是否启用 */
             isActive: boolean;
         };
-        AdminUserCreateRequest: {
+        UserCreateRequest: {
             /** @description 登录用户名 */
             username: string;
-            /**
-             * Format: password
-             * @description 初始密码，至少 6 位
-             */
-            password: string;
             /** @description 显示名称 */
             displayName?: string;
             /**
@@ -1139,15 +1134,19 @@ export interface components {
             /** @description 是否启用账号，默认 true */
             isActive?: boolean;
         };
-        AdminUserListResponse: {
-            /** @description 后台用户列表 */
-            items: components["schemas"]["AdminUserInfo"][];
+        UserCreateResponse: components["schemas"]["UserInfo"] & {
+            /** @description 自动生成的初始密码，仅在创建时返回一次 */
+            generatedPassword?: string;
         };
-        AdminUserGroupUpdateRequest: {
+        UserListResponse: {
+            /** @description 用户列表 */
+            items: components["schemas"]["UserInfo"][];
+        };
+        UserGroupUpdateRequest: {
             /** @description 用户新的用户组 ID 列表 */
             groupIds: number[];
         };
-        AdminGroup: {
+        Group: {
             /** @description 用户组 ID */
             id: number;
             /** @description 用户组名称 */
@@ -1161,19 +1160,19 @@ export interface components {
             /** @description 受保护用户组中不可关闭的平台功能权限列表 */
             lockedPermissions: string[];
         };
-        AdminGroupListResponse: {
+        GroupListResponse: {
             /** @description 用户组列表 */
-            items: components["schemas"]["AdminGroup"][];
+            items: components["schemas"]["Group"][];
             /** @description 可配置的平台功能权限元数据 */
             availablePermissions: components["schemas"]["AdminPermissionItem"][];
         };
-        AdminGroupCreateRequest: {
+        GroupCreateRequest: {
             /** @description 新用户组名称 */
             name: string;
             /** @description 新用户组授予的平台功能权限列表 */
             permissions?: string[];
         };
-        AdminGroupUpdateRequest: {
+        GroupUpdateRequest: {
             /** @description 更新后的用户组名称 */
             name?: string;
             /** @description 更新后的平台功能权限列表 */
@@ -2299,7 +2298,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
-    listAdminUsers: {
+    listUsers: {
         parameters: {
             query?: never;
             header?: never;
@@ -2314,14 +2313,14 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminUserListResponse"];
+                    "application/json": components["schemas"]["UserListResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
         };
     };
-    createAdminUser: {
+    createUser: {
         parameters: {
             query?: never;
             header?: never;
@@ -2330,7 +2329,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AdminUserCreateRequest"];
+                "application/json": components["schemas"]["UserCreateRequest"];
             };
         };
         responses: {
@@ -2340,7 +2339,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminUserInfo"];
+                    "application/json": components["schemas"]["UserCreateResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2348,7 +2347,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
-    updateAdminUserGroups: {
+    updateUserGroups: {
         parameters: {
             query?: never;
             header?: never;
@@ -2360,7 +2359,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AdminUserGroupUpdateRequest"];
+                "application/json": components["schemas"]["UserGroupUpdateRequest"];
             };
         };
         responses: {
@@ -2370,7 +2369,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminUserInfo"];
+                    "application/json": components["schemas"]["UserInfo"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2379,7 +2378,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
-    listAdminGroups: {
+    listGroups: {
         parameters: {
             query?: never;
             header?: never;
@@ -2394,14 +2393,14 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminGroupListResponse"];
+                    "application/json": components["schemas"]["GroupListResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
         };
     };
-    createAdminGroup: {
+    createGroup: {
         parameters: {
             query?: never;
             header?: never;
@@ -2410,7 +2409,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AdminGroupCreateRequest"];
+                "application/json": components["schemas"]["GroupCreateRequest"];
             };
         };
         responses: {
@@ -2420,7 +2419,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminGroup"];
+                    "application/json": components["schemas"]["Group"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -2428,7 +2427,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
-    deleteAdminGroup: {
+    deleteGroup: {
         parameters: {
             query?: never;
             header?: never;
@@ -2455,7 +2454,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
-    updateAdminGroup: {
+    updateGroup: {
         parameters: {
             query?: never;
             header?: never;
@@ -2467,7 +2466,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AdminGroupUpdateRequest"];
+                "application/json": components["schemas"]["GroupUpdateRequest"];
             };
         };
         responses: {
@@ -2477,7 +2476,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminGroup"];
+                    "application/json": components["schemas"]["Group"];
                 };
             };
             400: components["responses"]["BadRequest"];

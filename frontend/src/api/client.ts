@@ -1,10 +1,6 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type {
   Achievement,
-  AdminGroup,
-  AdminGroupCreate,
-  AdminGroupListResponse,
-  AdminGroupUpdate,
   AdminOperationLog,
   AdminOperationLogQuery,
   AdminProfile,
@@ -13,13 +9,14 @@ import type {
   AdminProfileUpdate,
   AdminSettings,
   AdminSettingsUpdate,
-  AdminUser,
-  AdminUserCreate,
-  AdminUserGroupUpdate,
   Bootstrap,
   DataCatalog,
   DataResourceProfile,
   ExportLayersPayload,
+  Group,
+  GroupCreateRequest,
+  GroupListResponse,
+  GroupUpdateRequest,
   ImportCommitPayload,
   ImportCommitResult,
   ImportPreview,
@@ -35,6 +32,9 @@ import type {
   ResourceQueryResult,
   SearchResult,
   User,
+  UserCreateRequest,
+  UserCreateResponse,
+  UserGroupUpdateRequest,
 } from "../types";
 import { isDataResource } from "../utils/resources";
 import type { paths } from "./schema";
@@ -219,39 +219,37 @@ export const api = {
         params: { query: filters },
       }),
     ),
-  adminUsers: () =>
-    unwrap<ListResponse<AdminUser>>(client.GET("/api/admin/users/")),
-  createAdminUser: (payload: AdminUserCreate) =>
-    unwrap<AdminUser>(
-      client.POST("/api/admin/users/", {
+  adminUsers: () => unwrap<ListResponse<User>>(client.GET("/api/users/")),
+  createAdminUser: (payload: UserCreateRequest) =>
+    unwrap<UserCreateResponse>(
+      client.POST("/api/users/", {
         body: payload,
       }),
     ),
-  updateAdminUserGroups: (userId: number, payload: AdminUserGroupUpdate) =>
-    unwrap<AdminUser>(
-      client.PATCH("/api/admin/users/{userId}/groups/", {
+  updateAdminUserGroups: (userId: number, payload: UserGroupUpdateRequest) =>
+    unwrap<User>(
+      client.PATCH("/api/users/{userId}/groups/", {
         params: { path: { userId } },
         body: payload,
       }),
     ),
-  adminGroups: () =>
-    unwrap<AdminGroupListResponse>(client.GET("/api/admin/groups/")),
-  createAdminGroup: (payload: AdminGroupCreate) =>
-    unwrap<AdminGroup>(
-      client.POST("/api/admin/groups/", {
+  adminGroups: () => unwrap<GroupListResponse>(client.GET("/api/groups/")),
+  createAdminGroup: (payload: GroupCreateRequest) =>
+    unwrap<Group>(
+      client.POST("/api/groups/", {
         body: payload,
       }),
     ),
-  updateAdminGroup: (groupId: number, payload: AdminGroupUpdate) =>
-    unwrap<AdminGroup>(
-      client.PATCH("/api/admin/groups/{groupId}/", {
+  updateAdminGroup: (groupId: number, payload: GroupUpdateRequest) =>
+    unwrap<Group>(
+      client.PATCH("/api/groups/{groupId}/", {
         params: { path: { groupId } },
         body: payload,
       }),
     ),
   deleteAdminGroup: (groupId: number) =>
     unwrap<{ detail: string }>(
-      client.DELETE("/api/admin/groups/{groupId}/", {
+      client.DELETE("/api/groups/{groupId}/", {
         params: { path: { groupId } },
       }),
     ),

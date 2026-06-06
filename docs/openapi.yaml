@@ -354,12 +354,12 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /api/admin/users/:
+  /api/users/:
     get:
-      tags: [新版管理后台]
-      summary: 获取后台用户列表
-      description: 返回管理员可配置用户及其用户组归属。需要 `core.manage_feature_permissions` 或 `core.create_user`。
-      operationId: listAdminUsers
+      tags: [用户管理]
+      summary: 获取用户列表
+      description: 返回可配置用户及其用户组归属。需要 `core.manage_feature_permissions` 或 `core.create_user`。
+      operationId: listUsers
       security:
         - sessionAuth: []
       responses:
@@ -368,16 +368,16 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminUserListResponse'
+                $ref: '#/components/schemas/UserListResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
     post:
-      tags: [新版管理后台]
-      summary: 创建后台用户
-      description: 具备 `core.create_user` 权限的管理员创建用户账号。该接口不受自助注册开关影响。
-      operationId: createAdminUser
+      tags: [用户管理]
+      summary: 创建用户
+      description: 具备 `core.create_user` 权限的管理员创建用户账号。密码由后端自动生成并返回。该接口不受自助注册开关影响。
+      operationId: createUser
       security:
         - sessionAuth: []
       requestBody:
@@ -385,14 +385,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AdminUserCreateRequest'
+              $ref: '#/components/schemas/UserCreateRequest'
       responses:
         '201':
           description: 创建成功
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminUserInfo'
+                $ref: '#/components/schemas/UserCreateResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -400,12 +400,12 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /api/admin/users/{userId}/groups/:
+  /api/users/{userId}/groups/:
     patch:
-      tags: [新版管理后台]
+      tags: [用户管理]
       summary: 更新用户所属用户组
-      description: 管理员为指定用户设置所属用户组。
-      operationId: updateAdminUserGroups
+      description: 为指定用户设置所属用户组。
+      operationId: updateUserGroups
       security:
         - sessionAuth: []
       parameters:
@@ -420,14 +420,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AdminUserGroupUpdateRequest'
+              $ref: '#/components/schemas/UserGroupUpdateRequest'
       responses:
         '200':
           description: 更新成功
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminUserInfo'
+                $ref: '#/components/schemas/UserInfo'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -437,12 +437,12 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/admin/groups/:
+  /api/groups/:
     get:
-      tags: [新版管理后台]
+      tags: [用户管理]
       summary: 获取用户组列表
       description: 返回全部 Django 用户组及其功能权限配置。需要 `core.manage_feature_permissions` 或 `core.create_user`。
-      operationId: listAdminGroups
+      operationId: listGroups
       security:
         - sessionAuth: []
       responses:
@@ -451,16 +451,16 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminGroupListResponse'
+                $ref: '#/components/schemas/GroupListResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
     post:
-      tags: [新版管理后台]
+      tags: [用户管理]
       summary: 创建用户组
       description: 新增一个用户组并可同步设置功能权限。
-      operationId: createAdminGroup
+      operationId: createGroup
       security:
         - sessionAuth: []
       requestBody:
@@ -468,14 +468,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AdminGroupCreateRequest'
+              $ref: '#/components/schemas/GroupCreateRequest'
       responses:
         '201':
           description: 创建成功
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminGroup'
+                $ref: '#/components/schemas/Group'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -483,12 +483,12 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /api/admin/groups/{groupId}/:
+  /api/groups/{groupId}/:
     patch:
-      tags: [新版管理后台]
+      tags: [用户管理]
       summary: 更新用户组
       description: 更新用户组名称和功能权限。
-      operationId: updateAdminGroup
+      operationId: updateGroup
       security:
         - sessionAuth: []
       parameters:
@@ -503,14 +503,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AdminGroupUpdateRequest'
+              $ref: '#/components/schemas/GroupUpdateRequest'
       responses:
         '200':
           description: 更新成功
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminGroup'
+                $ref: '#/components/schemas/Group'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -520,10 +520,10 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     delete:
-      tags: [新版管理后台]
+      tags: [用户管理]
       summary: 删除空用户组
       description: 仅当用户组没有任何关联用户时允许删除。
-      operationId: deleteAdminGroup
+      operationId: deleteGroup
       security:
         - sessionAuth: []
       parameters:
@@ -1575,9 +1575,9 @@ components:
           description: 当前请求是否已认证
           example: true
         user:
-          $ref: '#/components/schemas/UserInfo'
+          $ref: '#/components/schemas/BaseUserInfo'
 
-    UserInfo:
+    BaseUserInfo:
       type: object
       required:
         [
@@ -1825,9 +1825,9 @@ components:
           type: integer
           description: 符合筛选条件的总记录数
 
-    AdminUserInfo:
+    UserInfo:
       allOf:
-        - $ref: '#/components/schemas/UserInfo'
+        - $ref: '#/components/schemas/BaseUserInfo'
         - type: object
           required: [groupIds, isActive]
           properties:
@@ -1840,17 +1840,13 @@ components:
               type: boolean
               description: 用户账号是否启用
 
-    AdminUserCreateRequest:
+    UserCreateRequest:
       type: object
-      required: [username, password]
+      required: [username]
       properties:
         username:
           type: string
           description: 登录用户名
-        password:
-          type: string
-          format: password
-          description: 初始密码，至少 6 位
         displayName:
           type: string
           description: 显示名称
@@ -1870,17 +1866,26 @@ components:
           type: boolean
           description: 是否启用账号，默认 true
 
-    AdminUserListResponse:
+    UserCreateResponse:
+      allOf:
+        - $ref: '#/components/schemas/UserInfo'
+        - type: object
+          properties:
+            generatedPassword:
+              type: string
+              description: 自动生成的初始密码，仅在创建时返回一次
+
+    UserListResponse:
       type: object
       required: [items]
       properties:
         items:
           type: array
-          description: 后台用户列表
+          description: 用户列表
           items:
-            $ref: '#/components/schemas/AdminUserInfo'
+            $ref: '#/components/schemas/UserInfo'
 
-    AdminUserGroupUpdateRequest:
+    UserGroupUpdateRequest:
       type: object
       required: [groupIds]
       properties:
@@ -1890,7 +1895,7 @@ components:
           items:
             type: integer
 
-    AdminGroup:
+    Group:
       type: object
       required: [id, name, userCount, permissions, isProtected, lockedPermissions]
       properties:
@@ -1917,7 +1922,7 @@ components:
           items:
             type: string
 
-    AdminGroupListResponse:
+    GroupListResponse:
       type: object
       required: [items, availablePermissions]
       properties:
@@ -1925,14 +1930,14 @@ components:
           type: array
           description: 用户组列表
           items:
-            $ref: '#/components/schemas/AdminGroup'
+            $ref: '#/components/schemas/Group'
         availablePermissions:
           type: array
           description: 可配置的平台功能权限元数据
           items:
             $ref: '#/components/schemas/AdminPermissionItem'
 
-    AdminGroupCreateRequest:
+    GroupCreateRequest:
       type: object
       required: [name]
       properties:
@@ -1945,7 +1950,7 @@ components:
           items:
             type: string
 
-    AdminGroupUpdateRequest:
+    GroupUpdateRequest:
       type: object
       properties:
         name:

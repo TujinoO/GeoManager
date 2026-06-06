@@ -10,6 +10,10 @@ class UserProfile(models.Model):
         verbose_name="用户",
     )
     avatar_url = models.URLField(blank=True, verbose_name="头像 URL")
+    avatar_data = models.BinaryField(blank=True, null=True, verbose_name="头像数据")
+    avatar_content_type = models.CharField(
+        max_length=50, blank=True, verbose_name="头像内容类型"
+    )
     department = models.CharField(max_length=120, blank=True, verbose_name="部门")
     disabled_permissions = models.JSONField(
         default=list,

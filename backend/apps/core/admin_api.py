@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 from datetime import datetime, time
 from functools import wraps
@@ -33,7 +34,7 @@ from apps.core.initialization import (
     superadmin_group_locked_permissions,
 )
 from apps.core.models import SystemSetting, UserProfile
-from apps.core.passwords import password_validation_errors
+from apps.core.passwords import generate_password, password_validation_errors
 from apps.core.permissions import (
     FEATURE_PERMISSION_NAMES,
     FEATURE_PERMISSIONS,
@@ -100,17 +101,12 @@ def update_admin_profile(request):
 
     user = request.user
     profile = _ensure_profile(user)
-    username = payload.get("username")
+    # 用户名在创建时确定，不允许修改
     display_name = payload.get("displayName")
     email = payload.get("email")
     avatar_url = payload.get("avatarUrl")
     department = payload.get("department")
 
-    if username is not None:
-        username = _required_string(username, "username")
-        if isinstance(username, JsonResponse):
-            return username
-        user.username = username
     if display_name is not None:
         user.first_name = str(display_name).strip()
         user.last_name = ""
@@ -126,9 +122,109 @@ def update_admin_profile(request):
             user.save()
             profile.save()
     except IntegrityError:
-        return JsonResponse({"detail": "用户名已存在"}, status=400)
+        return JsonResponse({"detail": "保存失败"}, status=400)
 
     return JsonResponse(_serialize_profile(user))
+
+
+@require_http_methods(["POST"])
+@api_login_required
+def upload_avatar(request):
+    """上传用户头像"""
+    if "avatar" not in request.FILES:
+        return JsonResponse({"detail": "请选择头像文件"}, status=400)
+
+    avatar_file = request.FILES["avatar"]
+
+    # 验证文件格式
+    allowed_types = ["image/jpeg", "image/png"]
+    if avatar_file.content_type not in allowed_types:
+        return JsonResponse({"detail": "头像格式仅支持 JPG 和 PNG"}, status=400)
+
+    # 验证文件大小 (2MB)
+    max_size = 2 * 1024 * 1024
+    if avatar_file.size > max_size:
+        return JsonResponse({"detail": "头像文件大小不能超过 2MB"}, status=400)
+
+    # 读取文件数据
+    file_data = avatar_file.read()
+
+    # 压缩图片至合适尺寸
+    try:
+        from PIL import Image
+
+        image = Image.open(io.BytesIO(file_data))
+        # 转换为RGB模式（如果是RGBA）
+        if image.mode in ("RGBA", "LA"):
+            background = Image.new("RGB", image.size, (255, 255, 255))
+            background.paste(image, mask=image.split()[-1])
+            image = background
+        elif image.mode != "RGB":
+            image = image.convert("RGB")
+
+        # 压缩到合适尺寸 (最大 300x300)
+        max_size_pixels = (300, 300)
+        image.thumbnail(max_size_pixels, Image.Resampling.LANCZOS)
+
+        # 保存为JPEG格式
+        output = io.BytesIO()
+        image.save(output, format="JPEG", quality=85)
+        file_data = output.getvalue()
+        content_type = "image/jpeg"
+    except ImportError:
+        # 如果没有PIL，直接使用原始数据
+        content_type = avatar_file.content_type
+    except Exception:
+        # 如果图片处理失败，使用原始数据
+        content_type = avatar_file.content_type
+
+    # 保存到数据库
+    user = request.user
+    profile = _ensure_profile(user)
+    profile.avatar_data = file_data
+    profile.avatar_content_type = content_type
+    # 清除URL头像
+    profile.avatar_url = ""
+    profile.save(
+        update_fields=["avatar_data", "avatar_content_type", "avatar_url", "updated_at"]
+    )
+
+    log_operation(
+        request.user,
+        "用户设置",
+        "上传头像",
+        "success",
+        "上传头像成功",
+        request,
+    )
+
+    return JsonResponse(_serialize_profile(user))
+
+
+@require_http_methods(["GET"])
+@api_login_required
+def get_avatar(request, user_id: int):
+    """获取用户头像"""
+    User = get_user_model()
+    try:
+        user = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({"detail": "用户不存在"}, status=404)
+
+    try:
+        profile = user.profile
+        if profile.avatar_data:
+            from django.http import HttpResponse
+
+            response = HttpResponse(
+                profile.avatar_data, content_type=profile.avatar_content_type
+            )
+            response["Content-Disposition"] = f'inline; filename="avatar_{user_id}.jpg"'
+            return response
+    except ObjectDoesNotExist:
+        pass
+
+    return JsonResponse({"detail": "用户未设置头像"}, status=404)
 
 
 @require_http_methods(["PATCH"])
@@ -230,7 +326,7 @@ def update_admin_profile_password(request):
 
 @require_http_methods(["GET", "POST"])
 @api_any_permission_required("core.manage_feature_permissions", "core.create_user")
-def admin_groups(request):
+def group_list(request):
     if request.method == "GET":
         ensure_superadmin_defaults(create_account=False)
         return JsonResponse(
@@ -266,7 +362,7 @@ def admin_groups(request):
 
 @require_http_methods(["PATCH", "DELETE"])
 @api_permission_required("core.manage_feature_permissions")
-def admin_group_detail(request, group_id: int):
+def group_detail(request, group_id: int):
     try:
         group = Group.objects.get(pk=group_id)
     except Group.DoesNotExist:
@@ -322,7 +418,7 @@ def admin_group_detail(request, group_id: int):
 
 @require_http_methods(["GET", "POST"])
 @api_any_permission_required("core.manage_feature_permissions", "core.create_user")
-def admin_users(request):
+def user_list(request):
     User = get_user_model()
     if request.method == "POST":
         if not has_feature_perm(request.user, "core.create_user"):
@@ -330,9 +426,10 @@ def admin_users(request):
         payload = _json_payload(request)
         if isinstance(payload, JsonResponse):
             return payload
-        created = _create_admin_user(User, payload)
-        if isinstance(created, JsonResponse):
-            return created
+        result = _create_admin_user(User, payload)
+        if isinstance(result, JsonResponse):
+            return result
+        created, generated_password = result
         log_operation(
             request.user,
             "认证授权",
@@ -341,7 +438,9 @@ def admin_users(request):
             created.get_username(),
             request,
         )
-        return JsonResponse(_serialize_admin_user(created), status=201)
+        response_data = _serialize_admin_user(created)
+        response_data["generatedPassword"] = generated_password
+        return JsonResponse(response_data, status=201)
 
     users = User.objects.prefetch_related("groups").order_by("id")
     return JsonResponse({"items": [_serialize_admin_user(user) for user in users]})
@@ -349,7 +448,7 @@ def admin_users(request):
 
 @require_http_methods(["PATCH"])
 @api_permission_required("core.manage_feature_permissions")
-def update_admin_user_groups(request, user_id: int):
+def update_user_groups(request, user_id: int):
     payload = _json_payload(request)
     if isinstance(payload, JsonResponse):
         return payload
@@ -467,9 +566,15 @@ def _serialize_profile(user) -> dict[str, Any]:
     granted = granted_feature_permissions(user)
     disabled = disabled_feature_permissions(user)
     effective = effective_feature_permissions(user)
+
+    # 构建头像URL
+    avatar_url = profile.avatar_url
+    if profile.avatar_data:
+        avatar_url = f"/api/admin/users/{user.id}/avatar/"
+
     return {
         "user": serialize_user(user),
-        "avatarUrl": profile.avatar_url,
+        "avatarUrl": avatar_url,
         "department": profile.department,
         "grantedPermissions": sorted(granted),
         "disabledPermissions": sorted(disabled),
@@ -627,12 +732,10 @@ def _create_admin_user(User, payload: dict[str, Any]):
     username = _required_string(payload.get("username"), "username")
     if isinstance(username, JsonResponse):
         return username
-    password = _required_string(payload.get("password"), "password")
-    if isinstance(password, JsonResponse):
-        return password
-    password_errors = password_validation_errors(password)
-    if password_errors:
-        return JsonResponse({"detail": "；".join(password_errors)}, status=400)
+
+    # 自动生成密码
+    password = generate_password()
+
     email = str(payload.get("email", "")).strip()
     display_name = str(payload.get("displayName", "")).strip()
     department = str(payload.get("department", "")).strip()
@@ -668,7 +771,7 @@ def _create_admin_user(User, payload: dict[str, Any]):
             profile.save(update_fields=["department", "updated_at"])
     except IntegrityError:
         return JsonResponse({"detail": "用户名已存在"}, status=400)
-    return user
+    return user, password
 
 
 def _groups():
