@@ -11,3 +11,22 @@ dependencies = [
   "tomlkit>=0.13",
   "xlrd>=2.0",
 ]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=9.0",
+  "pytest-django>=4.12",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "data_sharing_platform.settings"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+addopts = [
+  "--strict-markers",
+  "--reuse-db",
+]
+markers = [
+  "unit: pure unit tests that should avoid database and external services",
+  "integration: Django integration tests covering models, services, and API endpoints",
+]

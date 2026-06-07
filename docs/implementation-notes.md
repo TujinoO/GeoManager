@@ -189,13 +189,13 @@ frontend/src/
 
 ## 后端测试
 
-- 测试命令：`HUYANG_DISABLE_RASTER_STARTUP_SCAN=1 python manage.py test -v2`
-- 纯函数模块有独立的 `SimpleTestCase` 测试，不依赖数据库：
+- 测试命令：`python -m pytest`
+- 纯函数模块位于 `backend/tests/unit/`，不依赖数据库：
   - `test_progress.py` — 进度文本规范化、百分比解析
   - `test_rules_engine.py` — 波段极值、规则归一化、模式校验
   - `test_color_mapping.py` — hex→RGBA、色带、缩放、色彩映射
   - `test_geo_utils.py` — 坐标边界、瓦片计算、样式哈希、相交判断
-- 集成测试覆盖 API 端点（bootstrap、layers、resource profile/query）和文件扫描逻辑。
+- 集成测试位于 `backend/tests/integration/`，覆盖 API 端点（bootstrap、layers、resource profile/query）和文件扫描逻辑。
 - 测试 mock 目标路径使用模块实际路径（如 `apps.raster.services.importer.import_raster_file`），不使用 `__init__.py` 重导出路径。
 
 ## 前端测试

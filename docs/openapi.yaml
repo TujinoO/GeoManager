@@ -11,7 +11,7 @@ info:
     3. 后续请求携带 `sessionid` Cookie 和 `X-CSRFToken` 请求头
 
     ## 权限体系
-    - **功能权限**：11 项细粒度功能权限，通过用户组分配
+    - **功能权限**：14 项细粒度功能权限，通过用户组分配
     - **数据访问权限**：基于 `access_groups` 的数据隔离
 
     ## 错误处理
@@ -358,7 +358,7 @@ paths:
     get:
       tags: [用户管理]
       summary: 获取用户列表
-      description: 返回可配置用户及其用户组归属。需要 `core.manage_feature_permissions` 或 `core.create_user`。
+      description: 返回可配置用户及其用户组归属。需要 `core.manage_auth`。
       operationId: listUsers
       security:
         - sessionAuth: []
@@ -376,7 +376,7 @@ paths:
     post:
       tags: [用户管理]
       summary: 创建用户
-      description: 具备 `core.create_user` 权限的管理员创建用户账号。密码由后端自动生成并返回。该接口不受自助注册开关影响。
+      description: 具备 `core.manage_auth` 和 `core.create_user` 权限的管理员创建用户账号。密码由后端自动生成并返回。该接口不受自助注册开关影响。
       operationId: createUser
       security:
         - sessionAuth: []
@@ -404,7 +404,7 @@ paths:
     patch:
       tags: [用户管理]
       summary: 更新用户所属用户组
-      description: 为指定用户设置所属用户组。
+      description: 为指定用户设置所属用户组。需要 `core.manage_auth`。
       operationId: updateUserGroups
       security:
         - sessionAuth: []
@@ -441,7 +441,7 @@ paths:
     get:
       tags: [用户管理]
       summary: 获取用户组列表
-      description: 返回全部 Django 用户组及其功能权限配置。需要 `core.manage_feature_permissions` 或 `core.create_user`。
+      description: 返回全部 Django 用户组及其功能权限配置。需要 `core.manage_auth`。
       operationId: listGroups
       security:
         - sessionAuth: []
@@ -459,7 +459,7 @@ paths:
     post:
       tags: [用户管理]
       summary: 创建用户组
-      description: 新增一个用户组并可同步设置功能权限。
+      description: 新增一个用户组并可同步设置功能权限。需要 `core.manage_auth` 和 `core.manage_feature_permissions`。
       operationId: createGroup
       security:
         - sessionAuth: []
@@ -487,7 +487,7 @@ paths:
     patch:
       tags: [用户管理]
       summary: 更新用户组
-      description: 更新用户组名称和功能权限。
+      description: 更新用户组名称和功能权限。需要 `core.manage_auth`。
       operationId: updateGroup
       security:
         - sessionAuth: []
@@ -522,7 +522,7 @@ paths:
     delete:
       tags: [用户管理]
       summary: 删除空用户组
-      description: 仅当用户组没有任何关联用户时允许删除。
+      description: 仅当用户组没有任何关联用户时允许删除。需要 `core.manage_auth`。
       operationId: deleteGroup
       security:
         - sessionAuth: []
@@ -553,7 +553,7 @@ paths:
     get:
       tags: [管理后台]
       summary: 获取用户可配置设置
-      description: 返回后台允许展示和修改的 application 配置，不返回 runtime 内部变量。
+      description: 返回后台允许展示和修改的 application 配置，不返回 runtime 内部变量。需要 `core.manage_system_settings`。
       operationId: getAdminSettings
       security:
         - sessionAuth: []
@@ -571,7 +571,7 @@ paths:
     patch:
       tags: [管理后台]
       summary: 更新用户可配置设置
-      description: 将后台设置直接写入 appdata 下的运行 TOML 配置副本。
+      description: 将后台设置直接写入 appdata 下的运行 TOML 配置副本。需要 `core.manage_system_settings`。
       operationId: updateAdminSettings
       security:
         - sessionAuth: []

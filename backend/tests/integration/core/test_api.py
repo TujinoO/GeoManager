@@ -137,7 +137,7 @@ class FeaturePermissionTests(TestCase):
         manager = get_user_model().objects.create_user(
             username="group-manager", password="pass12345"
         )
-        grant(manager, ("core", "manage_feature_permissions"))
+        grant(manager, ("core", "manage_auth"), ("core", "manage_feature_permissions"))
         group = Group.objects.create(name="待删除用户组")
         user = get_user_model().objects.create_user(
             username="group-member", password="pass12345"
@@ -157,7 +157,7 @@ class FeaturePermissionTests(TestCase):
         manager = get_user_model().objects.create_user(
             username="user-manager", password="pass12345"
         )
-        grant(manager, ("core", "create_user"))
+        grant(manager, ("core", "manage_auth"), ("core", "create_user"))
         group = Group.objects.create(name="科研用户")
         self.client.force_login(manager)
 
@@ -187,7 +187,7 @@ class FeaturePermissionTests(TestCase):
         manager = get_user_model().objects.create_user(
             username="permission-only-manager", password="pass12345"
         )
-        grant(manager, ("core", "manage_feature_permissions"))
+        grant(manager, ("core", "manage_auth"), ("core", "manage_feature_permissions"))
         self.client.force_login(manager)
 
         response = self.client.post(
@@ -208,7 +208,7 @@ class FeaturePermissionTests(TestCase):
         manager = get_user_model().objects.create_user(
             username="create-user-lister", password="pass12345"
         )
-        grant(manager, ("core", "create_user"))
+        grant(manager, ("core", "manage_auth"), ("core", "create_user"))
         self.client.force_login(manager)
 
         response = self.client.get("/api/groups/")
@@ -220,7 +220,7 @@ class FeaturePermissionTests(TestCase):
         manager = get_user_model().objects.create_user(
             username="create-user-protected-group", password="pass12345"
         )
-        grant(manager, ("core", "create_user"))
+        grant(manager, ("core", "manage_auth"), ("core", "create_user"))
         _, protected_group = ensure_superadmin_defaults(create_account=False)
         self.client.force_login(manager)
 
@@ -246,7 +246,7 @@ class FeaturePermissionTests(TestCase):
         manager = get_user_model().objects.create_user(
             username="assign-protected-group-manager", password="pass12345"
         )
-        grant(manager, ("core", "manage_feature_permissions"))
+        grant(manager, ("core", "manage_auth"), ("core", "manage_feature_permissions"))
         target = get_user_model().objects.create_user(
             username="regular-protected-target",
             password="StrongPass12345",
@@ -270,7 +270,7 @@ class FeaturePermissionTests(TestCase):
         manager = get_user_model().objects.create_user(
             username="permission-list-manager", password="pass12345"
         )
-        grant(manager, ("core", "manage_feature_permissions"))
+        grant(manager, ("core", "manage_auth"), ("core", "manage_feature_permissions"))
         self.client.force_login(manager)
 
         response = self.client.get("/api/groups/")
@@ -293,7 +293,7 @@ class FeaturePermissionTests(TestCase):
         manager = get_user_model().objects.create_user(
             username="superadmin-guard-manager", password="pass12345"
         )
-        grant(manager, ("core", "manage_feature_permissions"))
+        grant(manager, ("core", "manage_auth"), ("core", "manage_feature_permissions"))
         _, group = ensure_superadmin_defaults(create_account=False)
         self.client.force_login(manager)
 
@@ -319,7 +319,7 @@ class FeaturePermissionTests(TestCase):
         manager = get_user_model().objects.create_user(
             username="superadmin-user-group-manager", password="pass12345"
         )
-        grant(manager, ("core", "manage_feature_permissions"))
+        grant(manager, ("core", "manage_auth"), ("core", "manage_feature_permissions"))
         protected_user, protected_group = ensure_superadmin_defaults()
         normal_group = Group.objects.create(name="普通后台组")
         self.client.force_login(manager)
@@ -438,7 +438,7 @@ class FeaturePermissionTests(TestCase):
         manager = get_user_model().objects.create_user(
             username="log-manager", password="pass12345"
         )
-        grant(manager, ("core", "access_admin"))
+        grant(manager, ("core", "view_operation_logs"))
         OperationLog.objects.create(
             user=manager,
             module="系统设置",
