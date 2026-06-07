@@ -1,5 +1,6 @@
 import {
   AuditOutlined,
+  DashboardOutlined,
   DatabaseOutlined,
   HomeOutlined,
   LogoutOutlined,
@@ -18,6 +19,11 @@ import { useAppContext } from "../contexts/AppContext";
 import type { User } from "../types";
 
 const baseAdminRoutes: MenuDataItem[] = [
+  {
+    path: "/admin/dashboard",
+    name: "Dashboard",
+    icon: <DashboardOutlined />,
+  },
   {
     path: "/admin/profile",
     name: "用户设置",
@@ -70,12 +76,16 @@ function adminRouteFor(user: User | null) {
 }
 
 const defaultPageMeta = {
-  title: "用户设置",
-  subTitle: "维护个人信息并查看当前权限",
+  title: "Dashboard",
+  subTitle: "汇总平台数据、系统监控与栅格数量",
 };
 
 const pageMeta: Record<string, { title: string; subTitle: string }> = {
-  "/admin/profile": defaultPageMeta,
+  "/admin/dashboard": defaultPageMeta,
+  "/admin/profile": {
+    title: "用户设置",
+    subTitle: "维护个人信息并查看当前权限",
+  },
   "/admin/logs": {
     title: "操作日志",
     subTitle: "查询、筛选并导出关键操作记录",
@@ -95,7 +105,7 @@ const pageMeta: Record<string, { title: string; subTitle: string }> = {
 };
 
 export default function AdminLayout() {
-  const { bootstrap, user, setUser } = useAppContext();
+  const { user, setUser } = useAppContext();
   const location = useLocation();
   const navigate = useNavigate();
   const meta = pageMeta[location.pathname] ?? defaultPageMeta;
@@ -165,9 +175,6 @@ export default function AdminLayout() {
           </div>
         ),
       }}
-      menuFooterRender={() => (
-        <div className="admin-menu-footer">{bootstrap.systemName}</div>
-      )}
       pageTitleRender={false}
     >
       <PageContainer

@@ -19,6 +19,7 @@ from apps.core.permissions import (
 )
 
 SUPERADMIN_GROUP_NAME = "超级管理员"
+GUEST_GROUP_NAME = "游客"
 SUPERADMIN_USERNAME_ENV = "HUYANG_SUPERADMIN_USERNAME"
 SUPERADMIN_PASSWORD_ENV = "HUYANG_SUPERADMIN_PASSWORD"
 SUPERADMIN_EMAIL_ENV = "HUYANG_SUPERADMIN_EMAIL"
@@ -26,6 +27,11 @@ DEFAULT_SUPERADMIN_USERNAME = "admin"
 DEFAULT_SUPERADMIN_EMAIL = "admin@example.local"
 INITIAL_PASSWORD_FILE = "initial_superadmin_password.txt"
 LOCKED_SUPERADMIN_PERMISSIONS = ("core.access_admin",)
+GUEST_GROUP_PERMISSIONS = (
+    "core.browse_data",
+    "core.load_vector_layer",
+    "core.load_raster_layer",
+)
 
 
 def ensure_superadmin_defaults(
@@ -33,6 +39,7 @@ def ensure_superadmin_defaults(
 ) -> tuple[Any | None, Group]:
     with transaction.atomic():
         ensure_feature_permissions()
+        ensure_guest_group()
         group, _ = Group.objects.get_or_create(name=SUPERADMIN_GROUP_NAME)
         _grant_all_feature_permissions(group)
         user = _ensure_initial_superadmin(group) if create_account else None
@@ -69,6 +76,16 @@ def is_superadmin_group(group: Group) -> bool:
     return group.name == SUPERADMIN_GROUP_NAME
 
 
+def is_guest_group(group: Group) -> bool:
+    return group.name == GUEST_GROUP_NAME
+
+
+def ensure_guest_group() -> Group:
+    group, _ = Group.objects.get_or_create(name=GUEST_GROUP_NAME)
+    _set_group_permissions(group, GUEST_GROUP_PERMISSIONS)
+    return group
+
+
 def is_superadmin_user(user) -> bool:
     return bool(
         getattr(user, "is_authenticated", False)
@@ -91,6 +108,10 @@ def protected_group_permissions() -> list[str]:
     return list(FEATURE_PERMISSION_NAMES)
 
 
+def guest_group_permissions() -> set[str]:
+    return set(GUEST_GROUP_PERMISSIONS)
+
+
 def initial_password_path() -> Path:
     return settings.PROJECT_CONFIG.app_path("database", INITIAL_PASSWORD_FILE)
 
@@ -104,6 +125,20 @@ def _grant_all_feature_permissions(group: Group) -> None:
     if not permissions:
         return
     group.permissions.add(*permissions)
+
+
+def _set_group_permissions(group: Group, permission_names: tuple[str, ...]) -> None:
+    permissions_by_name = {
+        f"{permission.content_type.app_label}.{permission.codename}": permission
+        for permission in feature_permission_queryset()
+    }
+    selected = [
+        permissions_by_name[permission_name]
+        for permission_name in permission_names
+        if permission_name in permissions_by_name
+    ]
+    if selected:
+        group.permissions.set(selected)
 
 
 def _ensure_initial_superadmin(group: Group):

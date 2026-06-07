@@ -233,6 +233,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/dashboard/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 获取后台 Dashboard 统计
+         * @description 返回后台 Dashboard 首屏统计数据与指定周期活跃用户。活跃用户定义为周期内存在成功登录操作日志的去重用户。需要 `core.access_admin`。
+         */
+        get: operations["getAdminDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/dashboard/server/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 获取后台 Dashboard 服务器监控
+         * @description 返回服务器 CPU、内存、硬盘型号、数量和使用情况等监控快照。需要 `core.access_admin`，前端每 5 秒刷新一次。
+         */
+        get: operations["getAdminDashboardServer"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/users/": {
         parameters: {
             query?: never;
@@ -242,13 +282,13 @@ export interface paths {
         };
         /**
          * 获取用户列表
-         * @description 返回可配置用户及其用户组归属。需要 `core.manage_feature_permissions` 或 `core.create_user`。
+         * @description 返回可配置用户及其用户组归属。需要 `core.manage_auth`。
          */
         get: operations["listUsers"];
         put?: never;
         /**
          * 创建用户
-         * @description 具备 `core.create_user` 权限的管理员创建用户账号。密码由后端自动生成并返回。该接口不受自助注册开关影响。
+         * @description 具备 `core.manage_auth` 和 `core.create_user` 权限的管理员创建用户账号，创建时必须指定至少一个非超级管理员用户组。密码由后端自动生成并返回。该接口不受自助注册开关影响。
          */
         post: operations["createUser"];
         delete?: never;
@@ -272,7 +312,7 @@ export interface paths {
         head?: never;
         /**
          * 更新用户所属用户组
-         * @description 为指定用户设置所属用户组。
+         * @description 为指定用户设置所属用户组。普通用户必须保留至少一个用户组，不能加入超级管理员用户组；初始化 admin 用户会自动保留超级管理员用户组。需要 `core.manage_auth`。
          */
         patch: operations["updateUserGroups"];
         trace?: never;
@@ -286,13 +326,13 @@ export interface paths {
         };
         /**
          * 获取用户组列表
-         * @description 返回全部 Django 用户组及其功能权限配置。需要 `core.manage_feature_permissions` 或 `core.create_user`。
+         * @description 返回全部 Django 用户组及其功能权限配置。需要 `core.manage_auth`。
          */
         get: operations["listGroups"];
         put?: never;
         /**
          * 创建用户组
-         * @description 新增一个用户组并可同步设置功能权限。
+         * @description 新增一个用户组并可同步设置功能权限。需要 `core.manage_auth` 和 `core.manage_feature_permissions`。
          */
         post: operations["createGroup"];
         delete?: never;
@@ -313,14 +353,14 @@ export interface paths {
         post?: never;
         /**
          * 删除空用户组
-         * @description 仅当用户组没有任何关联用户时允许删除。
+         * @description 仅当用户组没有任何关联用户时允许删除。需要 `core.manage_auth`。
          */
         delete: operations["deleteGroup"];
         options?: never;
         head?: never;
         /**
          * 更新用户组
-         * @description 更新用户组名称和功能权限。
+         * @description 更新用户组名称和功能权限。需要 `core.manage_auth`。
          */
         patch: operations["updateGroup"];
         trace?: never;
@@ -334,7 +374,7 @@ export interface paths {
         };
         /**
          * 获取用户可配置设置
-         * @description 返回后台允许展示和修改的 application 配置，不返回 runtime 内部变量。
+         * @description 返回后台允许展示和修改的 application 配置，不返回 runtime 内部变量。需要 `core.manage_system_settings`。
          */
         get: operations["getAdminSettings"];
         put?: never;
@@ -344,7 +384,7 @@ export interface paths {
         head?: never;
         /**
          * 更新用户可配置设置
-         * @description 将后台设置直接写入 appdata 下的运行 TOML 配置副本。
+         * @description 将后台设置直接写入 appdata 下的运行 TOML 配置副本。需要 `core.manage_system_settings`。
          */
         patch: operations["updateAdminSettings"];
         trace?: never;
@@ -1031,8 +1071,8 @@ export interface components {
              */
             label: string;
             /**
-             * @description 权限在管理界面中的分组名称
-             * @example 系统管理
+             * @description 权限在管理界面中的分组名称，当前按后台权限、数据权限、人员权限归类
+             * @example 后台权限
              */
             group: string;
         };
@@ -1117,6 +1157,175 @@ export interface components {
             /** @description 符合筛选条件的总记录数 */
             total: number;
         };
+        AdminDashboardResponse: {
+            /**
+             * Format: date-time
+             * @description Dashboard 统计生成时间
+             */
+            generatedAt: string;
+            dataCounts: components["schemas"]["AdminDashboardDataCounts"];
+            activeUsers: components["schemas"]["AdminDashboardActiveUsers"];
+        };
+        AdminDashboardDataCounts: {
+            /** @description 数据资源总数 */
+            resources: number;
+            /** @description 启用状态的数据资源数量 */
+            activeResources: number;
+            /** @description 图层总数 */
+            layers: number;
+            /** @description 启用状态的图层数量 */
+            activeLayers: number;
+            /** @description 矢量数据资源数量 */
+            vectorResources: number;
+            /** @description 栅格数据资源数量 */
+            rasterResources: number;
+            /** @description 栅格数据集数量 */
+            rasterDatasets: number;
+            /** @description 栅格图层数量 */
+            rasterLayers: number;
+            /** @description 表格数据资源数量 */
+            tableResources: number;
+            /** @description 系统用户总数 */
+            users: number;
+        };
+        AdminDashboardActiveUsers: {
+            /**
+             * @description 活跃用户统计周期
+             * @enum {string}
+             */
+            period: "day" | "week" | "month";
+            /**
+             * Format: date
+             * @description 统计周期起始日期
+             */
+            rangeStart: string;
+            /**
+             * Format: date
+             * @description 统计周期结束日期
+             */
+            rangeEnd: string;
+            /** @description 周期内成功登录的去重用户数量 */
+            count: number;
+            /** @description 周期内成功登录总次数 */
+            loginCount: number;
+            /** @description 柱状图序列，day 按小时统计，week/month 按日期统计 */
+            series: components["schemas"]["AdminDashboardActiveUserSeriesItem"][];
+            /** @description 周期内登录次数最多的用户排名 */
+            ranking: components["schemas"]["AdminDashboardActiveUserRank"][];
+        };
+        AdminDashboardActiveUserSeriesItem: {
+            /** @description 序列项唯一键，day 为小时值，week/month 为日期 */
+            key: string;
+            /** @description 序列项显示标签 */
+            label: string;
+            /** @description 该序列项内成功登录次数 */
+            count: number;
+        };
+        AdminDashboardActiveUserRank: {
+            /** @description 用户 ID */
+            userId: number;
+            /** @description 用户显示名称 */
+            displayName: string;
+            /** @description 用户名 */
+            username: string;
+            /** @description 周期内成功登录次数 */
+            loginCount: number;
+        };
+        AdminDashboardServerResponse: {
+            /**
+             * Format: date-time
+             * @description 服务器监控快照生成时间
+             */
+            generatedAt: string;
+            /** @description 主机名 */
+            hostname: string;
+            /** @description 操作系统平台描述 */
+            platform: string;
+            cpu: components["schemas"]["AdminDashboardCpuInfo"];
+            memory: components["schemas"]["AdminDashboardMemoryInfo"];
+            disks: components["schemas"]["AdminDashboardDiskInfo"];
+        };
+        AdminDashboardCpuInfo: {
+            /** @description CPU 型号 */
+            model: string;
+            /** @description CPU 物理核心数量 */
+            physicalCount: number;
+            /** @description CPU 逻辑核心数量 */
+            logicalCount: number;
+            /**
+             * Format: float
+             * @description 基于 1 分钟负载估算的 CPU 使用率百分比
+             */
+            usagePercent: number;
+            /** @description 1 分钟、5 分钟、15 分钟系统负载 */
+            loadAverage: [
+                number,
+                number,
+                number
+            ];
+        };
+        AdminDashboardMemoryInfo: {
+            /** @description 内存型号或来源说明 */
+            model: string;
+            /** @description 可识别的内存数量 */
+            slotCount: number;
+            /**
+             * Format: int64
+             * @description 内存总容量，单位字节
+             */
+            totalBytes: number;
+            /**
+             * Format: int64
+             * @description 已使用内存容量，单位字节
+             */
+            usedBytes: number;
+            /**
+             * Format: int64
+             * @description 可用内存容量，单位字节
+             */
+            availableBytes: number;
+            /**
+             * Format: float
+             * @description 内存使用率百分比
+             */
+            usagePercent: number;
+        };
+        AdminDashboardDiskInfo: {
+            /** @description 可识别硬盘数量 */
+            count: number;
+            /** @description 硬盘设备列表 */
+            devices: components["schemas"]["AdminDashboardDiskDevice"][];
+            /** @description 用于统计使用率的挂载路径 */
+            mount: string;
+            /**
+             * Format: int64
+             * @description 挂载路径总容量，单位字节
+             */
+            totalBytes: number;
+            /**
+             * Format: int64
+             * @description 挂载路径已使用容量，单位字节
+             */
+            usedBytes: number;
+            /**
+             * Format: int64
+             * @description 挂载路径可用容量，单位字节
+             */
+            freeBytes: number;
+            /**
+             * Format: float
+             * @description 挂载路径使用率百分比
+             */
+            usagePercent: number;
+        };
+        AdminDashboardDiskDevice: {
+            /** @description 硬盘设备名称 */
+            name: string;
+            /** @description 硬盘型号 */
+            model: string;
+            /** @description 硬盘容量文本 */
+            size: string;
+        };
         UserInfo: components["schemas"]["BaseUserInfo"] & {
             /** @description 用户所属用户组 ID 列表 */
             groupIds: number[];
@@ -1135,8 +1344,11 @@ export interface components {
             email?: string;
             /** @description 用户所在部门 */
             department?: string;
-            /** @description 初始所属用户组 ID 列表 */
-            groupIds?: number[];
+            /** @description 初始所属用户组 ID 列表，必填且至少包含一个非超级管理员用户组 */
+            groupIds: [
+                number,
+                ...number[]
+            ];
             /** @description 是否启用账号，默认 true */
             isActive?: boolean;
         };
@@ -1149,8 +1361,11 @@ export interface components {
             items: components["schemas"]["UserInfo"][];
         };
         UserGroupUpdateRequest: {
-            /** @description 用户新的用户组 ID 列表 */
-            groupIds: number[];
+            /** @description 用户新的用户组 ID 列表，普通用户至少保留一个用户组 */
+            groupIds: [
+                number,
+                ...number[]
+            ];
         };
         Group: {
             /** @description 用户组 ID */
@@ -1161,7 +1376,7 @@ export interface components {
             userCount: number;
             /** @description 用户组授予的平台功能权限列表 */
             permissions: string[];
-            /** @description 是否为系统受保护用户组，受保护组不能删除且部分权限不可关闭 */
+            /** @description 是否为系统受保护用户组，受保护组不能删除且部分权限不可关闭。初始化内置组包含超级管理员和游客 */
             isProtected: boolean;
             /** @description 受保护用户组中不可关闭的平台功能权限列表 */
             lockedPermissions: string[];
@@ -2300,6 +2515,54 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminDashboard: {
+        parameters: {
+            query?: {
+                /** @description 活跃用户统计周期，day 为今日按小时统计，week 为本周按日统计，month 为本月按日统计。 */
+                period?: "day" | "week" | "month";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDashboardResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getAdminDashboardServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDashboardServerResponse"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
         };

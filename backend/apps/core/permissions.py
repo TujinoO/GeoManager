@@ -25,66 +25,66 @@ class FeaturePermissionDef:
 
 FEATURE_PERMISSIONS: tuple[FeaturePermissionDef, ...] = (
     FeaturePermissionDef(
-        "core", "FeaturePermission", "access_admin", "进入后台管理", "系统管理"
+        "core", "FeaturePermission", "access_admin", "进入后台管理", "后台权限"
     ),
     FeaturePermissionDef(
         "core",
         "FeaturePermission",
         "manage_feature_permissions",
         "配置功能权限",
-        "系统管理",
+        "人员权限",
     ),
     FeaturePermissionDef(
-        "core", "FeaturePermission", "create_user", "新建用户", "系统管理"
+        "core", "FeaturePermission", "create_user", "新建用户", "人员权限"
     ),
     FeaturePermissionDef(
         "core",
         "FeaturePermission",
         "view_operation_logs",
         "查看操作日志",
-        "系统管理",
+        "后台权限",
     ),
     FeaturePermissionDef(
         "core",
         "FeaturePermission",
         "manage_system_settings",
         "修改系统设置",
-        "系统管理",
+        "后台权限",
     ),
     FeaturePermissionDef(
-        "core", "FeaturePermission", "manage_auth", "修改认证授权", "系统管理"
+        "core", "FeaturePermission", "manage_auth", "修改认证授权", "人员权限"
     ),
     FeaturePermissionDef(
-        "core", "FeaturePermission", "browse_data", "浏览数据", "数据功能"
+        "core", "FeaturePermission", "browse_data", "浏览数据", "数据权限"
     ),
     FeaturePermissionDef(
-        "core", "FeaturePermission", "query_data", "查询数据", "数据功能"
+        "core", "FeaturePermission", "query_data", "查询数据", "数据权限"
     ),
     FeaturePermissionDef(
-        "core", "FeaturePermission", "load_vector_layer", "加载矢量图层", "图层功能"
+        "core", "FeaturePermission", "load_vector_layer", "加载矢量图层", "数据权限"
     ),
     FeaturePermissionDef(
-        "core", "FeaturePermission", "load_raster_layer", "加载栅格图层", "图层功能"
+        "core", "FeaturePermission", "load_raster_layer", "加载栅格图层", "数据权限"
     ),
     FeaturePermissionDef(
         "core",
         "FeaturePermission",
         "custom_symbolization",
         "自定义符号化",
-        "图层功能",
+        "数据权限",
     ),
     FeaturePermissionDef(
-        "catalog", "DataResource", "export_dataresource", "导出数据资源", "数据管理"
+        "catalog", "DataResource", "export_dataresource", "导出数据资源", "数据权限"
     ),
     FeaturePermissionDef(
-        "catalog", "DataResource", "maintain_dataresource", "数据导入", "数据管理"
+        "catalog", "DataResource", "maintain_dataresource", "数据导入", "数据权限"
     ),
     FeaturePermissionDef(
         "raster",
         "RasterDataset",
         "manage_raster_dataset",
         "管理栅格数据集",
-        "栅格管理",
+        "数据权限",
     ),
 )
 

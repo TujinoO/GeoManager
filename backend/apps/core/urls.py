@@ -15,6 +15,12 @@ urlpatterns = [
         admin_api.admin_operation_logs,
         name="admin-operation-logs",
     ),
+    path("admin/dashboard/", admin_api.admin_dashboard, name="admin-dashboard"),
+    path(
+        "admin/dashboard/server/",
+        admin_api.admin_dashboard_server,
+        name="admin-dashboard-server",
+    ),
     path("admin/profile/", admin_api.admin_profile, name="admin-profile"),
     path(
         "admin/profile/update/",

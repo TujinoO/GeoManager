@@ -28,6 +28,8 @@ export type AdminOperationLog = Schemas["AdminOperationLog"];
 export type AdminOperationLogQuery = NonNullable<
   operations["listAdminOperationLogs"]["parameters"]["query"]
 >;
+export type AdminDashboard = Schemas["AdminDashboardResponse"];
+export type AdminDashboardServer = Schemas["AdminDashboardServerResponse"];
 export type AdminSettings = Schemas["AdminSettingsResponse"];
 export type AdminSettingsUpdate = Schemas["AdminSettingsUpdateRequest"];
 export type DataResource = Schemas["DataResource"];

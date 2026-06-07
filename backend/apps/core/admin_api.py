@@ -2,8 +2,15 @@ from __future__ import annotations
 
 import io
 import json
-from datetime import datetime, time
+import os
+import platform
+import re
+import shutil
+import subprocess
+from calendar import monthrange
+from datetime import datetime, time, timedelta
 from functools import wraps
+from pathlib import Path
 from typing import Any
 
 from django.conf import settings
@@ -11,7 +18,7 @@ from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.models import Group
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
@@ -19,14 +26,18 @@ from django.views.decorators.http import require_GET, require_http_methods
 
 from apps.audit.models import OperationLog
 from apps.audit.service import log_operation
+from apps.catalog.models import DataResource, MapLayer
 from apps.core.auth_views import serialize_user
 from apps.core.config import (
     load_runtime_config_document,
     update_runtime_application_config,
 )
 from apps.core.initialization import (
+    GUEST_GROUP_NAME,
     SUPERADMIN_GROUP_NAME,
     ensure_superadmin_defaults,
+    guest_group_permissions,
+    is_guest_group,
     is_initial_superadmin_user,
     is_superadmin_group,
     is_superadmin_user,
@@ -44,6 +55,7 @@ from apps.core.permissions import (
     granted_feature_permissions,
     has_feature_perm,
 )
+from apps.raster.models import RasterDataset
 
 
 def api_login_required(view_func):
@@ -369,8 +381,8 @@ def group_detail(request, group_id: int):
         return JsonResponse({"detail": "用户组不存在"}, status=404)
 
     if request.method == "DELETE":
-        if is_superadmin_group(group):
-            return JsonResponse({"detail": "超级管理员用户组不能删除"}, status=400)
+        if is_superadmin_group(group) or is_guest_group(group):
+            return JsonResponse({"detail": "系统内置用户组不能删除"}, status=400)
         if group.user_set.exists():
             return JsonResponse({"detail": "用户组仍有关联用户，不能删除"}, status=400)
         group_name = group.name
@@ -392,6 +404,11 @@ def group_detail(request, group_id: int):
                 {"detail": "超级管理员用户组名称不能修改"},
                 status=400,
             )
+        if is_guest_group(group) and name != GUEST_GROUP_NAME:
+            return JsonResponse(
+                {"detail": "游客用户组名称不能修改"},
+                status=400,
+            )
         group.name = name
     if "permissions" in payload:
         permissions = _permission_names(payload.get("permissions"))
@@ -405,6 +422,14 @@ def group_detail(request, group_id: int):
                     status=400,
                 )
             permissions = protected_group_permissions()
+        if is_guest_group(group):
+            locked = guest_group_permissions()
+            if locked - set(permissions):
+                return JsonResponse(
+                    {"detail": "游客用户组必须保留浏览和加载数据权限"},
+                    status=400,
+                )
+            permissions = sorted(locked)
         _set_group_feature_permissions(group, permissions)
     try:
         group.save()
@@ -469,6 +494,8 @@ def update_user_groups(request, user_id: int):
     if is_initial_superadmin_user(user):
         _, protected_group = ensure_superadmin_defaults(create_account=False)
         normalized_group_ids.add(protected_group.id)
+    elif not normalized_group_ids:
+        return JsonResponse({"detail": "用户组为必选项"}, status=400)
 
     groups = list(Group.objects.filter(id__in=normalized_group_ids))
     if len(groups) != len(normalized_group_ids):
@@ -561,6 +588,418 @@ def admin_operation_logs(request):
     )
 
 
+@require_GET
+@api_permission_required("core.access_admin")
+def admin_dashboard(request):
+    period = _active_period(request.GET.get("period"))
+    if isinstance(period, JsonResponse):
+        return period
+    period_start, period_end = _active_period_bounds(period)
+    login_logs = OperationLog.objects.filter(
+        module="auth",
+        action="login",
+        status=OperationLog.Status.SUCCESS,
+        created_at__gte=period_start,
+        created_at__lt=period_end,
+        user_id__isnull=False,
+    )
+    active_user_count = login_logs.values("user_id").distinct().count()
+    series = _active_user_series(login_logs, period, period_start)
+    ranking = _active_user_ranking(login_logs)
+
+    data_counts = {
+        "resources": DataResource.objects.count(),
+        "activeResources": DataResource.objects.filter(
+            status=DataResource.Status.ACTIVE
+        ).count(),
+        "layers": MapLayer.objects.count(),
+        "activeLayers": MapLayer.objects.filter(is_active=True).count(),
+        "vectorResources": DataResource.objects.filter(
+            data_type=DataResource.DataType.VECTOR
+        ).count(),
+        "rasterResources": DataResource.objects.filter(
+            data_type=DataResource.DataType.RASTER
+        ).count(),
+        "rasterDatasets": RasterDataset.objects.count(),
+        "rasterLayers": MapLayer.objects.filter(
+            layer_type=MapLayer.LayerType.RASTER
+        ).count(),
+        "tableResources": DataResource.objects.filter(
+            data_type=DataResource.DataType.TABLE
+        ).count(),
+        "users": get_user_model().objects.count(),
+    }
+
+    return JsonResponse(
+        {
+            "generatedAt": timezone.localtime().isoformat(),
+            "dataCounts": data_counts,
+            "activeUsers": {
+                "period": period,
+                "rangeStart": timezone.localtime(period_start).date().isoformat(),
+                "rangeEnd": (timezone.localtime(period_end) - timedelta(days=1))
+                .date()
+                .isoformat(),
+                "count": active_user_count,
+                "loginCount": login_logs.count(),
+                "series": series,
+                "ranking": ranking,
+            },
+        }
+    )
+
+
+@require_GET
+@api_permission_required("core.access_admin")
+def admin_dashboard_server(request):
+    return JsonResponse(_server_snapshot())
+
+
+def _active_period(value: Any) -> str | JsonResponse:
+    period = str(value or "day").strip()
+    if period not in {"day", "week", "month"}:
+        return JsonResponse({"detail": "period 仅支持 day、week、month"}, status=400)
+    return period
+
+
+def _active_period_bounds(period: str):
+    today = timezone.localdate()
+    if period == "week":
+        start_date = today - timedelta(days=today.weekday())
+        end_date = start_date + timedelta(days=7)
+    elif period == "month":
+        start_date = today.replace(day=1)
+        end_date = start_date + timedelta(days=monthrange(today.year, today.month)[1])
+    else:
+        start_date = today
+        end_date = today + timedelta(days=1)
+    start = timezone.make_aware(datetime.combine(start_date, time.min))
+    end = timezone.make_aware(datetime.combine(end_date, time.min))
+    return start, end
+
+
+def _active_user_series(login_logs, period: str, period_start) -> list[dict[str, Any]]:
+    if period == "day":
+        counts = {hour: 0 for hour in range(24)}
+        for created_at in login_logs.values_list("created_at", flat=True):
+            counts[timezone.localtime(created_at).hour] += 1
+        return [
+            {"key": str(hour), "label": f"{hour:02d}:00", "count": count}
+            for hour, count in counts.items()
+        ]
+
+    start_date = timezone.localtime(period_start).date()
+    days = 7 if period == "week" else monthrange(start_date.year, start_date.month)[1]
+    counts = {start_date + timedelta(days=offset): 0 for offset in range(days)}
+    for created_at in login_logs.values_list("created_at", flat=True):
+        date = timezone.localtime(created_at).date()
+        if date in counts:
+            counts[date] += 1
+    return [
+        {
+            "key": date.isoformat(),
+            "label": date.strftime("%m-%d"),
+            "count": count,
+        }
+        for date, count in counts.items()
+    ]
+
+
+def _active_user_ranking(login_logs) -> list[dict[str, Any]]:
+    ranked_logs = (
+        login_logs.values("user_id", "user__username", "user__first_name")
+        .annotate(login_count=Count("id"))
+        .order_by("-login_count", "user__username")[:5]
+    )
+    return [
+        {
+            "userId": row["user_id"],
+            "displayName": row["user__first_name"] or row["user__username"],
+            "username": row["user__username"],
+            "loginCount": row["login_count"],
+        }
+        for row in ranked_logs
+    ]
+
+
+def _server_snapshot() -> dict[str, Any]:
+    return {
+        "generatedAt": timezone.localtime().isoformat(),
+        "hostname": platform.node(),
+        "platform": platform.platform(),
+        "cpu": _cpu_snapshot(),
+        "memory": _memory_snapshot(),
+        "disks": _disk_snapshot(),
+    }
+
+
+def _cpu_snapshot() -> dict[str, Any]:
+    logical_count = os.cpu_count() or 1
+    load_average = _load_average()
+    usage_percent = _cpu_usage_percent(logical_count, load_average)
+    return {
+        "model": _cpu_model(),
+        "physicalCount": _physical_cpu_count(logical_count),
+        "logicalCount": logical_count,
+        "usagePercent": usage_percent,
+        "loadAverage": load_average,
+    }
+
+
+def _cpu_model() -> str:
+    if platform.system() == "Darwin":
+        return _run_text(["sysctl", "-n", "machdep.cpu.brand_string"])
+    if platform.system() == "Windows":
+        return _run_text(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "(Get-CimInstance Win32_Processor | Select-Object -First 1).Name",
+            ]
+        )
+    if Path("/proc/cpuinfo").exists():
+        for line in Path("/proc/cpuinfo").read_text(errors="ignore").splitlines():
+            if line.lower().startswith("model name"):
+                return line.split(":", 1)[1].strip()
+    return platform.processor() or platform.machine()
+
+
+def _physical_cpu_count(logical_count: int) -> int:
+    if platform.system() == "Darwin":
+        value = _run_text(["sysctl", "-n", "hw.physicalcpu"])
+        return _safe_int(value, logical_count)
+    if platform.system() == "Windows":
+        value = _run_text(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "(Get-CimInstance Win32_Processor | Measure-Object -Property NumberOfCores -Sum).Sum",
+            ]
+        )
+        return _safe_int(value, logical_count)
+    return logical_count
+
+
+def _cpu_usage_percent(logical_count: int, load_average: list[float]) -> float:
+    if platform.system() == "Windows":
+        value = _run_text(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "(Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average",
+            ]
+        )
+        return round(float(_safe_number(value, 0)), 1)
+    return round(min((load_average[0] / logical_count) * 100, 100), 1)
+
+
+def _load_average() -> list[float]:
+    try:
+        return [round(value, 2) for value in os.getloadavg()]
+    except OSError:
+        return [0.0, 0.0, 0.0]
+
+
+def _memory_snapshot() -> dict[str, Any]:
+    total = _memory_total_bytes()
+    available = _memory_available_bytes()
+    used = max(total - available, 0) if total else 0
+    usage_percent = round((used / total) * 100, 1) if total else 0
+    return {
+        "model": "系统内存",
+        "slotCount": 1 if total else 0,
+        "totalBytes": total,
+        "usedBytes": used,
+        "availableBytes": available,
+        "usagePercent": usage_percent,
+    }
+
+
+def _memory_total_bytes() -> int:
+    if platform.system() == "Darwin":
+        return _safe_int(_run_text(["sysctl", "-n", "hw.memsize"]), 0)
+    if platform.system() == "Windows":
+        return _safe_int(
+            _run_text(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory",
+                ]
+            ),
+            0,
+        )
+    meminfo = _linux_meminfo()
+    return meminfo.get("MemTotal", 0) * 1024
+
+
+def _memory_available_bytes() -> int:
+    if platform.system() == "Windows":
+        value = _run_text(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory",
+            ]
+        )
+        return _safe_int(value, 0) * 1024
+    if platform.system() == "Darwin":
+        page_size = _safe_int(_run_text(["sysctl", "-n", "hw.pagesize"]), 4096)
+        stats = _run_text(["vm_stat"])
+        free_pages = 0
+        for key in ("Pages free", "Pages inactive", "Pages speculative"):
+            match = re.search(rf"{re.escape(key)}:\s+(\d+)\.", stats)
+            if match:
+                free_pages += int(match.group(1))
+        return free_pages * page_size
+    meminfo = _linux_meminfo()
+    return meminfo.get("MemAvailable", 0) * 1024
+
+
+def _linux_meminfo() -> dict[str, int]:
+    meminfo_path = Path("/proc/meminfo")
+    if not meminfo_path.exists():
+        return {}
+    values = {}
+    for line in meminfo_path.read_text(errors="ignore").splitlines():
+        key, _, value = line.partition(":")
+        number = value.strip().split(" ")[0]
+        values[key] = _safe_int(number, 0)
+    return values
+
+
+def _disk_snapshot() -> dict[str, Any]:
+    root_usage = shutil.disk_usage(settings.BASE_DIR)
+    devices = _disk_devices()
+    used = root_usage.used
+    total = root_usage.total
+    return {
+        "count": len(devices) or 1,
+        "devices": devices,
+        "mount": str(settings.BASE_DIR),
+        "totalBytes": total,
+        "usedBytes": used,
+        "freeBytes": root_usage.free,
+        "usagePercent": round((used / total) * 100, 1) if total else 0,
+    }
+
+
+def _disk_devices() -> list[dict[str, str]]:
+    if platform.system() == "Darwin":
+        return _darwin_disk_devices()
+    if platform.system() == "Linux":
+        return _linux_disk_devices()
+    if platform.system() == "Windows":
+        return _windows_disk_devices()
+    return []
+
+
+def _darwin_disk_devices() -> list[dict[str, str]]:
+    text = _run_text(["diskutil", "list", "physical"])
+    devices = []
+    for line in text.splitlines():
+        match = re.match(r"^/dev/(\S+)", line.strip())
+        if match:
+            device = match.group(1)
+            info = _run_text(["diskutil", "info", device])
+            model = ""
+            size = ""
+            for info_line in info.splitlines():
+                if "Device / Media Name:" in info_line:
+                    model = info_line.split(":", 1)[1].strip()
+                if "Disk Size:" in info_line:
+                    size = info_line.split(":", 1)[1].strip()
+            devices.append({"name": device, "model": model, "size": size})
+    return devices
+
+
+def _linux_disk_devices() -> list[dict[str, str]]:
+    text = _run_text(["lsblk", "-dn", "-o", "NAME,MODEL,SIZE,TYPE"])
+    devices = []
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[-1] == "disk":
+            devices.append(
+                {
+                    "name": parts[0],
+                    "model": " ".join(parts[1:-2]),
+                    "size": parts[-2],
+                }
+            )
+    return devices
+
+
+def _windows_disk_devices() -> list[dict[str, str]]:
+    text = _run_text(
+        [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            'Get-CimInstance Win32_DiskDrive | ForEach-Object { "$($_.DeviceID)|$($_.Model)|$($_.Size)" }',
+        ]
+    )
+    devices = []
+    for line in text.splitlines():
+        name, model, size = _split_fixed(line, "|", 3)
+        if name:
+            devices.append(
+                {
+                    "name": name,
+                    "model": model,
+                    "size": _format_bytes_text(_safe_int(size, 0)),
+                }
+            )
+    return devices
+
+
+def _run_text(command: list[str]) -> str:
+    try:
+        return subprocess.check_output(
+            command,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
+        ).strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def _safe_int(value: Any, default: int) -> int:
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_number(value: Any, default: float) -> float:
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return default
+
+
+def _split_fixed(value: str, separator: str, count: int) -> list[str]:
+    parts = value.split(separator)
+    return [*(parts[:count]), *([""] * count)][:count]
+
+
+def _format_bytes_text(value: int) -> str:
+    if value <= 0:
+        return ""
+    units = ["B", "KB", "MB", "GB", "TB"]
+    current = float(value)
+    unit_index = 0
+    while current >= 1024 and unit_index < len(units) - 1:
+        current /= 1024
+        unit_index += 1
+    return f"{current:.1f} {units[unit_index]}"
+
+
 def _serialize_profile(user) -> dict[str, Any]:
     profile = _ensure_profile(user)
     granted = granted_feature_permissions(user)
@@ -597,15 +1036,20 @@ def _serialize_group(group: Group) -> dict[str, Any]:
         f"{permission.content_type.app_label}.{permission.codename}"
         for permission in group.permissions.select_related("content_type").all()
     }
-    is_protected = is_superadmin_group(group)
+    is_superadmin = is_superadmin_group(group)
+    is_guest = is_guest_group(group)
     return {
         "id": group.id,
         "name": group.name,
         "userCount": group.user_set.count(),
         "permissions": sorted(permissions & set(FEATURE_PERMISSION_NAMES)),
-        "isProtected": is_protected,
+        "isProtected": is_superadmin or is_guest,
         "lockedPermissions": sorted(
-            superadmin_group_locked_permissions() if is_protected else set()
+            superadmin_group_locked_permissions()
+            if is_superadmin
+            else guest_group_permissions()
+            if is_guest
+            else set()
         ),
     }
 
@@ -747,6 +1191,8 @@ def _create_admin_user(User, payload: dict[str, Any]):
         normalized_group_ids = {int(group_id) for group_id in group_ids}
     except (TypeError, ValueError):
         return JsonResponse({"detail": "groupIds 必须是整数数组"}, status=400)
+    if not normalized_group_ids:
+        return JsonResponse({"detail": "用户组为必选项"}, status=400)
 
     groups = list(Group.objects.filter(id__in=normalized_group_ids))
     if len(groups) != len(normalized_group_ids):

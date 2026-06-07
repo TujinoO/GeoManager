@@ -1,6 +1,8 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type {
   Achievement,
+  AdminDashboard,
+  AdminDashboardServer,
   AdminOperationLog,
   AdminOperationLogQuery,
   AdminProfile,
@@ -236,6 +238,14 @@ export const api = {
         params: { query: filters },
       }),
     ),
+  adminDashboard: (period: "day" | "week" | "month" = "day") =>
+    unwrap<AdminDashboard>(
+      client.GET("/api/admin/dashboard/", {
+        params: { query: { period } },
+      }),
+    ),
+  adminDashboardServer: () =>
+    unwrap<AdminDashboardServer>(client.GET("/api/admin/dashboard/server/")),
   adminUsers: () => unwrap<ListResponse<User>>(client.GET("/api/users/")),
   createAdminUser: (payload: UserCreateRequest) =>
     unwrap<UserCreateResponse>(

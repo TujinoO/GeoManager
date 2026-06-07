@@ -102,10 +102,22 @@ export default function AdminAuthPage() {
       groups.map((group) => ({
         label: group.name,
         value: group.id,
-        disabled: group.isProtected,
+        disabled: isSuperadminGroup(group),
       })),
     [groups],
   );
+  const availablePermissionGroups = useMemo(() => {
+    const permissionGroups = new Map<string, AdminPermissionItem[]>();
+    for (const permission of availablePermissions) {
+      const current = permissionGroups.get(permission.group) ?? [];
+      current.push(permission);
+      permissionGroups.set(permission.group, current);
+    }
+    return [...permissionGroups.entries()].map(([group, items]) => ({
+      group,
+      items,
+    }));
+  }, [availablePermissions]);
 
   const userColumns: ProColumns<User>[] = [
     {
@@ -240,7 +252,7 @@ export default function AdminAuthPage() {
         displayName: values.displayName ?? "",
         email: values.email ?? "",
         department: values.department ?? "",
-        groupIds: values.groupIds ?? [],
+        groupIds: values.groupIds as [number, ...number[]],
         isActive: values.isActive ?? true,
       });
       createUserForm.resetFields();
@@ -302,7 +314,7 @@ export default function AdminAuthPage() {
   async function handleSaveUserGroups() {
     if (!groupUser || !canManagePermissions) return;
     const updated = await api.updateAdminUserGroups(groupUser.id, {
-      groupIds: selectedGroupIds,
+      groupIds: selectedGroupIds as [number, ...number[]],
     });
     setUsers((current) =>
       current.map((user) => (user.id === updated.id ? updated : user)),
@@ -404,27 +416,42 @@ export default function AdminAuthPage() {
                         <Checkbox.Group
                           className="admin-permission-list"
                           value={groupDrafts[group.id] ?? group.permissions}
-                          options={availablePermissions.map((permission) => ({
-                            label: (
-                              <span className="admin-permission-option">
-                                <Typography.Text strong>
-                                  {permission.label}
-                                </Typography.Text>
-                                <Typography.Text type="secondary">
-                                  {permission.id}
-                                </Typography.Text>
-                              </span>
-                            ),
-                            value: permission.id,
-                            disabled: group.isProtected,
-                          }))}
                           onChange={(values) => {
                             setGroupDrafts((current) => ({
                               ...current,
                               [group.id]: values.map(String),
                             }));
                           }}
-                        />
+                        >
+                          {availablePermissionGroups.map((permissionGroup) => (
+                            <div
+                              className="admin-permission-group"
+                              key={permissionGroup.group}
+                            >
+                              <Typography.Text strong>
+                                {permissionGroup.group}
+                              </Typography.Text>
+                              <div className="admin-permission-group-options">
+                                {permissionGroup.items.map((permission) => (
+                                  <Checkbox
+                                    key={permission.id}
+                                    value={permission.id}
+                                    disabled={group.isProtected}
+                                  >
+                                    <span className="admin-permission-option">
+                                      <Typography.Text strong>
+                                        {permission.label}
+                                      </Typography.Text>
+                                      <Typography.Text type="secondary">
+                                        {permission.id}
+                                      </Typography.Text>
+                                    </span>
+                                  </Checkbox>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </Checkbox.Group>
                         {availablePermissions.length === 0 ? (
                           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
                         ) : null}
@@ -537,7 +564,8 @@ export default function AdminAuthPage() {
                 label: group.name,
                 value: group.id,
                 disabled:
-                  group.isProtected && !groupUser.groupIds.includes(group.id),
+                  isSuperadminGroup(group) &&
+                  !groupUser.groupIds.includes(group.id),
               }))}
               onChange={setSelectedGroupIds}
               style={{ width: "100%" }}
@@ -583,6 +611,13 @@ export default function AdminAuthPage() {
           >
             <Input autoComplete="off" />
           </Form.Item>
+          <Form.Item
+            name="groupIds"
+            label="用户组"
+            rules={[{ required: true, message: "请选择用户组" }]}
+          >
+            <Select mode="multiple" options={groupOptions} />
+          </Form.Item>
           <Form.Item name="displayName" label="显示名称">
             <Input />
           </Form.Item>
@@ -595,9 +630,6 @@ export default function AdminAuthPage() {
           </Form.Item>
           <Form.Item name="department" label="部门">
             <Input />
-          </Form.Item>
-          <Form.Item name="groupIds" label="用户组">
-            <Select mode="multiple" options={groupOptions} />
           </Form.Item>
           <Form.Item name="isActive" label="启用账号" valuePropName="checked">
             <Switch />
@@ -621,4 +653,8 @@ function formOrApiError(error: unknown, fallback: string) {
 
 function isFormValidationError(error: unknown): error is FormValidationError {
   return typeof error === "object" && error !== null && "errorFields" in error;
+}
+
+function isSuperadminGroup(group: Group) {
+  return group.name === "超级管理员";
 }

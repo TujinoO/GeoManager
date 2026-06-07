@@ -9,7 +9,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
 from apps.audit.service import log_operation
-from apps.core.initialization import ensure_superadmin_defaults
+from apps.core.initialization import ensure_guest_group, ensure_superadmin_defaults
 from apps.core.passwords import password_validation_errors
 from apps.core.permissions import has_feature_perm
 from apps.core.views import registration_allowed
@@ -66,12 +66,14 @@ def register_view(request):
         return JsonResponse({"detail": "；".join(password_errors)}, status=400)
 
     ensure_superadmin_defaults()
+    guest_group = ensure_guest_group()
     User = get_user_model()
     user = User(username=username, email=email)
     try:
         with transaction.atomic():
             user.set_password(password)
             user.save()
+            user.groups.add(guest_group)
     except IntegrityError:
         return JsonResponse({"detail": "账号已存在"}, status=400)
 

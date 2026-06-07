@@ -3,8 +3,10 @@ from django.contrib.auth.models import Group, Permission
 from django.test import TestCase
 
 from apps.core.initialization import (
+    GUEST_GROUP_NAME,
     SUPERADMIN_GROUP_NAME,
     ensure_superadmin_defaults,
+    guest_group_permissions,
     is_superadmin_user,
     protected_group_permissions,
 )
@@ -153,6 +155,18 @@ class SuperadminInitializationTests(TestCase):
             for permission in group.permissions.select_related("content_type")
         }
         self.assertEqual(group_permissions, set(protected_group_permissions()))
+
+    def test_ensure_superadmin_defaults_creates_guest_group_with_browse_and_load_permissions(
+        self,
+    ):
+        ensure_superadmin_defaults(create_account=False)
+
+        group = Group.objects.get(name=GUEST_GROUP_NAME)
+        group_permissions = {
+            f"{permission.content_type.app_label}.{permission.codename}"
+            for permission in group.permissions.select_related("content_type")
+        }
+        self.assertEqual(group_permissions, guest_group_permissions())
 
     def test_existing_superuser_is_attached_to_superadmin_group(self):
         user = get_user_model().objects.create_superuser(

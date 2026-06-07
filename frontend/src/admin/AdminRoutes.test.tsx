@@ -12,7 +12,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppContext } from "../contexts/AppContext";
 import { RequireAdmin, RequireDataMaintain } from "../router";
 import type { Bootstrap, User } from "../types";
+
+vi.mock("@ant-design/charts", () => ({
+  Column: () => <div data-testid="active-chart" />,
+}));
+
 import AdminAuthPage from "./AdminAuthPage";
+import AdminDashboardPage from "./AdminDashboardPage";
 import AdminDataImportPage from "./AdminDataImportPage";
 import AdminLayout from "./AdminLayout";
 import AdminOperationLogsPage from "./AdminOperationLogsPage";
@@ -38,6 +44,8 @@ const mockApi = vi.hoisted(() => ({
   importPreview: vi.fn(),
   importValidate: vi.fn(),
   importCommit: vi.fn(),
+  adminDashboard: vi.fn(),
+  adminDashboardServer: vi.fn(),
 }));
 
 vi.mock("../api/client", () => ({
@@ -90,22 +98,26 @@ const adminUser: User = {
 };
 
 const availablePermissions = [
-  { id: "core.access_admin", label: "进入后台管理", group: "系统管理" },
+  { id: "core.access_admin", label: "进入后台管理", group: "后台权限" },
   {
     id: "core.manage_feature_permissions",
     label: "配置功能权限",
-    group: "系统管理",
+    group: "人员权限",
   },
-  { id: "core.create_user", label: "新建用户", group: "系统管理" },
-  { id: "core.view_operation_logs", label: "查看操作日志", group: "系统管理" },
-  { id: "core.manage_system_settings", label: "修改系统设置", group: "系统管理" },
-  { id: "core.manage_auth", label: "修改认证授权", group: "系统管理" },
-  { id: "core.browse_data", label: "浏览数据目录", group: "数据功能" },
-  { id: "core.query_data", label: "查询数据", group: "数据功能" },
+  { id: "core.create_user", label: "新建用户", group: "人员权限" },
+  { id: "core.view_operation_logs", label: "查看操作日志", group: "后台权限" },
+  {
+    id: "core.manage_system_settings",
+    label: "修改系统设置",
+    group: "后台权限",
+  },
+  { id: "core.manage_auth", label: "修改认证授权", group: "人员权限" },
+  { id: "core.browse_data", label: "浏览数据目录", group: "数据权限" },
+  { id: "core.query_data", label: "查询数据", group: "数据权限" },
   {
     id: "catalog.export_dataresource",
     label: "导出数据资源",
-    group: "数据管理",
+    group: "数据权限",
   },
 ];
 
@@ -147,7 +159,8 @@ function renderAdminRoute(initialEntry: string) {
           <Route path="/" element={<div>业务入口</div>} />
           <Route element={<RequireAdmin />}>
             <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<Navigate to="profile" replace />} />
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<AdminDashboardPage />} />
               <Route path="profile" element={<AdminProfilePage />} />
               <Route path="logs" element={<AdminOperationLogsPage />} />
               <Route path="settings" element={<AdminSystemSettingsPage />} />
@@ -221,6 +234,70 @@ describe("admin routes", () => {
     });
     mockApi.adminSettings.mockResolvedValue(adminSettings);
     mockApi.updateAdminSettings.mockResolvedValue(adminSettings);
+    mockApi.adminDashboard.mockResolvedValue({
+      generatedAt: "2026-06-07T20:00:00+08:00",
+      dataCounts: {
+        resources: 2,
+        activeResources: 2,
+        layers: 1,
+        activeLayers: 1,
+        vectorResources: 1,
+        rasterResources: 1,
+        rasterDatasets: 1,
+        rasterLayers: 1,
+        tableResources: 0,
+        users: 2,
+      },
+      activeUsers: {
+        period: "day",
+        rangeStart: "2026-06-07",
+        rangeEnd: "2026-06-07",
+        count: 1,
+        loginCount: 2,
+        series: Array.from({ length: 24 }, (_, hour) => ({
+          key: String(hour),
+          label: `${String(hour).padStart(2, "0")}:00`,
+          count: hour === 9 ? 2 : 0,
+        })),
+        ranking: [
+          {
+            userId: 2,
+            displayName: "活跃用户",
+            username: "active-user",
+            loginCount: 2,
+          },
+        ],
+      },
+    });
+    mockApi.adminDashboardServer.mockResolvedValue({
+      generatedAt: "2026-06-07T20:00:00+08:00",
+      hostname: "test-host",
+      platform: "Darwin",
+      cpu: {
+        model: "Apple M",
+        physicalCount: 8,
+        logicalCount: 8,
+        usagePercent: 32,
+        loadAverage: [2.1, 1.8, 1.5],
+      },
+      memory: {
+        model: "系统内存",
+        slotCount: 1,
+        totalBytes: 17179869184,
+        usedBytes: 8589934592,
+        availableBytes: 8589934592,
+        usagePercent: 50,
+      },
+      disks: {
+        count: 1,
+        devices: [{ name: "disk0", model: "APPLE SSD", size: "512 GB" }],
+        mount: "/Users/gx/Documents/Source/huyang_system",
+        totalBytes: 512000000000,
+        usedBytes: 256000000000,
+        freeBytes: 256000000000,
+        usagePercent: 50,
+      },
+    });
     mockApi.importPreview.mockResolvedValue({
       suggestedName: "样地调查点位",
       suggestedTableName: "sample_points",
@@ -257,12 +334,13 @@ describe("admin routes", () => {
     });
   });
 
-  it("redirects /admin to user settings", async () => {
+  it("redirects /admin to dashboard", async () => {
     renderAdminRoute("/admin");
 
-    expect(await screen.findByText("个人信息")).toBeInTheDocument();
-    expect(screen.getByText("修改密码")).toBeInTheDocument();
-    expect(screen.getByText("我的权限")).toBeInTheDocument();
+    expect(await screen.findByText("图层数")).toBeInTheDocument();
+    expect(screen.getAllByText("栅格数量").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("活跃用户").length).toBeGreaterThan(0);
+    expect(screen.getByText("服务器信息")).toBeInTheDocument();
   });
 
   it("submits the password change form from user settings", async () => {

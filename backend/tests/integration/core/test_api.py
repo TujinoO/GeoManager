@@ -9,12 +9,17 @@ from django.test import SimpleTestCase, TestCase
 from data_sharing_platform.settings import _default_csrf_trusted_origins
 
 from apps.audit.models import OperationLog
+from apps.catalog.models import DataResource, MapLayer
 from apps.core.config import (
     ensure_runtime_config_file,
     load_project_config,
     update_runtime_application_config,
 )
-from apps.core.initialization import SUPERADMIN_GROUP_NAME, ensure_superadmin_defaults
+from apps.core.initialization import (
+    GUEST_GROUP_NAME,
+    SUPERADMIN_GROUP_NAME,
+    ensure_superadmin_defaults,
+)
 from apps.core.models import SystemSetting
 from apps.core.storage import (
     StoragePathError,
@@ -25,6 +30,7 @@ from apps.core.storage import (
     research_path,
     table_data_path,
 )
+from apps.raster.models import RasterDataset
 
 
 class BootstrapApiTests(TestCase):
@@ -81,6 +87,7 @@ class RegistrationApiTests(TestCase):
                 permissions__codename="access_admin",
             ).exists()
         )
+        self.assertTrue(user.groups.filter(name=GUEST_GROUP_NAME).exists())
 
     def test_registration_can_be_closed_by_system_setting(self):
         SystemSetting.objects.update_or_create(
@@ -183,6 +190,29 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(user.profile.department, "生态监测组")
         self.assertTrue(user.groups.filter(id=group.id).exists())
 
+    def test_create_user_requires_group(self):
+        manager = get_user_model().objects.create_user(
+            username="user-manager-empty-group", password="pass12345"
+        )
+        grant(manager, ("core", "manage_auth"), ("core", "create_user"))
+        self.client.force_login(manager)
+
+        response = self.client.post(
+            "/api/users/",
+            data=json.dumps(
+                {
+                    "username": "created-without-group",
+                    "displayName": "无组用户",
+                    "groupIds": [],
+                    "isActive": True,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "用户组为必选项")
+
     def test_manage_feature_permissions_without_create_user_cannot_create_user(self):
         manager = get_user_model().objects.create_user(
             username="permission-only-manager", password="pass12345"
@@ -283,6 +313,14 @@ class FeaturePermissionTests(TestCase):
         self.assertIn("core.access_admin", permission_ids)
         self.assertIn("core.manage_feature_permissions", permission_ids)
         self.assertIn("core.create_user", permission_ids)
+        guest_items = [
+            item for item in payload["items"] if item["name"] == GUEST_GROUP_NAME
+        ]
+        self.assertEqual(guest_items[0]["isProtected"], True)
+        self.assertEqual(
+            set(guest_items[0]["lockedPermissions"]),
+            {"core.browse_data", "core.load_vector_layer", "core.load_raster_layer"},
+        )
         protected_items = [
             item for item in payload["items"] if item["name"] == SUPERADMIN_GROUP_NAME
         ]
@@ -299,10 +337,7 @@ class FeaturePermissionTests(TestCase):
 
         delete_response = self.client.delete(f"/api/groups/{group.id}/")
         self.assertEqual(delete_response.status_code, 400)
-        self.assertEqual(
-            delete_response.json()["detail"],
-            "超级管理员用户组不能删除",
-        )
+        self.assertEqual(delete_response.json()["detail"], "系统内置用户组不能删除")
 
         patch_response = self.client.patch(
             f"/api/groups/{group.id}/",
@@ -332,6 +367,26 @@ class FeaturePermissionTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(protected_group.id, response.json()["groupIds"])
+
+    def test_regular_user_cannot_be_left_without_group(self):
+        manager = get_user_model().objects.create_user(
+            username="empty-group-manager", password="pass12345"
+        )
+        grant(manager, ("core", "manage_auth"), ("core", "manage_feature_permissions"))
+        target = get_user_model().objects.create_user(
+            username="empty-group-target",
+            password="StrongPass12345",
+        )
+        self.client.force_login(manager)
+
+        response = self.client.patch(
+            f"/api/users/{target.id}/groups/",
+            data=json.dumps({"groupIds": []}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "用户组为必选项")
 
     def test_superadmin_cannot_disable_own_admin_access_permission(self):
         superuser = get_user_model().objects.create_superuser(
@@ -464,6 +519,87 @@ class FeaturePermissionTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["total"], 1)
         self.assertEqual(payload["items"][0]["action"], "保存配置")
+
+    def test_admin_dashboard_counts_data_and_daily_active_users(self):
+        manager = get_user_model().objects.create_user(
+            username="dashboard-manager", password="pass12345"
+        )
+        active_user = get_user_model().objects.create_user(
+            username="active-user", password="pass12345"
+        )
+        grant(manager, ("core", "access_admin"))
+        raster_resource = DataResource.objects.create(
+            name="胡杨林分布栅格",
+            code="poplar-raster",
+            data_type=DataResource.DataType.RASTER,
+        )
+        DataResource.objects.create(
+            name="样地调查点位",
+            code="sample-points",
+            data_type=DataResource.DataType.VECTOR,
+        )
+        raster_layer = MapLayer.objects.create(
+            name="胡杨林分布栅格",
+            code="poplar-raster-layer",
+            layer_type=MapLayer.LayerType.RASTER,
+            data_resource=raster_resource,
+        )
+        RasterDataset.objects.create(
+            name="胡杨林分布栅格",
+            code="poplar-raster-dataset",
+            source_relative_path="raster/original/poplar.tif",
+            data_resource=raster_resource,
+            map_layer=raster_layer,
+        )
+        OperationLog.objects.create(
+            user=active_user,
+            module="auth",
+            action="login",
+            status="success",
+            message="登录成功",
+        )
+        OperationLog.objects.create(
+            user=active_user,
+            module="auth",
+            action="login",
+            status="success",
+            message="登录成功",
+        )
+        self.client.force_login(manager)
+
+        response = self.client.get("/api/admin/dashboard/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["dataCounts"]["resources"], 2)
+        self.assertEqual(payload["dataCounts"]["layers"], 1)
+        self.assertEqual(payload["dataCounts"]["rasterResources"], 1)
+        self.assertEqual(payload["dataCounts"]["rasterDatasets"], 1)
+        self.assertEqual(payload["activeUsers"]["period"], "day")
+        self.assertEqual(payload["activeUsers"]["count"], 1)
+        self.assertEqual(payload["activeUsers"]["loginCount"], 2)
+        self.assertEqual(
+            payload["activeUsers"]["ranking"][0]["username"], "active-user"
+        )
+        self.assertEqual(len(payload["activeUsers"]["series"]), 24)
+
+    def test_admin_dashboard_server_returns_monitor_snapshot(self):
+        manager = get_user_model().objects.create_user(
+            username="server-manager", password="pass12345"
+        )
+        grant(manager, ("core", "access_admin"))
+        self.client.force_login(manager)
+
+        response = self.client.get("/api/admin/dashboard/server/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("cpu", payload)
+        self.assertIn("memory", payload)
+        self.assertIn("disks", payload)
+        self.assertIn("usagePercent", payload["cpu"])
+        self.assertIn("totalBytes", payload["memory"])
+        self.assertIn("devices", payload["disks"])
 
 
 class StoragePathTests(SimpleTestCase):

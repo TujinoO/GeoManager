@@ -21,6 +21,7 @@ import {
 import type { Bootstrap, User } from "./types";
 
 const AdminAuthPage = lazy(() => import("./admin/AdminAuthPage"));
+const AdminDashboardPage = lazy(() => import("./admin/AdminDashboardPage"));
 const AdminDataImportPage = lazy(() => import("./admin/AdminDataImportPage"));
 const AdminLayout = lazy(() => import("./admin/AdminLayout"));
 const AdminOperationLogsPage = lazy(
@@ -165,7 +166,8 @@ export default function App() {
             />
             <Route element={<RequireAdmin />}>
               <Route path="/admin" element={<AdminLayout />}>
-                <Route index element={<Navigate to="profile" replace />} />
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<AdminDashboardPage />} />
                 <Route path="profile" element={<AdminProfilePage />} />
                 <Route element={<RequireViewOperationLogs />}>
                   <Route path="logs" element={<AdminOperationLogsPage />} />

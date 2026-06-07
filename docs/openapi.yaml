@@ -11,7 +11,7 @@ info:
     3. 后续请求携带 `sessionid` Cookie 和 `X-CSRFToken` 请求头
 
     ## 权限体系
-    - **功能权限**：14 项细粒度功能权限，通过用户组分配
+    - **功能权限**：14 项细粒度功能权限，通过用户组分配，按后台权限、数据权限、人员权限分组管理
     - **数据访问权限**：基于 `access_groups` 的数据隔离
 
     ## 错误处理
@@ -354,6 +354,56 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /api/admin/dashboard/:
+    get:
+      tags: [管理后台]
+      summary: 获取后台 Dashboard 统计
+      description: 返回后台 Dashboard 首屏统计数据与指定周期活跃用户。活跃用户定义为周期内存在成功登录操作日志的去重用户。需要 `core.access_admin`。
+      operationId: getAdminDashboard
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: day
+          description: 活跃用户统计周期，day 为今日按小时统计，week 为本周按日统计，month 为本月按日统计。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/dashboard/server/:
+    get:
+      tags: [管理后台]
+      summary: 获取后台 Dashboard 服务器监控
+      description: 返回服务器 CPU、内存、硬盘型号、数量和使用情况等监控快照。需要 `core.access_admin`，前端每 5 秒刷新一次。
+      operationId: getAdminDashboardServer
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardServerResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /api/users/:
     get:
       tags: [用户管理]
@@ -376,7 +426,7 @@ paths:
     post:
       tags: [用户管理]
       summary: 创建用户
-      description: 具备 `core.manage_auth` 和 `core.create_user` 权限的管理员创建用户账号。密码由后端自动生成并返回。该接口不受自助注册开关影响。
+      description: 具备 `core.manage_auth` 和 `core.create_user` 权限的管理员创建用户账号，创建时必须指定至少一个非超级管理员用户组。密码由后端自动生成并返回。该接口不受自助注册开关影响。
       operationId: createUser
       security:
         - sessionAuth: []
@@ -404,7 +454,7 @@ paths:
     patch:
       tags: [用户管理]
       summary: 更新用户所属用户组
-      description: 为指定用户设置所属用户组。需要 `core.manage_auth`。
+      description: 为指定用户设置所属用户组。普通用户必须保留至少一个用户组，不能加入超级管理员用户组；初始化 admin 用户会自动保留超级管理员用户组。需要 `core.manage_auth`。
       operationId: updateUserGroups
       security:
         - sessionAuth: []
@@ -1700,8 +1750,8 @@ components:
           example: 进入后台管理
         group:
           type: string
-          description: 权限在管理界面中的分组名称
-          example: 系统管理
+          description: 权限在管理界面中的分组名称，当前按后台权限、数据权限、人员权限归类
+          example: 后台权限
 
     AdminProfileResponse:
       type: object
@@ -1837,6 +1887,268 @@ components:
           type: integer
           description: 符合筛选条件的总记录数
 
+    AdminDashboardResponse:
+      type: object
+      required: [generatedAt, dataCounts, activeUsers]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+          description: Dashboard 统计生成时间
+        dataCounts:
+          $ref: '#/components/schemas/AdminDashboardDataCounts'
+        activeUsers:
+          $ref: '#/components/schemas/AdminDashboardActiveUsers'
+
+    AdminDashboardDataCounts:
+      type: object
+      required:
+        [
+          resources,
+          activeResources,
+          layers,
+          activeLayers,
+          vectorResources,
+          rasterResources,
+          rasterDatasets,
+          rasterLayers,
+          tableResources,
+          users,
+        ]
+      properties:
+        resources:
+          type: integer
+          description: 数据资源总数
+        activeResources:
+          type: integer
+          description: 启用状态的数据资源数量
+        layers:
+          type: integer
+          description: 图层总数
+        activeLayers:
+          type: integer
+          description: 启用状态的图层数量
+        vectorResources:
+          type: integer
+          description: 矢量数据资源数量
+        rasterResources:
+          type: integer
+          description: 栅格数据资源数量
+        rasterDatasets:
+          type: integer
+          description: 栅格数据集数量
+        rasterLayers:
+          type: integer
+          description: 栅格图层数量
+        tableResources:
+          type: integer
+          description: 表格数据资源数量
+        users:
+          type: integer
+          description: 系统用户总数
+
+    AdminDashboardActiveUsers:
+      type: object
+      required: [period, rangeStart, rangeEnd, count, loginCount, series, ranking]
+      properties:
+        period:
+          type: string
+          enum: [day, week, month]
+          description: 活跃用户统计周期
+        rangeStart:
+          type: string
+          format: date
+          description: 统计周期起始日期
+        rangeEnd:
+          type: string
+          format: date
+          description: 统计周期结束日期
+        count:
+          type: integer
+          description: 周期内成功登录的去重用户数量
+        loginCount:
+          type: integer
+          description: 周期内成功登录总次数
+        series:
+          type: array
+          description: 柱状图序列，day 按小时统计，week/month 按日期统计
+          items:
+            $ref: '#/components/schemas/AdminDashboardActiveUserSeriesItem'
+        ranking:
+          type: array
+          description: 周期内登录次数最多的用户排名
+          items:
+            $ref: '#/components/schemas/AdminDashboardActiveUserRank'
+
+    AdminDashboardActiveUserSeriesItem:
+      type: object
+      required: [key, label, count]
+      properties:
+        key:
+          type: string
+          description: 序列项唯一键，day 为小时值，week/month 为日期
+        label:
+          type: string
+          description: 序列项显示标签
+        count:
+          type: integer
+          description: 该序列项内成功登录次数
+
+    AdminDashboardActiveUserRank:
+      type: object
+      required: [userId, displayName, username, loginCount]
+      properties:
+        userId:
+          type: integer
+          description: 用户 ID
+        displayName:
+          type: string
+          description: 用户显示名称
+        username:
+          type: string
+          description: 用户名
+        loginCount:
+          type: integer
+          description: 周期内成功登录次数
+
+    AdminDashboardServerResponse:
+      type: object
+      required: [generatedAt, hostname, platform, cpu, memory, disks]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+          description: 服务器监控快照生成时间
+        hostname:
+          type: string
+          description: 主机名
+        platform:
+          type: string
+          description: 操作系统平台描述
+        cpu:
+          $ref: '#/components/schemas/AdminDashboardCpuInfo'
+        memory:
+          $ref: '#/components/schemas/AdminDashboardMemoryInfo'
+        disks:
+          $ref: '#/components/schemas/AdminDashboardDiskInfo'
+
+    AdminDashboardCpuInfo:
+      type: object
+      required:
+        [model, physicalCount, logicalCount, usagePercent, loadAverage]
+      properties:
+        model:
+          type: string
+          description: CPU 型号
+        physicalCount:
+          type: integer
+          description: CPU 物理核心数量
+        logicalCount:
+          type: integer
+          description: CPU 逻辑核心数量
+        usagePercent:
+          type: number
+          format: float
+          description: 基于 1 分钟负载估算的 CPU 使用率百分比
+        loadAverage:
+          type: array
+          description: 1 分钟、5 分钟、15 分钟系统负载
+          minItems: 3
+          maxItems: 3
+          items:
+            type: number
+            format: float
+
+    AdminDashboardMemoryInfo:
+      type: object
+      required:
+        [
+          model,
+          slotCount,
+          totalBytes,
+          usedBytes,
+          availableBytes,
+          usagePercent,
+        ]
+      properties:
+        model:
+          type: string
+          description: 内存型号或来源说明
+        slotCount:
+          type: integer
+          description: 可识别的内存数量
+        totalBytes:
+          type: integer
+          format: int64
+          description: 内存总容量，单位字节
+        usedBytes:
+          type: integer
+          format: int64
+          description: 已使用内存容量，单位字节
+        availableBytes:
+          type: integer
+          format: int64
+          description: 可用内存容量，单位字节
+        usagePercent:
+          type: number
+          format: float
+          description: 内存使用率百分比
+
+    AdminDashboardDiskInfo:
+      type: object
+      required:
+        [
+          count,
+          devices,
+          mount,
+          totalBytes,
+          usedBytes,
+          freeBytes,
+          usagePercent,
+        ]
+      properties:
+        count:
+          type: integer
+          description: 可识别硬盘数量
+        devices:
+          type: array
+          description: 硬盘设备列表
+          items:
+            $ref: '#/components/schemas/AdminDashboardDiskDevice'
+        mount:
+          type: string
+          description: 用于统计使用率的挂载路径
+        totalBytes:
+          type: integer
+          format: int64
+          description: 挂载路径总容量，单位字节
+        usedBytes:
+          type: integer
+          format: int64
+          description: 挂载路径已使用容量，单位字节
+        freeBytes:
+          type: integer
+          format: int64
+          description: 挂载路径可用容量，单位字节
+        usagePercent:
+          type: number
+          format: float
+          description: 挂载路径使用率百分比
+
+    AdminDashboardDiskDevice:
+      type: object
+      required: [name, model, size]
+      properties:
+        name:
+          type: string
+          description: 硬盘设备名称
+        model:
+          type: string
+          description: 硬盘型号
+        size:
+          type: string
+          description: 硬盘容量文本
+
     UserInfo:
       allOf:
         - $ref: '#/components/schemas/BaseUserInfo'
@@ -1854,7 +2166,7 @@ components:
 
     UserCreateRequest:
       type: object
-      required: [username]
+      required: [username, groupIds]
       properties:
         username:
           type: string
@@ -1871,7 +2183,8 @@ components:
           description: 用户所在部门
         groupIds:
           type: array
-          description: 初始所属用户组 ID 列表
+          minItems: 1
+          description: 初始所属用户组 ID 列表，必填且至少包含一个非超级管理员用户组
           items:
             type: integer
         isActive:
@@ -1903,7 +2216,8 @@ components:
       properties:
         groupIds:
           type: array
-          description: 用户新的用户组 ID 列表
+          minItems: 1
+          description: 用户新的用户组 ID 列表，普通用户至少保留一个用户组
           items:
             type: integer
 
@@ -1927,7 +2241,7 @@ components:
             type: string
         isProtected:
           type: boolean
-          description: 是否为系统受保护用户组，受保护组不能删除且部分权限不可关闭
+          description: 是否为系统受保护用户组，受保护组不能删除且部分权限不可关闭。初始化内置组包含超级管理员和游客
         lockedPermissions:
           type: array
           description: 受保护用户组中不可关闭的平台功能权限列表
