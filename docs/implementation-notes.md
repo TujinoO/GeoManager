@@ -268,7 +268,7 @@ huyang_system/
 使用方式：
 ```bash
 # 激活 Python 环境
-eval "$(mamba shell hook --shell zsh)" && mamba activate zyhy
+eval "$(mamba shell hook --shell zsh)" && mamba activate geomanager
 
 # 更新补丁版本
 python scripts/bump_version.py patch

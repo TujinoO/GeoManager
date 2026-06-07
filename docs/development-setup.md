@@ -227,10 +227,10 @@ mamba env create -f environment.yml
 conda env create -f environment.yml
 
 # 激活环境
-mamba activate zyhy
+mamba activate geomanager
 
 # 或者使用 conda
-conda activate zyhy
+conda activate geomanager
 
 # 验证安装
 python --version  # 应该显示 Python 3.14.x
@@ -244,14 +244,14 @@ pip list
 micromamba create -f environment.yml
 
 # 激活环境
-micromamba activate zyhy
+micromamba activate geomanager
 ```
 
 ### 2.3 验证后端环境
 
 ```bash
-# 确保在 zyhy 环境中
-mamba activate zyhy
+# 确保在 geomanager 环境中
+mamba activate geomanager
 
 # 测试 Django 是否可用
 python -c "import django; print(django.get_version())"
@@ -266,8 +266,8 @@ python -c "import geopandas; print(geopandas.__version__)"
 ### 2.4 启动后端开发服务器
 
 ```bash
-# 确保在 zyhy 环境中
-mamba activate zyhy
+# 确保在 geomanager 环境中
+mamba activate geomanager
 
 # 进入后端目录（如果尚未进入）
 cd backend
@@ -302,7 +302,7 @@ pnpm dev
 
 ```bash
 # 激活环境
-mamba activate zyhy
+mamba activate geomanager
 
 # 进入后端目录
 cd backend

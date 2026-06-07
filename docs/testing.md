@@ -54,7 +54,7 @@
 
 ```bash
 cd backend
-eval "$(mamba shell hook --shell zsh)" && mamba activate zyhy
+eval "$(mamba shell hook --shell zsh)" && mamba activate geomanager
 python manage.py test
 ruff format .
 ```
@@ -73,7 +73,7 @@ pnpm typecheck
 
 ```bash
 cd backend
-eval "$(mamba shell hook --shell zsh)" && mamba activate zyhy
+eval "$(mamba shell hook --shell zsh)" && mamba activate geomanager
 python manage.py test
 ruff format .
 
@@ -87,7 +87,7 @@ pnpm typecheck
 ## CI/CD 稳定性要求
 
 - CI 必须使用 `pnpm`，不要使用 `npm` 安装或运行前端依赖。
-- 后端测试必须先激活 `zyhy` Python 环境，确保 Django、GeoPandas、GDAL、Rasterio 等依赖可用。
+- 后端测试必须先激活 `geomanager` Python 环境，确保 Django、GeoPandas、GDAL、Rasterio 等依赖可用。
 - 测试不得依赖真实业务数据目录或研究数据目录中的已有文件；需要文件时使用临时目录或测试内创建的小样本。
 - 栅格导入、GDAL 命令、异步任务线程和网络请求应使用 mock 或小样本隔离，避免 CI 超时和非确定性失败。
 - 前端测试不要访问真实 `/api` 服务；API 行为通过 mock 或 `fetch` stub 覆盖。

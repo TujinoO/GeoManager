@@ -40,7 +40,7 @@ Central Asia Poplar Forest Ecosystem Protection Data Sharing Platform (中亚胡
 ## Environment setup
 
 - **Node.js**: Use `pnpm` as the package manager for frontend dependencies.
-- **Python**: Use `eval "$(mamba shell hook --shell zsh)" && mamba activate zyhy` to activate the Python environment before running any backend commands.
+- **Python**: Use `eval "$(mamba shell hook --shell zsh)" && mamba activate geomanager` to activate the Python environment before running any backend commands.
 
 ## Format code
 
