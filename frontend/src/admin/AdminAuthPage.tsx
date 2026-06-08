@@ -1,17 +1,21 @@
 import {
   DeleteOutlined,
+  EllipsisOutlined,
   EyeOutlined,
+  KeyOutlined,
   PlusOutlined,
-  SaveOutlined,
+  StopOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
 import type { ProColumns } from "@ant-design/pro-components";
 import { ProCard, ProTable } from "@ant-design/pro-components";
+import type { MenuProps } from "antd";
 import {
   App,
   Button,
   Checkbox,
   Drawer,
+  Dropdown,
   Empty,
   Form,
   Input,
@@ -22,18 +26,40 @@ import {
   Space,
   Spin,
   Switch,
-  Tabs,
   Tag,
   Typography,
 } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { api } from "../api/client";
 import { useAppContext } from "../contexts/AppContext";
-import type { AdminPermissionItem, Group, User } from "../types";
+import type {
+  AdminOperationLog,
+  AdminPermissionItem,
+  Group,
+  User,
+} from "../types";
+
+const operationResultText: Record<string, string> = {
+  success: "成功",
+  warning: "告警",
+  failed: "失败",
+};
+
+const operationResultColor: Record<string, string> = {
+  success: "success",
+  warning: "warning",
+  failed: "error",
+};
 
 export default function AdminAuthPage() {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const { user } = useAppContext();
+  const location = useLocation();
+  const activeSection = location.pathname.endsWith("/groups")
+    ? "groups"
+    : "users";
+  const canManageAuth = Boolean(user?.permissions.canManageAuth);
   const canCreateUser = Boolean(user?.permissions.canCreateUser);
   const canManagePermissions = Boolean(
     user?.permissions.canManageFeaturePermissions,
@@ -55,14 +81,16 @@ export default function AdminAuthPage() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [activeUser, setActiveUser] = useState<User | null>(null);
+  const [logUser, setLogUser] = useState<User | null>(null);
   const [groupUser, setGroupUser] = useState<User | null>(null);
   const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [createUserOpen, setCreateUserOpen] = useState(false);
   const [groupDrafts, setGroupDrafts] = useState<Record<number, string[]>>({});
+  const [permissionGroup, setPermissionGroup] = useState<Group | null>(null);
 
   const loadAuthData = useCallback(async () => {
-    if (!canCreateUser && !canManagePermissions) {
+    if (!canManageAuth) {
       setLoading(false);
       return;
     }
@@ -87,7 +115,7 @@ export default function AdminAuthPage() {
     } finally {
       setLoading(false);
     }
-  }, [canCreateUser, canManagePermissions, message]);
+  }, [canManageAuth, message]);
 
   useEffect(() => {
     loadAuthData();
@@ -118,61 +146,70 @@ export default function AdminAuthPage() {
       items,
     }));
   }, [availablePermissions]);
+  const permissionLabelById = useMemo(
+    () =>
+      new Map(
+        availablePermissions.map((permission) => [
+          permission.id,
+          permission.label,
+        ]),
+      ),
+    [availablePermissions],
+  );
 
   const userColumns: ProColumns<User>[] = [
     {
-      title: "用户名",
+      title: "账号",
       dataIndex: "username",
-      width: 150,
-      fixed: "left",
+      width: 180,
       render: (_, record) => (
-        <Button type="link" onClick={() => setActiveUser(record)}>
-          {record.username}
-        </Button>
+        <Space direction="vertical" size={0}>
+          <Button
+            className="admin-user-link"
+            type="link"
+            onClick={() => setActiveUser(record)}
+          >
+            {record.username}
+          </Button>
+          <Typography.Text type="secondary" ellipsis>
+            {record.displayName || "未设置显示名"}
+          </Typography.Text>
+        </Space>
       ),
     },
     {
-      title: "显示名称",
-      dataIndex: "displayName",
-      width: 150,
-      ellipsis: true,
-    },
-    {
-      title: "邮箱",
+      title: "联系信息",
       dataIndex: "email",
       width: 220,
-      ellipsis: true,
-    },
-    {
-      title: "部门",
-      dataIndex: "department",
-      width: 160,
-      ellipsis: true,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Typography.Text ellipsis>
+            {record.email || "未设置邮箱"}
+          </Typography.Text>
+          <Typography.Text type="secondary" ellipsis>
+            {record.department || "未设置部门"}
+          </Typography.Text>
+        </Space>
+      ),
     },
     {
       title: "用户组",
       dataIndex: "groupIds",
-      width: 260,
+      width: 210,
       search: false,
       render: (_, record) => (
-        <Space size={[6, 6]} wrap>
-          {record.groupIds.length > 0 ? (
-            record.groupIds.map((groupId) => (
-              <Tag key={groupId} color="green">
-                {groupNameById.get(groupId) ?? `#${groupId}`}
-              </Tag>
-            ))
-          ) : (
-            <Tag>未分组</Tag>
-          )}
-        </Space>
+        <GroupTags
+          groupIds={record.groupIds}
+          groupNameById={groupNameById}
+          maxVisible={2}
+        />
       ),
     },
     {
       title: "状态",
       dataIndex: "isActive",
       valueType: "select",
-      width: 120,
+      width: 88,
       valueEnum: {
         true: { text: "启用", status: "Success" },
         false: { text: "停用", status: "Error" },
@@ -187,28 +224,135 @@ export default function AdminAuthPage() {
     {
       title: "操作",
       valueType: "option",
-      width: 190,
+      width: 120,
       render: (_, record) => [
         <Button
           key="detail"
           type="link"
           icon={<EyeOutlined />}
-          onClick={() => setActiveUser(record)}
+          onClick={() => setLogUser(record)}
         >
           查看
         </Button>,
-        <Button
-          key="groups"
-          type="link"
-          icon={<TeamOutlined />}
-          disabled={!canManagePermissions}
-          onClick={() => {
-            setGroupUser(record);
-            setSelectedGroupIds(record.groupIds);
+        <Dropdown
+          key="actions"
+          trigger={["click"]}
+          menu={{
+            items: userActionItems(record),
+            onClick: ({ key }) => handleUserAction(key, record),
           }}
         >
-          用户组
+          <Button type="link" icon={<EllipsisOutlined />}>
+            操作
+          </Button>
+        </Dropdown>,
+      ],
+    },
+  ];
+
+  const userLogColumns: ProColumns<AdminOperationLog>[] = [
+    {
+      title: "操作时间",
+      dataIndex: "occurredAt",
+      width: 180,
+      render: (_, record) => record.occurredAt,
+    },
+    {
+      title: "模块",
+      dataIndex: "module",
+      width: 120,
+      ellipsis: true,
+    },
+    {
+      title: "动作",
+      dataIndex: "action",
+      width: 140,
+      ellipsis: true,
+    },
+    {
+      title: "结果",
+      dataIndex: "result",
+      width: 88,
+      render: (_, record) => (
+        <Tag color={operationResultColor[record.result] ?? "default"}>
+          {operationResultText[record.result] ?? record.result}
+        </Tag>
+      ),
+    },
+    {
+      title: "摘要",
+      dataIndex: "summary",
+      width: 280,
+      ellipsis: true,
+    },
+  ];
+
+  const groupColumns: ProColumns<Group>[] = [
+    {
+      title: "用户组",
+      dataIndex: "name",
+      width: "24%",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Typography.Text strong>{record.name}</Typography.Text>
+          <Space size={[6, 6]} wrap>
+            <Tag color="blue">{record.userCount} 人</Tag>
+          </Space>
+        </Space>
+      ),
+    },
+    {
+      title: "已授予权限",
+      dataIndex: "permissions",
+      width: "56%",
+      search: false,
+      render: (_, record) =>
+        record.permissions.length > 0 ? (
+          <PermissionTags
+            permissionIds={record.permissions}
+            permissionLabelById={permissionLabelById}
+            maxVisible={6}
+          />
+        ) : (
+          <Typography.Text type="secondary">暂未授予功能权限</Typography.Text>
+        ),
+    },
+    {
+      title: "操作",
+      valueType: "option",
+      width: "20%",
+      render: (_, record) => [
+        <Button
+          key="permissions"
+          type="link"
+          icon={<EyeOutlined />}
+          disabled={!canEditGroupPermissions(record)}
+          onClick={() => openPermissionDrawer(record)}
+        >
+          权限
         </Button>,
+        record.userCount === 0 && !record.isProtected ? (
+          <Popconfirm
+            key="delete"
+            title="确认删除空用户组？"
+            description="删除前请确认该用户组没有关联用户。"
+            onConfirm={() => handleDeleteGroup(record)}
+          >
+            <Button type="link" danger icon={<DeleteOutlined />}>
+              删除
+            </Button>
+          </Popconfirm>
+        ) : (
+          <Button
+            key="delete"
+            type="link"
+            danger
+            icon={<DeleteOutlined />}
+            disabled
+          >
+            删除
+          </Button>
+        ),
       ],
     },
   ];
@@ -258,22 +402,10 @@ export default function AdminAuthPage() {
       createUserForm.resetFields();
       setCreateUserOpen(false);
       if (result.generatedPassword) {
-        Modal.success({
+        showGeneratedPasswordModal({
           title: "用户创建成功",
-          content: (
-            <div>
-              <p>
-                用户 <strong>{result.username}</strong> 已创建成功。
-              </p>
-              <p>
-                初始密码：
-                <Typography.Text copyable>
-                  {result.generatedPassword}
-                </Typography.Text>
-              </p>
-              <p>请妥善保存此密码，关闭后将无法再次查看。</p>
-            </div>
-          ),
+          username: result.username,
+          password: result.generatedPassword,
         });
       } else {
         message.success("用户已创建");
@@ -284,8 +416,154 @@ export default function AdminAuthPage() {
     }
   }
 
+  function openUserGroupDrawer(targetUser: User) {
+    setGroupUser(targetUser);
+    setSelectedGroupIds(targetUser.groupIds);
+  }
+
+  function userActionItems(record: User): MenuProps["items"] {
+    return [
+      {
+        key: "groups",
+        icon: <TeamOutlined />,
+        label: "更改用户组",
+      },
+      {
+        key: "status",
+        icon: <StopOutlined />,
+        label: record.isActive ? "停用" : "启用",
+        disabled: record.id === user?.id,
+      },
+      {
+        key: "resetPassword",
+        icon: <KeyOutlined />,
+        label: "重置密码",
+        disabled: record.id === user?.id,
+      },
+      {
+        key: "delete",
+        icon: <DeleteOutlined />,
+        label: "删除",
+        danger: true,
+        disabled: record.id === user?.id,
+      },
+    ];
+  }
+
+  function handleUserAction(key: string, targetUser: User) {
+    if (key === "groups") {
+      openUserGroupDrawer(targetUser);
+      return;
+    }
+    if (key === "status") {
+      handleToggleUserStatus(targetUser);
+      return;
+    }
+    if (key === "resetPassword") {
+      handleResetUserPassword(targetUser);
+      return;
+    }
+    if (key === "delete") {
+      handleDeleteUser(targetUser);
+    }
+  }
+
+  function showGeneratedPasswordModal({
+    title,
+    username,
+    password,
+  }: {
+    title: string;
+    username: string;
+    password: string;
+  }) {
+    Modal.success({
+      title,
+      content: (
+        <div>
+          <p>
+            用户 <strong>{username}</strong> 的密码已生成。
+          </p>
+          <p>
+            新密码：
+            <Typography.Text copyable>{password}</Typography.Text>
+          </p>
+          <p>请妥善保存此密码，关闭后将无法再次查看。</p>
+        </div>
+      ),
+    });
+  }
+
+  function handleToggleUserStatus(targetUser: User) {
+    const nextActive = !targetUser.isActive;
+    modal.confirm({
+      title: nextActive ? "确认启用用户？" : "确认停用用户？",
+      content: `${targetUser.displayName || targetUser.username} 将被${
+        nextActive ? "启用" : "停用"
+      }。`,
+      okText: nextActive ? "启用" : "停用",
+      okButtonProps: { danger: !nextActive },
+      cancelText: "取消",
+      onOk: async () => {
+        const updated = await api.updateAdminUser(targetUser.id, {
+          isActive: nextActive,
+        });
+        setUsers((current) =>
+          current.map((item) => (item.id === updated.id ? updated : item)),
+        );
+        message.success(nextActive ? "用户已启用" : "用户已停用");
+      },
+    });
+  }
+
+  function handleDeleteUser(targetUser: User) {
+    modal.confirm({
+      title: "确认删除用户？",
+      content: `删除 ${targetUser.displayName || targetUser.username} 后无法恢复。`,
+      okText: "删除",
+      okButtonProps: { danger: true },
+      cancelText: "取消",
+      onOk: async () => {
+        await api.deleteAdminUser(targetUser.id);
+        setUsers((current) =>
+          current.filter((item) => item.id !== targetUser.id),
+        );
+        message.success("用户已删除");
+      },
+    });
+  }
+
+  function handleResetUserPassword(targetUser: User) {
+    modal.confirm({
+      title: "确认重置密码？",
+      content: `${targetUser.displayName || targetUser.username} 的当前密码将失效。`,
+      okText: "重置",
+      cancelText: "取消",
+      onOk: async () => {
+        const result = await api.resetAdminUserPassword(targetUser.id);
+        showGeneratedPasswordModal({
+          title: "密码重置成功",
+          username: result.username,
+          password: result.generatedPassword,
+        });
+      },
+    });
+  }
+
+  function openPermissionDrawer(group: Group) {
+    setGroupDrafts((current) => ({
+      ...current,
+      [group.id]: current[group.id] ?? group.permissions,
+    }));
+    setPermissionGroup(group);
+  }
+
+  function closePermissionDrawer() {
+    setPermissionGroup(null);
+  }
+
   async function handleSaveGroup(group: Group) {
-    if (!canManagePermissions || group.isProtected) return;
+    if (!canManagePermissions || !canEditGroupPermissions(group)) return;
     const updated = await api.updateAdminGroup(group.id, {
       permissions: groupDrafts[group.id] ?? [],
     });
@@ -296,6 +574,7 @@ export default function AdminAuthPage() {
       ...current,
       [updated.id]: updated.permissions,
     }));
+    setPermissionGroup(null);
     message.success(`${updated.name}权限已保存`);
   }
 
@@ -312,7 +591,7 @@ export default function AdminAuthPage() {
   }
 
   async function handleSaveUserGroups() {
-    if (!groupUser || !canManagePermissions) return;
+    if (!groupUser || !canManageAuth) return;
     const updated = await api.updateAdminUserGroups(groupUser.id, {
       groupIds: selectedGroupIds as [number, ...number[]],
     });
@@ -324,15 +603,17 @@ export default function AdminAuthPage() {
     await loadAuthData();
   }
 
-  if (!canCreateUser && !canManagePermissions) {
+  if (!canManageAuth) {
     return <Result status="403" title="无权限访问认证授权" />;
   }
 
-  const tabs = [
-    {
-      key: "users",
-      label: "用户管理",
-      children: (
+  if (activeSection === "groups" && !canManagePermissions) {
+    return <Result status="403" title="无权限访问用户组权限" />;
+  }
+
+  return (
+    <div className="admin-page-stack">
+      {activeSection === "users" ? (
         <Spin spinning={loading}>
           <div className="admin-page-stack">
             <ProCard.Group gutter={16} className="admin-stat-row">
@@ -352,20 +633,6 @@ export default function AdminAuthPage() {
                 </Typography.Title>
               </ProCard>
             </ProCard.Group>
-            {canCreateUser ? (
-              <div className="admin-toolbar">
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={() => {
-                    createUserForm.setFieldsValue({ isActive: true });
-                    setCreateUserOpen(true);
-                  }}
-                >
-                  新建用户
-                </Button>
-              </div>
-            ) : null}
             <ProTable<User>
               className="admin-table"
               rowKey="id"
@@ -375,126 +642,56 @@ export default function AdminAuthPage() {
               cardBordered
               options={false}
               pagination={false}
-              scroll={{ x: 1320 }}
+              scroll={{ x: 840 }}
               search={false}
+              toolBarRender={() =>
+                canCreateUser
+                  ? [
+                      <Button
+                        key="create"
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => {
+                          createUserForm.setFieldsValue({ isActive: true });
+                          setCreateUserOpen(true);
+                        }}
+                      >
+                        新建用户
+                      </Button>,
+                    ]
+                  : []
+              }
             />
           </div>
         </Spin>
-      ),
-    },
-    ...(canManagePermissions
-      ? [
-          {
-            key: "groups",
-            label: "用户组权限",
-            children: (
-              <Spin spinning={loading}>
-                <div className="admin-page-stack">
-                  <div className="admin-toolbar">
-                    <Button
-                      type="primary"
-                      icon={<PlusOutlined />}
-                      onClick={() => setCreateGroupOpen(true)}
-                    >
-                      新建用户组
-                    </Button>
-                  </div>
-                  <div className="admin-role-grid">
-                    {groups.map((group) => (
-                      <ProCard
-                        key={group.id}
-                        title={group.name}
-                        extra={
-                          <Space>
-                            {group.isProtected ? (
-                              <Tag color="gold">受保护</Tag>
-                            ) : null}
-                            <Tag color="blue">{group.userCount} 人</Tag>
-                          </Space>
-                        }
-                      >
-                        <Checkbox.Group
-                          className="admin-permission-list"
-                          value={groupDrafts[group.id] ?? group.permissions}
-                          onChange={(values) => {
-                            setGroupDrafts((current) => ({
-                              ...current,
-                              [group.id]: values.map(String),
-                            }));
-                          }}
-                        >
-                          {availablePermissionGroups.map((permissionGroup) => (
-                            <div
-                              className="admin-permission-group"
-                              key={permissionGroup.group}
-                            >
-                              <Typography.Text strong>
-                                {permissionGroup.group}
-                              </Typography.Text>
-                              <div className="admin-permission-group-options">
-                                {permissionGroup.items.map((permission) => (
-                                  <Checkbox
-                                    key={permission.id}
-                                    value={permission.id}
-                                    disabled={group.isProtected}
-                                  >
-                                    <span className="admin-permission-option">
-                                      <Typography.Text strong>
-                                        {permission.label}
-                                      </Typography.Text>
-                                      <Typography.Text type="secondary">
-                                        {permission.id}
-                                      </Typography.Text>
-                                    </span>
-                                  </Checkbox>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </Checkbox.Group>
-                        {availablePermissions.length === 0 ? (
-                          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                        ) : null}
-                        <div className="admin-card-actions">
-                          <Space>
-                            <Button
-                              icon={<SaveOutlined />}
-                              disabled={group.isProtected}
-                              onClick={() => handleSaveGroup(group)}
-                            >
-                              保存权限
-                            </Button>
-                            {group.userCount === 0 && !group.isProtected ? (
-                              <Popconfirm
-                                title="确认删除空用户组？"
-                                description="删除前请确认该用户组没有关联用户。"
-                                onConfirm={() => handleDeleteGroup(group)}
-                              >
-                                <Button danger icon={<DeleteOutlined />}>
-                                  删除
-                                </Button>
-                              </Popconfirm>
-                            ) : (
-                              <Button danger icon={<DeleteOutlined />} disabled>
-                                删除
-                              </Button>
-                            )}
-                          </Space>
-                        </div>
-                      </ProCard>
-                    ))}
-                  </div>
-                </div>
-              </Spin>
-            ),
-          },
-        ]
-      : []),
-  ];
-
-  return (
-    <div className="admin-page-stack">
-      <Tabs className="admin-auth-tabs" items={tabs} />
+      ) : (
+        <Spin spinning={loading}>
+          <div className="admin-table-scroll-shell">
+            <ProTable<Group>
+              className="admin-table"
+              rowKey="id"
+              headerTitle="用户组列表"
+              columns={groupColumns}
+              dataSource={groups}
+              cardBordered
+              options={false}
+              pagination={false}
+              scroll={{ x: "100%" }}
+              search={false}
+              toolBarRender={() => [
+                <Button
+                  key="create"
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => setCreateGroupOpen(true)}
+                >
+                  新建用户组
+                </Button>,
+              ]}
+            />
+          </div>
+        </Spin>
+      )}
 
       <Drawer
         title="用户详情"
@@ -545,6 +742,47 @@ export default function AdminAuthPage() {
       </Drawer>
 
       <Drawer
+        title="用户日志"
+        open={Boolean(logUser)}
+        onClose={() => setLogUser(null)}
+        size="large"
+      >
+        {logUser ? (
+          <div className="admin-page-stack">
+            <Typography.Text strong>
+              {logUser.displayName || logUser.username}
+            </Typography.Text>
+            <ProTable<AdminOperationLog>
+              className="admin-table"
+              rowKey="id"
+              headerTitle="日志列表"
+              columns={userLogColumns}
+              cardBordered
+              options={false}
+              search={false}
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: false,
+              }}
+              scroll={{ x: "100%" }}
+              request={async (params) => {
+                const result = await api.adminOperationLogs({
+                  current: params.current,
+                  pageSize: params.pageSize,
+                  userId: logUser.id,
+                });
+                return {
+                  data: result.items,
+                  total: result.total,
+                  success: true,
+                };
+              }}
+            />
+          </div>
+        ) : null}
+      </Drawer>
+
+      <Drawer
         title="设置用户组"
         open={Boolean(groupUser)}
         onClose={() => setGroupUser(null)}
@@ -591,6 +829,71 @@ export default function AdminAuthPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      <Drawer
+        title="用户组权限"
+        open={Boolean(permissionGroup)}
+        onClose={closePermissionDrawer}
+        size="large"
+        extra={
+          <Button
+            type="primary"
+            onClick={() => {
+              if (permissionGroup) {
+                void handleSaveGroup(permissionGroup);
+              }
+            }}
+          >
+            保存
+          </Button>
+        }
+      >
+        {permissionGroup ? (
+          <div className="admin-page-stack">
+            <Typography.Text strong>{permissionGroup.name}</Typography.Text>
+            <Checkbox.Group
+              className="admin-permission-list"
+              value={
+                groupDrafts[permissionGroup.id] ?? permissionGroup.permissions
+              }
+              onChange={(values) => {
+                setGroupDrafts((current) => ({
+                  ...current,
+                  [permissionGroup.id]: values.map(String),
+                }));
+              }}
+            >
+              {availablePermissionGroups.map((permissionGroupItem) => (
+                <div
+                  className="admin-permission-group"
+                  key={permissionGroupItem.group}
+                >
+                  <Typography.Text strong>
+                    {permissionGroupItem.group}
+                  </Typography.Text>
+                  <div className="admin-permission-group-options">
+                    {permissionGroupItem.items.map((permission) => (
+                      <Checkbox key={permission.id} value={permission.id}>
+                        <span className="admin-permission-option">
+                          <Typography.Text strong>
+                            {permission.label}
+                          </Typography.Text>
+                          <Typography.Text type="secondary">
+                            {permission.id}
+                          </Typography.Text>
+                        </span>
+                      </Checkbox>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </Checkbox.Group>
+          </div>
+        ) : null}
+        {availablePermissions.length === 0 ? (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        ) : null}
+      </Drawer>
 
       <Modal
         title="新建用户"
@@ -644,6 +947,55 @@ type FormValidationError = {
   errorFields?: { errors: string[] }[];
 };
 
+function GroupTags({
+  groupIds,
+  groupNameById,
+  maxVisible,
+}: {
+  groupIds: number[];
+  groupNameById: Map<number, string>;
+  maxVisible: number;
+}) {
+  if (groupIds.length === 0) {
+    return <Tag>未分组</Tag>;
+  }
+  const visibleIds = groupIds.slice(0, maxVisible);
+  const hiddenCount = groupIds.length - visibleIds.length;
+  return (
+    <Space size={[4, 4]} wrap>
+      {visibleIds.map((groupId) => (
+        <Tag key={groupId} color="green">
+          {groupNameById.get(groupId) ?? `#${groupId}`}
+        </Tag>
+      ))}
+      {hiddenCount > 0 ? <Tag color="default">+{hiddenCount}</Tag> : null}
+    </Space>
+  );
+}
+
+function PermissionTags({
+  permissionIds,
+  permissionLabelById,
+  maxVisible,
+}: {
+  permissionIds: string[];
+  permissionLabelById: Map<string, string>;
+  maxVisible: number;
+}) {
+  const visibleIds = permissionIds.slice(0, maxVisible);
+  const hiddenCount = permissionIds.length - visibleIds.length;
+  return (
+    <Space size={[4, 4]} wrap>
+      {visibleIds.map((permissionId) => (
+        <Tag key={permissionId} color="green">
+          {permissionLabelById.get(permissionId) ?? permissionId}
+        </Tag>
+      ))}
+      {hiddenCount > 0 ? <Tag color="default">+{hiddenCount}</Tag> : null}
+    </Space>
+  );
+}
+
 function formOrApiError(error: unknown, fallback: string) {
   if (isFormValidationError(error)) {
     return error.errorFields?.[0]?.errors[0] ?? fallback;
@@ -657,4 +1009,8 @@ function isFormValidationError(error: unknown): error is FormValidationError {
 
 function isSuperadminGroup(group: Group) {
   return group.name === "超级管理员";
+}
+
+function canEditGroupPermissions(group: Group) {
+  return !isSuperadminGroup(group);
 }

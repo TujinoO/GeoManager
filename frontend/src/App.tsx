@@ -179,7 +179,12 @@ export default function App() {
                   />
                 </Route>
                 <Route element={<RequireManageAuth />}>
-                  <Route path="auth" element={<AdminAuthPage />} />
+                  <Route
+                    path="auth"
+                    element={<Navigate to="users" replace />}
+                  />
+                  <Route path="auth/users" element={<AdminAuthPage />} />
+                  <Route path="auth/groups" element={<AdminAuthPage />} />
                 </Route>
                 <Route element={<RequireDataMaintain />}>
                   <Route path="data/import" element={<AdminDataImportPage />} />

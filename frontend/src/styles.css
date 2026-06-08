@@ -580,15 +580,42 @@ body {
 
 .admin-table {
   min-width: 0;
+  max-width: 100%;
 }
 
 .admin-table .ant-pro-card-body,
 .admin-table .ant-table-wrapper,
 .admin-table .ant-table-container {
   min-width: 0;
+  max-width: 100%;
 }
 
 .admin-table .ant-table-wrapper {
+  overflow-x: auto;
+}
+
+.admin-table-scroll-shell {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  contain: inline-size;
+}
+
+.admin-table-scroll-shell .admin-table {
+  width: 100%;
+}
+
+.admin-table-scroll-shell .ant-pro-card,
+.admin-table-scroll-shell .ant-pro-table,
+.admin-table-scroll-shell .ant-table,
+.admin-table-scroll-shell .ant-table-content {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-table-scroll-shell .ant-table {
   overflow-x: auto;
 }
 
@@ -613,6 +640,12 @@ body {
 .admin-stat-row h2.ant-typography {
   margin: 0;
   color: #173f39;
+}
+
+.admin-user-link {
+  height: auto;
+  padding: 0;
+  font-weight: 600;
 }
 
 .admin-role-grid {
@@ -659,6 +692,12 @@ body {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+.admin-group-permission-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 0;
 }
 
 .admin-user-drawer {

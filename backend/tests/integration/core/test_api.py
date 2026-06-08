@@ -296,6 +296,96 @@ class FeaturePermissionTests(TestCase):
             "不能将普通用户加入超级管理员用户组",
         )
 
+    def test_manage_auth_can_toggle_user_status(self):
+        manager = get_user_model().objects.create_user(
+            username="status-manager", password="pass12345"
+        )
+        grant(manager, ("core", "manage_auth"))
+        target = get_user_model().objects.create_user(
+            username="status-target",
+            password="StrongPass12345",
+        )
+        self.client.force_login(manager)
+
+        response = self.client.patch(
+            f"/api/users/{target.id}/",
+            data=json.dumps({"isActive": False}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["isActive"])
+        target.refresh_from_db()
+        self.assertFalse(target.is_active)
+
+    def test_manage_auth_can_delete_user(self):
+        manager = get_user_model().objects.create_user(
+            username="delete-user-manager", password="pass12345"
+        )
+        grant(manager, ("core", "manage_auth"))
+        target = get_user_model().objects.create_user(
+            username="delete-user-target",
+            password="StrongPass12345",
+        )
+        target_id = target.id
+        self.client.force_login(manager)
+
+        response = self.client.delete(f"/api/users/{target_id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(get_user_model().objects.filter(id=target_id).exists())
+
+    def test_manage_auth_can_reset_user_password(self):
+        manager = get_user_model().objects.create_user(
+            username="reset-password-manager", password="pass12345"
+        )
+        grant(manager, ("core", "manage_auth"))
+        target = get_user_model().objects.create_user(
+            username="reset-password-target",
+            password="OldPass12345",
+        )
+        self.client.force_login(manager)
+
+        response = self.client.post(f"/api/users/{target.id}/password/reset/")
+
+        self.assertEqual(response.status_code, 200)
+        generated_password = response.json()["generatedPassword"]
+        self.assertEqual(len(generated_password), 8)
+        target.refresh_from_db()
+        self.assertFalse(target.check_password("OldPass12345"))
+        self.assertTrue(target.check_password(generated_password))
+
+    def test_current_user_cannot_disable_or_delete_self(self):
+        manager = get_user_model().objects.create_user(
+            username="self-protect-manager", password="pass12345"
+        )
+        grant(manager, ("core", "manage_auth"))
+        self.client.force_login(manager)
+
+        disable_response = self.client.patch(
+            f"/api/users/{manager.id}/",
+            data=json.dumps({"isActive": False}),
+            content_type="application/json",
+        )
+        delete_response = self.client.delete(f"/api/users/{manager.id}/")
+
+        self.assertEqual(disable_response.status_code, 400)
+        self.assertEqual(disable_response.json()["detail"], "不能停用当前登录用户")
+        self.assertEqual(delete_response.status_code, 400)
+        self.assertEqual(delete_response.json()["detail"], "不能删除当前登录用户")
+
+    def test_current_user_cannot_reset_own_password(self):
+        manager = get_user_model().objects.create_user(
+            username="self-reset-manager", password="pass12345"
+        )
+        grant(manager, ("core", "manage_auth"))
+        self.client.force_login(manager)
+
+        response = self.client.post(f"/api/users/{manager.id}/password/reset/")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "不能重置当前登录用户密码")
+
     def test_group_list_returns_available_feature_permissions(self):
         manager = get_user_model().objects.create_user(
             username="permission-list-manager", password="pass12345"
@@ -317,15 +407,31 @@ class FeaturePermissionTests(TestCase):
             item for item in payload["items"] if item["name"] == GUEST_GROUP_NAME
         ]
         self.assertEqual(guest_items[0]["isProtected"], True)
-        self.assertEqual(
-            set(guest_items[0]["lockedPermissions"]),
-            {"core.browse_data", "core.load_vector_layer", "core.load_raster_layer"},
-        )
+        self.assertEqual(guest_items[0]["lockedPermissions"], [])
         protected_items = [
             item for item in payload["items"] if item["name"] == SUPERADMIN_GROUP_NAME
         ]
         self.assertEqual(protected_items[0]["isProtected"], True)
         self.assertEqual(protected_items[0]["lockedPermissions"], ["core.access_admin"])
+
+    def test_guest_group_permissions_can_be_updated(self):
+        manager = get_user_model().objects.create_user(
+            username="guest-permission-manager", password="pass12345"
+        )
+        grant(manager, ("core", "manage_auth"), ("core", "manage_feature_permissions"))
+        ensure_superadmin_defaults(create_account=False)
+        group = Group.objects.get(name=GUEST_GROUP_NAME)
+        self.client.force_login(manager)
+
+        response = self.client.patch(
+            f"/api/groups/{group.id}/",
+            data=json.dumps({"permissions": ["core.query_data"]}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["permissions"], ["core.query_data"])
+        self.assertEqual(response.json()["lockedPermissions"], [])
 
     def test_superadmin_group_cannot_be_deleted_or_lose_admin_access(self):
         manager = get_user_model().objects.create_user(
@@ -519,6 +625,40 @@ class FeaturePermissionTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["total"], 1)
         self.assertEqual(payload["items"][0]["action"], "保存配置")
+
+    def test_admin_operation_logs_can_filter_by_user_id(self):
+        manager = get_user_model().objects.create_user(
+            username="log-user-id-manager", password="pass12345"
+        )
+        target = get_user_model().objects.create_user(
+            username="log-user-id-target", password="pass12345"
+        )
+        other = get_user_model().objects.create_user(
+            username="log-user-id-other", password="pass12345"
+        )
+        grant(manager, ("core", "view_operation_logs"))
+        OperationLog.objects.create(
+            user=target,
+            module="认证授权",
+            action="重置用户密码",
+            status="success",
+            message="目标用户日志",
+        )
+        OperationLog.objects.create(
+            user=other,
+            module="认证授权",
+            action="删除用户",
+            status="success",
+            message="其他用户日志",
+        )
+        self.client.force_login(manager)
+
+        response = self.client.get("/api/admin/operation-logs/", {"userId": target.id})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(payload["items"][0]["summary"], "目标用户日志")
 
     def test_admin_dashboard_counts_data_and_daily_active_users(self):
         manager = get_user_model().objects.create_user(

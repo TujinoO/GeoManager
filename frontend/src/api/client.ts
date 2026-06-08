@@ -37,6 +37,8 @@ import type {
   UserCreateRequest,
   UserCreateResponse,
   UserGroupUpdateRequest,
+  UserPasswordResetResponse,
+  UserUpdateRequest,
 } from "../types";
 import { isDataResource } from "../utils/resources";
 import type { paths } from "./schema";
@@ -216,19 +218,19 @@ export const api = {
   adminProfile: () => unwrap<AdminProfile>(client.GET("/api/admin/profile/")),
   updateAdminProfile: (payload: AdminProfileUpdate) =>
     unwrap<AdminProfile>(
-      client.PATCH("/api/admin/profile/update/", {
+      client.POST("/api/admin/profile/update/", {
         body: payload,
       }),
     ),
   updateAdminProfilePermissions: (payload: AdminProfilePermissionsUpdate) =>
     unwrap<AdminProfile>(
-      client.PATCH("/api/admin/profile/permissions/", {
+      client.POST("/api/admin/profile/permissions/", {
         body: payload,
       }),
     ),
   updateAdminProfilePassword: (payload: AdminProfilePasswordUpdate) =>
     unwrap<{ detail: string }>(
-      client.PATCH("/api/admin/profile/password/", {
+      client.POST("/api/admin/profile/password/", {
         body: payload,
       }),
     ),
@@ -255,9 +257,29 @@ export const api = {
     ),
   updateAdminUserGroups: (userId: number, payload: UserGroupUpdateRequest) =>
     unwrap<User>(
-      client.PATCH("/api/users/{userId}/groups/", {
+      client.POST("/api/users/{userId}/groups/", {
         params: { path: { userId } },
         body: payload,
+      }),
+    ),
+  updateAdminUser: (userId: number, payload: UserUpdateRequest) =>
+    unwrap<User>(
+      client.POST("/api/users/{userId}/", {
+        params: { path: { userId } },
+        body: payload,
+      }),
+    ),
+  resetAdminUserPassword: (userId: number) =>
+    unwrap<UserPasswordResetResponse>(
+      client.POST("/api/users/{userId}/password/reset/", {
+        params: { path: { userId } },
+      }),
+    ),
+  deleteAdminUser: (userId: number) =>
+    unwrap<{ detail: string }>(
+      client.POST("/api/users/{userId}/", {
+        params: { path: { userId } },
+        body: { action: "delete" },
       }),
     ),
   adminGroups: () => unwrap<GroupListResponse>(client.GET("/api/groups/")),
@@ -269,22 +291,23 @@ export const api = {
     ),
   updateAdminGroup: (groupId: number, payload: GroupUpdateRequest) =>
     unwrap<Group>(
-      client.PATCH("/api/groups/{groupId}/", {
+      client.POST("/api/groups/{groupId}/", {
         params: { path: { groupId } },
         body: payload,
       }),
     ),
   deleteAdminGroup: (groupId: number) =>
     unwrap<{ detail: string }>(
-      client.DELETE("/api/groups/{groupId}/", {
+      client.POST("/api/groups/{groupId}/", {
         params: { path: { groupId } },
+        body: { action: "delete" },
       }),
     ),
   adminSettings: () =>
     unwrap<AdminSettings>(client.GET("/api/admin/settings/")),
   updateAdminSettings: (payload: AdminSettingsUpdate) =>
     unwrap<AdminSettings>(
-      client.PATCH("/api/admin/settings/", {
+      client.POST("/api/admin/settings/", {
         body: payload,
       }),
     ),

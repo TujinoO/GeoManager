@@ -35,6 +35,16 @@ const authRoute: MenuDataItem = {
   path: "/admin/auth",
   name: "认证授权",
   icon: <TeamOutlined />,
+  children: [
+    {
+      path: "/admin/auth/users",
+      name: "用户管理",
+    },
+    {
+      path: "/admin/auth/groups",
+      name: "用户组权限",
+    },
+  ],
 };
 
 function adminRouteFor(user: User | null) {
@@ -95,6 +105,14 @@ const pageMeta: Record<string, { title: string; subTitle: string }> = {
     subTitle: "维护基础配置与平台运行参数",
   },
   "/admin/auth": {
+    title: "认证授权",
+    subTitle: "管理用户、角色和功能权限",
+  },
+  "/admin/auth/users": {
+    title: "认证授权",
+    subTitle: "管理用户、角色和功能权限",
+  },
+  "/admin/auth/groups": {
     title: "认证授权",
     subTitle: "管理用户、角色和功能权限",
   },

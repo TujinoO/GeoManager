@@ -168,6 +168,28 @@ class SuperadminInitializationTests(TestCase):
         }
         self.assertEqual(group_permissions, guest_group_permissions())
 
+    def test_ensure_superadmin_defaults_preserves_existing_guest_group_permissions(
+        self,
+    ):
+        ensure_superadmin_defaults(create_account=False)
+        group = Group.objects.get(name=GUEST_GROUP_NAME)
+        group.permissions.set(
+            [
+                Permission.objects.get(
+                    content_type__app_label="core", codename="query_data"
+                )
+            ]
+        )
+
+        ensure_superadmin_defaults(create_account=False)
+
+        group.refresh_from_db()
+        group_permissions = {
+            f"{permission.content_type.app_label}.{permission.codename}"
+            for permission in group.permissions.select_related("content_type")
+        }
+        self.assertEqual(group_permissions, {"core.query_data"})
+
     def test_existing_superuser_is_attached_to_superadmin_group(self):
         user = get_user_model().objects.create_superuser(
             username="manual-super",

@@ -81,8 +81,9 @@ def is_guest_group(group: Group) -> bool:
 
 
 def ensure_guest_group() -> Group:
-    group, _ = Group.objects.get_or_create(name=GUEST_GROUP_NAME)
-    _set_group_permissions(group, GUEST_GROUP_PERMISSIONS)
+    group, created = Group.objects.get_or_create(name=GUEST_GROUP_NAME)
+    if created:
+        _set_group_permissions(group, GUEST_GROUP_PERMISSIONS)
     return group
 
 

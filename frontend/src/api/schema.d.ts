@@ -162,15 +162,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
         /**
          * 更新当前用户后台资料
          * @description 更新当前用户的用户名、展示名称、邮箱、头像和部门。
          */
-        patch: operations["updateAdminProfile"];
+        post: operations["updateAdminProfile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/admin/profile/permissions/": {
@@ -182,15 +182,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
         /**
          * 更新当前用户主动关闭的权限
          * @description 用户只能关闭或重新开启已经由上级授予的功能权限，不能写入未授予权限。
          */
-        patch: operations["updateAdminProfilePermissions"];
+        post: operations["updateAdminProfilePermissions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/admin/profile/password/": {
@@ -202,15 +202,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
         /**
          * 修改当前用户密码
          * @description 校验当前密码、新密码至少 6 位和确认密码后更新密码，并记录操作日志。
          */
-        patch: operations["updateAdminProfilePassword"];
+        post: operations["updateAdminProfilePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/admin/operation-logs/": {
@@ -222,7 +222,7 @@ export interface paths {
         };
         /**
          * 查询操作日志
-         * @description 基于真实操作日志表返回可分页、可筛选的后台操作日志。
+         * @description 基于真实操作日志表返回可分页、可筛选的后台操作日志。可通过 `userId` 精确查看指定用户日志。
          */
         get: operations["listAdminOperationLogs"];
         put?: never;
@@ -306,15 +306,59 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
         /**
          * 更新用户所属用户组
          * @description 为指定用户设置所属用户组。普通用户必须保留至少一个用户组，不能加入超级管理员用户组；初始化 admin 用户会自动保留超级管理员用户组。需要 `core.manage_auth`。
          */
-        patch: operations["updateUserGroups"];
+        post: operations["updateUserGroups"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{userId}/password/reset/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 重置用户密码
+         * @description 为指定用户生成随机新密码并立即生效。新密码规则与后台创建用户时一致，响应中的 `generatedPassword` 仅返回一次。不能重置当前登录用户密码。需要 `core.manage_auth`。
+         */
+        post: operations["resetUserPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{userId}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 更新用户状态或删除用户
+         * @description 根据请求体中的 `action` 字段执行不同操作：
+         *     - 不提供或提供其他值：启用或停用指定用户账号
+         *     - `delete`：删除指定用户账号
+         *
+         *     不能操作当前登录用户或初始化管理员。需要 `core.manage_auth`。
+         */
+        post: operations["updateUserOrDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/groups/": {
@@ -350,19 +394,19 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
         /**
-         * 删除空用户组
-         * @description 仅当用户组没有任何关联用户时允许删除。需要 `core.manage_auth`。
+         * 更新或删除用户组
+         * @description 根据请求体中的 `action` 字段执行不同操作：
+         *     - 不提供或提供其他值：更新用户组名称和功能权限
+         *     - `delete`：删除空用户组（仅当用户组没有任何关联用户时允许）
+         *
+         *     需要 `core.manage_auth`。
          */
-        delete: operations["deleteGroup"];
+        post: operations["updateOrDeleteGroup"];
+        delete?: never;
         options?: never;
         head?: never;
-        /**
-         * 更新用户组
-         * @description 更新用户组名称和功能权限。需要 `core.manage_auth`。
-         */
-        patch: operations["updateGroup"];
+        patch?: never;
         trace?: never;
     };
     "/api/admin/settings/": {
@@ -378,15 +422,15 @@ export interface paths {
          */
         get: operations["getAdminSettings"];
         put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
         /**
          * 更新用户可配置设置
          * @description 将后台设置直接写入 appdata 下的运行 TOML 配置副本。需要 `core.manage_system_settings`。
          */
-        patch: operations["updateAdminSettings"];
+        post: operations["updateAdminSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/catalog/directories/": {
@@ -1356,6 +1400,10 @@ export interface components {
             /** @description 自动生成的初始密码，仅在创建时返回一次 */
             generatedPassword?: string;
         };
+        UserPasswordResetResponse: components["schemas"]["UserInfo"] & {
+            /** @description 重置后自动生成的新密码，仅在重置时返回一次 */
+            generatedPassword: string;
+        };
         UserListResponse: {
             /** @description 用户列表 */
             items: components["schemas"]["UserInfo"][];
@@ -1367,6 +1415,10 @@ export interface components {
                 ...number[]
             ];
         };
+        UserUpdateRequest: {
+            /** @description 用户账号是否启用 */
+            isActive: boolean;
+        };
         Group: {
             /** @description 用户组 ID */
             id: number;
@@ -1376,9 +1428,9 @@ export interface components {
             userCount: number;
             /** @description 用户组授予的平台功能权限列表 */
             permissions: string[];
-            /** @description 是否为系统受保护用户组，受保护组不能删除且部分权限不可关闭。初始化内置组包含超级管理员和游客 */
+            /** @description 是否为系统受保护用户组，受保护组不能删除或重命名。初始化内置组包含超级管理员和游客；游客权限允许编辑 */
             isProtected: boolean;
-            /** @description 受保护用户组中不可关闭的平台功能权限列表 */
+            /** @description 受保护用户组中不可关闭的平台功能权限列表。游客用户组返回空列表 */
             lockedPermissions: string[];
         };
         GroupListResponse: {
@@ -2486,6 +2538,8 @@ export interface operations {
                 pageSize?: number;
                 /** @description 按操作用户名或显示名称模糊筛选 */
                 operator?: string;
+                /** @description 按操作用户 ID 精确筛选 */
+                userId?: number;
                 /** @description 按模块名称模糊筛选 */
                 module?: string;
                 /** @description 按操作动作模糊筛选 */
@@ -2647,6 +2701,72 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    resetUserPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 用户 ID */
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 重置成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPasswordResetResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateUserOrDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 用户 ID */
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @description 操作类型，delete 为删除用户
+                     * @enum {string}
+                     */
+                    action?: "delete";
+                    /** @description 用户是否启用（当 action 不是 delete 时必填） */
+                    isActive?: boolean;
+                };
+            };
+        };
+        responses: {
+            /** @description 操作成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserInfo"] | components["schemas"]["DetailResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     listGroups: {
         parameters: {
             query?: never;
@@ -2696,34 +2816,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
-    deleteGroup: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 用户组 ID */
-                groupId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description 删除成功 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DetailResponse"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-        };
-    };
-    updateGroup: {
+    updateOrDeleteGroup: {
         parameters: {
             query?: never;
             header?: never;
@@ -2735,17 +2828,27 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GroupUpdateRequest"];
+                "application/json": {
+                    /**
+                     * @description 操作类型，delete 为删除用户组
+                     * @enum {string}
+                     */
+                    action?: "delete";
+                    /** @description 用户组名称（当 action 不是 delete 时可选） */
+                    name?: string;
+                    /** @description 功能权限列表（当 action 不是 delete 时可选） */
+                    permissions?: string[];
+                };
             };
         };
         responses: {
-            /** @description 更新成功 */
+            /** @description 操作成功 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Group"];
+                    "application/json": components["schemas"]["Group"] | components["schemas"]["DetailResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];

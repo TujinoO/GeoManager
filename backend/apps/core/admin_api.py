@@ -36,7 +36,6 @@ from apps.core.initialization import (
     GUEST_GROUP_NAME,
     SUPERADMIN_GROUP_NAME,
     ensure_superadmin_defaults,
-    guest_group_permissions,
     is_guest_group,
     is_initial_superadmin_user,
     is_superadmin_group,
@@ -104,7 +103,7 @@ def admin_profile(request):
     return JsonResponse(_serialize_profile(request.user))
 
 
-@require_http_methods(["PATCH"])
+@require_http_methods(["POST"])
 @api_login_required
 def update_admin_profile(request):
     payload = _json_payload(request)
@@ -239,7 +238,7 @@ def get_avatar(request, user_id: int):
     return JsonResponse({"detail": "用户未设置头像"}, status=404)
 
 
-@require_http_methods(["PATCH"])
+@require_http_methods(["POST"])
 @api_login_required
 def update_admin_profile_permissions(request):
     payload = _json_payload(request)
@@ -270,7 +269,7 @@ def update_admin_profile_permissions(request):
     return JsonResponse(_serialize_profile(request.user))
 
 
-@require_http_methods(["PATCH"])
+@require_http_methods(["POST"])
 @api_login_required
 def update_admin_profile_password(request):
     payload = _json_payload(request)
@@ -372,7 +371,7 @@ def group_list(request):
     return JsonResponse(_serialize_group(group), status=201)
 
 
-@require_http_methods(["PATCH", "DELETE"])
+@require_http_methods(["POST"])
 @api_permission_required("core.manage_auth")
 def group_detail(request, group_id: int):
     try:
@@ -380,7 +379,12 @@ def group_detail(request, group_id: int):
     except Group.DoesNotExist:
         return JsonResponse({"detail": "用户组不存在"}, status=404)
 
-    if request.method == "DELETE":
+    payload = _json_payload(request)
+    if isinstance(payload, JsonResponse):
+        return payload
+
+    # 检查是否是删除操作
+    if payload.get("action") == "delete":
         if is_superadmin_group(group) or is_guest_group(group):
             return JsonResponse({"detail": "系统内置用户组不能删除"}, status=400)
         if group.user_set.exists():
@@ -423,13 +427,7 @@ def group_detail(request, group_id: int):
                 )
             permissions = protected_group_permissions()
         if is_guest_group(group):
-            locked = guest_group_permissions()
-            if locked - set(permissions):
-                return JsonResponse(
-                    {"detail": "游客用户组必须保留浏览和加载数据权限"},
-                    status=400,
-                )
-            permissions = sorted(locked)
+            permissions = sorted(set(permissions))
         _set_group_feature_permissions(group, permissions)
     try:
         group.save()
@@ -471,7 +469,88 @@ def user_list(request):
     return JsonResponse({"items": [_serialize_admin_user(user) for user in users]})
 
 
-@require_http_methods(["PATCH"])
+@require_http_methods(["POST"])
+@api_permission_required("core.manage_auth")
+def user_detail(request, user_id: int):
+    User = get_user_model()
+    try:
+        user = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({"detail": "用户不存在"}, status=404)
+
+    payload = _json_payload(request)
+    if isinstance(payload, JsonResponse):
+        return payload
+
+    # 检查是否是删除操作
+    if payload.get("action") == "delete":
+        if user.pk == request.user.pk:
+            return JsonResponse({"detail": "不能删除当前登录用户"}, status=400)
+        if is_initial_superadmin_user(user):
+            return JsonResponse({"detail": "初始化管理员不能删除"}, status=400)
+        username = user.get_username()
+        user.delete()
+        log_operation(
+            request.user,
+            "认证授权",
+            "删除用户",
+            "success",
+            username,
+            request,
+        )
+        return JsonResponse({"detail": "用户已删除"})
+
+    payload = _json_payload(request)
+    if isinstance(payload, JsonResponse):
+        return payload
+    if "isActive" not in payload:
+        return JsonResponse({"detail": "缺少 isActive"}, status=400)
+    is_active = bool(payload["isActive"])
+    if not is_active and user.pk == request.user.pk:
+        return JsonResponse({"detail": "不能停用当前登录用户"}, status=400)
+    if not is_active and is_initial_superadmin_user(user):
+        return JsonResponse({"detail": "初始化管理员不能停用"}, status=400)
+    user.is_active = is_active
+    user.save(update_fields=["is_active"])
+    log_operation(
+        request.user,
+        "认证授权",
+        "更新用户状态",
+        "success",
+        f"{user.get_username()} {'启用' if is_active else '停用'}",
+        request,
+    )
+    return JsonResponse(_serialize_admin_user(user))
+
+
+@require_http_methods(["POST"])
+@api_permission_required("core.manage_auth")
+def reset_user_password(request, user_id: int):
+    User = get_user_model()
+    try:
+        user = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({"detail": "用户不存在"}, status=404)
+    if user.pk == request.user.pk:
+        return JsonResponse({"detail": "不能重置当前登录用户密码"}, status=400)
+
+    password = generate_password()
+    user.set_password(password)
+    user.save(update_fields=["password"])
+    log_operation(
+        request.user,
+        "认证授权",
+        "重置用户密码",
+        "success",
+        user.get_username(),
+        request,
+    )
+    response_data = _serialize_admin_user(user)
+    response_data["generatedPassword"] = password
+    return JsonResponse(response_data)
+
+
+@require_http_methods(["POST"])
 @api_permission_required("core.manage_auth")
 def update_user_groups(request, user_id: int):
     payload = _json_payload(request)
@@ -518,7 +597,7 @@ def update_user_groups(request, user_id: int):
     return JsonResponse(_serialize_admin_user(user))
 
 
-@require_http_methods(["GET", "PATCH"])
+@require_http_methods(["GET", "POST"])
 @api_permission_required("core.manage_system_settings")
 def admin_settings(request):
     if request.method == "GET":
@@ -1045,11 +1124,7 @@ def _serialize_group(group: Group) -> dict[str, Any]:
         "permissions": sorted(permissions & set(FEATURE_PERMISSION_NAMES)),
         "isProtected": is_superadmin or is_guest,
         "lockedPermissions": sorted(
-            superadmin_group_locked_permissions()
-            if is_superadmin
-            else guest_group_permissions()
-            if is_guest
-            else set()
+            superadmin_group_locked_permissions() if is_superadmin else set()
         ),
     }
 
@@ -1108,6 +1183,7 @@ def _serialize_operation_log(log: OperationLog) -> dict[str, Any]:
 
 
 def _filter_operation_logs(queryset, params):
+    user_id = params.get("userId")
     operator = str(params.get("operator", "")).strip()
     module = str(params.get("module", "")).strip()
     action = str(params.get("action", "")).strip()
@@ -1116,6 +1192,11 @@ def _filter_operation_logs(queryset, params):
     start_time = _parse_query_datetime(params.get("startTime"), end_of_day=False)
     end_time = _parse_query_datetime(params.get("endTime"), end_of_day=True)
 
+    if user_id not in (None, ""):
+        try:
+            queryset = queryset.filter(user_id=int(user_id))
+        except (TypeError, ValueError):
+            return queryset.none()
     if operator:
         queryset = queryset.filter(
             Q(user__username__icontains=operator)

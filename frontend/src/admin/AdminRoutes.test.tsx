@@ -35,6 +35,9 @@ const mockApi = vi.hoisted(() => ({
   adminUsers: vi.fn(),
   createAdminUser: vi.fn(),
   updateAdminUserGroups: vi.fn(),
+  updateAdminUser: vi.fn(),
+  resetAdminUserPassword: vi.fn(),
+  deleteAdminUser: vi.fn(),
   adminGroups: vi.fn(),
   createAdminGroup: vi.fn(),
   updateAdminGroup: vi.fn(),
@@ -164,7 +167,9 @@ function renderAdminRoute(initialEntry: string) {
               <Route path="profile" element={<AdminProfilePage />} />
               <Route path="logs" element={<AdminOperationLogsPage />} />
               <Route path="settings" element={<AdminSystemSettingsPage />} />
-              <Route path="auth" element={<AdminAuthPage />} />
+              <Route path="auth" element={<Navigate to="users" replace />} />
+              <Route path="auth/users" element={<AdminAuthPage />} />
+              <Route path="auth/groups" element={<AdminAuthPage />} />
               <Route element={<RequireDataMaintain />}>
                 <Route path="data/import" element={<AdminDataImportPage />} />
               </Route>
@@ -227,6 +232,18 @@ describe("admin routes", () => {
       detail: "密码已更新",
     });
     mockApi.adminUsers.mockResolvedValue({ items: [adminApiUser] });
+    mockApi.updateAdminUser.mockImplementation((userId, payload) =>
+      Promise.resolve({
+        ...adminApiUser,
+        id: userId,
+        isActive: payload.isActive,
+      }),
+    );
+    mockApi.resetAdminUserPassword.mockResolvedValue({
+      ...adminApiUser,
+      generatedPassword: "Abc123!@",
+    });
+    mockApi.deleteAdminUser.mockResolvedValue({ detail: "用户已删除" });
     mockApi.adminOperationLogs.mockResolvedValue({ items: [], total: 0 });
     mockApi.adminGroups.mockResolvedValue({
       items: [adminGroup],
@@ -380,7 +397,11 @@ describe("admin routes", () => {
   });
 
   it("opens the user detail drawer from auth management", async () => {
-    renderWithProviders(<AdminAuthPage />);
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/admin/auth/users"]}>
+        <AdminAuthPage />
+      </MemoryRouter>,
+    );
 
     expect(await screen.findByText("用户列表")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /admin/ }));

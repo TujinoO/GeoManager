@@ -48,6 +48,12 @@ urlpatterns = [
         name="user-avatar-get",
     ),
     path("users/", admin_api.user_list, name="user-list"),
+    path("users/<int:user_id>/", admin_api.user_detail, name="user-detail"),
+    path(
+        "users/<int:user_id>/password/reset/",
+        admin_api.reset_user_password,
+        name="user-password-reset",
+    ),
     path(
         "users/<int:user_id>/groups/",
         admin_api.update_user_groups,
