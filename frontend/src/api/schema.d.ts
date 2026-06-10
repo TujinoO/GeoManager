@@ -349,7 +349,7 @@ export interface paths {
         /**
          * 更新用户状态或删除用户
          * @description 根据请求体中的 `action` 字段执行不同操作：
-         *     - 不提供或提供其他值：启用或停用指定用户账号
+         *     - 不提供 `action`：启用或停用指定用户账号
          *     - `delete`：删除指定用户账号
          *
          *     不能操作当前登录用户或初始化管理员。需要 `core.manage_auth`。
@@ -397,7 +397,7 @@ export interface paths {
         /**
          * 更新或删除用户组
          * @description 根据请求体中的 `action` 字段执行不同操作：
-         *     - 不提供或提供其他值：更新用户组名称和功能权限
+         *     - 不提供 `action`：更新用户组名称和功能权限
          *     - `delete`：删除空用户组（仅当用户组没有任何关联用户时允许）
          *
          *     需要 `core.manage_auth`。
@@ -427,6 +427,66 @@ export interface paths {
          * @description 将后台设置直接写入 appdata 下的运行 TOML 配置副本。需要 `core.manage_system_settings`。
          */
         post: operations["updateAdminSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/resources/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 获取存量数据管理列表
+         * @description 返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组和默认可视化方案查看。需要 `catalog.maintain_dataresource` 或 `catalog.export_dataresource`。
+         */
+        get: operations["listAdminDataResources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/resources/export/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 导出存量数据清单
+         * @description 按当前筛选条件导出存量数据清单，支持 CSV 和 Excel。需要 `catalog.export_dataresource`，操作会写入审计日志。
+         */
+        get: operations["exportAdminDataResources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/resources/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 操作单个存量数据
+         * @description 支持更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。需要 `catalog.maintain_dataresource`，成功操作会写入审计日志。
+         */
+        post: operations["updateAdminDataResource"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1533,6 +1593,146 @@ export interface components {
              */
             updatedAt: string;
         };
+        AdminDataResourceAccessGroup: {
+            /** @description 用户组 ID */
+            id: number;
+            /** @description 用户组名称 */
+            name: string;
+        };
+        AdminDataResourceLayer: {
+            /** @description 默认展示图层 ID */
+            id: number;
+            /** @description 默认展示图层名称 */
+            name: string;
+            /** @description 默认展示图层编码 */
+            code: string;
+            /**
+             * @description 图层类型
+             * @enum {string}
+             */
+            layerType: "vector" | "raster";
+            /**
+             * @description 几何类型
+             * @enum {string}
+             */
+            geometryType: "point" | "line" | "polygon" | "mixed";
+            /** @description 是否默认显示 */
+            defaultVisible: boolean;
+            /** @description 默认透明度百分比 */
+            defaultOpacity: number;
+            /** @description 矢量默认符号化方案 */
+            symbolization: {
+                [key: string]: unknown;
+            };
+            /** @description 栅格默认符号化规则 */
+            rasterRules: {
+                [key: string]: unknown;
+            };
+            /** @description 默认展示图层是否启用 */
+            isActive: boolean;
+        };
+        AdminDataResource: {
+            /** @description 数据资源 ID */
+            id: number;
+            /** @description 数据资源名称 */
+            name: string;
+            /** @description 数据资源编码 */
+            code: string;
+            /**
+             * @description 数据资源类型
+             * @enum {string}
+             */
+            dataType: "vector" | "raster" | "gene" | "table" | "document" | "image";
+            /** @description 数据分类，未分类时为 null */
+            category: components["schemas"]["DictionaryItem"] | null;
+            /** @description 数据来源 */
+            source: string;
+            /** @description 数据提供单位 */
+            provider: string;
+            /**
+             * Format: date
+             * @description 数据日期
+             */
+            dataDate: string | null;
+            /** @description 空间范围文本 */
+            spatialExtent: string;
+            /** @description 坐标系统描述 */
+            coordinateSystem: string;
+            /** @description 文件格式 */
+            fileFormat: string;
+            /** @description 数据存储相对路径或表/图层名称 */
+            storagePath: string;
+            /** @description 资源描述 */
+            description: string;
+            /** @description 数据质量说明 */
+            qualityNote: string;
+            /** @description 数据资源默认可视化方案 */
+            defaultVisualization: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description 数据资源状态
+             * @enum {string}
+             */
+            status: "active" | "inactive";
+            /** @description 允许访问该数据资源的用户组；空数组表示不限制用户组 */
+            accessGroups: components["schemas"]["AdminDataResourceAccessGroup"][];
+            /** @description 维护人员显示名称 */
+            maintainer: string;
+            /**
+             * Format: date-time
+             * @description 创建时间
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description 最后更新时间
+             */
+            updatedAt: string;
+            /** @description 关联默认地图图层，非空间数据可为 null */
+            defaultLayer: components["schemas"]["AdminDataResourceLayer"] | null;
+        };
+        AdminDataResourceListResponse: {
+            /** @description 存量数据资源列表 */
+            items: components["schemas"]["AdminDataResource"][];
+            /** @description 符合筛选条件的数据资源总数 */
+            total: number;
+            /** @description 可用于配置数据访问范围的用户组列表 */
+            availableAccessGroups: components["schemas"]["AdminDataResourceAccessGroup"][];
+        };
+        AdminDataResourceVisualization: {
+            /** @description 默认展示图层名称 */
+            layerName?: string;
+            /** @description 是否默认显示 */
+            defaultVisible?: boolean;
+            /** @description 默认透明度百分比 */
+            defaultOpacity?: number;
+            /** @description 矢量默认符号化方案 */
+            symbolization?: {
+                [key: string]: unknown;
+            };
+            /** @description 栅格默认符号化规则 */
+            rasterRules?: {
+                [key: string]: unknown;
+            };
+        };
+        AdminDataResourceUpdateRequest: {
+            /**
+             * @description 操作类型
+             * @enum {string}
+             */
+            action: "update" | "setStatus" | "saveVisualization" | "updateAccess" | "delete";
+            /**
+             * @description setStatus 或 update 时写入的数据资源状态
+             * @enum {string}
+             */
+            status?: "active" | "inactive";
+            visualization?: components["schemas"]["AdminDataResourceVisualization"];
+            /** @description updateAccess 或 update 时写入的访问用户组 ID 列表；空数组表示不限制用户组 */
+            accessGroupIds?: number[];
+            /** @description delete 操作要求传入与数据资源名称完全一致的确认文本 */
+            confirmationName?: string;
+        };
         VectorLayerResource: {
             /** @description 由 GeoPackage 图层名称生成的临时资源 ID */
             id: string;
@@ -2284,6 +2484,7 @@ export interface operations {
                     "application/json": components["schemas"]["BootstrapResponse"];
                 };
             };
+            400: components["responses"]["BadRequest"];
         };
     };
     getHealth: {
@@ -2304,6 +2505,7 @@ export interface operations {
                     "application/json": components["schemas"]["HealthResponse"];
                 };
             };
+            400: components["responses"]["BadRequest"];
         };
     };
     getCsrfCookie: {
@@ -2324,6 +2526,7 @@ export interface operations {
                     "application/json": components["schemas"]["DetailResponse"];
                 };
             };
+            400: components["responses"]["BadRequest"];
         };
     };
     login: {
@@ -2740,14 +2943,12 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
+                "application/json": components["schemas"]["UserUpdateRequest"] | {
                     /**
                      * @description 操作类型，delete 为删除用户
                      * @enum {string}
                      */
-                    action?: "delete";
-                    /** @description 用户是否启用（当 action 不是 delete 时必填） */
-                    isActive?: boolean;
+                    action: "delete";
                 };
             };
         };
@@ -2828,16 +3029,12 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
+                "application/json": components["schemas"]["GroupUpdateRequest"] | {
                     /**
                      * @description 操作类型，delete 为删除用户组
                      * @enum {string}
                      */
-                    action?: "delete";
-                    /** @description 用户组名称（当 action 不是 delete 时可选） */
-                    name?: string;
-                    /** @description 功能权限列表（当 action 不是 delete 时可选） */
-                    permissions?: string[];
+                    action: "delete";
                 };
             };
         };
@@ -2904,6 +3101,123 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    listAdminDataResources: {
+        parameters: {
+            query?: {
+                /** @description 按名称、编号、说明、来源或提供单位进行快速检索 */
+                q?: string;
+                /** @description 数据类型筛选 */
+                dataType?: "vector" | "raster" | "gene" | "table" | "document" | "image";
+                /** @description 数据状态筛选 */
+                status?: "active" | "inactive";
+                /** @description 数据分类编码精确匹配 */
+                category?: string;
+                /** @description 数据来源模糊匹配 */
+                source?: string;
+                /** @description 提供单位模糊匹配 */
+                provider?: string;
+                /** @description 数据日期起始 */
+                dateFrom?: string;
+                /** @description 数据日期截止 */
+                dateTo?: string;
+                /** @description 当前页码 */
+                current?: number;
+                /** @description 每页条数 */
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDataResourceListResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    exportAdminDataResources: {
+        parameters: {
+            query?: {
+                /** @description 导出文件格式 */
+                format?: "csv" | "xlsx";
+                /** @description 按名称、编号、说明、来源或提供单位进行快速检索 */
+                q?: string;
+                /** @description 数据类型筛选 */
+                dataType?: "vector" | "raster" | "gene" | "table" | "document" | "image";
+                /** @description 数据状态筛选 */
+                status?: "active" | "inactive";
+                /** @description 数据分类编码精确匹配 */
+                category?: string;
+                /** @description 数据来源模糊匹配 */
+                source?: string;
+                /** @description 提供单位模糊匹配 */
+                provider?: string;
+                /** @description 数据日期起始 */
+                dateFrom?: string;
+                /** @description 数据日期截止 */
+                dateTo?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 导出成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    updateAdminDataResource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 资源 ID */
+                id: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminDataResourceUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description 操作成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDataResource"] | components["schemas"]["DetailResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     getDirectories: {

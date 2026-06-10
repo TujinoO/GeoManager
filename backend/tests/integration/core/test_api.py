@@ -122,7 +122,7 @@ class FeaturePermissionTests(TestCase):
         grant(user, ("core", "browse_data"))
         self.client.force_login(user)
 
-        response = self.client.patch(
+        response = self.client.post(
             "/api/admin/profile/permissions/",
             data=json.dumps({"disabledPermissions": ["core.browse_data"]}),
             content_type="application/json",
@@ -131,7 +131,7 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.json()["user"]["permissions"]["canBrowseData"])
 
-        response = self.client.patch(
+        response = self.client.post(
             "/api/admin/profile/permissions/",
             data=json.dumps({"disabledPermissions": ["core.query_data"]}),
             content_type="application/json",
@@ -152,7 +152,11 @@ class FeaturePermissionTests(TestCase):
         user.groups.add(group)
         self.client.force_login(manager)
 
-        response = self.client.delete(f"/api/groups/{group.id}/")
+        response = self.client.post(
+            f"/api/groups/{group.id}/",
+            data=json.dumps({"action": "delete"}),
+            content_type="application/json",
+        )
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["detail"], "用户组仍有关联用户，不能删除")
@@ -284,7 +288,7 @@ class FeaturePermissionTests(TestCase):
         _, protected_group = ensure_superadmin_defaults(create_account=False)
         self.client.force_login(manager)
 
-        response = self.client.patch(
+        response = self.client.post(
             f"/api/users/{target.id}/groups/",
             data=json.dumps({"groupIds": [protected_group.id]}),
             content_type="application/json",
@@ -307,7 +311,7 @@ class FeaturePermissionTests(TestCase):
         )
         self.client.force_login(manager)
 
-        response = self.client.patch(
+        response = self.client.post(
             f"/api/users/{target.id}/",
             data=json.dumps({"isActive": False}),
             content_type="application/json",
@@ -330,7 +334,11 @@ class FeaturePermissionTests(TestCase):
         target_id = target.id
         self.client.force_login(manager)
 
-        response = self.client.delete(f"/api/users/{target_id}/")
+        response = self.client.post(
+            f"/api/users/{target_id}/",
+            data=json.dumps({"action": "delete"}),
+            content_type="application/json",
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(get_user_model().objects.filter(id=target_id).exists())
@@ -362,12 +370,16 @@ class FeaturePermissionTests(TestCase):
         grant(manager, ("core", "manage_auth"))
         self.client.force_login(manager)
 
-        disable_response = self.client.patch(
+        disable_response = self.client.post(
             f"/api/users/{manager.id}/",
             data=json.dumps({"isActive": False}),
             content_type="application/json",
         )
-        delete_response = self.client.delete(f"/api/users/{manager.id}/")
+        delete_response = self.client.post(
+            f"/api/users/{manager.id}/",
+            data=json.dumps({"action": "delete"}),
+            content_type="application/json",
+        )
 
         self.assertEqual(disable_response.status_code, 400)
         self.assertEqual(disable_response.json()["detail"], "不能停用当前登录用户")
@@ -423,7 +435,7 @@ class FeaturePermissionTests(TestCase):
         group = Group.objects.get(name=GUEST_GROUP_NAME)
         self.client.force_login(manager)
 
-        response = self.client.patch(
+        response = self.client.post(
             f"/api/groups/{group.id}/",
             data=json.dumps({"permissions": ["core.query_data"]}),
             content_type="application/json",
@@ -441,11 +453,15 @@ class FeaturePermissionTests(TestCase):
         _, group = ensure_superadmin_defaults(create_account=False)
         self.client.force_login(manager)
 
-        delete_response = self.client.delete(f"/api/groups/{group.id}/")
+        delete_response = self.client.post(
+            f"/api/groups/{group.id}/",
+            data=json.dumps({"action": "delete"}),
+            content_type="application/json",
+        )
         self.assertEqual(delete_response.status_code, 400)
         self.assertEqual(delete_response.json()["detail"], "系统内置用户组不能删除")
 
-        patch_response = self.client.patch(
+        patch_response = self.client.post(
             f"/api/groups/{group.id}/",
             data=json.dumps({"permissions": ["core.browse_data"]}),
             content_type="application/json",
@@ -465,7 +481,7 @@ class FeaturePermissionTests(TestCase):
         normal_group = Group.objects.create(name="普通后台组")
         self.client.force_login(manager)
 
-        response = self.client.patch(
+        response = self.client.post(
             f"/api/users/{protected_user.id}/groups/",
             data=json.dumps({"groupIds": [normal_group.id]}),
             content_type="application/json",
@@ -485,7 +501,7 @@ class FeaturePermissionTests(TestCase):
         )
         self.client.force_login(manager)
 
-        response = self.client.patch(
+        response = self.client.post(
             f"/api/users/{target.id}/groups/",
             data=json.dumps({"groupIds": []}),
             content_type="application/json",
@@ -502,7 +518,7 @@ class FeaturePermissionTests(TestCase):
         ensure_superadmin_defaults(create_account=False)
         self.client.force_login(superuser)
 
-        response = self.client.patch(
+        response = self.client.post(
             "/api/admin/profile/permissions/",
             data=json.dumps({"disabledPermissions": ["core.access_admin"]}),
             content_type="application/json",
@@ -518,7 +534,7 @@ class FeaturePermissionTests(TestCase):
         )
         self.client.force_login(user)
 
-        response = self.client.patch(
+        response = self.client.post(
             "/api/admin/profile/password/",
             data=json.dumps(
                 {
@@ -548,7 +564,7 @@ class FeaturePermissionTests(TestCase):
         )
         self.client.force_login(user)
 
-        response = self.client.patch(
+        response = self.client.post(
             "/api/admin/profile/password/",
             data=json.dumps(
                 {
@@ -570,7 +586,7 @@ class FeaturePermissionTests(TestCase):
         )
         self.client.force_login(user)
 
-        response = self.client.patch(
+        response = self.client.post(
             "/api/admin/profile/password/",
             data=json.dumps(
                 {

@@ -77,7 +77,7 @@ FEATURE_PERMISSIONS: tuple[FeaturePermissionDef, ...] = (
         "catalog", "DataResource", "export_dataresource", "导出数据资源", "数据权限"
     ),
     FeaturePermissionDef(
-        "catalog", "DataResource", "maintain_dataresource", "数据导入", "数据权限"
+        "catalog", "DataResource", "maintain_dataresource", "维护数据资源", "数据权限"
     ),
     FeaturePermissionDef(
         "raster",

@@ -7,9 +7,9 @@ import {
   ZoomOutOutlined,
 } from "@ant-design/icons";
 import { Button, Tooltip } from "antd";
-import mapboxgl, { type Map as MapboxMap } from "mapbox-gl";
+import type { Map as MapboxMap } from "mapbox-gl";
 import { useEffect, useRef } from "react";
-import "mapbox-gl/dist/mapbox-gl.css";
+// mapboxgl 通过 CDN 加载，使用全局变量
 import { syncVectorInteractions } from "../map/featureInteraction";
 import { addRasterLayer } from "../map/rasterLayerSync";
 import {
@@ -92,7 +92,6 @@ export default function MapCanvas({
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    mapboxgl.accessToken = mapboxToken;
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style: mapStyle,

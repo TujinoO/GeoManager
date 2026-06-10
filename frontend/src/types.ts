@@ -34,6 +34,15 @@ export type AdminDashboard = Schemas["AdminDashboardResponse"];
 export type AdminDashboardServer = Schemas["AdminDashboardServerResponse"];
 export type AdminSettings = Schemas["AdminSettingsResponse"];
 export type AdminSettingsUpdate = Schemas["AdminSettingsUpdateRequest"];
+export type AdminDataResource = Schemas["AdminDataResource"];
+export type AdminDataResourceList = Schemas["AdminDataResourceListResponse"];
+export type AdminDataResourceUpdate = Schemas["AdminDataResourceUpdateRequest"];
+export type AdminDataResourceFilters = NonNullable<
+  operations["listAdminDataResources"]["parameters"]["query"]
+>;
+export type AdminDataResourceExportFilters = NonNullable<
+  operations["exportAdminDataResources"]["parameters"]["query"]
+>;
 export type DataResource = Schemas["DataResource"];
 export type ResourceListItem = Schemas["ResourceListItem"];
 export type ResourceField = Schemas["FieldInfo"];

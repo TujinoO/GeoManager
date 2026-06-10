@@ -20,6 +20,7 @@ vi.mock("@ant-design/charts", () => ({
 import AdminAuthPage from "./AdminAuthPage";
 import AdminDashboardPage from "./AdminDashboardPage";
 import AdminDataImportPage from "./AdminDataImportPage";
+import AdminDataInventoryPage from "./AdminDataInventoryPage";
 import AdminLayout from "./AdminLayout";
 import AdminOperationLogsPage from "./AdminOperationLogsPage";
 import AdminProfilePage from "./AdminProfilePage";
@@ -47,6 +48,9 @@ const mockApi = vi.hoisted(() => ({
   importPreview: vi.fn(),
   importValidate: vi.fn(),
   importCommit: vi.fn(),
+  adminDataResources: vi.fn(),
+  updateAdminDataResource: vi.fn(),
+  exportAdminDataResources: vi.fn(),
   adminDashboard: vi.fn(),
   adminDashboardServer: vi.fn(),
 }));
@@ -171,6 +175,10 @@ function renderAdminRoute(initialEntry: string) {
               <Route path="auth/users" element={<AdminAuthPage />} />
               <Route path="auth/groups" element={<AdminAuthPage />} />
               <Route element={<RequireDataMaintain />}>
+                <Route
+                  path="data/inventory"
+                  element={<AdminDataInventoryPage />}
+                />
                 <Route path="data/import" element={<AdminDataImportPage />} />
               </Route>
             </Route>
@@ -349,6 +357,64 @@ describe("admin routes", () => {
       importedRows: 1,
       validationIssues: [],
     });
+    mockApi.adminDataResources.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          name: "胡杨林样地点",
+          code: "populus-plots",
+          dataType: "vector",
+          category: null,
+          source: "用户导入",
+          provider: "平台组",
+          dataDate: "2026-06-01",
+          spatialExtent: "87.600000,41.700000,87.800000,41.900000",
+          coordinateSystem: "EPSG:4326",
+          fileFormat: "GPKG",
+          storagePath: "populus_plots",
+          description: "样地点数据",
+          qualityNote: "",
+          defaultVisualization: {},
+          status: "active",
+          accessGroups: [{ id: 1, name: "系统管理员" }],
+          maintainer: "系统管理员",
+          createdAt: "2026-06-01T10:00:00+08:00",
+          updatedAt: "2026-06-01T10:00:00+08:00",
+          defaultLayer: null,
+        },
+      ],
+      total: 1,
+      availableAccessGroups: [{ id: 1, name: "系统管理员" }],
+    });
+    mockApi.updateAdminDataResource.mockImplementation((resourceId, payload) =>
+      Promise.resolve({
+        id: resourceId,
+        name: "胡杨林样地点",
+        code: "populus-plots",
+        dataType: "vector",
+        category: null,
+        source: "用户导入",
+        provider: "平台组",
+        dataDate: "2026-06-01",
+        spatialExtent: "87.600000,41.700000,87.800000,41.900000",
+        coordinateSystem: "EPSG:4326",
+        fileFormat: "GPKG",
+        storagePath: "populus_plots",
+        description: "样地点数据",
+        qualityNote: "",
+        defaultVisualization: payload.visualization ?? {},
+        status: payload.status ?? "active",
+        accessGroups: [{ id: 1, name: "系统管理员" }],
+        maintainer: "系统管理员",
+        createdAt: "2026-06-01T10:00:00+08:00",
+        updatedAt: "2026-06-01T10:00:00+08:00",
+        defaultLayer: null,
+      }),
+    );
+    mockApi.exportAdminDataResources.mockResolvedValue({
+      blob: new Blob(["数据名称\n胡杨林样地点"], { type: "text/csv" }),
+      filename: "data-inventory.csv",
+    });
   });
 
   it("redirects /admin to dashboard", async () => {
@@ -448,5 +514,28 @@ describe("admin routes", () => {
       previewTitle.compareDocumentPosition(metadataTitle) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /提交导入/ }));
+
+    await waitFor(() => {
+      expect(mockApi.importCommit).toHaveBeenCalledWith(
+        file,
+        expect.objectContaining({
+          name: "样地调查点位",
+          importMode: "geographic",
+          longitudeColumn: "longitude",
+          latitudeColumn: "latitude",
+          tableName: "sample_points",
+        }),
+      );
+    });
   }, 15000);
+
+  it("loads the inventory data management page", async () => {
+    renderAdminRoute("/admin/data/inventory");
+
+    expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
+    expect(screen.getByText("CSV")).toBeInTheDocument();
+    expect(screen.getByText("本页启用")).toBeInTheDocument();
+  });
 });

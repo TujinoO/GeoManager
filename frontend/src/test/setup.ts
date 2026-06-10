@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
+import mapboxgl from "mapbox-gl";
 import { afterEach } from "vitest";
 
 afterEach(() => {
@@ -22,6 +23,12 @@ Object.defineProperty(window, "ResizeObserver", {
   writable: true,
   configurable: true,
   value: MockResizeObserver,
+});
+
+Object.defineProperty(globalThis, "mapboxgl", {
+  writable: true,
+  configurable: true,
+  value: mapboxgl,
 });
 
 Object.defineProperty(window, "matchMedia", {

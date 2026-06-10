@@ -70,6 +70,10 @@ function adminRouteFor(user: User | null) {
       icon: <DatabaseOutlined />,
       children: [
         {
+          path: "/admin/data/inventory",
+          name: "存量数据",
+        },
+        {
           path: "/admin/data/import",
           name: "数据导入",
         },
@@ -119,6 +123,10 @@ const pageMeta: Record<string, { title: string; subTitle: string }> = {
   "/admin/data/import": {
     title: "数据导入",
     subTitle: "按文件选择、导入配置、数据预览三个步骤完成入库",
+  },
+  "/admin/data/inventory": {
+    title: "存量数据管理",
+    subTitle: "管理已导入数据的状态、默认可视化、权限、删除与导出",
   },
 };
 

@@ -65,6 +65,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BootstrapResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /api/health/:
     get:
@@ -79,6 +81,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /api/auth/csrf/:
     get:
@@ -94,6 +98,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /api/auth/login/:
     post:
@@ -529,9 +535,9 @@ paths:
       summary: 更新用户状态或删除用户
       description: |
         根据请求体中的 `action` 字段执行不同操作：
-        - 不提供或提供其他值：启用或停用指定用户账号
+        - 不提供 `action`：启用或停用指定用户账号
         - `delete`：删除指定用户账号
-        
+
         不能操作当前登录用户或初始化管理员。需要 `core.manage_auth`。
       operationId: updateUserOrDelete
       security:
@@ -548,15 +554,15 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                action:
-                  type: string
-                  enum: [delete]
-                  description: 操作类型，delete 为删除用户
-                isActive:
-                  type: boolean
-                  description: 用户是否启用（当 action 不是 delete 时必填）
+              oneOf:
+                - $ref: '#/components/schemas/UserUpdateRequest'
+                - type: object
+                  required: [action]
+                  properties:
+                    action:
+                      type: string
+                      enum: [delete]
+                      description: 操作类型，delete 为删除用户
       responses:
         '200':
           description: 操作成功
@@ -627,9 +633,9 @@ paths:
       summary: 更新或删除用户组
       description: |
         根据请求体中的 `action` 字段执行不同操作：
-        - 不提供或提供其他值：更新用户组名称和功能权限
+        - 不提供 `action`：更新用户组名称和功能权限
         - `delete`：删除空用户组（仅当用户组没有任何关联用户时允许）
-        
+
         需要 `core.manage_auth`。
       operationId: updateOrDeleteGroup
       security:
@@ -646,20 +652,15 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                action:
-                  type: string
-                  enum: [delete]
-                  description: 操作类型，delete 为删除用户组
-                name:
-                  type: string
-                  description: 用户组名称（当 action 不是 delete 时可选）
-                permissions:
-                  type: array
-                  items:
-                    type: string
-                  description: 功能权限列表（当 action 不是 delete 时可选）
+              oneOf:
+                - $ref: '#/components/schemas/GroupUpdateRequest'
+                - type: object
+                  required: [action]
+                  properties:
+                    action:
+                      type: string
+                      enum: [delete]
+                      description: 操作类型，delete 为删除用户组
       responses:
         '200':
           description: 操作成功
@@ -723,6 +724,196 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+
+  /api/admin/data/resources/:
+    get:
+      tags: [管理后台]
+      summary: 获取存量数据管理列表
+      description: 返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组和默认可视化方案查看。需要 `catalog.maintain_dataresource` 或 `catalog.export_dataresource`。
+      operationId: listAdminDataResources
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 按名称、编号、说明、来源或提供单位进行快速检索
+        - name: dataType
+          in: query
+          schema:
+            type: string
+            enum: [vector, raster, gene, table, document, image]
+          description: 数据类型筛选
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+          description: 数据状态筛选
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: 数据分类编码精确匹配
+        - name: source
+          in: query
+          schema:
+            type: string
+          description: 数据来源模糊匹配
+        - name: provider
+          in: query
+          schema:
+            type: string
+          description: 提供单位模糊匹配
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 数据日期起始
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 数据日期截止
+        - name: current
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: 当前页码
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页条数
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDataResourceListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/data/resources/export/:
+    get:
+      tags: [管理后台]
+      summary: 导出存量数据清单
+      description: 按当前筛选条件导出存量数据清单，支持 CSV 和 Excel。需要 `catalog.export_dataresource`，操作会写入审计日志。
+      operationId: exportAdminDataResources
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [csv, xlsx]
+            default: csv
+          description: 导出文件格式
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 按名称、编号、说明、来源或提供单位进行快速检索
+        - name: dataType
+          in: query
+          schema:
+            type: string
+            enum: [vector, raster, gene, table, document, image]
+          description: 数据类型筛选
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+          description: 数据状态筛选
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: 数据分类编码精确匹配
+        - name: source
+          in: query
+          schema:
+            type: string
+          description: 数据来源模糊匹配
+        - name: provider
+          in: query
+          schema:
+            type: string
+          description: 提供单位模糊匹配
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 数据日期起始
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 数据日期截止
+      responses:
+        '200':
+          description: 导出成功
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/data/resources/{id}/:
+    post:
+      tags: [管理后台]
+      summary: 操作单个存量数据
+      description: 支持更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。需要 `catalog.maintain_dataresource`，成功操作会写入审计日志。
+      operationId: updateAdminDataResource
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDataResourceUpdateRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AdminDataResource'
+                  - $ref: '#/components/schemas/DetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /api/catalog/directories/:
     get:
@@ -2524,6 +2715,233 @@ components:
           type: string
           format: date-time
           description: 最后更新时间
+
+    AdminDataResourceAccessGroup:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          description: 用户组 ID
+        name:
+          type: string
+          description: 用户组名称
+
+    AdminDataResourceLayer:
+      type: object
+      required:
+        - id
+        - name
+        - code
+        - layerType
+        - geometryType
+        - defaultVisible
+        - defaultOpacity
+        - symbolization
+        - rasterRules
+        - isActive
+      properties:
+        id:
+          type: integer
+          description: 默认展示图层 ID
+        name:
+          type: string
+          description: 默认展示图层名称
+        code:
+          type: string
+          description: 默认展示图层编码
+        layerType:
+          type: string
+          enum: [vector, raster]
+          description: 图层类型
+        geometryType:
+          type: string
+          enum: [point, line, polygon, mixed]
+          description: 几何类型
+        defaultVisible:
+          type: boolean
+          description: 是否默认显示
+        defaultOpacity:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 默认透明度百分比
+        symbolization:
+          type: object
+          additionalProperties: true
+          description: 矢量默认符号化方案
+        rasterRules:
+          type: object
+          additionalProperties: true
+          description: 栅格默认符号化规则
+        isActive:
+          type: boolean
+          description: 默认展示图层是否启用
+
+    AdminDataResource:
+      type: object
+      required:
+        - id
+        - name
+        - code
+        - dataType
+        - category
+        - source
+        - provider
+        - dataDate
+        - spatialExtent
+        - coordinateSystem
+        - fileFormat
+        - storagePath
+        - description
+        - qualityNote
+        - defaultVisualization
+        - status
+        - accessGroups
+        - maintainer
+        - createdAt
+        - updatedAt
+        - defaultLayer
+      properties:
+        id:
+          type: integer
+          description: 数据资源 ID
+        name:
+          type: string
+          description: 数据资源名称
+        code:
+          type: string
+          description: 数据资源编码
+        dataType:
+          type: string
+          enum: [vector, raster, gene, table, document, image]
+          description: 数据资源类型
+        category:
+          oneOf:
+            - $ref: '#/components/schemas/DictionaryItem'
+            - type: "null"
+          description: 数据分类，未分类时为 null
+        source:
+          type: string
+          description: 数据来源
+        provider:
+          type: string
+          description: 数据提供单位
+        dataDate:
+          type: [string, "null"]
+          format: date
+          description: 数据日期
+        spatialExtent:
+          type: string
+          description: 空间范围文本
+        coordinateSystem:
+          type: string
+          description: 坐标系统描述
+        fileFormat:
+          type: string
+          description: 文件格式
+        storagePath:
+          type: string
+          description: 数据存储相对路径或表/图层名称
+        description:
+          type: string
+          description: 资源描述
+        qualityNote:
+          type: string
+          description: 数据质量说明
+        defaultVisualization:
+          type: object
+          additionalProperties: true
+          description: 数据资源默认可视化方案
+        status:
+          type: string
+          enum: [active, inactive]
+          description: 数据资源状态
+        accessGroups:
+          type: array
+          description: 允许访问该数据资源的用户组；空数组表示不限制用户组
+          items:
+            $ref: '#/components/schemas/AdminDataResourceAccessGroup'
+        maintainer:
+          type: string
+          description: 维护人员显示名称
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最后更新时间
+        defaultLayer:
+          oneOf:
+            - $ref: '#/components/schemas/AdminDataResourceLayer'
+            - type: "null"
+          description: 关联默认地图图层，非空间数据可为 null
+
+    AdminDataResourceListResponse:
+      type: object
+      required: [items, total, availableAccessGroups]
+      properties:
+        items:
+          type: array
+          description: 存量数据资源列表
+          items:
+            $ref: '#/components/schemas/AdminDataResource'
+        total:
+          type: integer
+          description: 符合筛选条件的数据资源总数
+        availableAccessGroups:
+          type: array
+          description: 可用于配置数据访问范围的用户组列表
+          items:
+            $ref: '#/components/schemas/AdminDataResourceAccessGroup'
+
+    AdminDataResourceVisualization:
+      type: object
+      properties:
+        layerName:
+          type: string
+          description: 默认展示图层名称
+        defaultVisible:
+          type: boolean
+          description: 是否默认显示
+        defaultOpacity:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 默认透明度百分比
+        symbolization:
+          type: object
+          additionalProperties: true
+          description: 矢量默认符号化方案
+        rasterRules:
+          type: object
+          additionalProperties: true
+          description: 栅格默认符号化规则
+
+    AdminDataResourceUpdateRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [update, setStatus, saveVisualization, updateAccess, delete]
+          description: 操作类型
+        status:
+          type: string
+          enum: [active, inactive]
+          description: setStatus 或 update 时写入的数据资源状态
+        visualization:
+          $ref: '#/components/schemas/AdminDataResourceVisualization'
+        accessGroupIds:
+          type: array
+          description: updateAccess 或 update 时写入的访问用户组 ID 列表；空数组表示不限制用户组
+          items:
+            type: integer
+        confirmationName:
+          type: string
+          description: delete 操作要求传入与数据资源名称完全一致的确认文本
 
     VectorLayerResource:
       type: object

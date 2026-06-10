@@ -15,8 +15,6 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    // 性能优化：减少类型检查范围
-    "types": ["vite/client"],
     // 不生成 source map（Vite 自己处理）
     "sourceMap": false,
     "noUncheckedIndexedAccess": true,

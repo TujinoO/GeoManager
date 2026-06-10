@@ -110,6 +110,23 @@ describe("api client", () => {
     });
   });
 
+  it("does not surface full HTML debug pages as the error message", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        "<!DOCTYPE html><html><head><title>OperationalError at /api/admin/data/resources/</title></head><body>debug</body></html>",
+        {
+          status: 500,
+          headers: { "Content-Type": "text/html" },
+        },
+      ),
+    );
+
+    await expect(api.adminDataResources()).rejects.toMatchObject({
+      status: 500,
+      message: "服务器内部错误：OperationalError at /api/admin/data/resources/",
+    });
+  });
+
   it("uses data-resource endpoints for registered resources", async () => {
     fetchMock.mockResolvedValue(jsonResponse({}));
     const resource = {

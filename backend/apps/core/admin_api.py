@@ -6,6 +6,7 @@ import os
 import platform
 import re
 import shutil
+import sqlite3
 import subprocess
 from calendar import monthrange
 from datetime import datetime, time, timedelta
@@ -19,7 +20,7 @@ from django.contrib.auth.models import Group
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 from django.views.decorators.http import require_GET, require_http_methods
@@ -53,6 +54,13 @@ from apps.core.permissions import (
     feature_permission_queryset,
     granted_feature_permissions,
     has_feature_perm,
+)
+from apps.core.storage import (
+    StoragePathError,
+    research_path,
+    table_data_path,
+    validate_vector_layer_name,
+    vector_geopackage_path,
 )
 from apps.raster.models import RasterDataset
 
@@ -646,6 +654,149 @@ def admin_settings(request):
 
 
 @require_GET
+@api_any_permission_required(
+    "catalog.maintain_dataresource", "catalog.export_dataresource"
+)
+def admin_data_resources(request):
+    queryset = _filter_admin_data_resources(
+        DataResource.objects.select_related("category", "maintainer")
+        .prefetch_related("access_groups", "map_layers")
+        .order_by("-updated_at", "name"),
+        request.GET,
+    )
+    total = queryset.count()
+    current = _positive_query_int(request.GET.get("current"), default=1)
+    page_size = _positive_query_int(request.GET.get("pageSize"), default=20)
+    if isinstance(current, JsonResponse):
+        return current
+    if isinstance(page_size, JsonResponse):
+        return page_size
+    start = (current - 1) * page_size
+    end = start + page_size
+    return JsonResponse(
+        {
+            "items": [
+                _serialize_admin_data_resource(resource)
+                for resource in queryset[start:end]
+            ],
+            "total": total,
+            "availableAccessGroups": [
+                {"id": group.id, "name": group.name}
+                for group in Group.objects.order_by("name")
+            ],
+        }
+    )
+
+
+@require_http_methods(["POST"])
+@api_permission_required("catalog.maintain_dataresource")
+def admin_data_resource_detail(request, resource_id: int):
+    payload = _json_payload(request)
+    if isinstance(payload, JsonResponse):
+        return payload
+    try:
+        resource = (
+            DataResource.objects.select_related("category", "maintainer")
+            .prefetch_related("access_groups", "map_layers")
+            .get(pk=resource_id)
+        )
+    except DataResource.DoesNotExist:
+        return JsonResponse({"detail": "数据资源不存在"}, status=404)
+
+    action = str(payload.get("action", "update")).strip()
+    if action == "delete":
+        return _delete_admin_data_resource(request, resource, payload)
+    if action not in {"update", "setStatus", "saveVisualization", "updateAccess"}:
+        return JsonResponse({"detail": "不支持的数据资源操作"}, status=400)
+
+    update_fields = []
+    if action in {"update", "setStatus"} and "status" in payload:
+        status = str(payload.get("status", "")).strip()
+        if status not in DataResource.Status.values:
+            return JsonResponse(
+                {"detail": "status 仅支持 active 或 inactive"}, status=400
+            )
+        resource.status = status
+        update_fields.append("status")
+        MapLayer.objects.filter(data_resource=resource).update(
+            is_active=status == DataResource.Status.ACTIVE
+        )
+
+    if action in {"update", "updateAccess"} and "accessGroupIds" in payload:
+        group_ids = _normalize_group_ids(payload.get("accessGroupIds"))
+        if isinstance(group_ids, JsonResponse):
+            return group_ids
+        groups = list(Group.objects.filter(id__in=group_ids))
+        if len(groups) != len(group_ids):
+            return JsonResponse({"detail": "包含不存在的用户组"}, status=400)
+        resource.access_groups.set(groups)
+        for layer in resource.map_layers.all():
+            layer.access_groups.set(groups)
+
+    if action in {"update", "saveVisualization"} and "visualization" in payload:
+        visualization = payload.get("visualization")
+        if not isinstance(visualization, dict):
+            return JsonResponse(
+                {"detail": "visualization 必须是 JSON 对象"}, status=400
+            )
+        resource.default_visualization = visualization
+        update_fields.append("default_visualization")
+        layer_error = _sync_default_visualization_layer(resource, visualization)
+        if isinstance(layer_error, JsonResponse):
+            return layer_error
+
+    if update_fields:
+        update_fields.append("updated_at")
+        resource.save(update_fields=sorted(set(update_fields)))
+
+    log_operation(
+        request.user,
+        "数据管理",
+        _admin_resource_action_label(action, payload),
+        "success",
+        resource.name,
+        request,
+    )
+    resource.refresh_from_db()
+    return JsonResponse(
+        _serialize_admin_data_resource(
+            DataResource.objects.select_related("category", "maintainer")
+            .prefetch_related("access_groups", "map_layers")
+            .get(pk=resource.id)
+        )
+    )
+
+
+@require_GET
+@api_permission_required("catalog.export_dataresource")
+def admin_data_resources_export(request):
+    queryset = _filter_admin_data_resources(
+        DataResource.objects.select_related("category", "maintainer")
+        .prefetch_related("access_groups", "map_layers")
+        .order_by("-updated_at", "name"),
+        request.GET,
+    )
+    rows = [_serialize_admin_data_resource(resource) for resource in queryset]
+    export_format = str(request.GET.get("format", "csv")).strip().lower()
+    if export_format == "xlsx":
+        response = _data_resources_xlsx_response(rows)
+    elif export_format == "csv":
+        response = _data_resources_csv_response(rows)
+    else:
+        return JsonResponse({"detail": "format 仅支持 csv 或 xlsx"}, status=400)
+
+    log_operation(
+        request.user,
+        "数据管理",
+        "导出存量数据",
+        "success",
+        f"{export_format.upper()} {len(rows)} 条",
+        request,
+    )
+    return response
+
+
+@require_GET
 @api_permission_required("core.view_operation_logs")
 def admin_operation_logs(request):
     logs = OperationLog.objects.select_related("user").order_by("-created_at")
@@ -810,6 +961,386 @@ def _server_snapshot() -> dict[str, Any]:
         "memory": _memory_snapshot(),
         "disks": _disk_snapshot(),
     }
+
+
+def _filter_admin_data_resources(queryset, params):
+    query = str(params.get("q", "")).strip()
+    data_type = str(params.get("dataType", "")).strip()
+    status = str(params.get("status", "")).strip()
+    category = str(params.get("category", "")).strip()
+    source = str(params.get("source", "")).strip()
+    provider = str(params.get("provider", "")).strip()
+    date_from = parse_date(str(params.get("dateFrom", "")).strip())
+    date_to = parse_date(str(params.get("dateTo", "")).strip())
+
+    if query:
+        queryset = queryset.filter(
+            Q(name__icontains=query)
+            | Q(code__icontains=query)
+            | Q(description__icontains=query)
+            | Q(source__icontains=query)
+            | Q(provider__icontains=query)
+        )
+    if data_type:
+        queryset = queryset.filter(data_type=data_type)
+    if status:
+        queryset = queryset.filter(status=status)
+    if category:
+        queryset = queryset.filter(category__code=category)
+    if source:
+        queryset = queryset.filter(source__icontains=source)
+    if provider:
+        queryset = queryset.filter(provider__icontains=provider)
+    if date_from:
+        queryset = queryset.filter(data_date__gte=date_from)
+    if date_to:
+        queryset = queryset.filter(data_date__lte=date_to)
+    return queryset
+
+
+def _serialize_admin_data_resource(resource: DataResource) -> dict[str, Any]:
+    layers = list(resource.map_layers.all())
+    layer = layers[0] if layers else None
+    maintainer = ""
+    if resource.maintainer_id and resource.maintainer:
+        maintainer = (
+            resource.maintainer.get_full_name() or resource.maintainer.get_username()
+        )
+    return {
+        "id": resource.id,
+        "name": resource.name,
+        "code": resource.code,
+        "dataType": resource.data_type,
+        "category": _serialize_dictionary_item(resource.category),
+        "source": resource.source,
+        "provider": resource.provider,
+        "dataDate": resource.data_date.isoformat() if resource.data_date else None,
+        "spatialExtent": resource.spatial_extent,
+        "coordinateSystem": resource.coordinate_system,
+        "fileFormat": resource.file_format,
+        "storagePath": resource.storage_path,
+        "description": resource.description,
+        "qualityNote": resource.quality_note,
+        "defaultVisualization": resource.default_visualization,
+        "status": resource.status,
+        "accessGroups": [
+            {"id": group.id, "name": group.name}
+            for group in resource.access_groups.all()
+        ],
+        "maintainer": maintainer,
+        "createdAt": timezone.localtime(resource.created_at).isoformat(),
+        "updatedAt": timezone.localtime(resource.updated_at).isoformat(),
+        "defaultLayer": _serialize_admin_resource_layer(layer),
+    }
+
+
+def _serialize_dictionary_item(item) -> dict[str, Any] | None:
+    if item is None:
+        return None
+    return {
+        "id": item.id,
+        "type": item.dict_type,
+        "code": item.code,
+        "name": item.name,
+    }
+
+
+def _serialize_admin_resource_layer(layer: MapLayer | None) -> dict[str, Any] | None:
+    if layer is None:
+        return None
+    return {
+        "id": layer.id,
+        "name": layer.name,
+        "code": layer.code,
+        "layerType": layer.layer_type,
+        "geometryType": layer.geometry_type,
+        "defaultVisible": layer.default_visible,
+        "defaultOpacity": layer.default_opacity,
+        "symbolization": layer.symbolization,
+        "rasterRules": layer.raster_rules,
+        "isActive": layer.is_active,
+    }
+
+
+def _sync_default_visualization_layer(
+    resource: DataResource, visualization: dict[str, Any]
+) -> JsonResponse | None:
+    if resource.data_type not in {
+        DataResource.DataType.VECTOR,
+        DataResource.DataType.RASTER,
+    }:
+        return None
+
+    layer = resource.map_layers.order_by("id").first()
+    if layer is None:
+        layer = MapLayer(
+            code=_unique_layer_code(resource.code),
+            name=resource.name,
+            data_resource=resource,
+            layer_type=(
+                MapLayer.LayerType.RASTER
+                if resource.data_type == DataResource.DataType.RASTER
+                else MapLayer.LayerType.VECTOR
+            ),
+            source_path=resource.storage_path,
+            is_active=resource.status == DataResource.Status.ACTIVE,
+        )
+
+    layer.name = str(visualization.get("layerName") or resource.name).strip()
+    if not layer.name:
+        return JsonResponse({"detail": "图层名称不能为空"}, status=400)
+    layer.default_visible = bool(visualization.get("defaultVisible", False))
+    layer.default_opacity = _default_opacity(visualization.get("defaultOpacity", 85))
+    if isinstance(layer.default_opacity, JsonResponse):
+        return layer.default_opacity
+    layer.source_path = resource.storage_path
+    layer.is_active = resource.status == DataResource.Status.ACTIVE
+
+    symbolization = visualization.get("symbolization")
+    if symbolization is not None:
+        if not isinstance(symbolization, dict):
+            return JsonResponse(
+                {"detail": "symbolization 必须是 JSON 对象"}, status=400
+            )
+        layer.symbolization = symbolization
+
+    raster_rules = visualization.get("rasterRules")
+    if raster_rules is not None:
+        if not isinstance(raster_rules, dict):
+            return JsonResponse({"detail": "rasterRules 必须是 JSON 对象"}, status=400)
+        layer.raster_rules = raster_rules
+    layer.save()
+    layer.access_groups.set(resource.access_groups.all())
+    return None
+
+
+def _default_opacity(value: Any) -> int | JsonResponse:
+    try:
+        opacity = int(value)
+    except (TypeError, ValueError):
+        return JsonResponse(
+            {"detail": "defaultOpacity 必须是 0 到 100 的整数"}, status=400
+        )
+    if opacity < 0 or opacity > 100:
+        return JsonResponse(
+            {"detail": "defaultOpacity 必须是 0 到 100 的整数"}, status=400
+        )
+    return opacity
+
+
+def _unique_layer_code(base_code: str) -> str:
+    code = base_code
+    if not MapLayer.objects.filter(code=code).exists():
+        return code
+    index = 2
+    while MapLayer.objects.filter(code=f"{base_code}-layer-{index}").exists():
+        index += 1
+    return f"{base_code}-layer-{index}"
+
+
+def _normalize_group_ids(value: Any) -> set[int] | JsonResponse:
+    if not isinstance(value, list):
+        return JsonResponse({"detail": "accessGroupIds 必须是数组"}, status=400)
+    try:
+        return {int(group_id) for group_id in value}
+    except (TypeError, ValueError):
+        return JsonResponse({"detail": "accessGroupIds 必须是整数数组"}, status=400)
+
+
+def _delete_admin_data_resource(
+    request, resource: DataResource, payload: dict[str, Any]
+):
+    confirmation = str(payload.get("confirmationName", "")).strip()
+    if confirmation != resource.name:
+        return JsonResponse({"detail": "删除确认名称与数据资源名称不一致"}, status=400)
+
+    name = resource.name
+    storage_message = _delete_imported_resource_storage(resource)
+    MapLayer.objects.filter(data_resource=resource).delete()
+    resource.delete()
+    log_operation(
+        request.user,
+        "数据管理",
+        "删除存量数据",
+        "success",
+        f"{name}；{storage_message}",
+        request,
+    )
+    return JsonResponse({"detail": "数据资源已删除"})
+
+
+def _delete_imported_resource_storage(resource: DataResource) -> str:
+    if not resource.storage_path:
+        return "未配置存储路径，仅删除资源登记"
+    if resource.data_type == DataResource.DataType.VECTOR:
+        return _drop_geopackage_layer(resource.storage_path)
+    if (
+        resource.data_type == DataResource.DataType.TABLE
+        and resource.file_format.upper() == "SQLITE"
+    ):
+        return _drop_sqlite_table(resource.storage_path)
+    if (
+        resource.source in {"非地理数据目录扫描", "用户导入"}
+        and "/" in resource.storage_path
+    ):
+        return _delete_research_file(resource.storage_path)
+    return "保留原始文件，仅删除资源登记"
+
+
+def _drop_geopackage_layer(layer_name: str) -> str:
+    try:
+        layer_name = validate_vector_layer_name(layer_name)
+    except StoragePathError as exc:
+        return f"跳过 GeoPackage 清理：{exc}"
+    path = vector_geopackage_path()
+    if not path.exists():
+        return "GeoPackage 文件不存在，仅删除资源登记"
+    with sqlite3.connect(path) as connection:
+        quoted_name = layer_name.replace('"', '""')
+        connection.execute(f'DROP TABLE IF EXISTS "{quoted_name}"')
+        for table_name in (
+            "gpkg_contents",
+            "gpkg_geometry_columns",
+            "gpkg_data_columns",
+            "gpkg_extensions",
+        ):
+            if _sqlite_table_exists(connection, table_name):
+                connection.execute(
+                    f"DELETE FROM {table_name} WHERE table_name = ?",
+                    (layer_name,),
+                )
+    return "已清理 GeoPackage 图层"
+
+
+def _drop_sqlite_table(table_name: str) -> str:
+    path = table_data_path("data.sqlite")
+    if not path.exists():
+        return "SQLite 文件不存在，仅删除资源登记"
+    quoted_name = str(table_name).replace('"', '""')
+    with sqlite3.connect(path) as connection:
+        connection.execute(f'DROP TABLE IF EXISTS "{quoted_name}"')
+        if _sqlite_table_exists(connection, "data_columns"):
+            connection.execute(
+                "DELETE FROM data_columns WHERE table_name = ?",
+                (table_name,),
+            )
+    return "已清理 SQLite 表"
+
+
+def _delete_research_file(relative_path: str) -> str:
+    try:
+        path = research_path(relative_path)
+    except StoragePathError as exc:
+        return f"跳过文件清理：{exc}"
+    if not path.exists() or not path.is_file():
+        return "文件不存在，仅删除资源登记"
+    path.unlink()
+    return "已删除研究数据文件"
+
+
+def _admin_resource_action_label(action: str, payload: dict[str, Any]) -> str:
+    if action == "setStatus":
+        return "切换数据状态"
+    if action == "saveVisualization":
+        return "保存默认可视化方案"
+    if action == "updateAccess":
+        return "配置数据访问权限"
+    changed = []
+    if "status" in payload:
+        changed.append("状态")
+    if "visualization" in payload:
+        changed.append("默认可视化")
+    if "accessGroupIds" in payload:
+        changed.append("访问权限")
+    return f"更新存量数据{'、'.join(changed)}" if changed else "更新存量数据"
+
+
+def _data_resources_csv_response(rows: list[dict[str, Any]]) -> HttpResponse:
+    output = io.StringIO()
+    output.write("\ufeff")
+    headers, body = _data_resource_export_rows(rows)
+    output.write(",".join(headers))
+    output.write("\n")
+    for row in body:
+        output.write(",".join(_escape_csv_cell(cell) for cell in row))
+        output.write("\n")
+    response = HttpResponse(output.getvalue(), content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="data-inventory.csv"'
+    return response
+
+
+def _data_resources_xlsx_response(rows: list[dict[str, Any]]) -> HttpResponse:
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "存量数据"
+    headers, body = _data_resource_export_rows(rows)
+    sheet.append(headers)
+    for row in body:
+        sheet.append(row)
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = 'attachment; filename="data-inventory.xlsx"'
+    return response
+
+
+def _data_resource_export_rows(
+    rows: list[dict[str, Any]],
+) -> tuple[list[str], list[list[str]]]:
+    headers = [
+        "数据名称",
+        "数据编号",
+        "数据类型",
+        "状态",
+        "分类",
+        "来源",
+        "提供单位",
+        "数据日期",
+        "文件格式",
+        "存储路径",
+        "访问用户组",
+        "维护人员",
+        "更新时间",
+    ]
+    body = [
+        [
+            row["name"],
+            row["code"],
+            row["dataType"],
+            row["status"],
+            (row["category"] or {}).get("name", ""),
+            row["source"],
+            row["provider"],
+            row["dataDate"] or "",
+            row["fileFormat"],
+            row["storagePath"],
+            "、".join(group["name"] for group in row["accessGroups"]),
+            row["maintainer"],
+            row["updatedAt"],
+        ]
+        for row in rows
+    ]
+    return headers, body
+
+
+def _escape_csv_cell(value: Any) -> str:
+    text = str(value)
+    if re.search(r'[",\n]', text):
+        return f'"{text.replace('"', '""')}"'
+    return text
+
+
+def _sqlite_table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
+    row = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table_name,),
+    ).fetchone()
+    return row is not None
 
 
 def _cpu_snapshot() -> dict[str, Any]:

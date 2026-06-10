@@ -23,6 +23,9 @@ import type { Bootstrap, User } from "./types";
 const AdminAuthPage = lazy(() => import("./admin/AdminAuthPage"));
 const AdminDashboardPage = lazy(() => import("./admin/AdminDashboardPage"));
 const AdminDataImportPage = lazy(() => import("./admin/AdminDataImportPage"));
+const AdminDataInventoryPage = lazy(
+  () => import("./admin/AdminDataInventoryPage"),
+);
 const AdminLayout = lazy(() => import("./admin/AdminLayout"));
 const AdminOperationLogsPage = lazy(
   () => import("./admin/AdminOperationLogsPage"),
@@ -187,6 +190,10 @@ export default function App() {
                   <Route path="auth/groups" element={<AdminAuthPage />} />
                 </Route>
                 <Route element={<RequireDataMaintain />}>
+                  <Route
+                    path="data/inventory"
+                    element={<AdminDataInventoryPage />}
+                  />
                   <Route path="data/import" element={<AdminDataImportPage />} />
                 </Route>
               </Route>

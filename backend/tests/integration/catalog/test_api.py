@@ -9,6 +9,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from shapely.geometry import Point
 
+from apps.audit.models import OperationLog
 from apps.catalog.models import DataResource, MapLayer
 from apps.catalog.services import scan_catalog_sources, scan_vector_geopackage
 from apps.core.storage import gene_data_path, table_data_path, vector_geopackage_path
@@ -728,6 +729,132 @@ class ExportApiTests(TestCase):
             "resourceId": self.resource.id,
             "geojson": self.geojson,
         }
+
+
+class AdminDataResourceApiTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="data-admin", password="pass12345"
+        )
+        grant(
+            self.user,
+            ("catalog", "maintain_dataresource"),
+            ("catalog", "export_dataresource"),
+            ("core", "browse_data"),
+        )
+        self.client.force_login(self.user)
+        self.group = Group.objects.create(name="科研用户")
+        self.resource = DataResource.objects.create(
+            name="存量样地数据",
+            code="inventory-plots",
+            data_type=DataResource.DataType.VECTOR,
+            source="用户导入",
+            provider="平台组",
+            file_format="GPKG",
+            storage_path="inventory_plots",
+            status=DataResource.Status.ACTIVE,
+        )
+
+    def test_admin_data_resource_list_includes_active_and_inactive_resources(self):
+        self.resource.status = DataResource.Status.INACTIVE
+        self.resource.save(update_fields=["status"])
+
+        response = self.client.get("/api/admin/data/resources/?status=inactive")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(payload["items"][0]["name"], "存量样地数据")
+        self.assertEqual(payload["items"][0]["status"], "inactive")
+
+    def test_status_toggle_hides_resource_from_regular_catalog(self):
+        response = self.client.post(
+            f"/api/admin/data/resources/{self.resource.id}/",
+            data=json.dumps({"action": "setStatus", "status": "inactive"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.status, DataResource.Status.INACTIVE)
+        regular_response = self.client.get("/api/catalog/resources/")
+        self.assertEqual(regular_response.status_code, 200)
+        regular_ids = {
+            item["id"]
+            for item in regular_response.json()["items"]
+            if isinstance(item["id"], int)
+        }
+        self.assertNotIn(self.resource.id, regular_ids)
+        self.assertTrue(
+            OperationLog.objects.filter(
+                module="数据管理", action="切换数据状态"
+            ).exists()
+        )
+
+    def test_update_access_groups_and_default_visualization(self):
+        response = self.client.post(
+            f"/api/admin/data/resources/{self.resource.id}/",
+            data=json.dumps(
+                {
+                    "action": "update",
+                    "accessGroupIds": [self.group.id],
+                    "visualization": {
+                        "layerName": "默认样地点",
+                        "defaultVisible": True,
+                        "defaultOpacity": 72,
+                        "symbolization": {"pointColor": "#2f7d62"},
+                    },
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.access_groups.first(), self.group)
+        self.assertEqual(self.resource.default_visualization["defaultOpacity"], 72)
+        layer = MapLayer.objects.get(data_resource=self.resource)
+        self.assertEqual(layer.name, "默认样地点")
+        self.assertEqual(layer.default_opacity, 72)
+        self.assertEqual(layer.symbolization["pointColor"], "#2f7d62")
+        self.assertEqual(layer.access_groups.first(), self.group)
+
+    def test_delete_requires_matching_confirmation_name(self):
+        response = self.client.post(
+            f"/api/admin/data/resources/{self.resource.id}/",
+            data=json.dumps({"action": "delete", "confirmationName": "错误名称"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(DataResource.objects.filter(pk=self.resource.id).exists())
+
+    def test_delete_removes_resource_and_logs_operation(self):
+        response = self.client.post(
+            f"/api/admin/data/resources/{self.resource.id}/",
+            data=json.dumps(
+                {"action": "delete", "confirmationName": self.resource.name}
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(DataResource.objects.filter(pk=self.resource.id).exists())
+        self.assertTrue(
+            OperationLog.objects.filter(
+                module="数据管理", action="删除存量数据"
+            ).exists()
+        )
+
+    def test_admin_data_export_supports_csv_and_xlsx(self):
+        csv_response = self.client.get("/api/admin/data/resources/export/?format=csv")
+        xlsx_response = self.client.get("/api/admin/data/resources/export/?format=xlsx")
+
+        self.assertEqual(csv_response.status_code, 200)
+        self.assertIn("text/csv", csv_response["Content-Type"])
+        self.assertIn("存量样地数据", csv_response.content.decode("utf-8-sig"))
+        self.assertEqual(xlsx_response.status_code, 200)
+        self.assertIn("spreadsheetml", xlsx_response["Content-Type"])
 
 
 def grant(user, *specs):

@@ -85,7 +85,7 @@ backend/apps/
 - 管理员新建普通用户和修改普通用户组归属时必须保留至少一个用户组；自助注册用户默认加入 `游客` 用户组。
 - 数据资源和图层的 `access_groups` 继续控制“能看见哪些对象”；功能权限控制“能对可见对象做什么”。
 - 首批平台功能权限包括：后台入口、功能权限配置、数据浏览、数据查询、矢量加载、栅格加载、自定义符号化。
-- 现有导出、数据维护、栅格数据集管理权限也纳入同一用户组配置入口。
+- 现有导出、数据维护、栅格数据集管理权限也纳入同一用户组配置入口；`catalog.maintain_dataresource` 覆盖后台数据导入、存量数据启停、默认可视化、访问范围配置和删除确认。
 - 前后端无权限提示统一为 `当前用户组“xxxx”无权限`；无用户组时显示 `未分组`。
 - `core.load_raster_layer` 控制按默认规则加载栅格和访问 XYZ；`core.custom_symbolization` 只控制用户打开符号化编辑器并提交自定义规则。
 - 栅格渲染 API 使用 `rulesMode` 区分默认/自定义：默认加载不传 `rules` 或传 `rulesMode: "default"`；自定义符号化传 `rulesMode: "custom"` 和 `rules`。
@@ -160,6 +160,9 @@ frontend/src/
 - 元数据查询作用于资源列表，当前支持名称、数据类型、分类、来源、提供单位和日期范围。
 - 属性查询基于后端读取到的字段列表构建过滤条件，后端在 GeoPackage 读取结果上执行过滤。
 - 后端资源能力边界：只有带 `storage_path` 的矢量 GeoPackage 资源可查询；元数据资源只可浏览和筛选。
+- 后台 `/admin/data/inventory` 是存量数据管理入口，使用 `/api/admin/data/resources/` 查询启用和禁用资源；常规业务目录 `/api/catalog/resources/`、搜索和资源 profile/query 仍只处理 `status=active` 的数据资源。
+- `DataResource.default_visualization` 保存默认可视化方案 JSON；空间资源保存方案时会创建或更新关联 `MapLayer`，同步默认图层名称、默认显隐、默认透明度、矢量符号化和栅格规则。栅格色带和 PNG/XYZ 生成仍由后端栅格服务处理。
+- 存量数据启停、默认可视化保存、访问用户组配置、删除和清单导出均写入 `OperationLog(module="数据管理")`。删除用户导入的矢量/表格资源时清理 GeoPackage 图层或 SQLite 表；栅格等可能复用的研究数据文件保留，仅删除资源登记和关联图层。
 
 ## 当前图层树约定
 

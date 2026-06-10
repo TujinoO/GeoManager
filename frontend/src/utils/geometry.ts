@@ -1,4 +1,5 @@
-import mapboxgl from "mapbox-gl";
+/// <reference path="../mapbox-gl.d.ts" />
+// mapboxgl 通过 CDN 加载，使用全局变量
 import type {
   GeoJsonFeatureCollection,
   GeoJsonGeometry,

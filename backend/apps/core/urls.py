@@ -66,4 +66,19 @@ urlpatterns = [
         name="group-detail",
     ),
     path("admin/settings/", admin_api.admin_settings, name="admin-settings"),
+    path(
+        "admin/data/resources/",
+        admin_api.admin_data_resources,
+        name="admin-data-resources",
+    ),
+    path(
+        "admin/data/resources/export/",
+        admin_api.admin_data_resources_export,
+        name="admin-data-resources-export",
+    ),
+    path(
+        "admin/data/resources/<int:resource_id>/",
+        admin_api.admin_data_resource_detail,
+        name="admin-data-resource-detail",
+    ),
 ]

@@ -79,6 +79,9 @@ class DataResource(models.Model):
     )
     description = models.TextField(blank=True, verbose_name="数据说明")
     quality_note = models.TextField(blank=True, verbose_name="数据质量说明")
+    default_visualization = models.JSONField(
+        default=dict, blank=True, verbose_name="默认可视化方案"
+    )
     access_groups = models.ManyToManyField(
         Group, blank=True, related_name="data_resources", verbose_name="访问角色"
     )

@@ -302,12 +302,19 @@ body {
 
 .admin-page-container {
   min-width: 0;
+
+  & .ant-pro-page-container-children-container {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
 }
 
 .admin-page-stack {
   display: grid;
   gap: 16px;
   min-width: 0;
+  max-width: 100%;
 }
 
 .admin-toolbar {
@@ -318,6 +325,78 @@ body {
 
 .admin-section-card.ant-pro-card {
   border-radius: 8px;
+}
+
+.admin-table-subtext {
+  max-width: 220px;
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.inventory-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.inventory-search-item {
+  flex: 1 1 360px;
+  margin-bottom: 12px;
+}
+
+.inventory-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(128px, 1fr));
+  gap: 12px;
+  min-width: 0;
+
+  & .ant-form-item {
+    margin-bottom: 0;
+  }
+}
+
+.inventory-filter-grid.two-columns {
+  grid-template-columns: repeat(2, minmax(140px, 1fr));
+}
+
+.inventory-stat-group.ant-pro-card {
+  border-radius: 8px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.inventory-table-scroll {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+
+  & .ant-table-wrapper,
+  & .ant-spin-nested-loading,
+  & .ant-spin-container {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+.drawer-stack {
+  width: 100%;
+}
+
+.inventory-drawer-form {
+  display: grid;
+  gap: 4px;
+
+  & h5.ant-typography {
+    margin: 8px 0 0;
+    color: var(--c-primary-dark);
+  }
 }
 
 .admin-dashboard {
@@ -464,11 +543,11 @@ body {
   border-radius: 50%;
   font-size: 13px;
   font-weight: 700;
+}
 
-  &.active {
-    color: #fff;
-    background: #1f2329;
-  }
+.admin-active-rank .admin-rank-number.active {
+  color: #fff;
+  background: #1f2329;
 }
 
 .admin-rank-title {
@@ -609,6 +688,17 @@ body {
 
   & .ant-table-wrapper {
     overflow-x: auto;
+  }
+}
+
+.inventory-table-card.ant-pro-card {
+  min-width: 0;
+  max-width: 100%;
+
+  & .ant-pro-card-body {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
   }
 }
 
@@ -1775,6 +1865,10 @@ body {
   .spatial-range-actions {
     grid-template-columns: 1fr;
   }
+
+  .inventory-filter-grid {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -1832,8 +1926,18 @@ body {
   }
 
   .import-config-grid,
-  .import-coordinate-grid {
+  .import-coordinate-grid,
+  .inventory-filter-grid,
+  .inventory-filter-grid.two-columns {
     grid-template-columns: 1fr;
+  }
+
+  .inventory-toolbar {
+    display: grid;
+  }
+
+  .inventory-search-item {
+    margin-bottom: 0;
   }
 
   .import-actions .ant-btn {

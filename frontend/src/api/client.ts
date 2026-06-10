@@ -3,6 +3,11 @@ import type {
   Achievement,
   AdminDashboard,
   AdminDashboardServer,
+  AdminDataResource,
+  AdminDataResourceExportFilters,
+  AdminDataResourceFilters,
+  AdminDataResourceList,
+  AdminDataResourceUpdate,
   AdminOperationLog,
   AdminOperationLogQuery,
   AdminProfile,
@@ -131,12 +136,34 @@ async function unwrapBlob(
 
 function errorMessage(error: unknown, status: number) {
   if (typeof error === "string" && error) {
-    return error;
+    return readableErrorText(error, status);
   }
   if (isRecord(error) && typeof error.detail === "string") {
     return error.detail;
   }
   return `请求失败：${status}`;
+}
+
+function readableErrorText(text: string, status: number) {
+  const trimmed = text.trim();
+  if (/^<!doctype html/i.test(trimmed) || /^<html[\s>]/i.test(trimmed)) {
+    const title = trimmed.match(/<title>(.*?)<\/title>/is)?.[1];
+    const cleanedTitle = title ? stripHtml(title).trim() : "";
+    return cleanedTitle
+      ? `服务器内部错误：${cleanedTitle}`
+      : `服务器内部错误：${status}`;
+  }
+  return trimmed.length > 240 ? `${trimmed.slice(0, 240)}...` : trimmed;
+}
+
+function stripHtml(text: string) {
+  return text
+    .replace(/<[^>]*>/g, "")
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
 }
 
 function filenameFromResponse(response: Response) {
@@ -309,6 +336,29 @@ export const api = {
     unwrap<AdminSettings>(
       client.POST("/api/admin/settings/", {
         body: payload,
+      }),
+    ),
+  adminDataResources: (filters: AdminDataResourceFilters = {}) =>
+    unwrap<AdminDataResourceList>(
+      client.GET("/api/admin/data/resources/", {
+        params: { query: filters },
+      }),
+    ),
+  updateAdminDataResource: (
+    resourceId: number,
+    payload: AdminDataResourceUpdate,
+  ) =>
+    unwrap<AdminDataResource | { detail: string }>(
+      client.POST("/api/admin/data/resources/{id}/", {
+        params: { path: { id: resourceId } },
+        body: payload,
+      }),
+    ),
+  exportAdminDataResources: (filters: AdminDataResourceExportFilters) =>
+    unwrapBlob(
+      client.GET("/api/admin/data/resources/export/", {
+        params: { query: filters },
+        parseAs: "blob",
       }),
     ),
   catalogs: () =>

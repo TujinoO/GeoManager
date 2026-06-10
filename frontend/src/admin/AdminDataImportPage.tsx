@@ -61,6 +61,9 @@ export default function AdminDataImportPage() {
     {},
   );
   const [includedColumns, setIncludedColumns] = useState<string[]>([]);
+  const [importConfig, setImportConfig] = useState<Partial<ImportFormValues>>(
+    {},
+  );
   const [previewing, setPreviewing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportCommitResult | null>(null);
@@ -129,6 +132,7 @@ export default function AdminDataImportPage() {
     setPendingIssueAction(null);
     setIssuesOpen(false);
     setResult(null);
+    setImportConfig({});
     setCurrentStep(0);
     form.resetFields();
   }
@@ -148,12 +152,16 @@ export default function AdminDataImportPage() {
         Object.fromEntries(data.columns.map((column) => [column, ""])),
       );
       setIncludedColumns(data.columns);
-      form.setFieldsValue({
+      const nextConfig: ImportFormValues = {
         name: data.suggestedName,
         importMode: data.detected.isGeographic ? "geographic" : "table",
         longitudeColumn: data.detected.longitudeColumn ?? undefined,
         latitudeColumn: data.detected.latitudeColumn ?? undefined,
         overwrite: false,
+      };
+      setImportConfig(nextConfig);
+      form.setFieldsValue({
+        ...nextConfig,
       });
       setCurrentStep(1);
       message.success("文件预检完成，请配置导入信息");
@@ -171,6 +179,7 @@ export default function AdminDataImportPage() {
     }
     try {
       const values = await form.validateFields();
+      setImportConfig((current) => ({ ...current, ...values }));
       const payload: ImportValidatePayload = {
         importMode: values.importMode,
         longitudeColumn: values.longitudeColumn,
@@ -223,12 +232,28 @@ export default function AdminDataImportPage() {
         setIssuesOpen(true);
         return;
       }
-      const values = await form.validateFields();
+      const values = normalizeImportValues({
+        ...importConfig,
+        ...form.getFieldsValue(true),
+      });
+      if (!values.name) {
+        message.warning("请输入数据名称");
+        setCurrentStep(1);
+        return;
+      }
+      if (!values.importMode) {
+        message.warning("请选择导入类型");
+        setCurrentStep(1);
+        return;
+      }
       const selectedMetadata = Object.fromEntries(
         includedColumns.map((column) => [column, fieldMetadata[column] ?? ""]),
       );
       const payload: ImportCommitPayload = {
-        ...values,
+        name: values.name,
+        importMode: values.importMode,
+        longitudeColumn: values.longitudeColumn,
+        latitudeColumn: values.latitudeColumn,
         tableName: preview.suggestedTableName,
         ignoreCoordinateUncertainty: ignoreUncertainty,
         overwrite: Boolean(values.overwrite),
@@ -287,6 +312,7 @@ export default function AdminDataImportPage() {
           layout="vertical"
           component={false}
           onValuesChange={(changed) => {
+            setImportConfig((current) => ({ ...current, ...changed }));
             if (
               "importMode" in changed ||
               "longitudeColumn" in changed ||
@@ -672,6 +698,20 @@ function shouldBlockImport(
       issue.blocking ||
       (issue.code === "coordinate_uncertainty" && !ignoreCoordinateUncertainty),
   );
+}
+
+function normalizeImportValues(
+  values: Partial<ImportFormValues>,
+): Partial<ImportFormValues> {
+  const name = values.name?.trim();
+  const importMode = values.importMode;
+  return {
+    name,
+    importMode,
+    longitudeColumn: values.longitudeColumn || undefined,
+    latitudeColumn: values.latitudeColumn || undefined,
+    overwrite: Boolean(values.overwrite),
+  };
 }
 
 function importIssuesFromError(error: unknown): ImportValidationIssue[] {
