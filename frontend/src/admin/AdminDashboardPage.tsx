@@ -4,7 +4,6 @@ import {
   ClusterOutlined,
   DatabaseOutlined,
   HddOutlined,
-  TeamOutlined,
 } from "@ant-design/icons";
 import { ProCard } from "@ant-design/pro-components";
 import {
@@ -26,6 +25,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { useAppContext } from "../contexts/AppContext";
 import type { AdminDashboard, AdminDashboardServer } from "../types";
+import { UserSummaryCards } from "./UserSummaryCards";
 
 const serverRefreshMs = 5000;
 type ActivePeriod = "day" | "week" | "month";
@@ -97,14 +97,15 @@ export default function AdminDashboardPage() {
   const hasMetricCards = Boolean(
     dashboard?.cards.resources ||
       dashboard?.cards.layers ||
-      dashboard?.cards.rasters ||
-      dashboard?.cards.users,
+      dashboard?.cards.rasters,
   );
   const hasServerCards = Boolean(
     server?.cards.cpu || server?.cards.memory || server?.cards.disks,
   );
   const hasDashboardCards =
-    hasMetricCards || Boolean(dashboard?.cards.activeUsers);
+    hasMetricCards ||
+    Boolean(dashboard?.cards.users) ||
+    Boolean(dashboard?.cards.activeUsers);
   const hasAnyAuthorizedCard = hasDashboardCards || canViewServerCards;
 
   if (dashboardLoading || !dashboard) {
@@ -155,16 +156,25 @@ export default function AdminDashboardPage() {
                 description={`栅格数据集 ${dashboard.cards.rasters.datasets} 个，栅格图层 ${dashboard.cards.rasters.layers} 个`}
               />
             )}
-            {dashboard.cards.users && (
-              <MetricCard
-                title="用户数量"
-                value={dashboard.cards.users.total}
-                suffix="人"
-                icon={<TeamOutlined />}
-                description={`矢量资源 ${dashboard.cards.users.vectorResources} 项，表格资源 ${dashboard.cards.users.tableResources} 项`}
-              />
-            )}
           </Row>
+        </section>
+      )}
+
+      {dashboard.cards.users && (
+        <section className="admin-dashboard-section">
+          <div className="admin-dashboard-section-heading">
+            <Typography.Title level={4}>用户信息</Typography.Title>
+            <Typography.Text type="secondary">
+              当前系统共 {dashboard.cards.users.total} 个账号
+            </Typography.Text>
+          </div>
+          <UserSummaryCards
+            metrics={{
+              active: dashboard.cards.users.active,
+              disabled: dashboard.cards.users.disabled,
+              groups: dashboard.cards.users.groups,
+            }}
+          />
         </section>
       )}
 

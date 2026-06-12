@@ -602,6 +602,10 @@ def update_user_groups(request, user_id: int):
         user = User.objects.get(pk=user_id)
     except User.DoesNotExist:
         return JsonResponse({"detail": "用户不存在"}, status=404)
+    if user.pk == request.user.pk:
+        return JsonResponse({"detail": "不能修改当前登录用户的用户组"}, status=400)
+    if is_superadmin_user(user):
+        return JsonResponse({"detail": "不能修改超级管理员的用户组"}, status=400)
 
     try:
         normalized_group_ids = {int(group_id) for group_id in group_ids}
@@ -659,6 +663,8 @@ def update_user_permissions(request, user_id: int):
         user = User.objects.get(pk=user_id)
     except User.DoesNotExist:
         return JsonResponse({"detail": "用户不存在"}, status=404)
+    if user.pk == request.user.pk:
+        return JsonResponse({"detail": "请到用户设置中修改自己的权限"}, status=400)
 
     _set_user_feature_permissions(user, permissions)
     _set_operation_log_group_ids(user, operation_log_group_ids)
@@ -917,8 +923,12 @@ def admin_dashboard(request):
             ).count(),
         }
     if has_feature_perm(request.user, "core.view_dashboard_user_card"):
+        User = get_user_model()
         cards["users"] = {
-            "total": get_user_model().objects.count(),
+            "total": User.objects.count(),
+            "active": User.objects.filter(is_active=True).count(),
+            "disabled": User.objects.filter(is_active=False).count(),
+            "groups": Group.objects.count(),
             "vectorResources": DataResource.objects.filter(
                 data_type=DataResource.DataType.VECTOR
             ).count(),

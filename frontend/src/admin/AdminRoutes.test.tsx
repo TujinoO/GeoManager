@@ -323,7 +323,14 @@ describe("admin routes", () => {
         resources: { total: 2, active: 2 },
         layers: { total: 1, active: 1 },
         rasters: { resources: 1, datasets: 1, layers: 1 },
-        users: { total: 2, vectorResources: 1, tableResources: 0 },
+        users: {
+          total: 2,
+          active: 2,
+          disabled: 0,
+          groups: 3,
+          vectorResources: 1,
+          tableResources: 0,
+        },
         activeUsers: {
           period: "day",
           rangeStart: "2026-06-07",
@@ -476,6 +483,8 @@ describe("admin routes", () => {
 
     expect(await screen.findByText("图层数")).toBeInTheDocument();
     expect(screen.getAllByText("栅格数量").length).toBeGreaterThan(0);
+    expect(screen.getByText("用户信息")).toBeInTheDocument();
+    expect(screen.getByText("用户组数量")).toBeInTheDocument();
     expect(screen.getAllByText("活跃用户").length).toBeGreaterThan(0);
     expect(screen.getByText("服务器信息")).toBeInTheDocument();
   });
@@ -502,6 +511,21 @@ describe("admin routes", () => {
         passwordConfirm: "NewPass123",
       });
     });
+  });
+
+  it("shows a global warning when super admin disables admin access in profile", async () => {
+    renderWithProviders(<AdminProfilePage />);
+
+    const accessAdminLabel = await screen.findByText("进入后台管理");
+    const row = accessAdminLabel.closest(
+      ".admin-permission-row",
+    ) as HTMLElement;
+    fireEvent.click(within(row).getByRole("switch"));
+
+    expect(
+      await screen.findByText("超级管理员不能关闭后台访问权限"),
+    ).toBeInTheDocument();
+    expect(mockApi.updateAdminProfilePermissions).not.toHaveBeenCalled();
   });
 
   it("navigates from operation logs to system settings", async () => {
@@ -532,6 +556,88 @@ describe("admin routes", () => {
     const drawer = screen.getByRole("dialog", { name: "用户详情" });
     expect(within(drawer).getByText("平台运维组")).toBeInTheDocument();
   }, 15000);
+
+  it("puts current user first and disables protected auth actions", async () => {
+    const superadminGroup = {
+      ...adminGroup,
+      id: 2,
+      name: "超级管理员",
+      userCount: 1,
+    };
+    const researcher = {
+      ...adminApiUser,
+      id: 2,
+      username: "researcher",
+      displayName: "科研用户",
+      groupIds: [],
+    };
+    const superadminUser = {
+      ...adminApiUser,
+      id: 3,
+      username: "root-admin",
+      displayName: "超级管理员",
+      groupIds: [superadminGroup.id],
+    };
+    mockApi.adminUsers.mockResolvedValue({
+      items: [researcher, superadminUser, adminApiUser],
+    });
+    mockApi.adminGroups.mockResolvedValue({
+      items: [adminGroup, superadminGroup],
+      availablePermissions,
+    });
+
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/admin/auth/users"]}>
+        <AdminAuthPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("用户列表")).toBeInTheDocument();
+    const userLinks = document.querySelectorAll(".admin-user-link");
+    expect(userLinks[0]).toHaveTextContent("admin");
+
+    fireEvent.click(screen.getAllByRole("button", { name: /操作/ })[0]);
+    const ownPermissionItem = await screen.findByRole("menuitem", {
+      name: /更改权限/,
+    });
+    expect(ownPermissionItem).toHaveAttribute("aria-disabled", "true");
+    expect(
+      within(ownPermissionItem).getByTitle("请到用户设置中修改自己的权限"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /操作/ })[2]);
+    const superadminGroupItems = await screen.findAllByRole("menuitem", {
+      name: /更改用户组/,
+    });
+    const superadminGroupItem =
+      superadminGroupItems[superadminGroupItems.length - 1];
+    expect(superadminGroupItem).toHaveAttribute("aria-disabled", "true");
+    expect(
+      within(superadminGroupItem).getByTitle("不能修改超级管理员的用户组"),
+    ).toBeInTheDocument();
+  }, 15000);
+
+  it("locks super admin access permission with an explicit hint", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/admin/auth/groups"]}>
+        <AdminAuthPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("用户组列表")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /权限/ }));
+
+    const drawer = await screen.findByRole("dialog", { name: "用户组权限" });
+    const accessAdminCheckbox = within(drawer).getByRole("checkbox", {
+      name: /进入后台管理/,
+    });
+    expect(accessAdminCheckbox).toBeDisabled();
+    expect(
+      within(drawer).getByText(
+        "超级管理员用户组必须保留进入后台管理权限，不允许修改此权限",
+      ),
+    ).toBeInTheDocument();
+  }, 30000);
 
   it("runs the admin data import step flow through preview and validation", async () => {
     renderAdminRoute("/admin/data/import");

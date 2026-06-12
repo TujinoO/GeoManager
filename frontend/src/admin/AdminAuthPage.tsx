@@ -9,9 +9,10 @@ import {
   TeamOutlined,
 } from "@ant-design/icons";
 import type { ProColumns } from "@ant-design/pro-components";
-import { ProCard, ProTable } from "@ant-design/pro-components";
+import { ProTable } from "@ant-design/pro-components";
 import type { MenuProps } from "antd";
 import {
+  Alert,
   App,
   Button,
   Checkbox,
@@ -28,6 +29,7 @@ import {
   Spin,
   Switch,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -40,6 +42,7 @@ import type {
   Group,
   User,
 } from "../types";
+import { UserSummaryCards } from "./UserSummaryCards";
 
 const operationResultText: Record<string, string> = {
   success: "成功",
@@ -155,6 +158,13 @@ export default function AdminAuthPage() {
       })),
     [groups],
   );
+  const sortedUsers = useMemo(() => {
+    if (!user) return users;
+    return [
+      ...users.filter((item) => item.id === user.id),
+      ...users.filter((item) => item.id !== user.id),
+    ];
+  }, [user, users]);
   const availablePermissionGroups = useMemo(() => {
     const permissionGroups = new Map<string, AdminPermissionItem[]>();
     for (const permission of availablePermissions) {
@@ -184,7 +194,7 @@ export default function AdminAuthPage() {
       dataIndex: "username",
       width: 180,
       render: (_, record) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Button
             className="admin-user-link"
             type="link"
@@ -203,7 +213,7 @@ export default function AdminAuthPage() {
       dataIndex: "email",
       width: 220,
       render: (_, record) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Typography.Text ellipsis>
             {record.email || "未设置邮箱"}
           </Typography.Text>
@@ -314,7 +324,7 @@ export default function AdminAuthPage() {
       dataIndex: "name",
       width: "24%",
       render: (_, record) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Typography.Text strong>{record.name}</Typography.Text>
           <Space size={[6, 6]} wrap>
             <Tag color="blue">{record.userCount} 人</Tag>
@@ -438,11 +448,20 @@ export default function AdminAuthPage() {
   }
 
   function openUserGroupDrawer(targetUser: User) {
+    if (
+      targetUser.id === user?.id ||
+      isSuperadminUser(targetUser, groupNameById)
+    ) {
+      return;
+    }
     setGroupUser(targetUser);
     setSelectedGroupIds(targetUser.groupIds);
   }
 
   function openUserPermissionDrawer(targetUser: User) {
+    if (targetUser.id === user?.id) {
+      return;
+    }
     setUserPermissionDrafts((current) => ({
       ...current,
       [targetUser.id]:
@@ -457,17 +476,38 @@ export default function AdminAuthPage() {
   }
 
   function userActionItems(record: User): MenuProps["items"] {
+    const cannotEditOwnGroups = record.id === user?.id;
+    const cannotEditSuperadminGroups = isSuperadminUser(record, groupNameById);
+    const groupDisabledReason = cannotEditOwnGroups
+      ? "不能修改自己的用户组"
+      : cannotEditSuperadminGroups
+        ? "不能修改超级管理员的用户组"
+        : "";
+    const cannotEditOwnPermissions = record.id === user?.id;
     return [
       {
         key: "groups",
         icon: <TeamOutlined />,
-        label: "更改用户组",
+        label: groupDisabledReason ? (
+          <Tooltip title={groupDisabledReason}>
+            <span title={groupDisabledReason}>更改用户组</span>
+          </Tooltip>
+        ) : (
+          "更改用户组"
+        ),
+        disabled: Boolean(groupDisabledReason),
       },
       {
         key: "permissions",
         icon: <SafetyCertificateOutlined />,
-        label: "更改权限",
-        disabled: !canManagePermissions,
+        label: cannotEditOwnPermissions ? (
+          <Tooltip title="请到用户设置中修改自己的权限">
+            <span title="请到用户设置中修改自己的权限">更改权限</span>
+          </Tooltip>
+        ) : (
+          "更改权限"
+        ),
+        disabled: !canManagePermissions || cannotEditOwnPermissions,
       },
       {
         key: "status",
@@ -623,6 +663,20 @@ export default function AdminAuthPage() {
     message.success(`${updated.name}权限已保存`);
   }
 
+  function handleGroupPermissionChange(group: Group, values: string[]) {
+    const lockedPermissions = group.lockedPermissions ?? [];
+    const missingLockedPermissions = lockedPermissions.filter(
+      (permission) => !values.includes(permission),
+    );
+    if (missingLockedPermissions.length > 0) {
+      message.warning("超级管理员用户组必须保留进入后台管理权限");
+    }
+    setGroupDrafts((current) => ({
+      ...current,
+      [group.id]: Array.from(new Set([...values, ...lockedPermissions])),
+    }));
+  }
+
   async function handleDeleteGroup(group: Group) {
     if (!canManagePermissions || group.isProtected) return;
     await api.deleteAdminGroup(group.id);
@@ -636,7 +690,14 @@ export default function AdminAuthPage() {
   }
 
   async function handleSaveUserGroups() {
-    if (!groupUser || !canManageAuth) return;
+    if (
+      !groupUser ||
+      !canManageAuth ||
+      groupUser.id === user?.id ||
+      isSuperadminUser(groupUser, groupNameById)
+    ) {
+      return;
+    }
     const updated = await api.updateAdminUserGroups(groupUser.id, {
       groupIds: selectedGroupIds as [number, ...number[]],
     });
@@ -649,7 +710,13 @@ export default function AdminAuthPage() {
   }
 
   async function handleSaveUserPermissions() {
-    if (!permissionUser || !canManagePermissions) return;
+    if (
+      !permissionUser ||
+      !canManagePermissions ||
+      permissionUser.id === user?.id
+    ) {
+      return;
+    }
     const updated = await api.updateAdminUserPermissions(permissionUser.id, {
       directPermissions: userPermissionDrafts[permissionUser.id] ?? [],
       operationLogGroupIds: userLogGroupDrafts[permissionUser.id] ?? [],
@@ -682,29 +749,13 @@ export default function AdminAuthPage() {
       {activeSection === "users" ? (
         <Spin spinning={loading}>
           <div className="admin-page-stack">
-            <ProCard.Group gutter={16} className="admin-stat-row">
-              <ProCard title="启用账号">
-                <Typography.Title level={2}>
-                  {userStats.active}
-                </Typography.Title>
-              </ProCard>
-              <ProCard title="停用账号">
-                <Typography.Title level={2}>
-                  {userStats.disabled}
-                </Typography.Title>
-              </ProCard>
-              <ProCard title="用户组数量">
-                <Typography.Title level={2}>
-                  {userStats.groups}
-                </Typography.Title>
-              </ProCard>
-            </ProCard.Group>
+            <UserSummaryCards metrics={userStats} />
             <ProTable<User>
               className="admin-table"
               rowKey="id"
               headerTitle="用户列表"
               columns={userColumns}
-              dataSource={users}
+              dataSource={sortedUsers}
               cardBordered
               options={false}
               pagination={false}
@@ -919,7 +970,7 @@ export default function AdminAuthPage() {
       >
         {permissionUser ? (
           <div className="admin-page-stack">
-            <Space direction="vertical" size={2}>
+            <Space orientation="vertical" size={2}>
               <Typography.Text strong>
                 {permissionUser.displayName || permissionUser.username}
               </Typography.Text>
@@ -1049,17 +1100,21 @@ export default function AdminAuthPage() {
         {permissionGroup ? (
           <div className="admin-page-stack">
             <Typography.Text strong>{permissionGroup.name}</Typography.Text>
+            {permissionGroup.lockedPermissions.length > 0 && (
+              <Alert
+                type="warning"
+                showIcon
+                title="超级管理员用户组必须保留进入后台管理权限，不允许修改此权限"
+              />
+            )}
             <Checkbox.Group
               className="admin-permission-list"
               value={
                 groupDrafts[permissionGroup.id] ?? permissionGroup.permissions
               }
-              onChange={(values) => {
-                setGroupDrafts((current) => ({
-                  ...current,
-                  [permissionGroup.id]: values.map(String),
-                }));
-              }}
+              onChange={(values) =>
+                handleGroupPermissionChange(permissionGroup, values.map(String))
+              }
             >
               {availablePermissionGroups.map((permissionGroupItem) => (
                 <div
@@ -1070,18 +1125,37 @@ export default function AdminAuthPage() {
                     {permissionGroupItem.group}
                   </Typography.Text>
                   <div className="admin-permission-group-options">
-                    {permissionGroupItem.items.map((permission) => (
-                      <Checkbox key={permission.id} value={permission.id}>
-                        <span className="admin-permission-option">
-                          <Typography.Text strong>
-                            {permission.label}
-                          </Typography.Text>
-                          <Typography.Text type="secondary">
-                            {permission.id}
-                          </Typography.Text>
-                        </span>
-                      </Checkbox>
-                    ))}
+                    {permissionGroupItem.items.map((permission) => {
+                      const locked = permissionGroup.lockedPermissions.includes(
+                        permission.id,
+                      );
+                      const checkbox = (
+                        <Checkbox
+                          key={permission.id}
+                          value={permission.id}
+                          disabled={locked}
+                        >
+                          <span className="admin-permission-option">
+                            <Typography.Text strong>
+                              {permission.label}
+                            </Typography.Text>
+                            <Typography.Text type="secondary">
+                              {permission.id}
+                            </Typography.Text>
+                          </span>
+                        </Checkbox>
+                      );
+                      return locked ? (
+                        <Tooltip
+                          key={permission.id}
+                          title="超级管理员用户组必须保留进入后台管理权限，不允许修改此权限"
+                        >
+                          {checkbox}
+                        </Tooltip>
+                      ) : (
+                        checkbox
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -1209,6 +1283,12 @@ function isFormValidationError(error: unknown): error is FormValidationError {
 
 function isSuperadminGroup(group: Group) {
   return group.name === "超级管理员";
+}
+
+function isSuperadminUser(user: User, groupNameById: Map<number, string>) {
+  return user.groupIds.some(
+    (groupId) => groupNameById.get(groupId) === "超级管理员",
+  );
 }
 
 function canEditGroupPermissions(group: Group) {

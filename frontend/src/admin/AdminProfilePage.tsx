@@ -80,6 +80,8 @@ const profileDescriptionColumns: ProDescriptionsItemProps<ProfileDescriptionItem
     },
   ];
 
+const accessAdminPermission = "core.access_admin";
+
 function getCookie(name: string): string | null {
   const match = document.cookie
     .split("; ")
@@ -151,18 +153,28 @@ export default function AdminProfilePage() {
     enabled: boolean,
   ) {
     if (!profile) return;
+    if (isLockedProfilePermission(profile, permissionId) && !enabled) {
+      message.warning("超级管理员不能关闭后台访问权限");
+      return;
+    }
     const disabledPermissions = new Set(profile.disabledPermissions);
     if (enabled) {
       disabledPermissions.delete(permissionId);
     } else {
       disabledPermissions.add(permissionId);
     }
-    const updated = await api.updateAdminProfilePermissions({
-      disabledPermissions: [...disabledPermissions],
-    });
-    setProfile(updated);
-    setUser(updated.user);
-    message.success("权限偏好已更新");
+    try {
+      const updated = await api.updateAdminProfilePermissions({
+        disabledPermissions: [...disabledPermissions],
+      });
+      setProfile(updated);
+      setUser(updated.user);
+      message.success("权限偏好已更新");
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : "权限偏好更新失败",
+      );
+    }
   }
 
   async function handlePasswordSave(values: AdminProfilePasswordUpdate) {
@@ -394,4 +406,14 @@ type FormValidationError = {
 function firstFormError(errorInfo: FormValidationError, fallback: string) {
   const firstError = errorInfo.errorFields[0]?.errors[0];
   return firstError || fallback;
+}
+
+function isLockedProfilePermission(
+  profile: AdminProfile | null,
+  permissionId: string,
+) {
+  return (
+    permissionId === accessAdminPermission &&
+    Boolean(profile?.user.permissions.canAccessAdmin)
+  );
 }

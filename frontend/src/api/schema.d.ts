@@ -308,7 +308,7 @@ export interface paths {
         put?: never;
         /**
          * 更新用户所属用户组
-         * @description 为指定用户设置所属用户组。普通用户必须保留至少一个用户组，不能加入超级管理员用户组；初始化 admin 用户会自动保留超级管理员用户组。需要 `core.manage_auth`。
+         * @description 为指定用户设置所属用户组。普通用户必须保留至少一个用户组，不能加入超级管理员用户组；当前登录用户和超级管理员用户的用户组不能在认证授权页修改。需要 `core.manage_auth`。
          */
         post: operations["updateUserGroups"];
         delete?: never;
@@ -328,7 +328,7 @@ export interface paths {
         put?: never;
         /**
          * 更新用户单独授予的功能权限
-         * @description 为指定用户设置直接授予的功能权限。最终生效权限为用户组权限与用户直授权限合并后，再扣除用户主动关闭权限。需要 `core.manage_auth` 和 `core.manage_feature_permissions`。
+         * @description 为指定用户设置直接授予的功能权限。最终生效权限为用户组权限与用户直授权限合并后，再扣除用户主动关闭权限；当前登录用户不能在认证授权页修改自己的直授权限，应通过用户设置调整主动关闭权限。需要 `core.manage_auth` 和 `core.manage_feature_permissions`。
          */
         post: operations["updateUserPermissions"];
         delete?: never;
@@ -1338,6 +1338,12 @@ export interface components {
         AdminDashboardUserCard: {
             /** @description 系统用户总数 */
             total: number;
+            /** @description 启用账号数量 */
+            active: number;
+            /** @description 停用账号数量 */
+            disabled: number;
+            /** @description 用户组数量 */
+            groups: number;
             /** @description 矢量数据资源数量 */
             vectorResources: number;
             /** @description 表格数据资源数量 */
