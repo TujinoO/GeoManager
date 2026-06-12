@@ -1,8 +1,8 @@
-# huyang_system Agent Guide
+# huyang_system Agent Instructions
 
 Central Asia Poplar Forest Ecosystem Protection Data Sharing Platform (中亚胡杨林生态系统保护数据共享平台).
 
-This guide tells coding agents how to work in this repository. It summarizes the project architecture, non-negotiable implementation constraints, and the workflow expected for safe multi-agent development.
+These instructions are for AI coding agents working in this repository. Treat every rule below as operational guidance: read the required context, preserve architecture boundaries, keep API contracts synchronized, and report verification results explicitly.
 
 ## 1. Project Context
 
@@ -25,7 +25,7 @@ Read `docs/design-docs.md` before writing code. It is the primary functional and
 | `docs/design-docs.md` | Full functional spec, architecture, data model, and acceptance criteria |
 | `docs/openapi.yaml` | Authoritative OpenAPI 3.1.0 contract |
 | `docs/openapi-standards.md` | Mandatory API specification rules |
-| `docs/developer-guide.md` | Human-readable API and developer documentation |
+| `docs/developer-guide.md` | API behavior, usage notes, permissions, and examples |
 | `docs/implementation-notes.md` | Shared implementation decisions and development memory |
 | `docs/testing.md` | Testing notes and verification guidance |
 
@@ -214,69 +214,43 @@ Run the smallest reliable verification set for the changed area. For merge-ready
 - Keep UI state and generated API DTOs separate; do not hand-write API response duplicates in `frontend/src/types.ts`.
 - Preserve responsiveness and avoid UI text overflow in panels, buttons, and tables.
 
-## 6. Multi-Agent Collaboration
+## 6. Multi-Agent Coordination
 
-This repository is expected to be developed by multiple people operating coding agents. Each task should have a narrow boundary, explicit contract, and concrete verification commands.
+Assume other agents may be working in parallel. Keep task boundaries narrow, inspect current file state before editing, and avoid unrelated churn. Do not overwrite or revert changes you did not make unless the user explicitly instructs you to do so.
 
-### Task contract
+### Task intake
 
-Every task prompt should define:
+At the start of each task, identify these items from the user request and repository context:
 
-- Background: why the change is needed
-- Scope: files or modules the agent may modify
-- Out of scope: files or behavior the agent must not modify
-- API contract: endpoints affected, or confirmation that no API changes are expected
-- Verification: exact commands to run before completion
-- Completion report: changes made, commands run, and remaining risks
+- Background: why the change is needed.
+- Scope: files or modules likely to change.
+- Out of scope: files or behavior that must remain untouched.
+- API impact: endpoints, schemas, permissions, or authentication behavior affected; if none, treat it as no API change.
+- Required references: normally `docs/design-docs.md`, `docs/implementation-notes.md`, and the relevant code/tests.
+- Verification: the smallest reliable command set for the changed area.
 
-Recommended prompt shape:
+If a task request is missing one of these items, infer it from the repository where safe. Ask the user only when the missing information could cause an unsafe or incompatible implementation.
 
-```text
-You are working in /Users/gx/Documents/Source/huyang_system.
-Follow AGENTS.md: use pnpm, not npm; no legacy fallback; keep OpenAPI and developer docs synchronized for API changes.
+### Execution roles
 
-Task:
-<one sentence goal>
+Use these role boundaries to choose files and responsibilities. A single agent may perform multiple roles in one task, but keep edits ordered by dependency.
 
-Scope:
-- Allowed:
-  - <files or directories>
-- Do not modify:
-  - <files or directories>
-
-Context:
-- Design: docs/design-docs.md
-- Implementation notes: docs/implementation-notes.md
-- Testing: docs/testing.md
-
-Verification:
-- <command 1>
-- <command 2>
-
-Completion report:
-- What changed
-- Which verification commands ran
-- Remaining risks
-```
-
-### Recommended agent roles
-
-- **Coordinator Agent:** task breakdown, merge order, API conflict tracking
-- **Contract Agent:** `docs/openapi.yaml`, `docs/developer-guide.md`, API examples, generated frontend API types
-- **Backend Agent:** Django features by app boundary
-- **Frontend Agent:** React features by UI/state boundary
-- **Testing Agent:** verification, failure reproduction, missing tests
-- **Documentation Agent:** implementation notes, testing notes, changelog entries, developer explanations
+- **Coordinator Agent:** task breakdown, merge order, API conflict tracking.
+- **Contract Agent:** `docs/openapi.yaml`, `docs/developer-guide.md`, API examples, generated frontend API types.
+- **Backend Agent:** Django features by app boundary.
+- **Frontend Agent:** React features by UI/state boundary.
+- **Testing Agent:** verification, failure reproduction, missing tests.
+- **Documentation Agent:** implementation notes, testing notes, changelog entries, implementation explanations.
 
 ### Branch model
 
-Use one branch per task:
+When creating a branch, use one branch per task:
 
 ```text
 codex/<area>-<short-task>
 ```
 
-Examples:
+Branch examples:
 
 ```text
 codex/catalog-query-filters
@@ -287,7 +261,7 @@ codex/map-layer-reorder
 
 ### Conflict-prone files
 
-Avoid concurrent edits to these files unless the task explicitly owns them:
+Avoid editing these files unless the task explicitly owns them:
 
 | File | Default owner | Reason |
 | --- | --- | --- |
@@ -299,7 +273,7 @@ Avoid concurrent edits to these files unless the task explicitly owns them:
 | `docs/implementation-notes.md` | Documentation Agent | Shared implementation memory |
 | `CHANGELOG.md` | Release owner | Release-level summary |
 
-If multiple tasks need one of these files, merge the contract or foundation change first, then rebase dependent branches.
+If a required change touches a conflict-prone file, keep the edit minimal and note it in the completion report. For API changes, finish the contract change before backend and frontend implementation.
 
 ### Merge order for API changes
 
@@ -308,7 +282,7 @@ If multiple tasks need one of these files, merge the contract or foundation chan
 3. Frontend implementation: API usage, UI behavior, frontend tests
 4. Documentation and release notes: implementation notes, testing notes, `CHANGELOG.md`
 
-Small tasks may combine these in one PR, but commits should still follow this order where practical.
+Small tasks may combine these steps in one change set, but preserve this order while editing and reporting.
 
 ## 7. Verification Checklist
 
@@ -341,14 +315,15 @@ pnpm run api:lint
 pnpm run api:docs
 ```
 
-### Pull request questions
+### Completion report
 
-- Did this change an API? If yes, were `docs/openapi.yaml`, `docs/developer-guide.md`, and `frontend/src/api/schema.d.ts` updated?
-- Did this change permissions? If yes, were backend permission tests and frontend route/menu gate tests updated?
-- Did this change data paths? If yes, are business-data and research-data roots still read only from TOML config?
-- Did this touch raster rendering? If yes, does the backend still generate PNG/XYZ output while the frontend only loads rendered imagery?
-- Which verification commands ran?
-- Are there remaining performance, migration, data compatibility, or deployment risks?
+Every completion response must state:
+
+- What changed.
+- Which verification commands ran and whether they passed.
+- Whether an API contract changed; if yes, confirm `docs/openapi.yaml`, `docs/developer-guide.md`, and `frontend/src/api/schema.d.ts` were updated or explain why not.
+- Whether permissions, data paths, or raster rendering changed.
+- Remaining risks, especially performance, migration, data compatibility, or deployment risks.
 
 ## 8. Versioning and Releases
 
@@ -360,14 +335,14 @@ Version files:
 - Backend: `backend/pyproject.toml`
 - Changelog: `CHANGELOG.md`
 
-Release workflow:
+When handling a release task:
 
 1. Update `CHANGELOG.md` with the new version changes.
 2. Bump version using `make version-patch`, `make version-minor`, or `make version-major`.
 3. Create a tag using `make tag` or `git tag -a v{version} -m "Version {version}"`.
 4. Push changes and tags with `git push && git push --tags`.
 
-Useful commands:
+Release commands:
 
 ```bash
 make help
