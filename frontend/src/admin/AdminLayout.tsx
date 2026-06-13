@@ -2,19 +2,15 @@ import {
   AuditOutlined,
   DashboardOutlined,
   DatabaseOutlined,
-  HomeOutlined,
-  LogoutOutlined,
-  SafetyCertificateOutlined,
   SettingOutlined,
   TeamOutlined,
   UserOutlined,
 } from "@ant-design/icons";
 import type { MenuDataItem } from "@ant-design/pro-components";
 import { PageContainer, ProLayout } from "@ant-design/pro-components";
-import { Button, Tag } from "antd";
 import { useMemo } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { api } from "../api/client";
+import WorkspaceHeader from "../components/WorkspaceHeader";
 import { useAppContext } from "../contexts/AppContext";
 import type { User } from "../types";
 
@@ -131,85 +127,53 @@ const pageMeta: Record<string, { title: string; subTitle: string }> = {
 };
 
 export default function AdminLayout() {
-  const { user, setUser } = useAppContext();
+  const { user } = useAppContext();
   const location = useLocation();
   const navigate = useNavigate();
   const meta = pageMeta[location.pathname] ?? defaultPageMeta;
   const adminRoute = useMemo(() => adminRouteFor(user), [user]);
 
-  async function handleLogout() {
-    try {
-      await api.logout();
-    } catch {
-      // 退出接口异常时仍清空本地登录态。
-    }
-    setUser(null);
-  }
-
   return (
-    <ProLayout
-      className="admin-pro-layout"
-      title="生态保护管理"
-      route={adminRoute}
-      location={{ pathname: location.pathname }}
-      layout="mix"
-      fixSiderbar
-      contentWidth="Fluid"
-      colorPrimary="#2f7d62"
-      menuItemRender={(item: MenuDataItem, dom) =>
-        item.path ? <Link to={item.path}>{dom}</Link> : dom
-      }
-      onMenuHeaderClick={() => navigate("/")}
-      token={{
-        header: {
-          colorBgHeader: "#173f39",
-          colorHeaderTitle: "#ffffff",
-          colorTextMenu: "rgba(255, 255, 255, 0.74)",
-          colorTextMenuSelected: "#ffffff",
-        },
-        sider: {
-          colorMenuBackground: "#fbfdfb",
-          colorTextMenu: "#31423d",
-          colorTextMenuSelected: "#173f39",
-          colorBgMenuItemSelected: "rgba(47, 125, 98, 0.1)",
-        },
-      }}
-      actionsRender={() => [
-        <Button
-          key="home"
-          icon={<HomeOutlined />}
-          onClick={() => navigate("/")}
-        >
-          业务入口
-        </Button>,
-        <Button key="logout" icon={<LogoutOutlined />} onClick={handleLogout}>
-          退出
-        </Button>,
-      ]}
-      avatarProps={{
-        icon: <SafetyCertificateOutlined />,
-        src: user?.avatarUrl || undefined,
-        title: user?.displayName ?? "未登录",
-        render: (_, dom) => (
-          <div className="admin-avatar-block">
-            {dom}
-            {user?.roles.map((role) => (
-              <Tag key={role} color="green">
-                {role}
-              </Tag>
-            ))}
-          </div>
-        ),
-      }}
-      pageTitleRender={false}
-    >
-      <PageContainer
-        title={meta.title}
-        subTitle={meta.subTitle}
-        className="admin-page-container"
+    <div className="admin-workspace-shell">
+      <WorkspaceHeader
+        activeTab="admin"
+        canBrowseData={Boolean(user?.permissions.canBrowseData)}
+      />
+      <ProLayout
+        className="admin-pro-layout"
+        title="生态保护管理"
+        route={adminRoute}
+        location={{ pathname: location.pathname }}
+        layout="mix"
+        headerRender={false}
+        fixSiderbar
+        contentWidth="Fluid"
+        colorPrimary="#2f7d62"
+        menuItemRender={(item: MenuDataItem, dom) =>
+          item.path ? <Link to={item.path}>{dom}</Link> : dom
+        }
+        onMenuHeaderClick={() => navigate("/map")}
+        token={{
+          header: {
+            heightLayoutHeader: 90,
+          },
+          sider: {
+            colorMenuBackground: "#fbfdfb",
+            colorTextMenu: "#31423d",
+            colorTextMenuSelected: "#173f39",
+            colorBgMenuItemSelected: "rgba(47, 125, 98, 0.1)",
+          },
+        }}
+        pageTitleRender={false}
       >
-        <Outlet />
-      </PageContainer>
-    </ProLayout>
+        <PageContainer
+          title={meta.title}
+          subTitle={meta.subTitle}
+          className="admin-page-container"
+        >
+          <Outlet />
+        </PageContainer>
+      </ProLayout>
+    </div>
   );
 }

@@ -1,13 +1,6 @@
-import {
-  ApartmentOutlined,
-  ArrowLeftOutlined,
-  DatabaseOutlined,
-  LogoutOutlined,
-  SafetyCertificateOutlined,
-} from "@ant-design/icons";
-import { App, Button, Layout, Popover, Tag, Typography } from "antd";
+import { App, Layout } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import DataPanel from "../components/DataPanel";
 import LayerDataTableModal from "../components/LayerDataTableModal";
@@ -15,6 +8,7 @@ import LayerPanel from "../components/LayerPanel";
 import MapCanvas from "../components/MapCanvas";
 import RightSidePanel from "../components/RightSidePanel";
 import WorkspaceBottomPanel from "../components/WorkspaceBottomPanel";
+import WorkspaceHeader from "../components/WorkspaceHeader";
 import { useAppContext } from "../contexts/AppContext";
 import {
   type ExportOptions,
@@ -84,9 +78,10 @@ const emptyPermissions = {
 };
 
 export default function MapPage() {
-  const { bootstrap, user, setUser } = useAppContext();
+  const { bootstrap, user } = useAppContext();
   const { message, notification } = App.useApp();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [resources, setResources] = useState<ResourceListItem[]>([]);
   const [selectedResource, setSelectedResource] =
@@ -116,6 +111,8 @@ export default function MapPage() {
   const startupScanStartedRef = useRef(false);
   const permissions = user?.permissions ?? emptyPermissions;
   const userRoles = user?.roles ?? [];
+  const activeWorkspace = location.pathname === "/nongeo" ? "nongeo" : "geo";
+  const isGeoWorkspace = activeWorkspace === "geo";
 
   const layerGroups = useLayerGroups();
   const { startRasterRender, setMapInstance } = useRasterRender(
@@ -301,6 +298,9 @@ export default function MapPage() {
     layerGroups.addGroup(group);
     setSelectedLayerId(group.children[0]?.id ?? null);
     setDataPanelOpen(false);
+    if (!isGeoWorkspace) {
+      navigate("/map");
+    }
     message.success("查询结果已加载到图层");
   }
 
@@ -319,6 +319,9 @@ export default function MapPage() {
     setSelectedLayerId(group.children[0]?.id ?? null);
     setDataPanelOpen(false);
     const child = group.children[0] as LoadedRasterLayer;
+    if (!isGeoWorkspace) {
+      navigate("/map");
+    }
     void startRasterRender(
       group.id,
       child.id,
@@ -485,18 +488,6 @@ export default function MapPage() {
     [tableLayer],
   );
 
-  async function handleLogout() {
-    try {
-      await api.logout();
-    } catch (error) {
-      message.warning(
-        error instanceof Error ? error.message : "退出接口异常，本地会话已清空",
-      );
-    } finally {
-      setUser(null);
-    }
-  }
-
   const exportLayers = useCallback(
     async (
       items: ExportLayerItem[],
@@ -600,123 +591,73 @@ export default function MapPage() {
 
   return (
     <Layout className="workspace">
-      <Layout.Header className="workspace-header">
-        <div className="header-left">
-          <div className="brand-block">
-            <DatabaseOutlined style={{ fontSize: 22 }} />
-            <div>
-              <Typography.Title level={4}>
-                {bootstrap.systemName}
-              </Typography.Title>
-            </div>
-          </div>
-          <div className="header-primary-actions">
-            <Button
-              icon={<ArrowLeftOutlined style={{ fontSize: 16 }} />}
-              onClick={() => navigate("/")}
+      <WorkspaceHeader
+        activeTab={isGeoWorkspace ? "map" : "nongeo"}
+        canBrowseData={permissions.canBrowseData}
+        dataPanel={dataPanel}
+        dataPanelOpen={dataPanelOpen}
+        onDataPanelOpenChange={setDataPanelOpen}
+      />
+      <div
+        className={
+          isGeoWorkspace
+            ? "workspace-body"
+            : "workspace-body workspace-body-nongeo"
+        }
+      >
+        {isGeoWorkspace ? (
+          <>
+            <main className="map-stage">
+              <MapCanvas
+                bootstrap={bootstrap}
+                loadedLayers={mapLayers}
+                drawMode={activeDraw?.mode ?? null}
+                spatialFilter={spatialFilter}
+                layerExtentGeometry={selectedLayerExtentGeometry}
+                layerExtentTargetLayer={selectedLayer}
+                onDrawComplete={handleDrawComplete}
+                onFeatureSelect={setSelectedFeature}
+                onMapReady={handleMapReady}
+                onMapDestroy={handleMapDestroy}
+              />
+            </main>
+            <aside className="floating-panel floating-panel-left">
+              <LayerContext.Provider value={layerContextValue}>
+                <LayerPanel />
+                <LayerDataTableModal
+                  layer={tableLayer}
+                  open={Boolean(tableLayer)}
+                  onClose={() => setTableLayer(null)}
+                  onSelectionChange={handleSelectionChange}
+                />
+              </LayerContext.Provider>
+            </aside>
+            <aside
+              className="floating-panel floating-panel-right"
+              aria-label="要素信息面板"
             >
-              返回入口
-            </Button>
-            {permissions.canBrowseData && (
-              <Popover
-                trigger="click"
-                placement="bottomLeft"
-                open={dataPanelOpen}
-                onOpenChange={setDataPanelOpen}
-                classNames={{ root: "data-popover" }}
-                styles={{
-                  content: {
-                    width: "min(440px, calc(100vw - 32px))",
-                    maxHeight: "calc(100vh - 110px)",
-                    padding: 0,
-                    overflow: "auto",
-                    background: "rgba(248, 250, 247, 0.92)",
-                    border: "1px solid rgba(255, 255, 255, 0.34)",
-                    borderRadius: 8,
-                    boxShadow:
-                      "0 22px 62px rgba(8, 28, 24, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.38)",
-                    backdropFilter: "blur(24px) saturate(1.28)",
-                  },
-                }}
-                content={dataPanel}
-              >
-                <Button icon={<ApartmentOutlined style={{ fontSize: 16 }} />}>
-                  数据管理
-                </Button>
-              </Popover>
-            )}
-          </div>
-        </div>
-        <div className="header-account-actions">
-          <div className="role-tags">
-            {userRoles.map((role) => (
-              <Tag key={role} color="green">
-                {role}
-              </Tag>
-            ))}
-          </div>
-          <Button
-            icon={<SafetyCertificateOutlined style={{ fontSize: 16 }} />}
-            className="user-button"
-          >
-            {user?.displayName ?? ""}
-          </Button>
-          <Button
-            icon={<LogoutOutlined style={{ fontSize: 16 }} />}
-            onClick={handleLogout}
-          >
-            退出
-          </Button>
-        </div>
-      </Layout.Header>
-      <div className="workspace-body">
-        <main className="map-stage">
-          <MapCanvas
-            bootstrap={bootstrap}
-            loadedLayers={mapLayers}
-            drawMode={activeDraw?.mode ?? null}
-            spatialFilter={spatialFilter}
-            layerExtentGeometry={selectedLayerExtentGeometry}
-            layerExtentTargetLayer={selectedLayer}
-            onDrawComplete={handleDrawComplete}
-            onFeatureSelect={setSelectedFeature}
-            onMapReady={handleMapReady}
-            onMapDestroy={handleMapDestroy}
-          />
-        </main>
-        <aside className="floating-panel floating-panel-left">
-          <LayerContext.Provider value={layerContextValue}>
-            <LayerPanel />
-            <LayerDataTableModal
-              layer={tableLayer}
-              open={Boolean(tableLayer)}
-              onClose={() => setTableLayer(null)}
-              onSelectionChange={handleSelectionChange}
-            />
-          </LayerContext.Provider>
-        </aside>
-        <aside
-          className="floating-panel floating-panel-right"
-          aria-label="要素信息面板"
-        >
-          <RightSidePanel selectedFeature={selectedFeature} />
-        </aside>
-        <aside
-          className="floating-panel-bottom"
-          aria-label="底部数据与绘制面板"
-        >
-          <WorkspaceBottomPanel
-            selectedLayer={selectedLayer}
-            exportClipGeometry={sharedSpatialGeometry}
-            spatialFilter={spatialFilter}
-            layerExtentVisible={layerExtentVisible}
-            activeDraw={activeDraw}
-            onStartQueryDraw={setQueryDrawMode}
-            onLayerExtentVisibleChange={setLayerExtentVisible}
-            onClearSpatialFilter={() => setSpatialFilter(null)}
-            onImportSpatialFilter={setSpatialFilter}
-          />
-        </aside>
+              <RightSidePanel selectedFeature={selectedFeature} />
+            </aside>
+            <aside
+              className="floating-panel-bottom"
+              aria-label="底部数据与绘制面板"
+            >
+              <WorkspaceBottomPanel
+                selectedLayer={selectedLayer}
+                exportClipGeometry={sharedSpatialGeometry}
+                spatialFilter={spatialFilter}
+                layerExtentVisible={layerExtentVisible}
+                activeDraw={activeDraw}
+                onStartQueryDraw={setQueryDrawMode}
+                onLayerExtentVisibleChange={setLayerExtentVisible}
+                onClearSpatialFilter={() => setSpatialFilter(null)}
+                onImportSpatialFilter={setSpatialFilter}
+              />
+            </aside>
+          </>
+        ) : (
+          <main className="nongeo-stage" aria-label="非地理可视化" />
+        )}
       </div>
     </Layout>
   );

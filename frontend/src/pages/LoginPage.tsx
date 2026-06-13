@@ -33,7 +33,7 @@ export default function LoginPage() {
       );
       setUser(response.user);
       message.success("登录成功");
-      navigate("/", { replace: true });
+      navigate("/map", { replace: true });
     } catch (error) {
       message.error(error instanceof Error ? error.message : "登录失败");
     } finally {
@@ -53,7 +53,7 @@ export default function LoginPage() {
       );
       setUser(response.user);
       message.success(response.detail);
-      navigate("/", { replace: true });
+      navigate("/map", { replace: true });
     } catch (error) {
       message.error(error instanceof Error ? error.message : "注册失败");
     } finally {

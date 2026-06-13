@@ -50,7 +50,7 @@ export function RequireManageAuth() {
 export function RedirectIfAuth() {
   const { user } = useAppContext();
   if (user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/map" replace />;
   }
   return <Outlet />;
 }

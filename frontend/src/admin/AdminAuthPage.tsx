@@ -7,6 +7,7 @@ import {
   SafetyCertificateOutlined,
   StopOutlined,
   TeamOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
 import type { ProColumns } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
@@ -14,6 +15,7 @@ import type { MenuProps } from "antd";
 import {
   Alert,
   App,
+  Avatar,
   Button,
   Checkbox,
   Drawer,
@@ -32,6 +34,7 @@ import {
   Tooltip,
   Typography,
 } from "antd";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { api } from "../api/client";
@@ -194,18 +197,19 @@ export default function AdminAuthPage() {
       dataIndex: "username",
       width: 180,
       render: (_, record) => (
-        <Space orientation="vertical" size={0}>
-          <Button
-            className="admin-user-link"
-            type="link"
-            onClick={() => setActiveUser(record)}
-          >
-            {record.username}
-          </Button>
-          <Typography.Text type="secondary" ellipsis>
-            {record.displayName || "未设置显示名"}
-          </Typography.Text>
-        </Space>
+        <UserIdentity
+          user={record}
+          title={
+            <Button
+              className="admin-user-link"
+              type="link"
+              onClick={() => setActiveUser(record)}
+            >
+              {record.username}
+            </Button>
+          }
+          description={record.displayName || "未设置显示名"}
+        />
       ),
     },
     {
@@ -818,15 +822,21 @@ export default function AdminAuthPage() {
       >
         {activeUser ? (
           <div className="admin-user-drawer">
-            <Typography.Title level={4} style={{ margin: 0 }}>
-              {activeUser.displayName}
-            </Typography.Title>
-            <Typography.Text type="secondary">
-              {activeUser.email}
-            </Typography.Text>
+            <UserIdentity
+              user={activeUser}
+              title={
+                <Typography.Title level={4} style={{ margin: 0 }}>
+                  {activeUser.displayName || activeUser.username}
+                </Typography.Title>
+              }
+              description={activeUser.email || "未设置邮箱"}
+              size={44}
+            />
             <dl>
               <dt>用户名</dt>
-              <dd>{activeUser.username}</dd>
+              <dd>
+                <UserIdentity user={activeUser} title={activeUser.username} />
+              </dd>
               <dt>部门</dt>
               <dd>{activeUser.department || "未设置"}</dd>
               <dt>状态</dt>
@@ -894,9 +904,14 @@ export default function AdminAuthPage() {
       >
         {logUser ? (
           <div className="admin-page-stack">
-            <Typography.Text strong>
-              {logUser.displayName || logUser.username}
-            </Typography.Text>
+            <UserIdentity
+              user={logUser}
+              title={
+                <Typography.Text strong>
+                  {logUser.displayName || logUser.username}
+                </Typography.Text>
+              }
+            />
             <ProTable<AdminOperationLog>
               className="admin-table"
               rowKey="id"
@@ -970,14 +985,15 @@ export default function AdminAuthPage() {
       >
         {permissionUser ? (
           <div className="admin-page-stack">
-            <Space orientation="vertical" size={2}>
-              <Typography.Text strong>
-                {permissionUser.displayName || permissionUser.username}
-              </Typography.Text>
-              <Typography.Text type="secondary">
-                仅配置单独授予该用户的权限，用户组权限保持不变。
-              </Typography.Text>
-            </Space>
+            <UserIdentity
+              user={permissionUser}
+              title={
+                <Typography.Text strong>
+                  {permissionUser.displayName || permissionUser.username}
+                </Typography.Text>
+              }
+              description="仅配置单独授予该用户的权限，用户组权限保持不变。"
+            />
             <div className="admin-permission-effective">
               <Typography.Text strong>可查看日志用户组</Typography.Text>
               <Typography.Text type="secondary">
@@ -1288,6 +1304,40 @@ function isSuperadminGroup(group: Group) {
 function isSuperadminUser(user: User, groupNameById: Map<number, string>) {
   return user.groupIds.some(
     (groupId) => groupNameById.get(groupId) === "超级管理员",
+  );
+}
+
+function UserIdentity({
+  user,
+  title,
+  description,
+  size = 32,
+}: {
+  user: Pick<User, "avatarUrl">;
+  title: ReactNode;
+  description?: ReactNode;
+  size?: number;
+}) {
+  return (
+    <Space className="admin-user-identity" size={10} align="center">
+      <Avatar
+        size={size}
+        src={user.avatarUrl || undefined}
+        icon={<UserOutlined />}
+      />
+      <Space orientation="vertical" size={0}>
+        {typeof title === "string" ? (
+          <Typography.Text>{title}</Typography.Text>
+        ) : (
+          title
+        )}
+        {description ? (
+          <Typography.Text type="secondary" ellipsis>
+            {description}
+          </Typography.Text>
+        ) : null}
+      </Space>
+    </Space>
   );
 }
 
