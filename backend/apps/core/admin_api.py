@@ -283,7 +283,7 @@ def update_admin_profile_permissions(request):
     locked_permissions = superadmin_group_locked_permissions()
     if is_superadmin_user(request.user) and disabled_set & locked_permissions:
         return JsonResponse(
-            {"detail": "超级管理员不能关闭后台访问权限"},
+            {"detail": "超级管理员不能关闭系统锁定权限"},
             status=400,
         )
 
@@ -454,7 +454,7 @@ def group_detail(request, group_id: int):
             locked = superadmin_group_locked_permissions()
             if locked - set(permissions):
                 return JsonResponse(
-                    {"detail": "超级管理员用户组必须保留后台访问权限"},
+                    {"detail": "超级管理员用户组必须保留系统锁定权限"},
                     status=400,
                 )
             permissions = protected_group_permissions()
@@ -894,7 +894,7 @@ def admin_operation_logs(request):
 
 
 @require_GET
-@api_permission_required("core.access_admin")
+@api_login_required
 def admin_dashboard(request):
     period = _active_period(request.GET.get("period"))
     if isinstance(period, JsonResponse):
@@ -967,7 +967,7 @@ def admin_dashboard(request):
 
 
 @require_GET
-@api_permission_required("core.access_admin")
+@api_permission_required("core.view_dashboard_system_card")
 def admin_dashboard_server(request):
     return JsonResponse(_server_snapshot(request.user))
 

@@ -25,9 +25,6 @@ class FeaturePermissionDef:
 
 FEATURE_PERMISSIONS: tuple[FeaturePermissionDef, ...] = (
     FeaturePermissionDef(
-        "core", "FeaturePermission", "access_admin", "进入后台管理", "后台权限"
-    ),
-    FeaturePermissionDef(
         "core",
         "FeaturePermission",
         "manage_feature_permissions",

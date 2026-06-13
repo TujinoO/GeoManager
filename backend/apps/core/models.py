@@ -41,7 +41,6 @@ class FeaturePermission(models.Model):
         verbose_name_plural = "平台功能权限"
         default_permissions = ()
         permissions = [
-            ("access_admin", "可进入后台管理"),
             ("manage_feature_permissions", "可配置功能权限"),
             ("create_user", "可新建用户"),
             ("view_operation_logs", "可查看操作日志"),

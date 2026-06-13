@@ -11,7 +11,6 @@ import {
 import { AppContext } from "./contexts/AppContext";
 import {
   RedirectIfAuth,
-  RequireAdmin,
   RequireAuth,
   RequireDataMaintain,
   RequireManageAuth,
@@ -167,35 +166,27 @@ export default function App() {
                 </RouteTransition>
               }
             />
-            <Route element={<RequireAdmin />}>
-              <Route path="/admin" element={<AdminLayout />}>
-                <Route index element={<Navigate to="dashboard" replace />} />
-                <Route path="dashboard" element={<AdminDashboardPage />} />
-                <Route path="profile" element={<AdminProfilePage />} />
-                <Route element={<RequireViewOperationLogs />}>
-                  <Route path="logs" element={<AdminOperationLogsPage />} />
-                </Route>
-                <Route element={<RequireManageSystemSettings />}>
-                  <Route
-                    path="settings"
-                    element={<AdminSystemSettingsPage />}
-                  />
-                </Route>
-                <Route element={<RequireManageAuth />}>
-                  <Route
-                    path="auth"
-                    element={<Navigate to="users" replace />}
-                  />
-                  <Route path="auth/users" element={<AdminAuthPage />} />
-                  <Route path="auth/groups" element={<AdminAuthPage />} />
-                </Route>
-                <Route element={<RequireDataMaintain />}>
-                  <Route
-                    path="data/inventory"
-                    element={<AdminDataInventoryPage />}
-                  />
-                  <Route path="data/import" element={<AdminDataImportPage />} />
-                </Route>
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<AdminDashboardPage />} />
+              <Route path="profile" element={<AdminProfilePage />} />
+              <Route element={<RequireViewOperationLogs />}>
+                <Route path="logs" element={<AdminOperationLogsPage />} />
+              </Route>
+              <Route element={<RequireManageSystemSettings />}>
+                <Route path="settings" element={<AdminSystemSettingsPage />} />
+              </Route>
+              <Route element={<RequireManageAuth />}>
+                <Route path="auth" element={<Navigate to="users" replace />} />
+                <Route path="auth/users" element={<AdminAuthPage />} />
+                <Route path="auth/groups" element={<AdminAuthPage />} />
+              </Route>
+              <Route element={<RequireDataMaintain />}>
+                <Route
+                  path="data/inventory"
+                  element={<AdminDataInventoryPage />}
+                />
+                <Route path="data/import" element={<AdminDataImportPage />} />
               </Route>
             </Route>
           </Route>

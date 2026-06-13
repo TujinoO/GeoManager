@@ -27,6 +27,8 @@ const { MockApiError, mockApi } = vi.hoisted(() => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      adminDashboard: vi.fn(),
+      adminDashboardServer: vi.fn(),
     },
   };
 });
@@ -54,7 +56,7 @@ const bootstrap: Bootstrap = {
 };
 
 const basePermissions = {
-  canAccessAdmin: false,
+  canAccessAdmin: true,
   canManageFeaturePermissions: false,
   canCreateUser: false,
   canViewOperationLogs: false,
@@ -103,7 +105,6 @@ const adminUser: User = {
   roles: ["系统管理员"],
   permissions: {
     ...basePermissions,
-    canAccessAdmin: true,
     canManageFeaturePermissions: true,
     canCreateUser: true,
     canMaintainData: true,
@@ -132,6 +133,11 @@ describe("application critical flows", () => {
     mockApi.csrf.mockResolvedValue({ detail: "csrf cookie set" });
     mockApi.me.mockRejectedValue(new MockApiError("未登录", 401));
     mockApi.login.mockResolvedValue({ user: normalUser });
+    mockApi.adminDashboard.mockResolvedValue({
+      generatedAt: "2026-01-01T00:00:00+08:00",
+      cards: {},
+    });
+    mockApi.adminDashboardServer.mockResolvedValue({ cards: {} });
     mockApi.register.mockResolvedValue({
       user: normalUser,
       detail: "用户注册成功",
@@ -163,20 +169,19 @@ describe("application critical flows", () => {
     });
     expect(await screen.findByText("地理可视化")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /管理后台/ }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: /管理后台/ }),
+    ).toBeInTheDocument();
   });
 
-  it("keeps non-admin users out of the admin route", async () => {
+  it("allows authenticated users to enter the admin route", async () => {
     mockApi.me.mockResolvedValue({ authenticated: true, user: normalUser });
 
     renderApp("/admin");
 
-    expect(await screen.findByText("地理可视化")).toBeInTheDocument();
-    expect(screen.queryByText("个人信息")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("pro-layout")).toBeInTheDocument();
   });
 
-  it("shows the admin card only for privileged users", async () => {
+  it("shows the admin card for privileged users", async () => {
     mockApi.me.mockResolvedValue({ authenticated: true, user: adminUser });
 
     renderApp("/");

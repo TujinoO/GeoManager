@@ -10,7 +10,7 @@ import zhCN from "antd/locale/zh_CN";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppContext } from "../contexts/AppContext";
-import { RequireAdmin, RequireDataMaintain } from "../router";
+import { RequireDataMaintain } from "../router";
 import type { Bootstrap, User } from "../types";
 
 vi.mock("@ant-design/charts", () => ({
@@ -115,7 +115,6 @@ const adminUser: User = {
 };
 
 const availablePermissions = [
-  { id: "core.access_admin", label: "进入后台管理", group: "后台权限" },
   {
     id: "core.manage_feature_permissions",
     label: "配置功能权限",
@@ -193,7 +192,7 @@ const adminGroup = {
   userCount: 1,
   permissions: grantedPermissions,
   isProtected: true,
-  lockedPermissions: ["core.access_admin"],
+  lockedPermissions: [],
 };
 
 const adminApiUser = {
@@ -222,23 +221,21 @@ function renderAdminRoute(initialEntry: string) {
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/" element={<div>业务入口</div>} />
-          <Route element={<RequireAdmin />}>
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<AdminDashboardPage />} />
-              <Route path="profile" element={<AdminProfilePage />} />
-              <Route path="logs" element={<AdminOperationLogsPage />} />
-              <Route path="settings" element={<AdminSystemSettingsPage />} />
-              <Route path="auth" element={<Navigate to="users" replace />} />
-              <Route path="auth/users" element={<AdminAuthPage />} />
-              <Route path="auth/groups" element={<AdminAuthPage />} />
-              <Route element={<RequireDataMaintain />}>
-                <Route
-                  path="data/inventory"
-                  element={<AdminDataInventoryPage />}
-                />
-                <Route path="data/import" element={<AdminDataImportPage />} />
-              </Route>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboardPage />} />
+            <Route path="profile" element={<AdminProfilePage />} />
+            <Route path="logs" element={<AdminOperationLogsPage />} />
+            <Route path="settings" element={<AdminSystemSettingsPage />} />
+            <Route path="auth" element={<Navigate to="users" replace />} />
+            <Route path="auth/users" element={<AdminAuthPage />} />
+            <Route path="auth/groups" element={<AdminAuthPage />} />
+            <Route element={<RequireDataMaintain />}>
+              <Route
+                path="data/inventory"
+                element={<AdminDataInventoryPage />}
+              />
+              <Route path="data/import" element={<AdminDataImportPage />} />
             </Route>
           </Route>
         </Routes>
@@ -513,21 +510,6 @@ describe("admin routes", () => {
     });
   });
 
-  it("shows a global warning when super admin disables admin access in profile", async () => {
-    renderWithProviders(<AdminProfilePage />);
-
-    const accessAdminLabel = await screen.findByText("进入后台管理");
-    const row = accessAdminLabel.closest(
-      ".admin-permission-row",
-    ) as HTMLElement;
-    fireEvent.click(within(row).getByRole("switch"));
-
-    expect(
-      await screen.findByText("超级管理员不能关闭后台访问权限"),
-    ).toBeInTheDocument();
-    expect(mockApi.updateAdminProfilePermissions).not.toHaveBeenCalled();
-  });
-
   it("navigates from operation logs to system settings", async () => {
     renderAdminRoute("/admin/logs");
 
@@ -616,28 +598,6 @@ describe("admin routes", () => {
       within(superadminGroupItem).getByTitle("不能修改超级管理员的用户组"),
     ).toBeInTheDocument();
   }, 15000);
-
-  it("locks super admin access permission with an explicit hint", async () => {
-    renderWithProviders(
-      <MemoryRouter initialEntries={["/admin/auth/groups"]}>
-        <AdminAuthPage />
-      </MemoryRouter>,
-    );
-
-    expect(await screen.findByText("用户组列表")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /权限/ }));
-
-    const drawer = await screen.findByRole("dialog", { name: "用户组权限" });
-    const accessAdminCheckbox = within(drawer).getByRole("checkbox", {
-      name: /进入后台管理/,
-    });
-    expect(accessAdminCheckbox).toBeDisabled();
-    expect(
-      within(drawer).getByText(
-        "超级管理员用户组必须保留进入后台管理权限，不允许修改此权限",
-      ),
-    ).toBeInTheDocument();
-  }, 30000);
 
   it("runs the admin data import step flow through preview and validation", async () => {
     renderAdminRoute("/admin/data/import");

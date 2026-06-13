@@ -80,8 +80,6 @@ const profileDescriptionColumns: ProDescriptionsItemProps<ProfileDescriptionItem
     },
   ];
 
-const accessAdminPermission = "core.access_admin";
-
 function getCookie(name: string): string | null {
   const match = document.cookie
     .split("; ")
@@ -153,10 +151,6 @@ export default function AdminProfilePage() {
     enabled: boolean,
   ) {
     if (!profile) return;
-    if (isLockedProfilePermission(profile, permissionId) && !enabled) {
-      message.warning("超级管理员不能关闭后台访问权限");
-      return;
-    }
     const disabledPermissions = new Set(profile.disabledPermissions);
     if (enabled) {
       disabledPermissions.delete(permissionId);
@@ -406,14 +400,4 @@ type FormValidationError = {
 function firstFormError(errorInfo: FormValidationError, fallback: string) {
   const firstError = errorInfo.errorFields[0]?.errors[0];
   return firstError || fallback;
-}
-
-function isLockedProfilePermission(
-  profile: AdminProfile | null,
-  permissionId: string,
-) {
-  return (
-    permissionId === accessAdminPermission &&
-    Boolean(profile?.user.permissions.canAccessAdmin)
-  );
 }

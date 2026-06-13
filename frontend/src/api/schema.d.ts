@@ -242,7 +242,7 @@ export interface paths {
         };
         /**
          * 获取后台 Dashboard 统计
-         * @description 返回后台 Dashboard 首屏统计数据与指定周期活跃用户。需要 `core.access_admin`；各展示卡片按 `core.view_dashboard_*_card` 权限独立返回，未授权卡片不会出现在响应中。活跃用户定义为周期内存在成功登录操作日志的去重用户。
+         * @description 返回后台 Dashboard 首屏统计数据与指定周期活跃用户。登录用户均可进入后台 Dashboard；各展示卡片按 `core.view_dashboard_*_card` 权限独立返回，未授权卡片不会出现在响应中。活跃用户定义为周期内存在成功登录操作日志的去重用户。
          */
         get: operations["getAdminDashboard"];
         put?: never;
@@ -262,7 +262,7 @@ export interface paths {
         };
         /**
          * 获取后台 Dashboard 服务器监控
-         * @description 返回服务器 CPU、内存、硬盘型号、数量和使用情况等监控快照。需要 `core.access_admin` 和 `core.view_dashboard_system_card`；没有系统信息权限时前端不展示服务器信息区域，前端每 5 秒刷新一次。
+         * @description 返回服务器 CPU、内存、硬盘型号、数量和使用情况等监控快照。需要 `core.view_dashboard_system_card`；没有系统信息权限时前端不展示服务器信息区域，前端每 5 秒刷新一次。
          */
         get: operations["getAdminDashboardServer"];
         put?: never;
@@ -1154,7 +1154,7 @@ export interface components {
             permissions: components["schemas"]["UserPermissions"];
         };
         UserPermissions: {
-            /** @description 是否可访问管理后台 */
+            /** @description 当前登录会话是否可访问管理后台。后台入口对所有登录用户开放，因此认证用户恒为 true；后台内部内容由其他细粒度权限控制。 */
             canAccessAdmin: boolean;
             /** @description 是否可配置功能权限 */
             canManageFeaturePermissions: boolean;
@@ -1204,12 +1204,12 @@ export interface components {
         AdminPermissionItem: {
             /**
              * @description 权限完整标识，格式为 app_label.codename
-             * @example core.access_admin
+             * @example core.view_operation_logs
              */
             id: string;
             /**
              * @description 权限中文名称
-             * @example 进入后台管理
+             * @example 查看操作日志
              */
             label: string;
             /**

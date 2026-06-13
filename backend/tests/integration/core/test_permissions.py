@@ -28,9 +28,9 @@ from apps.core.permissions import (
 class FeaturePermissionDefTests(TestCase):
     def test_perm_name_format(self):
         perm = FeaturePermissionDef(
-            "core", "FeaturePermission", "access_admin", "进入后台管理", "系统管理"
+            "core", "FeaturePermission", "query_data", "查询数据", "数据权限"
         )
-        self.assertEqual(perm.perm_name, "core.access_admin")
+        self.assertEqual(perm.perm_name, "core.query_data")
 
     def test_feature_permissions_not_empty(self):
         self.assertGreater(len(FEATURE_PERMISSIONS), 0)
@@ -80,13 +80,13 @@ class HasFeaturePermTests(TestCase):
         from django.contrib.auth.models import AnonymousUser
 
         user = AnonymousUser()
-        self.assertFalse(has_feature_perm(user, "core.access_admin"))
+        self.assertFalse(has_feature_perm(user, "core.query_data"))
 
     def test_returns_true_for_superuser(self):
         user = get_user_model().objects.create_superuser(
             username="super", password="pass12345"
         )
-        self.assertTrue(has_feature_perm(user, "core.access_admin"))
+        self.assertTrue(has_feature_perm(user, "core.query_data"))
 
     def test_returns_true_for_user_with_permission(self):
         user = get_user_model().objects.create_user(
@@ -94,16 +94,16 @@ class HasFeaturePermTests(TestCase):
         )
 
         perm = Permission.objects.get(
-            content_type__app_label="core", codename="access_admin"
+            content_type__app_label="core", codename="query_data"
         )
         user.user_permissions.add(perm)
-        self.assertTrue(has_feature_perm(user, "core.access_admin"))
+        self.assertTrue(has_feature_perm(user, "core.query_data"))
 
     def test_returns_false_for_user_without_permission(self):
         user = get_user_model().objects.create_user(
             username="no-perm", password="pass12345"
         )
-        self.assertFalse(has_feature_perm(user, "core.access_admin"))
+        self.assertFalse(has_feature_perm(user, "core.query_data"))
 
     def test_returns_true_for_group_inherited_permission(self):
         user = get_user_model().objects.create_user(
@@ -111,12 +111,12 @@ class HasFeaturePermTests(TestCase):
         )
         group = Group.objects.create(name="后台用户")
         perm = Permission.objects.get(
-            content_type__app_label="core", codename="access_admin"
+            content_type__app_label="core", codename="query_data"
         )
         group.permissions.add(perm)
         user.groups.add(group)
 
-        self.assertTrue(has_feature_perm(user, "core.access_admin"))
+        self.assertTrue(has_feature_perm(user, "core.query_data"))
 
     def test_user_disabled_permission_overrides_group_grant(self):
         user = get_user_model().objects.create_user(
@@ -124,16 +124,16 @@ class HasFeaturePermTests(TestCase):
         )
         group = Group.objects.create(name="可关闭后台用户")
         perm = Permission.objects.get(
-            content_type__app_label="core", codename="access_admin"
+            content_type__app_label="core", codename="query_data"
         )
         group.permissions.add(perm)
         user.groups.add(group)
         UserProfile.objects.create(
             user=user,
-            disabled_permissions=["core.access_admin"],
+            disabled_permissions=["core.query_data"],
         )
 
-        self.assertFalse(has_feature_perm(user, "core.access_admin"))
+        self.assertFalse(has_feature_perm(user, "core.query_data"))
 
 
 class SuperadminInitializationTests(TestCase):

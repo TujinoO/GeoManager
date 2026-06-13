@@ -26,7 +26,7 @@ SUPERADMIN_EMAIL_ENV = "HUYANG_SUPERADMIN_EMAIL"
 DEFAULT_SUPERADMIN_USERNAME = "admin"
 DEFAULT_SUPERADMIN_EMAIL = "admin@example.local"
 INITIAL_PASSWORD_FILE = "initial_superadmin_password.txt"
-LOCKED_SUPERADMIN_PERMISSIONS = ("core.access_admin",)
+LOCKED_SUPERADMIN_PERMISSIONS: tuple[str, ...] = ()
 GUEST_GROUP_PERMISSIONS = (
     "core.browse_data",
     "core.load_vector_layer",

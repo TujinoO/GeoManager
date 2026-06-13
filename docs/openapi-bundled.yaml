@@ -11,7 +11,7 @@ info:
     3. 后续请求携带 `sessionid` Cookie 和 `X-CSRFToken` 请求头
 
     ## 权限体系
-    - **功能权限**：11 项细粒度功能权限，通过用户组分配
+    - **功能权限**：24 项细粒度功能权限，通过用户组分配，按后台权限、日志权限、Dashboard 权限、数据权限、人员权限分组管理
     - **数据访问权限**：基于 `access_groups` 的数据隔离
 
     ## 错误处理
@@ -63,6 +63,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BootstrapResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /api/health/:
     get:
       tags:
@@ -77,6 +79,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /api/auth/csrf/:
     get:
       tags:
@@ -92,6 +96,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /api/auth/login/:
     post:
       tags:
@@ -201,7 +207,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
   /api/admin/profile/update/:
-    patch:
+    post:
       tags:
         - 管理后台
       summary: 更新当前用户后台资料
@@ -227,7 +233,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
   /api/admin/profile/permissions/:
-    patch:
+    post:
       tags:
         - 管理后台
       summary: 更新当前用户主动关闭的权限
@@ -253,7 +259,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
   /api/admin/profile/password/:
-    patch:
+    post:
       tags:
         - 管理后台
       summary: 修改当前用户密码
@@ -283,7 +289,7 @@ paths:
       tags:
         - 管理后台
       summary: 查询操作日志
-      description: 基于真实操作日志表返回可分页、可筛选的后台操作日志。
+      description: 基于真实操作日志表返回可分页、可筛选的后台操作日志。需要 `core.view_operation_logs`，实际返回范围由 `core.view_all_operation_logs`、`core.view_own_operation_logs`、`core.view_group_operation_logs` 和当前用户配置的 `operationLogGroupIds` 共同裁剪。可通过 `userId` 精确筛选授权范围内的指定用户日志。
       operationId: listAdminOperationLogs
       security:
         - sessionAuth: []
@@ -306,7 +312,12 @@ paths:
           in: query
           schema:
             type: string
-          description: 按操作用户名或显示名称模糊筛选
+          description: 在授权日志范围内按操作用户名或显示名称模糊筛选
+        - name: userId
+          in: query
+          schema:
+            type: integer
+          description: 在授权日志范围内按操作用户 ID 精确筛选
         - name: module
           in: query
           schema:
@@ -354,12 +365,65 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/admin/dashboard/:
+    get:
+      tags:
+        - 管理后台
+      summary: 获取后台 Dashboard 统计
+      description: 返回后台 Dashboard 首屏统计数据与指定周期活跃用户。登录用户均可进入后台 Dashboard；各展示卡片按 `core.view_dashboard_*_card` 权限独立返回，未授权卡片不会出现在响应中。活跃用户定义为周期内存在成功登录操作日志的去重用户。
+      operationId: getAdminDashboard
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum:
+              - day
+              - week
+              - month
+            default: day
+          description: 活跃用户统计周期，day 为今日按小时统计，week 为本周按日统计，month 为本月按日统计。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/admin/dashboard/server/:
+    get:
+      tags:
+        - 管理后台
+      summary: 获取后台 Dashboard 服务器监控
+      description: 返回服务器 CPU、内存、硬盘型号、数量和使用情况等监控快照。需要 `core.view_dashboard_system_card`；没有系统信息权限时前端不展示服务器信息区域，前端每 5 秒刷新一次。
+      operationId: getAdminDashboardServer
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardServerResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /api/users/:
     get:
       tags:
         - 用户管理
       summary: 获取用户列表
-      description: 返回可配置用户及其用户组归属。需要 `core.manage_feature_permissions` 或 `core.create_user`。
+      description: 返回可配置用户及其用户组归属。需要 `core.manage_auth`。
       operationId: listUsers
       security:
         - sessionAuth: []
@@ -378,7 +442,7 @@ paths:
       tags:
         - 用户管理
       summary: 创建用户
-      description: 具备 `core.create_user` 权限的管理员创建用户账号。密码由后端自动生成并返回。该接口不受自助注册开关影响。
+      description: 具备 `core.manage_auth` 和 `core.create_user` 权限的管理员创建用户账号，创建时必须指定至少一个非超级管理员用户组。密码由后端自动生成并返回。该接口不受自助注册开关影响。
       operationId: createUser
       security:
         - sessionAuth: []
@@ -402,11 +466,11 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
   /api/users/{userId}/groups/:
-    patch:
+    post:
       tags:
         - 用户管理
       summary: 更新用户所属用户组
-      description: 为指定用户设置所属用户组。
+      description: 为指定用户设置所属用户组。普通用户必须保留至少一个用户组，不能加入超级管理员用户组；当前登录用户和超级管理员用户的用户组不能在认证授权页修改。需要 `core.manage_auth`。
       operationId: updateUserGroups
       security:
         - sessionAuth: []
@@ -438,12 +502,134 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /api/users/{userId}/permissions/:
+    post:
+      tags:
+        - 用户管理
+      summary: 更新用户单独授予的功能权限
+      description: 为指定用户设置直接授予的功能权限。最终生效权限为用户组权限与用户直授权限合并后，再扣除用户主动关闭权限；当前登录用户不能在认证授权页修改自己的直授权限，应通过用户设置调整主动关闭权限。需要 `core.manage_auth` 和 `core.manage_feature_permissions`。
+      operationId: updateUserPermissions
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 用户 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPermissionUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfo'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/users/{userId}/password/reset/:
+    post:
+      tags:
+        - 用户管理
+      summary: 重置用户密码
+      description: 为指定用户生成随机新密码并立即生效。新密码规则与后台创建用户时一致，响应中的 `generatedPassword` 仅返回一次。不能重置当前登录用户密码。需要 `core.manage_auth`。
+      operationId: resetUserPassword
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 用户 ID
+      responses:
+        '200':
+          description: 重置成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPasswordResetResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/users/{userId}/:
+    post:
+      tags:
+        - 用户管理
+      summary: 更新用户状态或删除用户
+      description: |
+        根据请求体中的 `action` 字段执行不同操作：
+        - 不提供 `action`：启用或停用指定用户账号
+        - `delete`：删除指定用户账号
+
+        不能操作当前登录用户或初始化管理员。需要 `core.manage_auth`。
+      operationId: updateUserOrDelete
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 用户 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/UserUpdateRequest'
+                - type: object
+                  required:
+                    - action
+                  properties:
+                    action:
+                      type: string
+                      enum:
+                        - delete
+                      description: 操作类型，delete 为删除用户
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/UserInfo'
+                  - $ref: '#/components/schemas/DetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/groups/:
     get:
       tags:
         - 用户管理
       summary: 获取用户组列表
-      description: 返回全部 Django 用户组及其功能权限配置。需要 `core.manage_feature_permissions` 或 `core.create_user`。
+      description: 返回全部 Django 用户组及其功能权限配置。需要 `core.manage_auth`。
       operationId: listGroups
       security:
         - sessionAuth: []
@@ -462,7 +648,7 @@ paths:
       tags:
         - 用户管理
       summary: 创建用户组
-      description: 新增一个用户组并可同步设置功能权限。
+      description: 新增一个用户组并可同步设置功能权限。需要 `core.manage_auth` 和 `core.manage_feature_permissions`。
       operationId: createGroup
       security:
         - sessionAuth: []
@@ -486,12 +672,17 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
   /api/groups/{groupId}/:
-    patch:
+    post:
       tags:
         - 用户管理
-      summary: 更新用户组
-      description: 更新用户组名称和功能权限。
-      operationId: updateGroup
+      summary: 更新或删除用户组
+      description: |
+        根据请求体中的 `action` 字段执行不同操作：
+        - 不提供 `action`：更新用户组名称和功能权限
+        - `delete`：删除空用户组（仅当用户组没有任何关联用户时允许）
+
+        需要 `core.manage_auth`。
+      operationId: updateOrDeleteGroup
       security:
         - sessionAuth: []
       parameters:
@@ -506,44 +697,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GroupUpdateRequest'
+              oneOf:
+                - $ref: '#/components/schemas/GroupUpdateRequest'
+                - type: object
+                  required:
+                    - action
+                  properties:
+                    action:
+                      type: string
+                      enum:
+                        - delete
+                      description: 操作类型，delete 为删除用户组
       responses:
         '200':
-          description: 更新成功
+          description: 操作成功
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Group'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    delete:
-      tags:
-        - 用户管理
-      summary: 删除空用户组
-      description: 仅当用户组没有任何关联用户时允许删除。
-      operationId: deleteGroup
-      security:
-        - sessionAuth: []
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: 用户组 ID
-      responses:
-        '200':
-          description: 删除成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DetailResponse'
+                oneOf:
+                  - $ref: '#/components/schemas/Group'
+                  - $ref: '#/components/schemas/DetailResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -557,7 +730,7 @@ paths:
       tags:
         - 管理后台
       summary: 获取用户可配置设置
-      description: 返回后台允许展示和修改的 application 配置，不返回 runtime 内部变量。
+      description: 返回后台允许展示和修改的 application 配置，不返回 runtime 内部变量。需要 `core.manage_system_settings`。
       operationId: getAdminSettings
       security:
         - sessionAuth: []
@@ -572,11 +745,11 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-    patch:
+    post:
       tags:
         - 管理后台
       summary: 更新用户可配置设置
-      description: 将后台设置直接写入 appdata 下的运行 TOML 配置副本。
+      description: 将后台设置直接写入 appdata 下的运行 TOML 配置副本。需要 `core.manage_system_settings`。
       operationId: updateAdminSettings
       security:
         - sessionAuth: []
@@ -599,6 +772,214 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/admin/data/resources/:
+    get:
+      tags:
+        - 管理后台
+      summary: 获取存量数据管理列表
+      description: 返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组和默认可视化方案查看。需要 `catalog.maintain_dataresource` 或 `catalog.export_dataresource`。
+      operationId: listAdminDataResources
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 按名称、编号、说明、来源或提供单位进行快速检索
+        - name: dataType
+          in: query
+          schema:
+            type: string
+            enum:
+              - vector
+              - raster
+              - gene
+              - table
+              - document
+              - image
+          description: 数据类型筛选
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - active
+              - inactive
+          description: 数据状态筛选
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: 数据分类编码精确匹配
+        - name: source
+          in: query
+          schema:
+            type: string
+          description: 数据来源模糊匹配
+        - name: provider
+          in: query
+          schema:
+            type: string
+          description: 提供单位模糊匹配
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 数据日期起始
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 数据日期截止
+        - name: current
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: 当前页码
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页条数
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDataResourceListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/admin/data/resources/export/:
+    get:
+      tags:
+        - 管理后台
+      summary: 导出存量数据清单
+      description: 按当前筛选条件导出存量数据清单，支持 CSV 和 Excel。需要 `catalog.export_dataresource`，操作会写入审计日志。
+      operationId: exportAdminDataResources
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum:
+              - csv
+              - xlsx
+            default: csv
+          description: 导出文件格式
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 按名称、编号、说明、来源或提供单位进行快速检索
+        - name: dataType
+          in: query
+          schema:
+            type: string
+            enum:
+              - vector
+              - raster
+              - gene
+              - table
+              - document
+              - image
+          description: 数据类型筛选
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - active
+              - inactive
+          description: 数据状态筛选
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: 数据分类编码精确匹配
+        - name: source
+          in: query
+          schema:
+            type: string
+          description: 数据来源模糊匹配
+        - name: provider
+          in: query
+          schema:
+            type: string
+          description: 提供单位模糊匹配
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 数据日期起始
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 数据日期截止
+      responses:
+        '200':
+          description: 导出成功
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/admin/data/resources/{id}/:
+    post:
+      tags:
+        - 管理后台
+      summary: 操作单个存量数据
+      description: 支持更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。需要 `catalog.maintain_dataresource`，成功操作会写入审计日志。
+      operationId: updateAdminDataResource
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDataResourceUpdateRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AdminDataResource'
+                  - $ref: '#/components/schemas/DetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/catalog/directories/:
     get:
       tags:
@@ -1654,6 +2035,18 @@ components:
         - canAccessAdmin
         - canManageFeaturePermissions
         - canCreateUser
+        - canViewOperationLogs
+        - canViewAllOperationLogs
+        - canViewOwnOperationLogs
+        - canViewGroupOperationLogs
+        - canManageSystemSettings
+        - canManageAuth
+        - canViewDashboardResourceCard
+        - canViewDashboardLayerCard
+        - canViewDashboardRasterCard
+        - canViewDashboardUserCard
+        - canViewDashboardActiveUsersCard
+        - canViewDashboardSystemCard
         - canBrowseData
         - canQueryData
         - canLoadVectorLayer
@@ -1665,13 +2058,49 @@ components:
       properties:
         canAccessAdmin:
           type: boolean
-          description: 是否可访问管理后台
+          description: 当前登录会话是否可访问管理后台。后台入口对所有登录用户开放，因此认证用户恒为 true；后台内部内容由其他细粒度权限控制。
         canManageFeaturePermissions:
           type: boolean
           description: 是否可配置功能权限
         canCreateUser:
           type: boolean
           description: 是否可在后台创建新用户
+        canViewOperationLogs:
+          type: boolean
+          description: 是否可查看操作日志
+        canViewAllOperationLogs:
+          type: boolean
+          description: 是否可查看所有用户日志
+        canViewOwnOperationLogs:
+          type: boolean
+          description: 是否可查看自己的日志
+        canViewGroupOperationLogs:
+          type: boolean
+          description: 是否可查看指定用户组日志
+        canManageSystemSettings:
+          type: boolean
+          description: 是否可修改系统设置
+        canManageAuth:
+          type: boolean
+          description: 是否可修改认证授权
+        canViewDashboardResourceCard:
+          type: boolean
+          description: 是否可查看 Dashboard 数据资源卡片
+        canViewDashboardLayerCard:
+          type: boolean
+          description: 是否可查看 Dashboard 图层数卡片
+        canViewDashboardRasterCard:
+          type: boolean
+          description: 是否可查看 Dashboard 栅格数量卡片
+        canViewDashboardUserCard:
+          type: boolean
+          description: 是否可查看 Dashboard 用户数量卡片
+        canViewDashboardActiveUsersCard:
+          type: boolean
+          description: 是否可查看 Dashboard 活跃用户卡片
+        canViewDashboardSystemCard:
+          type: boolean
+          description: 是否可查看 Dashboard 系统信息
         canBrowseData:
           type: boolean
           description: 是否可浏览数据目录
@@ -1706,15 +2135,15 @@ components:
         id:
           type: string
           description: 权限完整标识，格式为 app_label.codename
-          example: core.access_admin
+          example: core.view_operation_logs
         label:
           type: string
           description: 权限中文名称
-          example: 进入后台管理
+          example: 查看操作日志
         group:
           type: string
-          description: 权限在管理界面中的分组名称
-          example: 系统管理
+          description: 权限在管理界面中的分组名称，当前按后台权限、数据权限、人员权限归类
+          example: 后台权限
     AdminProfileResponse:
       type: object
       required:
@@ -1857,6 +2286,324 @@ components:
         total:
           type: integer
           description: 符合筛选条件的总记录数
+    AdminDashboardResponse:
+      type: object
+      required:
+        - generatedAt
+        - cards
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+          description: Dashboard 统计生成时间
+        cards:
+          $ref: '#/components/schemas/AdminDashboardCards'
+    AdminDashboardCards:
+      type: object
+      properties:
+        resources:
+          $ref: '#/components/schemas/AdminDashboardResourceCard'
+        layers:
+          $ref: '#/components/schemas/AdminDashboardLayerCard'
+        rasters:
+          $ref: '#/components/schemas/AdminDashboardRasterCard'
+        users:
+          $ref: '#/components/schemas/AdminDashboardUserCard'
+        activeUsers:
+          $ref: '#/components/schemas/AdminDashboardActiveUsers'
+      description: 按当前用户卡片权限返回的 Dashboard 卡片数据；未授权卡片字段会被省略。
+    AdminDashboardResourceCard:
+      type: object
+      required:
+        - total
+        - active
+      properties:
+        total:
+          type: integer
+          description: 数据资源总数
+        active:
+          type: integer
+          description: 启用状态的数据资源数量
+    AdminDashboardLayerCard:
+      type: object
+      required:
+        - total
+        - active
+      properties:
+        total:
+          type: integer
+          description: 图层总数
+        active:
+          type: integer
+          description: 启用状态的图层数量
+    AdminDashboardRasterCard:
+      type: object
+      required:
+        - resources
+        - datasets
+        - layers
+      properties:
+        resources:
+          type: integer
+          description: 栅格数据资源数量
+        datasets:
+          type: integer
+          description: 栅格数据集数量
+        layers:
+          type: integer
+          description: 栅格图层数量
+    AdminDashboardUserCard:
+      type: object
+      required:
+        - total
+        - active
+        - disabled
+        - groups
+        - vectorResources
+        - tableResources
+      properties:
+        total:
+          type: integer
+          description: 系统用户总数
+        active:
+          type: integer
+          description: 启用账号数量
+        disabled:
+          type: integer
+          description: 停用账号数量
+        groups:
+          type: integer
+          description: 用户组数量
+        vectorResources:
+          type: integer
+          description: 矢量数据资源数量
+        tableResources:
+          type: integer
+          description: 表格数据资源数量
+    AdminDashboardActiveUsers:
+      type: object
+      required:
+        - period
+        - rangeStart
+        - rangeEnd
+        - count
+        - loginCount
+        - series
+        - ranking
+      properties:
+        period:
+          type: string
+          enum:
+            - day
+            - week
+            - month
+          description: 活跃用户统计周期
+        rangeStart:
+          type: string
+          format: date
+          description: 统计周期起始日期
+        rangeEnd:
+          type: string
+          format: date
+          description: 统计周期结束日期
+        count:
+          type: integer
+          description: 周期内成功登录的去重用户数量
+        loginCount:
+          type: integer
+          description: 周期内成功登录总次数
+        series:
+          type: array
+          description: 柱状图序列，day 按小时统计，week/month 按日期统计
+          items:
+            $ref: '#/components/schemas/AdminDashboardActiveUserSeriesItem'
+        ranking:
+          type: array
+          description: 周期内登录次数最多的用户排名
+          items:
+            $ref: '#/components/schemas/AdminDashboardActiveUserRank'
+    AdminDashboardActiveUserSeriesItem:
+      type: object
+      required:
+        - key
+        - label
+        - count
+      properties:
+        key:
+          type: string
+          description: 序列项唯一键，day 为小时值，week/month 为日期
+        label:
+          type: string
+          description: 序列项显示标签
+        count:
+          type: integer
+          description: 该序列项内成功登录次数
+    AdminDashboardActiveUserRank:
+      type: object
+      required:
+        - userId
+        - displayName
+        - username
+        - loginCount
+      properties:
+        userId:
+          type: integer
+          description: 用户 ID
+        displayName:
+          type: string
+          description: 用户显示名称
+        username:
+          type: string
+          description: 用户名
+        loginCount:
+          type: integer
+          description: 周期内成功登录次数
+    AdminDashboardServerResponse:
+      type: object
+      required:
+        - generatedAt
+        - hostname
+        - platform
+        - cards
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+          description: 服务器监控快照生成时间
+        hostname:
+          type: string
+          description: 主机名
+        platform:
+          type: string
+          description: 操作系统平台描述
+        cards:
+          $ref: '#/components/schemas/AdminDashboardServerCards'
+    AdminDashboardServerCards:
+      type: object
+      properties:
+        cpu:
+          $ref: '#/components/schemas/AdminDashboardCpuInfo'
+        memory:
+          $ref: '#/components/schemas/AdminDashboardMemoryInfo'
+        disks:
+          $ref: '#/components/schemas/AdminDashboardDiskInfo'
+      description: 按当前用户卡片权限返回的服务器监控卡片数据；未授权卡片字段会被省略。
+    AdminDashboardCpuInfo:
+      type: object
+      required:
+        - model
+        - physicalCount
+        - logicalCount
+        - usagePercent
+        - loadAverage
+      properties:
+        model:
+          type: string
+          description: CPU 型号
+        physicalCount:
+          type: integer
+          description: CPU 物理核心数量
+        logicalCount:
+          type: integer
+          description: CPU 逻辑核心数量
+        usagePercent:
+          type: number
+          format: float
+          description: 基于 1 分钟负载估算的 CPU 使用率百分比
+        loadAverage:
+          type: array
+          description: 1 分钟、5 分钟、15 分钟系统负载
+          minItems: 3
+          maxItems: 3
+          items:
+            type: number
+            format: float
+    AdminDashboardMemoryInfo:
+      type: object
+      required:
+        - model
+        - slotCount
+        - totalBytes
+        - usedBytes
+        - availableBytes
+        - usagePercent
+      properties:
+        model:
+          type: string
+          description: 内存型号或来源说明
+        slotCount:
+          type: integer
+          description: 可识别的内存数量
+        totalBytes:
+          type: integer
+          format: int64
+          description: 内存总容量，单位字节
+        usedBytes:
+          type: integer
+          format: int64
+          description: 已使用内存容量，单位字节
+        availableBytes:
+          type: integer
+          format: int64
+          description: 可用内存容量，单位字节
+        usagePercent:
+          type: number
+          format: float
+          description: 内存使用率百分比
+    AdminDashboardDiskInfo:
+      type: object
+      required:
+        - count
+        - devices
+        - mount
+        - totalBytes
+        - usedBytes
+        - freeBytes
+        - usagePercent
+      properties:
+        count:
+          type: integer
+          description: 可识别硬盘数量
+        devices:
+          type: array
+          description: 硬盘设备列表
+          items:
+            $ref: '#/components/schemas/AdminDashboardDiskDevice'
+        mount:
+          type: string
+          description: 用于统计使用率的挂载路径
+        totalBytes:
+          type: integer
+          format: int64
+          description: 挂载路径总容量，单位字节
+        usedBytes:
+          type: integer
+          format: int64
+          description: 挂载路径已使用容量，单位字节
+        freeBytes:
+          type: integer
+          format: int64
+          description: 挂载路径可用容量，单位字节
+        usagePercent:
+          type: number
+          format: float
+          description: 挂载路径使用率百分比
+    AdminDashboardDiskDevice:
+      type: object
+      required:
+        - name
+        - model
+        - size
+      properties:
+        name:
+          type: string
+          description: 硬盘设备名称
+        model:
+          type: string
+          description: 硬盘型号
+        size:
+          type: string
+          description: 硬盘容量文本
     UserInfo:
       allOf:
         - $ref: '#/components/schemas/BaseUserInfo'
@@ -1864,6 +2611,9 @@ components:
           required:
             - groupIds
             - isActive
+            - directPermissions
+            - effectivePermissions
+            - operationLogGroupIds
           properties:
             groupIds:
               type: array
@@ -1873,10 +2623,26 @@ components:
             isActive:
               type: boolean
               description: 用户账号是否启用
+            directPermissions:
+              type: array
+              description: 单独授予该用户的平台功能权限列表，不包含用户组继承权限
+              items:
+                type: string
+            effectivePermissions:
+              type: array
+              description: 用户组权限与用户直授权限合并后，扣除用户主动关闭权限的实际生效功能权限列表
+              items:
+                type: string
+            operationLogGroupIds:
+              type: array
+              description: 该用户具备 `core.view_group_operation_logs` 时允许查看日志的目标用户组 ID 列表
+              items:
+                type: integer
     UserCreateRequest:
       type: object
       required:
         - username
+        - groupIds
       properties:
         username:
           type: string
@@ -1893,7 +2659,8 @@ components:
           description: 用户所在部门
         groupIds:
           type: array
-          description: 初始所属用户组 ID 列表
+          minItems: 1
+          description: 初始所属用户组 ID 列表，必填且至少包含一个非超级管理员用户组
           items:
             type: integer
         isActive:
@@ -1907,6 +2674,16 @@ components:
             generatedPassword:
               type: string
               description: 自动生成的初始密码，仅在创建时返回一次
+    UserPasswordResetResponse:
+      allOf:
+        - $ref: '#/components/schemas/UserInfo'
+        - type: object
+          required:
+            - generatedPassword
+          properties:
+            generatedPassword:
+              type: string
+              description: 重置后自动生成的新密码，仅在重置时返回一次
     UserListResponse:
       type: object
       required:
@@ -1924,9 +2701,33 @@ components:
       properties:
         groupIds:
           type: array
-          description: 用户新的用户组 ID 列表
+          minItems: 1
+          description: 用户新的用户组 ID 列表，普通用户至少保留一个用户组
           items:
             type: integer
+    UserPermissionUpdateRequest:
+      type: object
+      required:
+        - directPermissions
+      properties:
+        directPermissions:
+          type: array
+          description: 单独授予该用户的平台功能权限列表，必须全部来自 availablePermissions
+          items:
+            type: string
+        operationLogGroupIds:
+          type: array
+          description: 该用户具备 `core.view_group_operation_logs` 时允许查看日志的目标用户组 ID 列表；空数组表示未配置指定用户组
+          items:
+            type: integer
+    UserUpdateRequest:
+      type: object
+      required:
+        - isActive
+      properties:
+        isActive:
+          type: boolean
+          description: 用户账号是否启用
     Group:
       type: object
       required:
@@ -1953,10 +2754,10 @@ components:
             type: string
         isProtected:
           type: boolean
-          description: 是否为系统受保护用户组，受保护组不能删除且部分权限不可关闭
+          description: 是否为系统受保护用户组，受保护组不能删除或重命名。初始化内置组包含超级管理员和游客；游客权限允许编辑
         lockedPermissions:
           type: array
-          description: 受保护用户组中不可关闭的平台功能权限列表
+          description: 受保护用户组中不可关闭的平台功能权限列表。游客用户组返回空列表
           items:
             type: string
     GroupListResponse:
@@ -2155,6 +2956,256 @@ components:
           type: string
           format: date-time
           description: 最后更新时间
+    AdminDataResourceAccessGroup:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          description: 用户组 ID
+        name:
+          type: string
+          description: 用户组名称
+    AdminDataResourceLayer:
+      type: object
+      required:
+        - id
+        - name
+        - code
+        - layerType
+        - geometryType
+        - defaultVisible
+        - defaultOpacity
+        - symbolization
+        - rasterRules
+        - isActive
+      properties:
+        id:
+          type: integer
+          description: 默认展示图层 ID
+        name:
+          type: string
+          description: 默认展示图层名称
+        code:
+          type: string
+          description: 默认展示图层编码
+        layerType:
+          type: string
+          enum:
+            - vector
+            - raster
+          description: 图层类型
+        geometryType:
+          type: string
+          enum:
+            - point
+            - line
+            - polygon
+            - mixed
+          description: 几何类型
+        defaultVisible:
+          type: boolean
+          description: 是否默认显示
+        defaultOpacity:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 默认透明度百分比
+        symbolization:
+          type: object
+          additionalProperties: true
+          description: 矢量默认符号化方案
+        rasterRules:
+          type: object
+          additionalProperties: true
+          description: 栅格默认符号化规则
+        isActive:
+          type: boolean
+          description: 默认展示图层是否启用
+    AdminDataResource:
+      type: object
+      required:
+        - id
+        - name
+        - code
+        - dataType
+        - category
+        - source
+        - provider
+        - dataDate
+        - spatialExtent
+        - coordinateSystem
+        - fileFormat
+        - storagePath
+        - description
+        - qualityNote
+        - defaultVisualization
+        - status
+        - accessGroups
+        - maintainer
+        - createdAt
+        - updatedAt
+        - defaultLayer
+      properties:
+        id:
+          type: integer
+          description: 数据资源 ID
+        name:
+          type: string
+          description: 数据资源名称
+        code:
+          type: string
+          description: 数据资源编码
+        dataType:
+          type: string
+          enum:
+            - vector
+            - raster
+            - gene
+            - table
+            - document
+            - image
+          description: 数据资源类型
+        category:
+          oneOf:
+            - $ref: '#/components/schemas/DictionaryItem'
+            - type: 'null'
+          description: 数据分类，未分类时为 null
+        source:
+          type: string
+          description: 数据来源
+        provider:
+          type: string
+          description: 数据提供单位
+        dataDate:
+          type:
+            - string
+            - 'null'
+          format: date
+          description: 数据日期
+        spatialExtent:
+          type: string
+          description: 空间范围文本
+        coordinateSystem:
+          type: string
+          description: 坐标系统描述
+        fileFormat:
+          type: string
+          description: 文件格式
+        storagePath:
+          type: string
+          description: 数据存储相对路径或表/图层名称
+        description:
+          type: string
+          description: 资源描述
+        qualityNote:
+          type: string
+          description: 数据质量说明
+        defaultVisualization:
+          type: object
+          additionalProperties: true
+          description: 数据资源默认可视化方案
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+          description: 数据资源状态
+        accessGroups:
+          type: array
+          description: 允许访问该数据资源的用户组；空数组表示不限制用户组
+          items:
+            $ref: '#/components/schemas/AdminDataResourceAccessGroup'
+        maintainer:
+          type: string
+          description: 维护人员显示名称
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最后更新时间
+        defaultLayer:
+          oneOf:
+            - $ref: '#/components/schemas/AdminDataResourceLayer'
+            - type: 'null'
+          description: 关联默认地图图层，非空间数据可为 null
+    AdminDataResourceListResponse:
+      type: object
+      required:
+        - items
+        - total
+        - availableAccessGroups
+      properties:
+        items:
+          type: array
+          description: 存量数据资源列表
+          items:
+            $ref: '#/components/schemas/AdminDataResource'
+        total:
+          type: integer
+          description: 符合筛选条件的数据资源总数
+        availableAccessGroups:
+          type: array
+          description: 可用于配置数据访问范围的用户组列表
+          items:
+            $ref: '#/components/schemas/AdminDataResourceAccessGroup'
+    AdminDataResourceVisualization:
+      type: object
+      properties:
+        layerName:
+          type: string
+          description: 默认展示图层名称
+        defaultVisible:
+          type: boolean
+          description: 是否默认显示
+        defaultOpacity:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 默认透明度百分比
+        symbolization:
+          type: object
+          additionalProperties: true
+          description: 矢量默认符号化方案
+        rasterRules:
+          type: object
+          additionalProperties: true
+          description: 栅格默认符号化规则
+    AdminDataResourceUpdateRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum:
+            - update
+            - setStatus
+            - saveVisualization
+            - updateAccess
+            - delete
+          description: 操作类型
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
+          description: setStatus 或 update 时写入的数据资源状态
+        visualization:
+          $ref: '#/components/schemas/AdminDataResourceVisualization'
+        accessGroupIds:
+          type: array
+          description: updateAccess 或 update 时写入的访问用户组 ID 列表；空数组表示不限制用户组
+          items:
+            type: integer
+        confirmationName:
+          type: string
+          description: delete 操作要求传入与数据资源名称完全一致的确认文本
     VectorLayerResource:
       type: object
       required:

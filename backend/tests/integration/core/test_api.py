@@ -19,6 +19,7 @@ from apps.core.initialization import (
     GUEST_GROUP_NAME,
     SUPERADMIN_GROUP_NAME,
     ensure_superadmin_defaults,
+    protected_group_permissions,
 )
 from apps.core.models import SystemSetting, UserProfile
 from apps.core.storage import (
@@ -111,7 +112,7 @@ class RegistrationApiTests(TestCase):
         self.assertTrue(
             Group.objects.filter(
                 name=SUPERADMIN_GROUP_NAME,
-                permissions__codename="access_admin",
+                permissions__codename="manage_auth",
             ).exists()
         )
         self.assertTrue(user.groups.filter(name=GUEST_GROUP_NAME).exists())
@@ -477,7 +478,7 @@ class FeaturePermissionTests(TestCase):
         permission_ids = {
             permission["id"] for permission in payload["availablePermissions"]
         }
-        self.assertIn("core.access_admin", permission_ids)
+        self.assertNotIn("core.access_admin", permission_ids)
         self.assertIn("core.manage_feature_permissions", permission_ids)
         self.assertIn("core.create_user", permission_ids)
         guest_items = [
@@ -489,7 +490,7 @@ class FeaturePermissionTests(TestCase):
             item for item in payload["items"] if item["name"] == SUPERADMIN_GROUP_NAME
         ]
         self.assertEqual(protected_items[0]["isProtected"], True)
-        self.assertEqual(protected_items[0]["lockedPermissions"], ["core.access_admin"])
+        self.assertEqual(protected_items[0]["lockedPermissions"], [])
 
     def test_guest_group_permissions_can_be_updated(self):
         manager = get_user_model().objects.create_user(
@@ -510,7 +511,7 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(response.json()["permissions"], ["core.query_data"])
         self.assertEqual(response.json()["lockedPermissions"], [])
 
-    def test_superadmin_group_cannot_be_deleted_or_lose_admin_access(self):
+    def test_superadmin_group_cannot_be_deleted_and_keeps_protected_permissions(self):
         manager = get_user_model().objects.create_user(
             username="superadmin-guard-manager", password="pass12345"
         )
@@ -531,10 +532,10 @@ class FeaturePermissionTests(TestCase):
             data=json.dumps({"permissions": ["core.browse_data"]}),
             content_type="application/json",
         )
-        self.assertEqual(patch_response.status_code, 400)
+        self.assertEqual(patch_response.status_code, 200)
         self.assertEqual(
-            patch_response.json()["detail"],
-            "超级管理员用户组必须保留后台访问权限",
+            set(patch_response.json()["permissions"]),
+            set(protected_group_permissions()),
         )
 
     def test_superadmin_user_groups_cannot_be_updated(self):
@@ -666,7 +667,7 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["detail"], "当前用户无权限配置用户权限")
 
-    def test_superadmin_cannot_disable_own_admin_access_permission(self):
+    def test_unknown_profile_permission_cannot_be_disabled(self):
         superuser = get_user_model().objects.create_superuser(
             username="protected-profile-superuser",
             password="StrongPass12345",
@@ -681,7 +682,10 @@ class FeaturePermissionTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["detail"], "超级管理员不能关闭后台访问权限")
+        self.assertEqual(
+            response.json()["detail"],
+            "不能关闭未授予的权限：core.access_admin",
+        )
 
     def test_change_password_requires_current_password(self):
         user = get_user_model().objects.create_user(
@@ -968,7 +972,6 @@ class FeaturePermissionTests(TestCase):
         )
         grant(
             manager,
-            ("core", "access_admin"),
             ("core", "view_dashboard_resource_card"),
             ("core", "view_dashboard_layer_card"),
             ("core", "view_dashboard_raster_card"),
@@ -1048,7 +1051,6 @@ class FeaturePermissionTests(TestCase):
         )
         grant(
             manager,
-            ("core", "access_admin"),
             ("core", "view_dashboard_resource_card"),
         )
         DataResource.objects.create(
@@ -1072,7 +1074,6 @@ class FeaturePermissionTests(TestCase):
         )
         grant(
             manager,
-            ("core", "access_admin"),
             ("core", "view_dashboard_system_card"),
         )
         self.client.force_login(manager)
@@ -1088,18 +1089,15 @@ class FeaturePermissionTests(TestCase):
         self.assertIn("totalBytes", payload["cards"]["memory"])
         self.assertIn("devices", payload["cards"]["disks"])
 
-    def test_admin_dashboard_server_omits_system_cards_without_permission(self):
+    def test_admin_dashboard_server_rejects_user_without_system_card_permission(self):
         manager = get_user_model().objects.create_user(
             username="system-card-limited-manager", password="pass12345"
         )
-        grant(manager, ("core", "access_admin"))
         self.client.force_login(manager)
 
         response = self.client.get("/api/admin/dashboard/server/")
 
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertEqual(payload["cards"], {})
+        self.assertEqual(response.status_code, 403)
 
 
 class StoragePathTests(SimpleTestCase):

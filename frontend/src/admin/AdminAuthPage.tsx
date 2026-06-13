@@ -669,7 +669,7 @@ export default function AdminAuthPage() {
       (permission) => !values.includes(permission),
     );
     if (missingLockedPermissions.length > 0) {
-      message.warning("超级管理员用户组必须保留进入后台管理权限");
+      message.warning("超级管理员用户组必须保留系统锁定权限");
     }
     setGroupDrafts((current) => ({
       ...current,
@@ -1104,7 +1104,7 @@ export default function AdminAuthPage() {
               <Alert
                 type="warning"
                 showIcon
-                title="超级管理员用户组必须保留进入后台管理权限，不允许修改此权限"
+                title="超级管理员用户组必须保留系统锁定权限，不允许修改"
               />
             )}
             <Checkbox.Group
@@ -1148,7 +1148,7 @@ export default function AdminAuthPage() {
                       return locked ? (
                         <Tooltip
                           key={permission.id}
-                          title="超级管理员用户组必须保留进入后台管理权限，不允许修改此权限"
+                          title="超级管理员用户组必须保留系统锁定权限，不允许修改"
                         >
                           {checkbox}
                         </Tooltip>

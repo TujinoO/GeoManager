@@ -103,31 +103,29 @@ export default function HomePage() {
               <Tag color="gold">表格</Tag>
             </div>
           </Card>
-          {user.permissions.canAccessAdmin && (
-            <Card
-              hoverable
-              className="visualization-choice-card import-choice-card"
-              role="button"
-              tabIndex={0}
-              onClick={() => navigate("/admin")}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  navigate("/admin");
-                }
-              }}
-            >
-              <div className="choice-card-icon">
-                <SettingOutlined style={{ fontSize: 36 }} />
-                <SafetyCertificateOutlined style={{ fontSize: 30 }} />
-              </div>
-              <Typography.Title level={2}>管理后台</Typography.Title>
-              <div className="choice-card-tags">
-                <Tag color="blue">用户设置</Tag>
-                <Tag color="green">数据管理</Tag>
-                <Tag color="gold">系统配置</Tag>
-              </div>
-            </Card>
-          )}
+          <Card
+            hoverable
+            className="visualization-choice-card import-choice-card"
+            role="button"
+            tabIndex={0}
+            onClick={() => navigate("/admin")}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                navigate("/admin");
+              }
+            }}
+          >
+            <div className="choice-card-icon">
+              <SettingOutlined style={{ fontSize: 36 }} />
+              <SafetyCertificateOutlined style={{ fontSize: 30 }} />
+            </div>
+            <Typography.Title level={2}>管理后台</Typography.Title>
+            <div className="choice-card-tags">
+              <Tag color="blue">用户设置</Tag>
+              <Tag color="green">数据管理</Tag>
+              <Tag color="gold">系统配置</Tag>
+            </div>
+          </Card>
         </section>
       </main>
     </Layout>

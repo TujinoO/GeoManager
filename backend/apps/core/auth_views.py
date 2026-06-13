@@ -111,7 +111,7 @@ def serialize_user(user):
     group_ids = list(user.groups.values_list("id", flat=True))
     profile = _profile_values(user)
     permissions = {
-        "canAccessAdmin": has_feature_perm(user, "core.access_admin"),
+        "canAccessAdmin": True,
         "canManageFeaturePermissions": has_feature_perm(
             user, "core.manage_feature_permissions"
         ),
