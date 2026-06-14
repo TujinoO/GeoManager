@@ -27,7 +27,7 @@ FRONTEND_PID=$!
 # ── Backend ─────────────────────────────────────────────
 echo "Starting backend (Django runserver)..."
 cd "$ROOT_DIR/backend"
-eval "$(mamba shell hook --shell zsh)" && mamba activate geomanager && python manage.py runserver &
+eval "$(mamba shell hook --shell zsh)" && mamba activate geomanager && python manage.py migrate && python manage.py runserver &
 BACKEND_PID=$!
 
 echo ""
