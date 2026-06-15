@@ -3,17 +3,11 @@ import tempfile
 from pathlib import Path
 
 import tomlkit
-from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group, Permission
-from django.test import Client, SimpleTestCase, TestCase
-from data_sharing_platform.settings import _default_csrf_trusted_origins
-
 from apps.audit.models import OperationLog
 from apps.catalog.models import DataResource, MapLayer
 from apps.core.config import (
     APP_SUBDIRS,
     RESEARCH_SUBDIRS,
-    ensure_runtime_config_file,
     load_project_config,
     update_runtime_application_config,
 )
@@ -34,6 +28,10 @@ from apps.core.storage import (
     table_data_path,
 )
 from apps.raster.models import RasterDataset
+from data_sharing_platform.settings import _default_csrf_trusted_origins
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group, Permission
+from django.test import Client, SimpleTestCase, TestCase
 
 
 class BootstrapApiTests(TestCase):
@@ -1155,7 +1153,7 @@ class StoragePathTests(SimpleTestCase):
         )
 
 
-class ConfigLoaderTests(SimpleTestCase):
+class ConfigLoaderTests(TestCase):
     def test_loader_creates_fixed_data_subdirectories(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -1209,59 +1207,7 @@ symbolizer_timeout_seconds = 120
                 with self.subTest(root="research", subdir=subdir):
                     self.assertTrue(config.research_path(subdir).is_dir())
 
-    def test_migration_helper_copies_source_config_to_appdata_runtime_config(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            root = Path(tmpdir)
-            config_path = root / "app.toml"
-            business_root = root / "app"
-            research_root = root / "research"
-            config_path.write_text(
-                f"""
-[runtime]
-debug = true
-allowed_hosts = ["*"]
-csrf_trusted_origins = []
-gunicorn_bind = "127.0.0.1:8000"
-gunicorn_workers = 1
-http_port = 8000
-disable_catalog_startup_scan = true
-disable_raster_startup_scan = true
-
-[application.system]
-name = "测试系统"
-allow_registration = true
-
-[application.storage]
-app_data = "{business_root}"
-research_data_root = "{research_root}"
-
-[application.map]
-default_center = [80.0, 41.5]
-default_zoom = 4.5
-default_basemap = "osm"
-mapbox_access_token = ""
-
-[application.limits]
-upload_max_mb = 512
-query_result_limit = 30000
-
-[application.raster]
-symbolizer_timeout_seconds = 120
-""",
-                encoding="utf-8",
-            )
-
-            config = load_project_config(
-                config_path, program_root=Path("/opt/data-sharing-platform")
-            )
-            copied = ensure_runtime_config_file(config)
-
-            self.assertTrue(copied)
-            self.assertEqual(
-                config.runtime_config_path.read_text(), config_path.read_text()
-            )
-
-    def test_runtime_config_updates_are_written_with_tomlkit(self):
+    def test_runtime_config_updates_are_written_to_source_config(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             config_path = root / "app.toml"
@@ -1314,19 +1260,14 @@ symbolizer_timeout_seconds = 120
                 },
             )
 
-            runtime_document = tomlkit.parse(
-                config.runtime_config_path.read_text(encoding="utf-8")
-            )
-            source_document = tomlkit.parse(config_path.read_text(encoding="utf-8"))
+            # 验证源配置被直接修改
+            updated_document = tomlkit.parse(config_path.read_text(encoding="utf-8"))
             self.assertEqual(
-                runtime_document["application"]["system"]["name"], "更新后的系统"
+                updated_document["application"]["system"]["name"], "更新后的系统"
             )
             self.assertEqual(
-                list(runtime_document["application"]["map"]["default_center"]),
+                list(updated_document["application"]["map"]["default_center"]),
                 [82.0, 42.0],
-            )
-            self.assertEqual(
-                source_document["application"]["system"]["name"], "测试系统"
             )
 
 

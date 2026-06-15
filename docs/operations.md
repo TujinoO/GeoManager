@@ -133,7 +133,7 @@ docker volume create geomanager-data
 
 docker run -d --name data-platform \
   -p 80:8000 \
-  -v /srv/data-platform/app.toml:/config/app.toml:ro \
+  -v /srv/data-platform/app.toml:/config/app.toml \
   -v geomanager-data:/data \
   data-platform-django:latest serve /config/app.toml
 ```
@@ -144,7 +144,7 @@ docker run -d --name data-platform \
 scripts/deploy.sh /srv/data-platform/app.toml
 ```
 
-部署脚本会在本机 `geomanager` mamba 环境中读取输入 TOML 的 `runtime.http_port` 作为宿主机暴露端口，并生成容器内运行配置 `.deploy/app.toml`。生成后的容器内运行配置会把数据目录改写为 `/data/app` 和 `/data/research`，并自动创建 `geomanager-data` 数据卷挂载到 `/data`。
+部署脚本会在本机 `geomanager` mamba 环境中校验输入 TOML，读取 `runtime.http_port` 作为宿主机暴露端口，并将该源配置文件可写挂载到容器内 `/config/app.toml`。Docker 配置中的数据目录应直接使用容器内路径 `/data/app` 和 `/data/research`。
 
 默认数据卷名称为 `geomanager-data`。可通过环境变量改名：
 
@@ -155,13 +155,7 @@ scripts/deploy.sh config/app.docker.toml
 
 重建容器不会删除数据卷。如需备份、迁移或删除数据，请直接操作对应 Docker volume。
 
-首次迁移会把输入配置复制到业务数据目录的运行配置副本：
-
-```text
-/data/app/config/app.toml
-```
-
-后台“系统设置”只修改这份运行配置副本，不修改最初传入的只读配置文件。`django_secret_key` 自动生成并持久化到业务数据目录的 `database/.secret_key`，不要写入 TOML 或前端页面。
+系统以挂载的源配置文件 `/config/app.toml` 作为运行配置和后台设置写入目标。`django_secret_key` 自动生成并持久化到业务数据目录的 `database/.secret_key`，由后端专用文件管理。
 
 ## 数据目录
 

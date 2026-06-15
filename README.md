@@ -55,7 +55,7 @@ docker build -t data-platform-django:latest .
 
 docker run -d --name geomanager \
   -p 127.0.0.1:8000:8000 \
-  -v /absolute/path/app.docker.toml:/config/app.toml:ro \
+  -v /absolute/path/app.docker.toml:/config/app.toml \
   -v geomanager-data:/data \
   data-platform-django:latest
 ```

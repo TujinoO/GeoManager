@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -67,8 +66,6 @@ class RasterConfig:
 @dataclass(frozen=True)
 class ProjectConfig:
     config_path: Path
-    source_config_path: Path
-    runtime_config_path: Path
     runtime: RuntimeConfig
     system_name: str
     allow_registration: bool
@@ -136,15 +133,7 @@ def resolve_config_path(program_root: Path) -> Path:
 def load_project_config(config_path: Path, program_root: Path) -> ProjectConfig:
     source_path = config_path.expanduser().resolve()
     program_root = program_root.expanduser().resolve()
-    source_raw = _load_toml_document(source_path)
-    runtime_path = _runtime_config_path(source_raw)
-
-    if runtime_path.exists() and runtime_path.resolve() != source_path:
-        active_path = runtime_path.resolve()
-        raw = _load_toml_document(active_path)
-    else:
-        active_path = source_path
-        raw = source_raw
+    raw = _load_toml_document(source_path)
 
     runtime = _runtime_config(_table(raw, "runtime"))
     application = _table(raw, "application")
@@ -162,9 +151,7 @@ def load_project_config(config_path: Path, program_root: Path) -> ProjectConfig:
     _validate_separate_roots(program_root, app_root, research_root)
 
     project_config = ProjectConfig(
-        config_path=active_path,
-        source_config_path=source_path,
-        runtime_config_path=runtime_path,
+        config_path=source_path,
         runtime=runtime,
         system_name=_string(system.get("name"), "application.system.name"),
         allow_registration=bool(system.get("allow_registration", False)),
@@ -203,26 +190,14 @@ def load_project_config(config_path: Path, program_root: Path) -> ProjectConfig:
     return project_config
 
 
-def ensure_runtime_config_file(config: ProjectConfig) -> bool:
-    runtime_path = config.runtime_config_path
-    if runtime_path.exists():
-        return False
-    runtime_path.parent.mkdir(parents=True, exist_ok=True)
-    source_path = config.source_config_path
-    if not source_path.exists():
-        raise ConfigValidationError(f"源 TOML 配置文件不存在：{source_path}")
-    shutil.copyfile(source_path, runtime_path)
-    return True
-
-
 def load_runtime_config_document(config: ProjectConfig) -> dict[str, Any]:
-    ensure_runtime_config_file(config)
-    return _load_toml_document(config.runtime_config_path)
+    """直接读取源配置,不再使用运行时副本。"""
+    return _load_toml_document(config.config_path)
 
 
 def write_runtime_config_document(config: ProjectConfig, raw: dict[str, Any]) -> None:
-    ensure_runtime_config_file(config)
-    config.runtime_config_path.write_text(tomlkit.dumps(raw), encoding="utf-8")
+    """直接写入源配置。"""
+    config.config_path.write_text(tomlkit.dumps(raw), encoding="utf-8")
 
 
 def update_runtime_application_config(
@@ -248,13 +223,6 @@ def _load_toml_document(path: Path) -> dict[str, Any]:
     if not _is_toml_table(raw):
         raise ConfigValidationError("TOML 配置文件根节点必须是对象")
     return raw
-
-
-def _runtime_config_path(raw: dict[str, Any]) -> Path:
-    application = _table(raw, "application")
-    storage = _table(application, "storage")
-    app_root = _absolute_path(storage.get("app_data"), "application.storage.app_data")
-    return app_root.joinpath("config", "app.toml")
 
 
 def _runtime_config(raw: dict[str, Any]) -> RuntimeConfig:

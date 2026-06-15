@@ -159,7 +159,7 @@ frontend/src/
 - 用户设置和系统设置默认只读，点击编辑后进入编辑态；后台创建用户不受自助注册开关影响，但必须具备 `core.create_user` 权限。
 - 用户组权限配置复用 Django `Group`/`Permission`，必须具备 `core.manage_feature_permissions` 权限；超级管理员用户组不能删除，初始化的 `admin` 用户不能从该组移除。
 - 数据导入复用 `/api/catalog/import/preview/`、`/api/catalog/import/validate/` 和 `/api/catalog/import/commit/`，流程为文件预检、导入配置校验、数据预览和字段元数据维护。
-- 应用只使用 TOML 配置。后端通过 `--config /path/to/app.toml` 接收源配置，迁移时复制到业务数据目录的运行配置副本；后台设置只修改运行配置副本。
+- 应用只使用 TOML 配置。后端通过 `--config /path/to/app.toml` 接收源配置，启动、迁移和后台设置都以该源配置文件作为读写目标。
 
 ## 数据管理与图层管理
 
