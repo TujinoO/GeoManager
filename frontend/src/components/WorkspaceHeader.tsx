@@ -5,7 +5,6 @@ import {
   DatabaseOutlined,
   FolderOpenOutlined,
   FundProjectionScreenOutlined,
-  HomeOutlined,
   InfoCircleOutlined,
   LogoutOutlined,
   QrcodeOutlined,
@@ -21,12 +20,11 @@ import {
   Input,
   Popover,
   QRCode,
-  Space,
   Tag,
   Typography,
 } from "antd";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import capfedLogo from "../assets/capfed-logo.png";
@@ -42,6 +40,8 @@ import {
 export type WorkspaceTab = "map" | "nongeo" | "admin";
 
 const platformChineseName = "中亚胡杨林生态系统保护数据共享平台";
+const hoverExpandDelayMs = 100;
+const searchOpenDelayMs = 400;
 
 interface WorkspaceHeaderProps {
   activeTab: WorkspaceTab;
@@ -81,10 +81,203 @@ export default function WorkspaceHeader({
   const navigate = useNavigate();
   const [searchText, setSearchText] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [searchCompact, setSearchCompact] = useState(false);
+  const [navCompressed, setNavCompressed] = useState(false);
+  const [expandedTabId, setExpandedTabId] = useState<string | null>(null);
+  const [searchPopoverWidth, setSearchPopoverWidth] = useState<
+    number | undefined
+  >();
+  const searchNavRef = useRef<HTMLDivElement | null>(null);
+  const searchContainerRef = useRef<HTMLElement | null>(null);
+  const primaryNavRef = useRef<HTMLElement | null>(null);
+  const searchOpenTimerRef = useRef<number | null>(null);
+  const tabHoverTimerRef = useRef<number | null>(null);
+  const fullPrimaryNavWidthRef = useRef(0);
 
   useEffect(() => {
     setSearchText(searchKeyword);
   }, [searchKeyword]);
+
+  const syncSearchPopoverWidth = useCallback(() => {
+    const width = searchContainerRef.current?.getBoundingClientRect().width;
+    if (width && Number.isFinite(width)) {
+      setSearchPopoverWidth(Math.round(width));
+    }
+  }, []);
+
+  const measureNavFit = useCallback(() => {
+    const nav = searchNavRef.current;
+    const search = searchContainerRef.current;
+    const primaryNav = primaryNavRef.current;
+    if (!nav || !search || !primaryNav) return;
+
+    const primaryNavWidth = primaryNav.scrollWidth;
+    if (!navCompressed || !searchExpanded) {
+      fullPrimaryNavWidthRef.current = Math.max(
+        fullPrimaryNavWidthRef.current,
+        primaryNavWidth,
+      );
+    }
+
+    const navStyle = window.getComputedStyle(nav);
+    const navGap =
+      Number.parseFloat(navStyle.columnGap || navStyle.gap || "0") || 0;
+    const rootFontSize =
+      Number.parseFloat(
+        window.getComputedStyle(document.documentElement).fontSize,
+      ) || 16;
+    const navWidth = nav.clientWidth;
+    const searchMinWidth = clampNumber(
+      3.75 * rootFontSize,
+      0.08 * navWidth,
+      5 * rootFontSize,
+    );
+    const searchCollapsedWidth = clampNumber(
+      searchMinWidth,
+      0.22 * navWidth,
+      11 * rootFontSize,
+    );
+    const searchMaxWidth = clampNumber(
+      searchCollapsedWidth * 2,
+      0.44 * navWidth,
+      22 * rootFontSize,
+    );
+    const fullTabsWidth = fullPrimaryNavWidthRef.current;
+    const expandedFits =
+      fullTabsWidth + searchMaxWidth + navGap <= navWidth + 1;
+    const compactFits = fullTabsWidth + searchMinWidth + navGap <= navWidth + 1;
+    const shouldCompactSearch = !searchExpanded && !expandedFits;
+    const shouldCompressTabs = searchExpanded ? !expandedFits : !compactFits;
+
+    setSearchCompact((current) =>
+      current === shouldCompactSearch ? current : shouldCompactSearch,
+    );
+    setNavCompressed((current) =>
+      current === shouldCompressTabs ? current : shouldCompressTabs,
+    );
+  }, [navCompressed, searchExpanded]);
+
+  const expandSearch = useCallback(() => {
+    setSearchExpanded(true);
+    window.requestAnimationFrame(() => {
+      syncSearchPopoverWidth();
+      measureNavFit();
+    });
+  }, [measureNavFit, syncSearchPopoverWidth]);
+
+  const scheduleSearchOpen = useCallback(
+    (delay = 0) => {
+      if (searchOpenTimerRef.current !== null) {
+        window.clearTimeout(searchOpenTimerRef.current);
+      }
+      searchOpenTimerRef.current = window.setTimeout(() => {
+        syncSearchPopoverWidth();
+        setSearchOpen(true);
+        searchOpenTimerRef.current = null;
+      }, delay);
+    },
+    [syncSearchPopoverWidth],
+  );
+
+  const openSearchPanel = useCallback(
+    (delay = 0) => {
+      expandSearch();
+      onSearchFocus?.();
+      scheduleSearchOpen(delay);
+    },
+    [expandSearch, onSearchFocus, scheduleSearchOpen],
+  );
+
+  const closeSearchPanel = useCallback(() => {
+    if (searchOpenTimerRef.current !== null) {
+      window.clearTimeout(searchOpenTimerRef.current);
+      searchOpenTimerRef.current = null;
+    }
+    setSearchOpen(false);
+    setSearchExpanded(false);
+    setExpandedTabId(null);
+    window.requestAnimationFrame(measureNavFit);
+  }, [measureNavFit]);
+
+  const clearTabHoverTimer = useCallback(() => {
+    if (tabHoverTimerRef.current !== null) {
+      window.clearTimeout(tabHoverTimerRef.current);
+      tabHoverTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleTabHoverExpand = useCallback(
+    (tabId: string) => {
+      clearTabHoverTimer();
+      tabHoverTimerRef.current = window.setTimeout(() => {
+        setExpandedTabId(tabId);
+        tabHoverTimerRef.current = null;
+      }, hoverExpandDelayMs);
+    },
+    [clearTabHoverTimer],
+  );
+
+  const collapseTabHover = useCallback(() => {
+    clearTabHoverTimer();
+    setExpandedTabId(null);
+  }, [clearTabHoverTimer]);
+
+  useEffect(() => {
+    const container = searchContainerRef.current;
+    if (!container) return;
+    syncSearchPopoverWidth();
+    const observer = new ResizeObserver(syncSearchPopoverWidth);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [syncSearchPopoverWidth]);
+
+  useEffect(() => {
+    const nav = searchNavRef.current;
+    const search = searchContainerRef.current;
+    const primaryNav = primaryNavRef.current;
+    if (!nav || !search || !primaryNav) return;
+
+    measureNavFit();
+    const observer = new ResizeObserver(measureNavFit);
+    observer.observe(nav);
+    observer.observe(search);
+    observer.observe(primaryNav);
+    return () => observer.disconnect();
+  }, [measureNavFit]);
+
+  useEffect(() => {
+    window.requestAnimationFrame(measureNavFit);
+  }, [measureNavFit]);
+
+  useEffect(() => {
+    return () => {
+      if (searchOpenTimerRef.current !== null) {
+        window.clearTimeout(searchOpenTimerRef.current);
+      }
+      if (tabHoverTimerRef.current !== null) {
+        window.clearTimeout(tabHoverTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      const targetNode = event.target instanceof Node ? event.target : null;
+      const targetElement =
+        event.target instanceof Element ? event.target : null;
+      if (
+        (targetNode && searchContainerRef.current?.contains(targetNode)) ||
+        targetElement?.closest(".workspace-search-popover")
+      ) {
+        return;
+      }
+      closeSearchPanel();
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [closeSearchPanel]);
 
   const searchQuery = searchText.trim().toLocaleLowerCase("zh-CN");
   const filteredResources = useMemo(
@@ -127,8 +320,19 @@ export default function WorkspaceHeader({
 
   function handleSearchTextChange(value: string) {
     setSearchText(value);
-    setSearchOpen(true);
+    if (searchOpen) {
+      openSearchPanel(0);
+    } else {
+      expandSearch();
+    }
     onGlobalSearch?.(value.trim());
+  }
+
+  function handleSearchClick() {
+    const currentWidth =
+      searchContainerRef.current?.getBoundingClientRect().width;
+    const visuallyExpanded = currentWidth ? currentWidth > 220 : false;
+    openSearchPanel(searchExpanded || visuallyExpanded ? 0 : searchOpenDelayMs);
   }
 
   function commitSearch(value: string) {
@@ -137,6 +341,7 @@ export default function WorkspaceHeader({
     navigate(`/map${query}`);
     onDataPanelOpenChange?.(Boolean(dataPanel));
     onGlobalSearch?.(keyword);
+    closeSearchPanel();
   }
 
   function handleResourceCenter() {
@@ -151,11 +356,14 @@ export default function WorkspaceHeader({
   const dataButton = (
     <button
       type="button"
-      className={tabClass(false)}
+      className={tabClass(false, expandedTabId === "resource")}
       onClick={dataPanel ? undefined : handleResourceCenter}
+      onMouseEnter={() => scheduleTabHoverExpand("resource")}
+      onMouseLeave={collapseTabHover}
+      title="资源中心"
     >
       <FolderOpenOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-      <span>资源中心</span>
+      <span className="tab-text">资源中心</span>
     </button>
   );
 
@@ -318,7 +526,9 @@ export default function WorkspaceHeader({
   );
 
   return (
-    <header className="workspace-header">
+    <header
+      className={`workspace-header${searchExpanded ? " workspace-header-search-active" : ""}${searchCompact ? " workspace-header-search-compact" : ""}${navCompressed ? " workspace-header-nav-compressed" : ""}`}
+    >
       <div className="brand-block">
         <span className="brand-logo-frame">
           <img src={capfedLogo} alt={`${bootstrap.systemName} Logo`} />
@@ -329,116 +539,140 @@ export default function WorkspaceHeader({
         </div>
       </div>
 
-      <Popover
-        trigger="click"
-        placement="bottomLeft"
-        open={searchOpen}
-        onOpenChange={(open) => {
-          setSearchOpen(open);
-          if (open) onSearchFocus?.();
-        }}
-        classNames={{ root: "workspace-search-popover" }}
-        content={searchContent}
+      <div
+        ref={searchNavRef}
+        className={`workspace-search-nav${navCompressed ? " workspace-search-nav-compressed" : ""}`}
       >
-        <Space.Compact className="workspace-global-search">
-          <Input
-            className="workspace-global-input"
-            allowClear
-            prefix={<SearchOutlined style={{ fontSize: 15 }} />}
-            value={searchText}
-            placeholder="搜索数据、工程、成果"
-            onFocus={() => {
-              setSearchOpen(true);
-              onSearchFocus?.();
-            }}
-            onChange={(event) => handleSearchTextChange(event.target.value)}
-            onPressEnter={(event) => commitSearch(event.currentTarget.value)}
-          />
-        </Space.Compact>
-      </Popover>
-
-      <nav className="header-primary-actions" aria-label="主导航">
-        <button
-          type="button"
-          className={tabClass(false)}
-          onClick={() => navigate("/map")}
-        >
-          <HomeOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-          <span>首页</span>
-        </button>
-        <button
-          type="button"
-          className={tabClass(activeTab === "map")}
-          onClick={() => navigate("/map")}
-        >
-          <ApartmentOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-          <span>地理数据</span>
-        </button>
-        <button
-          type="button"
-          className={tabClass(activeTab === "nongeo")}
-          onClick={() => navigate("/nongeo")}
-        >
-          <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-          <span>非地理数据</span>
-        </button>
-        {canBrowseData &&
-          (dataPanel ? (
-            <Popover
-              trigger="click"
-              placement="bottomLeft"
-              open={dataPanelOpen}
-              onOpenChange={onDataPanelOpenChange}
-              classNames={{ root: "data-popover" }}
-              styles={{
-                content: {
-                  width: "min(440px, calc(100vw - 32px))",
-                  maxHeight: "calc(100vh - 110px)",
-                  padding: 0,
-                  overflow: "auto",
-                  background: "rgba(248, 250, 247, 0.92)",
-                  border: "1px solid rgba(255, 255, 255, 0.34)",
-                  borderRadius: 8,
-                  boxShadow:
-                    "0 22px 62px rgba(8, 28, 24, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.38)",
-                  backdropFilter: "blur(24px) saturate(1.28)",
-                },
-              }}
-              content={dataPanel}
-            >
-              {dataButton}
-            </Popover>
-          ) : (
-            dataButton
-          ))}
-        <button
-          type="button"
-          className={tabClass(false)}
-          onClick={() => message.info("成果目录页面正在接入")}
-        >
-          <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-          <span>成果目录</span>
-        </button>
-        <button
-          type="button"
-          className={tabClass(activeTab === "admin")}
-          onClick={() => navigate("/admin")}
-        >
-          <SettingOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-          <span>后台管理</span>
-        </button>
         <Popover
           trigger="click"
-          placement="bottom"
-          content={aboutContent}
-          overlayClassName="workspace-info-popover"
+          placement="bottomLeft"
+          open={searchOpen}
+          styles={{
+            content: {
+              width: searchPopoverWidth,
+            },
+          }}
+          classNames={{ root: "workspace-search-popover" }}
+          content={searchContent}
         >
-          <button type="button" className={tabClass(false)}>
-            <InfoCircleOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-            <span>关于我们</span>
-          </button>
+          <search ref={searchContainerRef} className="workspace-global-search">
+            <Input
+              className="workspace-global-input"
+              allowClear
+              prefix={<SearchOutlined style={{ fontSize: 15 }} />}
+              value={searchText}
+              placeholder="搜索数据、工程、成果"
+              onFocus={expandSearch}
+              onClick={handleSearchClick}
+              onChange={(event) => handleSearchTextChange(event.target.value)}
+              onPressEnter={(event) => commitSearch(event.currentTarget.value)}
+            />
+          </search>
         </Popover>
-      </nav>
+
+        <nav
+          ref={primaryNavRef}
+          className="header-primary-actions"
+          aria-label="主导航"
+        >
+          <button
+            type="button"
+            className={tabClass(activeTab === "map", expandedTabId === "map")}
+            onClick={() => navigate("/map")}
+            onMouseEnter={() => scheduleTabHoverExpand("map")}
+            onMouseLeave={collapseTabHover}
+            title="地理数据"
+          >
+            <ApartmentOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+            <span className="tab-text">地理数据</span>
+          </button>
+          <button
+            type="button"
+            className={tabClass(
+              activeTab === "nongeo",
+              expandedTabId === "nongeo",
+            )}
+            onClick={() => navigate("/nongeo")}
+            onMouseEnter={() => scheduleTabHoverExpand("nongeo")}
+            onMouseLeave={collapseTabHover}
+            title="非地理数据"
+          >
+            <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+            <span className="tab-text">非地理数据</span>
+          </button>
+          {canBrowseData &&
+            (dataPanel ? (
+              <Popover
+                trigger="click"
+                placement="bottomLeft"
+                open={dataPanelOpen}
+                onOpenChange={onDataPanelOpenChange}
+                classNames={{ root: "data-popover" }}
+                styles={{
+                  content: {
+                    width: "min(440px, calc(100vw - 32px))",
+                    maxHeight: "calc(100vh - 110px)",
+                    padding: 0,
+                    overflow: "auto",
+                    background: "rgba(248, 250, 247, 0.92)",
+                    border: "1px solid rgba(255, 255, 255, 0.34)",
+                    borderRadius: 8,
+                    boxShadow:
+                      "0 22px 62px rgba(8, 28, 24, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.38)",
+                    backdropFilter: "blur(24px) saturate(1.28)",
+                  },
+                }}
+                content={dataPanel}
+              >
+                {dataButton}
+              </Popover>
+            ) : (
+              dataButton
+            ))}
+          <button
+            type="button"
+            className={tabClass(false, expandedTabId === "achievements")}
+            onClick={() => message.info("成果目录页面正在接入")}
+            onMouseEnter={() => scheduleTabHoverExpand("achievements")}
+            onMouseLeave={collapseTabHover}
+            title="成果目录"
+          >
+            <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+            <span className="tab-text">成果目录</span>
+          </button>
+          <button
+            type="button"
+            className={tabClass(
+              activeTab === "admin",
+              expandedTabId === "admin",
+            )}
+            onClick={() => navigate("/admin")}
+            onMouseEnter={() => scheduleTabHoverExpand("admin")}
+            onMouseLeave={collapseTabHover}
+            title="后台管理"
+          >
+            <SettingOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+            <span className="tab-text">后台管理</span>
+          </button>
+          <Popover
+            trigger="click"
+            placement="bottom"
+            content={aboutContent}
+            overlayClassName="workspace-info-popover"
+          >
+            <button
+              type="button"
+              className={tabClass(false, expandedTabId === "about")}
+              onMouseEnter={() => scheduleTabHoverExpand("about")}
+              onMouseLeave={collapseTabHover}
+              title="关于我们"
+            >
+              <InfoCircleOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+              <span className="tab-text">关于我们</span>
+            </button>
+          </Popover>
+        </nav>
+      </div>
 
       <div className="header-account-actions">
         <Popover
@@ -447,9 +681,12 @@ export default function WorkspaceHeader({
           content={wechatContent}
           overlayClassName="workspace-info-popover"
         >
-          <Button className="wechat-button" icon={<QrcodeOutlined />}>
-            公众号
-          </Button>
+          <Button
+            aria-label="公众号二维码"
+            className="wechat-button"
+            icon={<QrcodeOutlined />}
+            title="公众号二维码"
+          />
         </Popover>
         <Popover
           trigger="click"
@@ -475,10 +712,18 @@ export default function WorkspaceHeader({
   );
 }
 
-function tabClass(active: boolean) {
-  return active
-    ? "workspace-switch-card workspace-switch-card-active"
-    : "workspace-switch-card";
+function tabClass(active: boolean, hoverExpanded = false) {
+  return [
+    "workspace-switch-card",
+    active ? "workspace-switch-card-active" : "",
+    hoverExpanded ? "workspace-switch-card-hover-expanded" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function clampNumber(min: number, value: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function SearchResultSection({
