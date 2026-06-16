@@ -189,7 +189,11 @@ function SpatialQueryPanel({
               />
             </div>
           </div>
-          <div className="spatial-hit-preview" aria-label="查询命中预估图">
+          <div
+            className="spatial-hit-preview"
+            role="img"
+            aria-label="查询命中预估图"
+          >
             <span style={{ height: "44%" }} />
             <span style={{ height: "66%" }} />
             <span style={{ height: "82%" }} />
@@ -197,7 +201,7 @@ function SpatialQueryPanel({
             <span style={{ height: "72%" }} />
             <span style={{ height: "38%" }} />
           </div>
-          <div className="spatial-symbol-list" aria-label="当前图例">
+          <div className="spatial-symbol-list">
             <span>
               <i className="spatial-symbol spatial-symbol-border" />
               查询范围边框

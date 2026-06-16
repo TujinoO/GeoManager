@@ -73,8 +73,16 @@ body {
       rgba(4, 38, 34, 0.48) 45%,
       rgba(6, 27, 28, 0.68) 100%
     ),
-    radial-gradient(circle at 18% 20%, rgba(54, 214, 159, 0.16), transparent 31%),
-    radial-gradient(circle at 78% 74%, rgba(76, 186, 221, 0.14), transparent 30%),
+    radial-gradient(
+      circle at 18% 20%,
+      rgba(54, 214, 159, 0.16),
+      transparent 31%
+    ),
+    radial-gradient(
+      circle at 78% 74%,
+      rgba(76, 186, 221, 0.14),
+      transparent 30%
+    ),
     url("./assets/login-ecosystem-bg.png");
   background-size: cover, cover, cover, cover;
   background-position: center, center, center, center;
@@ -87,9 +95,22 @@ body {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at 26% 48%, rgba(255, 255, 255, 0.16), transparent 34%),
-    radial-gradient(ellipse at 78% 28%, rgba(255, 255, 255, 0.13), transparent 26%),
-    linear-gradient(118deg, transparent 0 35%, rgba(255, 255, 255, 0.15) 45%, transparent 56%),
+    radial-gradient(
+      ellipse at 26% 48%,
+      rgba(255, 255, 255, 0.16),
+      transparent 34%
+    ),
+    radial-gradient(
+      ellipse at 78% 28%,
+      rgba(255, 255, 255, 0.13),
+      transparent 26%
+    ),
+    linear-gradient(
+      118deg,
+      transparent 0 35%,
+      rgba(255, 255, 255, 0.15) 45%,
+      transparent 56%
+    ),
     repeating-linear-gradient(
       118deg,
       transparent 0 54px,
@@ -2444,11 +2465,11 @@ body {
   & small {
     color: rgba(223, 248, 238, 0.62);
   }
+}
 
-  &:hover {
-    border-color: rgba(116, 243, 221, 0.42);
-    box-shadow: 0 0 18px rgba(64, 224, 208, 0.12);
-  }
+.topic-scenario-list .topic-scenario-row:hover {
+  border-color: rgba(116, 243, 221, 0.42);
+  box-shadow: 0 0 18px rgba(64, 224, 208, 0.12);
 }
 
 .layer-list,

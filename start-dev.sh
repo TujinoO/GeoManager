@@ -18,17 +18,17 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM EXIT
 
-# ── Frontend ────────────────────────────────────────────
-echo "Starting frontend (pnpm dev)..."
-cd "$ROOT_DIR/frontend"
-pnpm dev &
-FRONTEND_PID=$!
-
 # ── Backend ─────────────────────────────────────────────
 echo "Starting backend (Django runserver)..."
 cd "$ROOT_DIR/backend"
 eval "$(mamba shell hook --shell zsh)" && mamba activate geomanager && python manage.py migrate && python manage.py runserver &
 BACKEND_PID=$!
+
+# ── Frontend ────────────────────────────────────────────
+echo "Starting frontend (pnpm dev)..."
+cd "$ROOT_DIR/frontend"
+pnpm dev &
+FRONTEND_PID=$!
 
 echo ""
 echo "╔══════════════════════════════════════╗"

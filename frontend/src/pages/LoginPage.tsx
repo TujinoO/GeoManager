@@ -20,8 +20,8 @@ import {
 } from "antd";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import capfedLogo from "../assets/capfed-logo.png";
 import { api } from "../api/client";
+import capfedLogo from "../assets/capfed-logo.png";
 import { useAppContext } from "../contexts/AppContext";
 import type { LoginFormValues, RegisterFormValues } from "../types";
 
@@ -59,7 +59,13 @@ const loginStats = [
   },
 ] as const;
 
-const capabilityTags = ["遥感影像", "矢量边界", "野外样方", "长期监测", "成果共享"];
+const capabilityTags = [
+  "遥感影像",
+  "矢量边界",
+  "野外样方",
+  "长期监测",
+  "成果共享",
+];
 
 const stationStatuses = Array.from({ length: 24 }, (_, index) => {
   const position = index + 1;
@@ -77,12 +83,14 @@ const serviceStatusSummary = [
   {
     label: "正常",
     state: "normal",
-    value: stationStatuses.filter((station) => station.state === "normal").length,
+    value: stationStatuses.filter((station) => station.state === "normal")
+      .length,
   },
   {
     label: "待同步",
     state: "warning",
-    value: stationStatuses.filter((station) => station.state === "warning").length,
+    value: stationStatuses.filter((station) => station.state === "warning")
+      .length,
   },
   {
     label: "异常",
@@ -158,14 +166,14 @@ export default function LoginPage() {
             平台集成遥感影像、空间矢量、野外样方、长期监测与保护成果数据，
             提供统一编目、三维地理可视化、综合查询分析和共享服务。
           </p>
-          <div className="login-capability-tags" aria-label="平台数据类型">
+          <div className="login-capability-tags">
             {capabilityTags.map((tag) => (
               <span key={tag}>{tag}</span>
             ))}
           </div>
         </div>
 
-        <div className="login-stat-grid" aria-label="平台数据概览">
+        <div className="login-stat-grid">
           {loginStats.map((stat) => (
             <div className="login-stat" key={stat.label}>
               <span className="login-stat-icon">{stat.icon}</span>
@@ -176,13 +184,15 @@ export default function LoginPage() {
           ))}
         </div>
 
-        <div className="login-ops-panel" aria-label="平台服务状态">
+        <div className="login-ops-panel">
           <div className="login-ops-copy">
             <span>平台服务状态</span>
             <strong>资源目录已接入 · 图层服务可用 · 权限认证开启</strong>
-            <small>登录后可按账号权限进入数据目录、地图工作台与后台管理功能。</small>
+            <small>
+              登录后可按账号权限进入数据目录、地图工作台与后台管理功能。
+            </small>
           </div>
-          <div className="login-ops-status" aria-label="服务节点状态统计">
+          <div className="login-ops-status">
             <div className="login-station-grid" aria-hidden="true">
               {stationStatuses.map((station) => (
                 <i key={station.id} data-state={station.state} />
@@ -315,7 +325,11 @@ export default function LoginPage() {
               label="邮箱"
               rules={[{ type: "email", message: "请输入有效邮箱" }]}
             >
-              <Input placeholder="请输入邮箱" autoComplete="email" size="large" />
+              <Input
+                placeholder="请输入邮箱"
+                autoComplete="email"
+                size="large"
+              />
             </Form.Item>
             <Form.Item
               name="password"

@@ -139,7 +139,7 @@ function EcologyOverviewPanel() {
           </span>
         </div>
       </div>
-      <div className="eco-trend-card" aria-label="生态趋势示意">
+      <div className="eco-trend-card">
         <div className="right-panel-heading">
           <Typography.Text strong>NDVI / 水分趋势</Typography.Text>
           <Typography.Text type="secondary">近 12 月</Typography.Text>
@@ -171,7 +171,7 @@ function EcologyOverviewPanel() {
 function EcologyMonitorPanel() {
   return (
     <div className="eco-tab-panel eco-monitor-panel">
-      <div className="monitor-grid" aria-label="监测状态示意">
+      <div className="monitor-grid">
         {["植被", "水文", "土壤", "气象", "样地", "遥感"].map((item) => (
           <span key={item}>
             <strong>{item}</strong>

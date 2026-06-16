@@ -719,7 +719,7 @@ function TopicWorkspacePanel() {
           后续可承载胡杨林分布、水文生态、遥感监测等专题入口。
         </Typography.Text>
       </div>
-      <div className="topic-scenario-list" aria-label="专题场景">
+      <div className="topic-scenario-list">
         <button type="button" className="topic-scenario-row">
           <span>
             <strong>胡杨林分布专题</strong>

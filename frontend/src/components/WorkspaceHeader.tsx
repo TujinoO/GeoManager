@@ -25,8 +25,8 @@ import {
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import capfedLogo from "../assets/capfed-logo.png";
 import { api } from "../api/client";
+import capfedLogo from "../assets/capfed-logo.png";
 import { useAppContext } from "../contexts/AppContext";
 
 export type WorkspaceTab = "map" | "nongeo" | "admin";
@@ -120,7 +120,9 @@ export default function WorkspaceHeader({
   const aboutContent = (
     <div className="about-popover-content">
       <strong>{bootstrap.systemName}</strong>
-      <span>面向胡杨林生态系统保护的数据共享、目录检索与三维地理可视化平台。</span>
+      <span>
+        面向胡杨林生态系统保护的数据共享、目录检索与三维地理可视化平台。
+      </span>
     </div>
   );
 
@@ -197,7 +199,7 @@ export default function WorkspaceHeader({
         />
       </Space.Compact>
 
-      <div className="header-primary-actions" aria-label="主导航">
+      <nav className="header-primary-actions" aria-label="主导航">
         <button
           type="button"
           className={tabClass(false)}
@@ -251,34 +253,34 @@ export default function WorkspaceHeader({
           ) : (
             dataButton
           ))}
-          <button
-            type="button"
-            className={tabClass(false)}
-            onClick={() => message.info("成果目录页面正在接入")}
-          >
-            <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-            <span>成果目录</span>
+        <button
+          type="button"
+          className={tabClass(false)}
+          onClick={() => message.info("成果目录页面正在接入")}
+        >
+          <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+          <span>成果目录</span>
+        </button>
+        <button
+          type="button"
+          className={tabClass(activeTab === "admin")}
+          onClick={() => navigate("/admin")}
+        >
+          <SettingOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+          <span>后台管理</span>
+        </button>
+        <Popover
+          trigger="click"
+          placement="bottom"
+          content={aboutContent}
+          overlayClassName="workspace-info-popover"
+        >
+          <button type="button" className={tabClass(false)}>
+            <InfoCircleOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+            <span>关于我们</span>
           </button>
-          <button
-            type="button"
-            className={tabClass(activeTab === "admin")}
-            onClick={() => navigate("/admin")}
-          >
-            <SettingOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-            <span>后台管理</span>
-          </button>
-          <Popover
-            trigger="click"
-            placement="bottom"
-            content={aboutContent}
-            overlayClassName="workspace-info-popover"
-          >
-            <button type="button" className={tabClass(false)}>
-              <InfoCircleOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-              <span>关于我们</span>
-            </button>
-          </Popover>
-      </div>
+        </Popover>
+      </nav>
 
       <div className="header-account-actions">
         <Popover

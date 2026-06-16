@@ -35,9 +35,7 @@ export default defineConfig(({ mode }) => {
           if (context.hostType !== "html") {
             return deps;
           }
-          return deps.filter(
-            (dep) => !/assets\/js\/admin-/.test(dep),
-          );
+          return deps.filter((dep) => !/assets\/js\/admin-/.test(dep));
         },
       },
       // 代码分割策略
