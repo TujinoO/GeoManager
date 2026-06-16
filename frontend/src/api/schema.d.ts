@@ -595,6 +595,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/catalog/workspaces/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 获取工程和专题列表
+         * @description 返回当前登录用户私有保存的工程或专题工作台快照。可按 kind 过滤工程或专题。
+         */
+        get: operations["listCatalogWorkspaces"];
+        put?: never;
+        /**
+         * 保存工程或专题
+         * @description 将当前工作台图层树、顺序、显隐和可视化方案保存为当前用户私有工程或专题。
+         */
+        post: operations["createCatalogWorkspace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/workspaces/{workspaceId}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 获取工程或专题详情
+         * @description 返回当前用户拥有的单个工程或专题快照。
+         */
+        get: operations["getCatalogWorkspace"];
+        put?: never;
+        /**
+         * 更新或删除工程专题
+         * @description 更新当前用户拥有的工程/专题快照，或提交 action=delete 删除。
+         */
+        post: operations["updateCatalogWorkspace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/catalog/import/preview/": {
         parameters: {
             query?: never;
@@ -607,7 +655,8 @@ export interface paths {
         /**
          * 导入数据预检
          * @description 解析上传的 Excel/CSV 第一张表，按文本读取字段，自动推测经纬度列，
-         *     并返回样例行和字段列表。该接口不执行坐标数据校验，不写入数据。
+         *     并返回样例行、字段列表和建议入库目标是否重名。该接口不执行坐标数据校验，不写入数据。
+         *     需要 `core.upload_data` 或 `catalog.maintain_dataresource`。
          */
         post: operations["importPreview"];
         delete?: never;
@@ -627,7 +676,7 @@ export interface paths {
         put?: never;
         /**
          * 上传数据校验
-         * @description 按当前表单选择的导入类型和经纬度列校验上传文件，不写入数据
+         * @description 按当前表单选择的导入类型、入库表名和经纬度列校验上传文件，不写入数据。需要 `core.upload_data` 或 `catalog.maintain_dataresource`。
          */
         post: operations["importValidate"];
         delete?: never;
@@ -649,6 +698,7 @@ export interface paths {
          * 提交数据导入
          * @description 将预检后的 Excel/CSV 导入统一存储。选择地理数据时写入 GeoPackage，
          *     选择非地理数据时写入 SQLite。接口会同步创建或更新 DataResource。
+         *     需要 `core.upload_data` 或 `catalog.maintain_dataresource`；覆盖已有入库目标必须显式传入 overwrite=true。
          */
         post: operations["importCommit"];
         delete?: never;
@@ -1407,10 +1457,14 @@ export interface components {
             canViewDashboardActiveUsersCard: boolean;
             /** @description 是否可查看 Dashboard 系统信息 */
             canViewDashboardSystemCard: boolean;
+            /** @description 是否可查看总数据情况，包括数据大小、条目数和上传用户统计 */
+            canViewDataOverview: boolean;
             /** @description 是否可浏览数据目录 */
             canBrowseData: boolean;
             /** @description 是否可查询数据 */
             canQueryData: boolean;
+            /** @description 是否可上传数据；不同于维护存量数据权限，不包含删除、启停或默认可视化配置 */
+            canUploadData: boolean;
             /** @description 是否可加载矢量图层 */
             canLoadVectorLayer: boolean;
             /** @description 是否可加载栅格图层 */
@@ -1535,6 +1589,7 @@ export interface components {
             resources?: components["schemas"]["AdminDashboardResourceCard"];
             layers?: components["schemas"]["AdminDashboardLayerCard"];
             rasters?: components["schemas"]["AdminDashboardRasterCard"];
+            dataOverview?: components["schemas"]["AdminDashboardDataOverviewCard"];
             users?: components["schemas"]["AdminDashboardUserCard"];
             activeUsers?: components["schemas"]["AdminDashboardActiveUsers"];
         };
@@ -1557,6 +1612,42 @@ export interface components {
             datasets: number;
             /** @description 栅格图层数量 */
             layers: number;
+        };
+        AdminDashboardDataOverviewCard: {
+            /** @description 数据资源总数 */
+            totalResources: number;
+            /** @description 启用状态数据资源数量 */
+            activeResources: number;
+            /** @description 数据总大小，单位字节 */
+            totalSizeBytes: number;
+            /** @description 数据条目总数 */
+            totalItemCount: number;
+            /** @description 按数据类型聚合的数据情况 */
+            typeBreakdown: components["schemas"]["AdminDashboardDataTypeOverview"][];
+            /** @description 超级管理员可见的上传用户统计；普通用户无该字段 */
+            uploaders?: components["schemas"]["AdminDashboardUploaderOverview"][];
+        };
+        AdminDashboardDataTypeOverview: {
+            /**
+             * @description 数据类型
+             * @enum {string}
+             */
+            dataType: "vector" | "raster" | "gene" | "table" | "document" | "image";
+            /** @description 该类型数据资源数量 */
+            count: number;
+            /** @description 该类型数据大小，单位字节 */
+            sizeBytes: number;
+            /** @description 该类型数据条目数 */
+            itemCount: number;
+        };
+        AdminDashboardUploaderOverview: {
+            user: components["schemas"]["UserReference"];
+            /** @description 该用户上传或维护的数据资源数量 */
+            resourceCount: number;
+            /** @description 该用户数据大小，单位字节 */
+            sizeBytes: number;
+            /** @description 该用户数据条目数 */
+            itemCount: number;
         };
         AdminDashboardUserCard: {
             /** @description 系统用户总数 */
@@ -1719,6 +1810,8 @@ export interface components {
             groupIds: number[];
             /** @description 用户账号是否启用 */
             isActive: boolean;
+            /** @description 用户通过所属用户组继承的平台功能权限列表 */
+            groupPermissions: string[];
             /** @description 单独授予该用户的平台功能权限列表，不包含用户组继承权限 */
             directPermissions: string[];
             /** @description 用户组权限与用户直授权限合并后，扣除用户主动关闭权限的实际生效功能权限列表 */
@@ -1874,6 +1967,10 @@ export interface components {
             description: string;
             /** @description 数据质量说明 */
             qualityNote: string;
+            /** @description 数据大小，单位字节；未知时为 0 */
+            sizeBytes: number;
+            /** @description 数据条目数；未知时为 0 */
+            itemCount: number;
             /**
              * @description 数据资源状态
              * @enum {string}
@@ -1966,6 +2063,10 @@ export interface components {
             defaultVisualization: {
                 [key: string]: unknown;
             };
+            /** @description 数据大小，单位字节；未知时为 0 */
+            sizeBytes: number;
+            /** @description 数据条目数；未知时为 0 */
+            itemCount: number;
             /**
              * @description 数据资源状态
              * @enum {string}
@@ -1973,8 +2074,10 @@ export interface components {
             status: "active" | "inactive";
             /** @description 允许访问该数据资源的用户组；空数组表示不限制用户组 */
             accessGroups: components["schemas"]["AdminDataResourceAccessGroup"][];
-            /** @description 维护人员显示名称 */
+            /** @description 维护人员显示名称；兼容旧前端字段 */
             maintainer: string;
+            /** @description 上传或维护该资源的用户；无法归属时为 null */
+            uploader: components["schemas"]["AdminDataResourceUploader"] | null;
             /**
              * Format: date-time
              * @description 创建时间
@@ -1987,6 +2090,14 @@ export interface components {
             updatedAt: string;
             /** @description 关联默认地图图层，非空间数据可为 null */
             defaultLayer: components["schemas"]["AdminDataResourceLayer"] | null;
+        };
+        AdminDataResourceUploader: {
+            /** @description 用户 ID */
+            id: number;
+            /** @description 登录用户名 */
+            username: string;
+            /** @description 展示名称 */
+            displayName: string;
         };
         AdminDataResourceListResponse: {
             /** @description 存量数据资源列表 */
@@ -2028,6 +2139,84 @@ export interface components {
             accessGroupIds?: number[];
             /** @description delete 操作要求传入与数据资源名称完全一致的确认文本 */
             confirmationName?: string;
+        };
+        WorkspaceSceneOwner: {
+            /** @description 所属用户 ID */
+            id: number;
+            /** @description 所属用户名 */
+            username: string;
+            /** @description 所属用户展示名称 */
+            displayName: string;
+        };
+        UserReference: {
+            /** @description 用户 ID；未记录用户时为 null */
+            id: number | null;
+            /** @description 登录用户名；未记录时为空字符串 */
+            username: string;
+            /** @description 展示名称；未记录时为“未记录” */
+            displayName: string;
+        };
+        /** @description 工作台快照 JSON。前端保存图层组、顺序、显隐、符号化、栅格渲染元数据和视图状态，后端仅持久化不解释。 */
+        WorkspaceSceneSnapshot: {
+            [key: string]: unknown;
+        };
+        WorkspaceScene: {
+            /** @description 工程或专题 ID */
+            id: number;
+            /**
+             * @description 场景类型：工程或专题
+             * @enum {string}
+             */
+            kind: "project" | "topic";
+            /** @description 工程或专题名称 */
+            name: string;
+            /** @description 工程或专题说明 */
+            description: string;
+            snapshot: components["schemas"]["WorkspaceSceneSnapshot"];
+            owner: components["schemas"]["WorkspaceSceneOwner"];
+            /**
+             * Format: date-time
+             * @description 创建时间
+             */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description 更新时间
+             */
+            updatedAt: string;
+        };
+        WorkspaceSceneListResponse: {
+            /** @description 当前用户保存的工程或专题 */
+            items: components["schemas"]["WorkspaceScene"][];
+        };
+        WorkspaceSceneCreateRequest: {
+            /**
+             * @description 保存类型
+             * @enum {string}
+             */
+            kind: "project" | "topic";
+            /** @description 工程或专题名称 */
+            name: string;
+            /** @description 工程或专题说明 */
+            description?: string;
+            snapshot: components["schemas"]["WorkspaceSceneSnapshot"];
+        };
+        WorkspaceSceneUpdateRequest: {
+            /**
+             * @description 传 delete 时删除该工程或专题；不传时更新字段
+             * @enum {string}
+             */
+            action?: "delete";
+            /**
+             * @description 更新后的类型
+             * @enum {string}
+             */
+            kind?: "project" | "topic";
+            /** @description 更新后的名称 */
+            name?: string;
+            /** @description 更新后的说明 */
+            description?: string;
+            snapshot?: components["schemas"]["WorkspaceSceneSnapshot"];
         };
         VectorLayerResource: {
             /** @description 由 GeoPackage 图层名称生成的临时资源 ID */
@@ -2312,6 +2501,8 @@ export interface components {
             suggestedTableName: string;
             /** @description 建议数据名称 */
             suggestedName: string;
+            /** @description 按建议入库表名检测到的重复目标；无重复时为 null */
+            duplicateTarget: components["schemas"]["ImportDuplicateTarget"] | null;
             detected: components["schemas"]["ImportDetectedInfo"];
             /** @description 导入限制提示 */
             limitations: string[];
@@ -2333,6 +2524,19 @@ export interface components {
             coordinateStats: components["schemas"]["CoordinateStats"] | null;
             /** @description 坐标校验问题 */
             validationIssues: components["schemas"]["ValidationIssue"][];
+            /** @description 按当前入库表名和导入类型检测到的重复目标；无重复时为 null */
+            duplicateTarget: components["schemas"]["ImportDuplicateTarget"] | null;
+        };
+        ImportDuplicateTarget: {
+            /**
+             * @description 重复目标类型
+             * @enum {string}
+             */
+            targetType: "geopackage_layer" | "sqlite_table";
+            /** @description 重复的 GeoPackage 图层名或 SQLite 表名 */
+            targetName: string;
+            /** @description 用户可读提示 */
+            message: string;
         };
         CoordinateStats: {
             /** @description 总行数 */
@@ -2418,6 +2622,13 @@ export interface components {
             maxMeters?: number;
             /** @description 坐标不确定性误差倍率 */
             ratio?: number;
+            /**
+             * @description 重复目标类型，仅 duplicate_target 问题返回
+             * @enum {string}
+             */
+            targetType?: "geopackage_layer" | "sqlite_table";
+            /** @description 重复的 GeoPackage 图层名或 SQLite 表名，仅 duplicate_target 问题返回 */
+            targetName?: string;
         };
         ResourceProfileResponse: {
             resource: components["schemas"]["ResourceListItem"];
@@ -3650,6 +3861,112 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
+    listCatalogWorkspaces: {
+        parameters: {
+            query?: {
+                /** @description 工作台快照类型；project 表示工程，topic 表示专题 */
+                kind?: "project" | "topic";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceSceneListResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createCatalogWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceSceneCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 保存成功 */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceScene"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getCatalogWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 工程或专题 ID */
+                workspaceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceScene"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateCatalogWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 工程或专题 ID */
+                workspaceId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceSceneUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description 操作成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceScene"] | components["schemas"]["DetailResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     importPreview: {
         parameters: {
             query?: never;
@@ -3698,7 +4015,7 @@ export interface operations {
                      * @description 与预检一致的文件
                      */
                     file: string;
-                    /** @description JSON 字符串，包含 importMode、longitudeColumn、latitudeColumn */
+                    /** @description JSON 字符串，包含 importMode、tableName、longitudeColumn、latitudeColumn */
                     payload: string;
                 };
             };

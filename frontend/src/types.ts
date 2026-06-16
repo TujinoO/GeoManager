@@ -50,6 +50,7 @@ export type ResourceListItem = Schemas["ResourceListItem"];
 export type ResourceField = Schemas["FieldInfo"];
 export type ImportCoordinateStats = Schemas["CoordinateStats"];
 export type ImportValidationIssue = Schemas["ValidationIssue"];
+export type ImportDuplicateTarget = Schemas["ImportDuplicateTarget"];
 export type ImportPreview = Schemas["ImportPreviewResponse"];
 export type ImportValidateResult = Schemas["ImportValidateResponse"];
 export type ImportCommitResult = Schemas["ImportCommitResponse"];
@@ -67,6 +68,19 @@ export type RasterUniqueValuesResult = Schemas["UniqueValuesResponse"];
 export type RasterJob = Schemas["AsyncJobResponse"];
 export type Achievement = Schemas["Achievement"];
 export type SearchResult = Schemas["SearchResponse"];
+export type WorkspaceScene = Schemas["WorkspaceScene"];
+export type WorkspaceSceneCreateRequest =
+  Schemas["WorkspaceSceneCreateRequest"];
+export type WorkspaceSceneUpdateRequest =
+  Schemas["WorkspaceSceneUpdateRequest"];
+export type WorkspaceSceneKind = WorkspaceScene["kind"];
+export type WorkspaceSceneSnapshot = Schemas["WorkspaceSceneSnapshot"] & {
+  version?: number;
+  groups?: LoadedLayerGroup[];
+  selectedLayerId?: string | null;
+  mapView?: MapViewState | null;
+  savedAt?: string;
+};
 
 export type DataResourceProfile = Schemas["ResourceProfileResponse"];
 
@@ -84,6 +98,7 @@ export interface ImportCommitPayload {
 
 export interface ImportValidatePayload {
   importMode: "geographic" | "table";
+  tableName?: string;
   longitudeColumn?: string;
   latitudeColumn?: string;
 }

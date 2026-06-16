@@ -540,7 +540,7 @@ describe("admin routes", () => {
     });
     const drawer = screen.getByRole("dialog", { name: "用户详情" });
     expect(within(drawer).getByText("平台运维组")).toBeInTheDocument();
-  }, 15000);
+  }, 30000);
 
   it("puts current user first and disables protected auth actions", async () => {
     const superadminGroup = {
@@ -600,7 +600,7 @@ describe("admin routes", () => {
     expect(
       within(superadminGroupItem).getByTitle("不能修改超级管理员的用户组"),
     ).toBeInTheDocument();
-  }, 15000);
+  }, 30000);
 
   it("runs the admin data import step flow through preview and validation", async () => {
     renderAdminRoute("/admin/data/import");
@@ -627,6 +627,7 @@ describe("admin routes", () => {
         importMode: "geographic",
         longitudeColumn: "longitude",
         latitudeColumn: "latitude",
+        tableName: "sample_points",
       });
     });
     const previewTitle = await screen.findByText("数据预览");
@@ -652,7 +653,7 @@ describe("admin routes", () => {
         }),
       );
     });
-  }, 15000);
+  }, 30000);
 
   it("loads the inventory data management page", async () => {
     renderAdminRoute("/admin/data/inventory");

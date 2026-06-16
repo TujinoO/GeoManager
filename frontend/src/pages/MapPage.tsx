@@ -2,11 +2,22 @@ import {
   ApartmentOutlined,
   AppstoreOutlined,
   DatabaseOutlined,
+  DeleteOutlined,
+  FolderOpenOutlined,
 } from "@ant-design/icons";
-import { App, Layout, Tabs, Tag, Typography } from "antd";
+import {
+  App,
+  Button,
+  Empty,
+  Layout,
+  Popconfirm,
+  Space,
+  Tabs,
+  Tag,
+  Typography,
+} from "antd";
 import type { LngLatBounds, Map as MapboxMap } from "mapbox-gl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import DataPanel from "../components/DataPanel";
 import LayerDataTableModal from "../components/LayerDataTableModal";
@@ -34,6 +45,7 @@ import type {
   GeoJsonGeometry,
   GeoJsonValidationWarning,
   LoadedLayer,
+  LoadedLayerGroup,
   LoadedRasterLayer,
   LoadedVectorLayer,
   MapViewState,
@@ -41,6 +53,9 @@ import type {
   ResourceListItem,
   ResourceQueryResult,
   SpatialFilter,
+  WorkspaceScene,
+  WorkspaceSceneKind,
+  WorkspaceSceneSnapshot,
 } from "../types";
 import { downloadBlob } from "../utils/download";
 import {
@@ -74,8 +89,10 @@ const emptyPermissions = {
   canViewDashboardUserCard: false,
   canViewDashboardActiveUsersCard: false,
   canViewDashboardSystemCard: false,
+  canViewDataOverview: false,
   canBrowseData: false,
   canQueryData: false,
+  canUploadData: false,
   canLoadVectorLayer: false,
   canLoadRasterLayer: false,
   canUseCustomSymbolization: false,
@@ -87,8 +104,6 @@ const emptyPermissions = {
 export default function MapPage() {
   const { bootstrap, user } = useAppContext();
   const { message, notification } = App.useApp();
-  const navigate = useNavigate();
-  const location = useLocation();
 
   const [resources, setResources] = useState<ResourceListItem[]>([]);
   const [selectedResource, setSelectedResource] =
@@ -121,8 +136,6 @@ export default function MapPage() {
   const startupScanStartedRef = useRef(false);
   const permissions = user?.permissions ?? emptyPermissions;
   const userRoles = user?.roles ?? [];
-  const activeWorkspace = location.pathname === "/nongeo" ? "nongeo" : "geo";
-  const isGeoWorkspace = activeWorkspace === "geo";
 
   const layerGroups = useLayerGroups(user ? `user-${user.id}` : "anonymous");
   const { startRasterRender, setMapInstance } = useRasterRender(
@@ -268,13 +281,17 @@ export default function MapPage() {
     setActiveDraw(mode ? { purpose: "query", mode } : null);
   }, []);
 
-  async function handleQuery(attributeFilters: AttributeFilter[]) {
+  async function handleQueryAndLoad(attributeFilters: AttributeFilter[]) {
     if (!permissions.canQueryData || !permissions.canLoadVectorLayer) {
       message.warning(permissionDeniedMessage);
       return;
     }
     if (!selectedResource) {
       message.warning("请先选择数据资源");
+      return;
+    }
+    if (!resourceProfile) {
+      message.warning("请先等待字段和元信息加载完成");
       return;
     }
     setQuerying(true);
@@ -286,32 +303,24 @@ export default function MapPage() {
       });
       setQueryResult(result);
       showGeojsonWarnings(notification, result.warnings);
-      message.success(`查询完成：返回 ${result.returnedCount} 条`);
+      if (result.returnedCount === 0) {
+        message.warning(`查询完成：返回 ${result.returnedCount} 条`);
+        return;
+      }
+      const group = createVectorLayerGroup(
+        selectedResource,
+        resourceProfile,
+        result,
+      );
+      layerGroups.addGroup(group);
+      setSelectedLayerId(group.children[0]?.id ?? null);
+      setDataPanelOpen(false);
+      message.success(`查询并加载完成：返回 ${result.returnedCount} 条`);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "查询失败");
+      message.error(error instanceof Error ? error.message : "查询并加载失败");
     } finally {
       setQuerying(false);
     }
-  }
-
-  function handleLoadResult() {
-    if (!permissions.canLoadVectorLayer) {
-      message.warning(permissionDeniedMessage);
-      return;
-    }
-    if (!selectedResource || !resourceProfile || !queryResult) return;
-    const group = createVectorLayerGroup(
-      selectedResource,
-      resourceProfile,
-      queryResult,
-    );
-    layerGroups.addGroup(group);
-    setSelectedLayerId(group.children[0]?.id ?? null);
-    setDataPanelOpen(false);
-    if (!isGeoWorkspace) {
-      navigate("/map");
-    }
-    message.success("查询结果已加载到图层");
   }
 
   function handleLoadRaster() {
@@ -329,9 +338,6 @@ export default function MapPage() {
     setSelectedLayerId(group.children[0]?.id ?? null);
     setDataPanelOpen(false);
     const child = group.children[0] as LoadedRasterLayer;
-    if (!isGeoWorkspace) {
-      navigate("/map");
-    }
     void startRasterRender(
       group.id,
       child.id,
@@ -547,6 +553,65 @@ export default function MapPage() {
     [message, permissionDeniedMessage, permissions.canExportData],
   );
 
+  const saveWorkspace = useCallback(
+    async (
+      kind: WorkspaceSceneKind,
+      values: { name: string; description?: string },
+    ) => {
+      try {
+        await api.createWorkspace({
+          kind,
+          name: values.name.trim(),
+          description: values.description?.trim() ?? "",
+          snapshot: workspaceSnapshot(
+            layerGroups.groups,
+            selectedLayerId,
+            currentMapView,
+          ),
+        });
+        message.success(kind === "project" ? "工程已保存" : "专题已保存");
+      } catch (error) {
+        message.error(
+          error instanceof Error
+            ? error.message
+            : kind === "project"
+              ? "工程保存失败"
+              : "专题保存失败",
+        );
+        throw error;
+      }
+    },
+    [currentMapView, layerGroups.groups, message, selectedLayerId],
+  );
+
+  const loadWorkspaceScene = useCallback(
+    (scene: WorkspaceScene) => {
+      const snapshot = scene.snapshot as WorkspaceSceneSnapshot;
+      if (!Array.isArray(snapshot.groups)) {
+        message.warning("该工作区快照不包含可恢复的图层");
+        return;
+      }
+      layerGroups.replaceGroups(snapshot.groups);
+      setSelectedLayerId(snapshot.selectedLayerId ?? null);
+      setTableLayer(null);
+      setSelectedFeature(null);
+      if (snapshot.mapView && mapInstanceRef.current) {
+        mapInstanceRef.current.flyTo({
+          center: snapshot.mapView.center,
+          zoom: snapshot.mapView.zoom,
+          bearing: snapshot.mapView.bearing,
+          pitch: snapshot.mapView.pitch,
+          duration: 800,
+          essential: true,
+        });
+      }
+      message.success(
+        `已加载${scene.kind === "project" ? "工程" : "专题"}：${scene.name}`,
+      );
+    },
+    [layerGroups, message],
+  );
+
   const layerContextValue: LayerContextValue = {
     groups: layerGroups.groups,
     selectedLayerId,
@@ -559,6 +624,7 @@ export default function MapPage() {
       setTableLayer(layer);
     },
     addGroup: layerGroups.addGroup,
+    replaceGroups: layerGroups.replaceGroups,
     updateLayer: layerGroups.updateLayer,
     updateRasterLayer: layerGroups.updateRasterLayer,
     setGroupVisibility: layerGroups.setGroupVisibility,
@@ -570,6 +636,7 @@ export default function MapPage() {
     removeGroup: layerGroups.removeGroup,
     removeLayer: layerGroups.removeLayer,
     reorderGroups: layerGroups.reorderGroups,
+    moveLayer: layerGroups.moveLayer,
     startRasterRender: (groupId, layerId, symbolization, layer, rulesMode) =>
       void startRasterRender(groupId, layerId, symbolization, layer, rulesMode),
     locateLayer,
@@ -580,6 +647,7 @@ export default function MapPage() {
     exportClipGeometry: sharedSpatialGeometry,
     clearExportClipGeometry: () => setSpatialFilter(null),
     exportLayers,
+    saveWorkspace,
   };
 
   const renderDataPanel = () => (
@@ -593,8 +661,7 @@ export default function MapPage() {
       permissions={permissions}
       onFilterResources={loadResources}
       onSelectResource={handleSelectResource}
-      onQuery={handleQuery}
-      onLoadResult={handleLoadResult}
+      onQueryAndLoad={handleQueryAndLoad}
       onLoadRaster={handleLoadRaster}
     />
   );
@@ -603,155 +670,240 @@ export default function MapPage() {
   return (
     <Layout className="workspace">
       <WorkspaceHeader
-        activeTab={isGeoWorkspace ? "map" : "nongeo"}
+        activeTab="map"
         canBrowseData={permissions.canBrowseData}
         dataPanel={dataPanel}
         dataPanelOpen={dataPanelOpen}
         onDataPanelOpenChange={setDataPanelOpen}
       />
-      <div
-        className={
-          isGeoWorkspace
-            ? "workspace-body"
-            : "workspace-body workspace-body-nongeo"
-        }
-      >
-        {isGeoWorkspace ? (
-          <>
-            <main className="map-stage">
-              <MapCanvas
-                bootstrap={bootstrap}
-                loadedLayers={mapLayers}
-                drawMode={activeDraw?.mode ?? null}
-                spatialFilter={spatialFilter}
-                layerExtentGeometry={selectedLayerExtentGeometry}
-                layerExtentTargetLayer={selectedLayer}
-                onDrawComplete={handleDrawComplete}
-                onFeatureSelect={setSelectedFeature}
-                onMapReady={handleMapReady}
-                onMapDestroy={handleMapDestroy}
-                onViewStateChange={setCurrentMapView}
-              />
-            </main>
-            <aside className="floating-panel floating-panel-left">
-              <LayerContext.Provider value={layerContextValue}>
-                <Tabs
-                  className="workspace-side-tabs workspace-left-tabs"
-                  defaultActiveKey="data"
-                  size="small"
-                  items={[
-                    {
-                      key: "data",
-                      label: (
-                        <span className="tab-label">
-                          <DatabaseOutlined style={{ fontSize: 14 }} />
-                          数据
-                        </span>
-                      ),
-                      children: renderDataPanel(),
-                    },
-                    {
-                      key: "layers",
-                      label: (
-                        <span className="tab-label">
-                          <ApartmentOutlined style={{ fontSize: 14 }} />
-                          图层
-                        </span>
-                      ),
-                      children: <LayerPanel />,
-                    },
-                    {
-                      key: "topics",
-                      label: (
-                        <span className="tab-label">
-                          <AppstoreOutlined style={{ fontSize: 14 }} />
-                          专题
-                        </span>
-                      ),
-                      children: <TopicWorkspacePanel />,
-                    },
-                  ]}
-                />
-                <LayerDataTableModal
-                  layer={tableLayer}
-                  open={Boolean(tableLayer)}
-                  onClose={() => setTableLayer(null)}
-                  onSelectionChange={handleSelectionChange}
-                />
-              </LayerContext.Provider>
-            </aside>
-            <aside
-              className="floating-panel floating-panel-right"
-              aria-label="要素信息面板"
-            >
-              <RightSidePanel
-                selectedFeature={selectedFeature}
-                currentView={currentMapView}
-              />
-            </aside>
-            <aside
-              className="floating-panel-bottom"
-              aria-label="底部数据与绘制面板"
-            >
-              <WorkspaceBottomPanel
-                selectedLayer={selectedLayer}
-                exportClipGeometry={sharedSpatialGeometry}
-                spatialFilter={spatialFilter}
-                layerExtentVisible={layerExtentVisible}
-                activeDraw={activeDraw}
-                onStartQueryDraw={setQueryDrawMode}
-                onLayerExtentVisibleChange={setLayerExtentVisible}
-                onClearSpatialFilter={() => setSpatialFilter(null)}
-                onImportSpatialFilter={setSpatialFilter}
-              />
-            </aside>
-          </>
-        ) : (
-          <main className="nongeo-stage" aria-label="非地理可视化" />
-        )}
+      <div className="workspace-body">
+        <main className="map-stage">
+          <MapCanvas
+            bootstrap={bootstrap}
+            loadedLayers={mapLayers}
+            drawMode={activeDraw?.mode ?? null}
+            spatialFilter={spatialFilter}
+            layerExtentGeometry={selectedLayerExtentGeometry}
+            layerExtentTargetLayer={selectedLayer}
+            onDrawComplete={handleDrawComplete}
+            onFeatureSelect={setSelectedFeature}
+            onMapReady={handleMapReady}
+            onMapDestroy={handleMapDestroy}
+            onViewStateChange={setCurrentMapView}
+          />
+        </main>
+        <aside className="floating-panel floating-panel-left">
+          <LayerContext.Provider value={layerContextValue}>
+            <Tabs
+              className="workspace-side-tabs workspace-left-tabs"
+              defaultActiveKey="data"
+              size="small"
+              items={[
+                {
+                  key: "data",
+                  label: (
+                    <span className="tab-label">
+                      <DatabaseOutlined style={{ fontSize: 14 }} />
+                      数据
+                    </span>
+                  ),
+                  children: renderDataPanel(),
+                },
+                {
+                  key: "layers",
+                  label: (
+                    <span className="tab-label">
+                      <ApartmentOutlined style={{ fontSize: 14 }} />
+                      图层
+                    </span>
+                  ),
+                  children: <LayerPanel />,
+                },
+                {
+                  key: "projects",
+                  label: (
+                    <span className="tab-label">
+                      <FolderOpenOutlined style={{ fontSize: 14 }} />
+                      工程
+                    </span>
+                  ),
+                  children: (
+                    <WorkspaceScenePanel
+                      kind="project"
+                      onLoad={loadWorkspaceScene}
+                    />
+                  ),
+                },
+                {
+                  key: "topics",
+                  label: (
+                    <span className="tab-label">
+                      <AppstoreOutlined style={{ fontSize: 14 }} />
+                      专题
+                    </span>
+                  ),
+                  children: (
+                    <WorkspaceScenePanel
+                      kind="topic"
+                      onLoad={loadWorkspaceScene}
+                    />
+                  ),
+                },
+              ]}
+            />
+            <LayerDataTableModal
+              layer={tableLayer}
+              open={Boolean(tableLayer)}
+              onClose={() => setTableLayer(null)}
+              onSelectionChange={handleSelectionChange}
+            />
+          </LayerContext.Provider>
+        </aside>
+        <aside
+          className="floating-panel floating-panel-right"
+          aria-label="要素信息面板"
+        >
+          <RightSidePanel
+            selectedFeature={selectedFeature}
+            currentView={currentMapView}
+          />
+        </aside>
+        <aside
+          className="floating-panel-bottom"
+          aria-label="底部数据与绘制面板"
+        >
+          <WorkspaceBottomPanel
+            selectedLayer={selectedLayer}
+            exportClipGeometry={sharedSpatialGeometry}
+            spatialFilter={spatialFilter}
+            layerExtentVisible={layerExtentVisible}
+            activeDraw={activeDraw}
+            onStartQueryDraw={setQueryDrawMode}
+            onLayerExtentVisibleChange={setLayerExtentVisible}
+            onClearSpatialFilter={() => setSpatialFilter(null)}
+            onImportSpatialFilter={setSpatialFilter}
+          />
+        </aside>
       </div>
     </Layout>
   );
 }
 
-function TopicWorkspacePanel() {
+function WorkspaceScenePanel({
+  kind,
+  onLoad,
+}: {
+  kind: WorkspaceSceneKind;
+  onLoad: (scene: WorkspaceScene) => void;
+}) {
+  const { message } = App.useApp();
+  const [items, setItems] = useState<WorkspaceScene[]>([]);
+  const [loading, setLoading] = useState(false);
+  const label = kind === "project" ? "工程" : "专题";
+
+  const loadItems = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await api.workspaces(kind);
+      setItems(result.items);
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : `${label}加载失败`,
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [kind, label, message]);
+
+  useEffect(() => {
+    void loadItems();
+  }, [loadItems]);
+
+  async function removeScene(scene: WorkspaceScene) {
+    try {
+      await api.deleteWorkspace(scene.id);
+      setItems((current) => current.filter((item) => item.id !== scene.id));
+      message.success(`${label}已删除`);
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : `${label}删除失败`,
+      );
+    }
+  }
+
   return (
     <section className="panel-section topic-workspace-panel">
       <div className="panel-title">
-        <AppstoreOutlined style={{ fontSize: 18 }} />
-        <Typography.Title level={5}>专题场景</Typography.Title>
+        {kind === "project" ? (
+          <FolderOpenOutlined style={{ fontSize: 18 }} />
+        ) : (
+          <AppstoreOutlined style={{ fontSize: 18 }} />
+        )}
+        <Typography.Title level={5}>{label}工作区</Typography.Title>
       </div>
-      <div className="topic-summary-card">
-        <Typography.Text strong>生态保护专题工作区</Typography.Text>
-        <Typography.Text type="secondary">
-          后续可承载胡杨林分布、水文生态、遥感监测等专题入口。
-        </Typography.Text>
-      </div>
-      <div className="topic-scenario-list">
-        <button type="button" className="topic-scenario-row">
-          <span>
-            <strong>胡杨林分布专题</strong>
-            <small>边界、密度、保护等级</small>
-          </span>
-          <Tag color="green">待完善</Tag>
-        </button>
-        <button type="button" className="topic-scenario-row">
-          <span>
-            <strong>水文生态专题</strong>
-            <small>河流、地下水、监测站点</small>
-          </span>
-          <Tag color="blue">待完善</Tag>
-        </button>
-        <button type="button" className="topic-scenario-row">
-          <span>
-            <strong>遥感影像专题</strong>
-            <small>NDVI、地表温度、土地覆盖</small>
-          </span>
-          <Tag color="gold">待完善</Tag>
-        </button>
-      </div>
+      <Button size="small" onClick={() => void loadItems()} loading={loading}>
+        刷新
+      </Button>
+      {items.length === 0 ? (
+        <Empty
+          className="layer-empty"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={`暂无已保存${label}`}
+        />
+      ) : (
+        <div className="topic-scenario-list">
+          {items.map((scene) => (
+            <div key={scene.id} className="topic-scenario-row">
+              <button type="button" onClick={() => onLoad(scene)}>
+                <span>
+                  <strong>{scene.name}</strong>
+                  <small>
+                    {scene.description ||
+                      new Date(scene.updatedAt).toLocaleString("zh-CN", {
+                        hour12: false,
+                      })}
+                  </small>
+                </span>
+                <Tag color={kind === "project" ? "blue" : "green"}>{label}</Tag>
+              </button>
+              <Space size={4}>
+                <Button size="small" onClick={() => onLoad(scene)}>
+                  加载
+                </Button>
+                <Popconfirm
+                  title={`删除${label}`}
+                  description={`确认删除“${scene.name}”？`}
+                  okText="删除"
+                  cancelText="取消"
+                  onConfirm={() => removeScene(scene)}
+                >
+                  <Button
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined style={{ fontSize: 14 }} />}
+                  />
+                </Popconfirm>
+              </Space>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
+}
+
+function workspaceSnapshot(
+  groups: LoadedLayerGroup[],
+  selectedLayerId: string | null,
+  mapView: MapViewState | null,
+): WorkspaceSceneSnapshot {
+  return {
+    version: 1,
+    groups,
+    selectedLayerId,
+    mapView,
+    savedAt: new Date().toISOString(),
+  };
 }
 
 function showGeojsonWarnings(

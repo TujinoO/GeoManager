@@ -36,7 +36,9 @@
           "canUseCustomSymbolization": true,
           "canExportData": true,
           "canMaintainData": true,
-          "canManageRasterData": true
+          "canManageRasterData": true,
+          "canUploadData": true,
+          "canViewDataOverview": true
         },
         "groupIds": [
           1
@@ -46,11 +48,20 @@
         "effectivePermissions": [
           "core.manage_auth",
           "core.browse_data",
-          "core.query_data"
+          "core.query_data",
+          "core.upload_data",
+          "core.view_data_overview"
         ],
         "operationLogGroupIds": [
           1,
           2
+        ],
+        "groupPermissions": [
+          "core.manage_auth",
+          "core.browse_data",
+          "core.query_data",
+          "core.upload_data",
+          "core.view_data_overview"
         ]
       },
       "avatarUrl": "",
@@ -81,7 +92,22 @@
           "id": "core.query_data",
           "label": "查询数据",
           "group": "数据权限"
+        },
+        {
+          "id": "core.view_data_overview",
+          "label": "查看总数据情况",
+          "group": "Dashboard 权限"
+        },
+        {
+          "id": "core.upload_data",
+          "label": "上传数据",
+          "group": "数据权限"
         }
+      ],
+      "groupPermissions": [
+        "core.manage_auth",
+        "core.browse_data",
+        "core.query_data"
       ]
     }
   },
@@ -122,7 +148,9 @@
           "canUseCustomSymbolization": true,
           "canExportData": true,
           "canMaintainData": true,
-          "canManageRasterData": true
+          "canManageRasterData": true,
+          "canUploadData": true,
+          "canViewDataOverview": true
         },
         "groupIds": [
           1
@@ -132,11 +160,20 @@
         "effectivePermissions": [
           "core.manage_auth",
           "core.browse_data",
-          "core.query_data"
+          "core.query_data",
+          "core.upload_data",
+          "core.view_data_overview"
         ],
         "operationLogGroupIds": [
           1,
           2
+        ],
+        "groupPermissions": [
+          "core.manage_auth",
+          "core.browse_data",
+          "core.query_data",
+          "core.upload_data",
+          "core.view_data_overview"
         ]
       },
       "avatarUrl": "",
@@ -157,7 +194,22 @@
           "id": "core.manage_auth",
           "label": "认证授权管理",
           "group": "人员权限"
+        },
+        {
+          "id": "core.view_data_overview",
+          "label": "查看总数据情况",
+          "group": "Dashboard 权限"
+        },
+        {
+          "id": "core.upload_data",
+          "label": "上传数据",
+          "group": "数据权限"
         }
+      ],
+      "groupPermissions": [
+        "core.manage_auth",
+        "core.browse_data",
+        "core.query_data"
       ]
     }
   },
@@ -198,7 +250,9 @@
           "canUseCustomSymbolization": true,
           "canExportData": true,
           "canMaintainData": true,
-          "canManageRasterData": true
+          "canManageRasterData": true,
+          "canUploadData": true,
+          "canViewDataOverview": true
         },
         "groupIds": [
           1
@@ -207,11 +261,19 @@
         "directPermissions": [],
         "effectivePermissions": [
           "core.manage_auth",
-          "core.browse_data"
+          "core.browse_data",
+          "core.upload_data",
+          "core.view_data_overview"
         ],
         "operationLogGroupIds": [
           1,
           2
+        ],
+        "groupPermissions": [
+          "core.manage_auth",
+          "core.browse_data",
+          "core.upload_data",
+          "core.view_data_overview"
         ]
       },
       "avatarUrl": "",
@@ -233,7 +295,21 @@
           "id": "core.query_data",
           "label": "查询数据",
           "group": "数据权限"
+        },
+        {
+          "id": "core.view_data_overview",
+          "label": "查看总数据情况",
+          "group": "Dashboard 权限"
+        },
+        {
+          "id": "core.upload_data",
+          "label": "上传数据",
+          "group": "数据权限"
         }
+      ],
+      "groupPermissions": [
+        "core.manage_auth",
+        "core.browse_data"
       ]
     }
   },
@@ -280,7 +356,9 @@
             "canUseCustomSymbolization": true,
             "canExportData": true,
             "canMaintainData": true,
-            "canManageRasterData": true
+            "canManageRasterData": true,
+            "canUploadData": true,
+            "canViewDataOverview": true
           },
           "groupIds": [
             1
@@ -302,12 +380,33 @@
             "core.custom_symbolization",
             "catalog.export_dataresource",
             "catalog.maintain_dataresource",
-            "raster.manage_rasterdataset"
+            "raster.manage_rasterdataset",
+            "core.upload_data",
+            "core.view_data_overview"
           ],
           "operationLogGroupIds": [
             1,
             2,
             3
+          ],
+          "groupPermissions": [
+            "core.manage_auth",
+            "core.manage_feature_permissions",
+            "core.create_user",
+            "core.view_operation_logs",
+            "core.view_all_operation_logs",
+            "core.view_group_operation_logs",
+            "core.manage_system_settings",
+            "core.browse_data",
+            "core.query_data",
+            "core.load_vector_layer",
+            "core.load_raster_layer",
+            "core.custom_symbolization",
+            "catalog.export_dataresource",
+            "catalog.maintain_dataresource",
+            "raster.manage_rasterdataset",
+            "core.upload_data",
+            "core.view_data_overview"
           ]
         },
         {
@@ -345,7 +444,9 @@
             "canUseCustomSymbolization": false,
             "canExportData": true,
             "canMaintainData": false,
-            "canManageRasterData": false
+            "canManageRasterData": false,
+            "canUploadData": true,
+            "canViewDataOverview": true
           },
           "groupIds": [
             3
@@ -364,10 +465,25 @@
             "core.query_data",
             "core.load_vector_layer",
             "core.load_raster_layer",
-            "catalog.export_dataresource"
+            "catalog.export_dataresource",
+            "core.upload_data",
+            "core.view_data_overview"
           ],
           "operationLogGroupIds": [
             3
+          ],
+          "groupPermissions": [
+            "core.view_operation_logs",
+            "core.view_own_operation_logs",
+            "core.view_group_operation_logs",
+            "core.view_dashboard_resource_card",
+            "core.view_dashboard_layer_card",
+            "core.browse_data",
+            "core.query_data",
+            "core.load_vector_layer",
+            "core.load_raster_layer",
+            "core.upload_data",
+            "core.view_data_overview"
           ]
         },
         {
@@ -405,7 +521,9 @@
             "canUseCustomSymbolization": true,
             "canExportData": true,
             "canMaintainData": true,
-            "canManageRasterData": true
+            "canManageRasterData": true,
+            "canUploadData": true,
+            "canViewDataOverview": true
           },
           "groupIds": [
             4
@@ -425,10 +543,29 @@
             "core.custom_symbolization",
             "catalog.export_dataresource",
             "catalog.maintain_dataresource",
-            "raster.manage_rasterdataset"
+            "raster.manage_rasterdataset",
+            "core.upload_data",
+            "core.view_data_overview"
           ],
           "operationLogGroupIds": [
             4
+          ],
+          "groupPermissions": [
+            "core.view_operation_logs",
+            "core.view_own_operation_logs",
+            "core.view_dashboard_resource_card",
+            "core.view_dashboard_layer_card",
+            "core.view_dashboard_raster_card",
+            "core.browse_data",
+            "core.query_data",
+            "core.load_vector_layer",
+            "core.load_raster_layer",
+            "core.custom_symbolization",
+            "catalog.export_dataresource",
+            "catalog.maintain_dataresource",
+            "raster.manage_rasterdataset",
+            "core.upload_data",
+            "core.view_data_overview"
           ]
         },
         {
@@ -466,7 +603,9 @@
             "canUseCustomSymbolization": false,
             "canExportData": false,
             "canMaintainData": false,
-            "canManageRasterData": false
+            "canManageRasterData": false,
+            "canUploadData": true,
+            "canViewDataOverview": true
           },
           "groupIds": [
             2
@@ -476,9 +615,18 @@
           "effectivePermissions": [
             "core.browse_data",
             "core.query_data",
-            "core.load_vector_layer"
+            "core.load_vector_layer",
+            "core.upload_data",
+            "core.view_data_overview"
           ],
-          "operationLogGroupIds": []
+          "operationLogGroupIds": [],
+          "groupPermissions": [
+            "core.browse_data",
+            "core.query_data",
+            "core.load_vector_layer",
+            "core.upload_data",
+            "core.view_data_overview"
+          ]
         }
       ]
     }
@@ -520,7 +668,9 @@
           "canUseCustomSymbolization": false,
           "canExportData": true,
           "canMaintainData": false,
-          "canManageRasterData": false
+          "canManageRasterData": false,
+          "canUploadData": true,
+          "canViewDataOverview": true
         },
         "groupIds": [
           3
@@ -531,9 +681,19 @@
           "core.browse_data",
           "core.query_data",
           "core.load_vector_layer",
-          "core.load_raster_layer"
+          "core.load_raster_layer",
+          "core.upload_data",
+          "core.view_data_overview"
         ],
-        "operationLogGroupIds": []
+        "operationLogGroupIds": [],
+        "groupPermissions": [
+          "core.browse_data",
+          "core.query_data",
+          "core.load_vector_layer",
+          "core.load_raster_layer",
+          "core.upload_data",
+          "core.view_data_overview"
+        ]
       },
       "generatedPassword": "MockPwd-2026-7Xq"
     }
@@ -575,7 +735,9 @@
         "canUseCustomSymbolization": false,
         "canExportData": true,
         "canMaintainData": false,
-        "canManageRasterData": false
+        "canManageRasterData": false,
+        "canUploadData": true,
+        "canViewDataOverview": true
       },
       "groupIds": [
         3,
@@ -595,10 +757,25 @@
         "core.query_data",
         "core.load_vector_layer",
         "core.load_raster_layer",
-        "catalog.export_dataresource"
+        "catalog.export_dataresource",
+        "core.upload_data",
+        "core.view_data_overview"
       ],
       "operationLogGroupIds": [
         3
+      ],
+      "groupPermissions": [
+        "core.view_operation_logs",
+        "core.view_own_operation_logs",
+        "core.view_group_operation_logs",
+        "core.view_dashboard_resource_card",
+        "core.view_dashboard_layer_card",
+        "core.browse_data",
+        "core.query_data",
+        "core.load_vector_layer",
+        "core.load_raster_layer",
+        "core.upload_data",
+        "core.view_data_overview"
       ]
     }
   },
@@ -638,7 +815,9 @@
         "canUseCustomSymbolization": false,
         "canExportData": true,
         "canMaintainData": false,
-        "canManageRasterData": false
+        "canManageRasterData": false,
+        "canUploadData": true,
+        "canViewDataOverview": true
       },
       "groupIds": [
         3
@@ -658,10 +837,25 @@
         "core.query_data",
         "core.load_vector_layer",
         "core.load_raster_layer",
-        "catalog.export_dataresource"
+        "catalog.export_dataresource",
+        "core.upload_data",
+        "core.view_data_overview"
       ],
       "operationLogGroupIds": [
         3
+      ],
+      "groupPermissions": [
+        "core.view_operation_logs",
+        "core.view_own_operation_logs",
+        "core.view_group_operation_logs",
+        "core.view_dashboard_resource_card",
+        "core.view_dashboard_layer_card",
+        "core.browse_data",
+        "core.query_data",
+        "core.load_vector_layer",
+        "core.load_raster_layer",
+        "core.upload_data",
+        "core.view_data_overview"
       ]
     }
   },
@@ -707,7 +901,9 @@
         "canUseCustomSymbolization": false,
         "canExportData": false,
         "canMaintainData": false,
-        "canManageRasterData": false
+        "canManageRasterData": false,
+        "canUploadData": true,
+        "canViewDataOverview": true
       },
       "groupIds": [
         2
@@ -717,9 +913,18 @@
       "effectivePermissions": [
         "core.browse_data",
         "core.query_data",
-        "core.load_vector_layer"
+        "core.load_vector_layer",
+        "core.upload_data",
+        "core.view_data_overview"
       ],
-      "operationLogGroupIds": []
+      "operationLogGroupIds": [],
+      "groupPermissions": [
+        "core.browse_data",
+        "core.query_data",
+        "core.load_vector_layer",
+        "core.upload_data",
+        "core.view_data_overview"
+      ]
     }
   },
   "GET /api/groups/": {
@@ -747,7 +952,9 @@
             "core.custom_symbolization",
             "catalog.export_dataresource",
             "catalog.maintain_dataresource",
-            "raster.manage_rasterdataset"
+            "raster.manage_rasterdataset",
+            "core.view_data_overview",
+            "core.upload_data"
           ],
           "isProtected": true,
           "lockedPermissions": [
@@ -758,12 +965,14 @@
         },
         {
           "id": 2,
-          "name": "游客",
+          "name": "普通用户",
           "userCount": 1,
           "permissions": [
             "core.browse_data",
             "core.query_data",
-            "core.load_vector_layer"
+            "core.load_vector_layer",
+            "core.upload_data",
+            "core.load_raster_layer"
           ],
           "isProtected": true,
           "lockedPermissions": []
@@ -892,6 +1101,16 @@
         {
           "id": "raster.manage_rasterdataset",
           "label": "管理栅格数据",
+          "group": "数据权限"
+        },
+        {
+          "id": "core.view_data_overview",
+          "label": "查看总数据情况",
+          "group": "Dashboard 权限"
+        },
+        {
+          "id": "core.upload_data",
+          "label": "上传数据",
           "group": "数据权限"
         }
       ]

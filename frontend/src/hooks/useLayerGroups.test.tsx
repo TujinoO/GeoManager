@@ -152,6 +152,55 @@ describe("useLayerGroups", () => {
       "a",
     ]);
   });
+
+  it("moves layers within the same group", () => {
+    const { result } = renderHook(() => useLayerGroups());
+
+    act(() => {
+      result.current.setGroups([
+        makeGroup("group", [
+          makeVectorLayer("layer-a"),
+          makeVectorLayer("layer-b"),
+          makeVectorLayer("layer-c"),
+        ]),
+      ]);
+    });
+    act(() => {
+      result.current.moveLayer("group", "layer-a", "group", "layer-c", "after");
+    });
+
+    expect(result.current.groups[0].children.map((layer) => layer.id)).toEqual([
+      "layer-b",
+      "layer-c",
+      "layer-a",
+    ]);
+  });
+
+  it("moves layers across groups and removes emptied source groups", () => {
+    const { result } = renderHook(() => useLayerGroups());
+
+    act(() => {
+      result.current.setGroups([
+        makeGroup("source", [makeVectorLayer("moving")]),
+        makeGroup("target", [makeVectorLayer("target-layer")]),
+      ]);
+    });
+    act(() => {
+      result.current.moveLayer(
+        "source",
+        "moving",
+        "target",
+        "target-layer",
+        "before",
+      );
+    });
+
+    expect(result.current.groups.map((group) => group.id)).toEqual(["target"]);
+    expect(result.current.groups[0].children.map((layer) => layer.id)).toEqual([
+      "moving",
+      "target-layer",
+    ]);
+  });
 });
 
 function makeGroup(

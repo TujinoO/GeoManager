@@ -35,6 +35,7 @@ import type {
   ImportCommitPayload,
   ImportCommitResult,
   ImportCoordinateStats,
+  ImportDuplicateTarget,
   ImportPreview,
   ImportValidatePayload,
   ImportValidationIssue,
@@ -70,6 +71,8 @@ export default function AdminDataImportPage() {
   const [validationIssues, setValidationIssues] = useState<
     ImportValidationIssue[]
   >([]);
+  const [duplicateTarget, setDuplicateTarget] =
+    useState<ImportDuplicateTarget | null>(null);
   const [validationStats, setValidationStats] =
     useState<ImportCoordinateStats | null>(null);
   const [validating, setValidating] = useState(false);
@@ -116,7 +119,7 @@ export default function AdminDataImportPage() {
     (issue) => issue.code === "coordinate_uncertainty",
   );
 
-  if (!user?.permissions.canMaintainData) {
+  if (!user?.permissions.canMaintainData && !user?.permissions.canUploadData) {
     return <Navigate to="/admin/profile" replace />;
   }
 
@@ -126,6 +129,7 @@ export default function AdminDataImportPage() {
     setFieldMetadata({});
     setIncludedColumns([]);
     setValidationIssues([]);
+    setDuplicateTarget(null);
     setValidationStats(null);
     setHasValidated(false);
     setIgnoreCoordinateUncertainty(false);
@@ -148,6 +152,7 @@ export default function AdminDataImportPage() {
     try {
       const data = await api.importPreview(selectedFile);
       setPreview(data);
+      setDuplicateTarget(data.duplicateTarget ?? null);
       setFieldMetadata(
         Object.fromEntries(data.columns.map((column) => [column, ""])),
       );
@@ -182,6 +187,7 @@ export default function AdminDataImportPage() {
       setImportConfig((current) => ({ ...current, ...values }));
       const payload: ImportValidatePayload = {
         importMode: values.importMode,
+        tableName: preview.suggestedTableName,
         longitudeColumn: values.longitudeColumn,
         latitudeColumn: values.latitudeColumn,
       };
@@ -189,8 +195,13 @@ export default function AdminDataImportPage() {
       const validated = await api.importValidate(file, payload);
       setValidationStats(validated.coordinateStats);
       setValidationIssues(validated.validationIssues);
+      setDuplicateTarget(validated.duplicateTarget ?? null);
       setHasValidated(true);
       setIgnoreCoordinateUncertainty(false);
+      if (validated.duplicateTarget && !values.overwrite) {
+        message.warning(validated.duplicateTarget.message);
+        return;
+      }
       if (validated.validationIssues.length) {
         setPendingIssueAction("continue");
         setIssuesOpen(true);
@@ -243,6 +254,11 @@ export default function AdminDataImportPage() {
       }
       if (!values.importMode) {
         message.warning("请选择导入类型");
+        setCurrentStep(1);
+        return;
+      }
+      if (duplicateTarget && !values.overwrite) {
+        message.warning(duplicateTarget.message);
         setCurrentStep(1);
         return;
       }
@@ -316,12 +332,16 @@ export default function AdminDataImportPage() {
             if (
               "importMode" in changed ||
               "longitudeColumn" in changed ||
-              "latitudeColumn" in changed
+              "latitudeColumn" in changed ||
+              "overwrite" in changed
             ) {
               setValidationIssues([]);
               setValidationStats(null);
               setHasValidated(false);
               setIgnoreCoordinateUncertainty(false);
+              if ("importMode" in changed) {
+                setDuplicateTarget(null);
+              }
             }
           }}
         >
@@ -482,6 +502,13 @@ export default function AdminDataImportPage() {
                 />
               )}
 
+              {duplicateTarget && (
+                <DuplicateTargetAlert
+                  target={duplicateTarget}
+                  overwrite={Boolean(importConfig.overwrite)}
+                />
+              )}
+
               <Space className="import-actions">
                 <Button onClick={resetImportState}>重新选择文件</Button>
                 <Button
@@ -518,6 +545,12 @@ export default function AdminDataImportPage() {
                 <>
                   <section className="import-section">
                     <Typography.Title level={5}>数据预览</Typography.Title>
+                    {duplicateTarget && (
+                      <DuplicateTargetAlert
+                        target={duplicateTarget}
+                        overwrite={Boolean(importConfig.overwrite)}
+                      />
+                    )}
                     <div className="import-preview-scroll">
                       <Table
                         size="small"
@@ -697,6 +730,33 @@ function shouldBlockImport(
     (issue) =>
       issue.blocking ||
       (issue.code === "coordinate_uncertainty" && !ignoreCoordinateUncertainty),
+  );
+}
+
+function DuplicateTargetAlert({
+  target,
+  overwrite,
+}: {
+  target: ImportDuplicateTarget;
+  overwrite: boolean;
+}) {
+  return (
+    <Alert
+      type={overwrite ? "warning" : "error"}
+      showIcon
+      title={overwrite ? "检测到重复目标，将覆盖写入" : "检测到重复目标"}
+      description={
+        <Space orientation="vertical" size={4}>
+          <Typography.Text>{target.message}</Typography.Text>
+          <Typography.Text type="secondary">
+            {target.targetType === "geopackage_layer"
+              ? "GeoPackage 图层"
+              : "SQLite 表"}
+            ：{target.targetName}
+          </Typography.Text>
+        </Space>
+      }
+    />
   );
 }
 

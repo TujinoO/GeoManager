@@ -46,7 +46,14 @@ class ImporterUnitTests(SimpleTestCase):
             {"importMode": "table"},
         )
 
-        self.assertEqual(result, {"coordinateStats": None, "validationIssues": []})
+        self.assertEqual(
+            result,
+            {
+                "coordinateStats": None,
+                "validationIssues": [],
+                "duplicateTarget": None,
+            },
+        )
 
     def test_validate_rejects_unknown_import_mode(self):
         with self.assertRaisesRegex(

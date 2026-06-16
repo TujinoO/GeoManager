@@ -82,6 +82,8 @@ class DataResource(models.Model):
     default_visualization = models.JSONField(
         default=dict, blank=True, verbose_name="默认可视化方案"
     )
+    size_bytes = models.PositiveBigIntegerField(default=0, verbose_name="数据大小")
+    item_count = models.PositiveBigIntegerField(default=0, verbose_name="数据条目数")
     access_groups = models.ManyToManyField(
         Group, blank=True, related_name="data_resources", verbose_name="访问角色"
     )
@@ -113,6 +115,39 @@ class DataResource(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+
+class WorkspaceScene(models.Model):
+    class Kind(models.TextChoices):
+        PROJECT = "project", "工程"
+        TOPIC = "topic", "专题"
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="workspace_scenes",
+        verbose_name="所属用户",
+    )
+    kind = models.CharField(max_length=16, choices=Kind.choices, verbose_name="类型")
+    name = models.CharField(max_length=160, verbose_name="名称")
+    description = models.TextField(blank=True, verbose_name="说明")
+    snapshot = models.JSONField(default=dict, blank=True, verbose_name="工作台快照")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
+
+    class Meta:
+        verbose_name = "工作台场景"
+        verbose_name_plural = "工作台场景"
+        ordering = ("kind", "-updated_at", "id")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("owner", "kind", "name"),
+                name="uniq_workspace_scene_owner_kind_name",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()}：{self.name}"
 
 
 class DataCatalog(models.Model):

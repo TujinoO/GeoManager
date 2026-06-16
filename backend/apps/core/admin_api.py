@@ -18,7 +18,7 @@ from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.models import Group
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
@@ -407,7 +407,7 @@ def group_detail(request, group_id: int):
             )
         if is_guest_group(group) and name != GUEST_GROUP_NAME:
             return JsonResponse(
-                {"detail": "游客用户组名称不能修改"},
+                {"detail": "普通用户用户组名称不能修改"},
                 status=400,
             )
         group.name = name
@@ -922,6 +922,10 @@ def admin_dashboard(request):
             "series": _active_user_series(login_logs, period, period_start),
             "ranking": _active_user_ranking(login_logs),
         }
+    if has_feature_perm(request.user, "core.view_data_overview"):
+        cards["dataOverview"] = _data_overview_card(
+            include_uploaders=is_superadmin_user(request.user)
+        )
 
     return JsonResponse(
         {
@@ -1004,6 +1008,75 @@ def _active_user_ranking(login_logs) -> list[dict[str, Any]]:
     ]
 
 
+def _data_overview_card(*, include_uploaders: bool) -> dict[str, Any]:
+    aggregate = DataResource.objects.aggregate(
+        total_size=Sum("size_bytes"),
+        total_items=Sum("item_count"),
+    )
+    card: dict[str, Any] = {
+        "totalResources": DataResource.objects.count(),
+        "activeResources": DataResource.objects.filter(
+            status=DataResource.Status.ACTIVE
+        ).count(),
+        "totalSizeBytes": int(aggregate["total_size"] or 0),
+        "totalItemCount": int(aggregate["total_items"] or 0),
+        "typeBreakdown": _data_type_breakdown(),
+    }
+    if include_uploaders:
+        card["uploaders"] = _uploader_stats()
+    return card
+
+
+def _data_type_breakdown() -> list[dict[str, Any]]:
+    rows = (
+        DataResource.objects.values("data_type")
+        .annotate(
+            count=Count("id"),
+            size_bytes=Sum("size_bytes"),
+            item_count=Sum("item_count"),
+        )
+        .order_by("data_type")
+    )
+    return [
+        {
+            "dataType": row["data_type"],
+            "count": row["count"],
+            "sizeBytes": int(row["size_bytes"] or 0),
+            "itemCount": int(row["item_count"] or 0),
+        }
+        for row in rows
+    ]
+
+
+def _uploader_stats() -> list[dict[str, Any]]:
+    rows = (
+        DataResource.objects.values(
+            "maintainer_id", "maintainer__username", "maintainer__first_name"
+        )
+        .annotate(
+            resource_count=Count("id"),
+            size_bytes=Sum("size_bytes"),
+            item_count=Sum("item_count"),
+        )
+        .order_by("-resource_count", "maintainer__username")
+    )
+    return [
+        {
+            "user": {
+                "id": row["maintainer_id"],
+                "username": row["maintainer__username"] or "",
+                "displayName": row["maintainer__first_name"]
+                or row["maintainer__username"]
+                or "未记录",
+            },
+            "resourceCount": row["resource_count"],
+            "sizeBytes": int(row["size_bytes"] or 0),
+            "itemCount": int(row["item_count"] or 0),
+        }
+        for row in rows
+    ]
+
+
 def _server_snapshot(user) -> dict[str, Any]:
     cards: dict[str, Any] = {}
     if has_feature_perm(user, "core.view_dashboard_system_card"):
@@ -1056,11 +1129,8 @@ def _filter_admin_data_resources(queryset, params):
 def _serialize_admin_data_resource(resource: DataResource) -> dict[str, Any]:
     layers = list(resource.map_layers.all())
     layer = layers[0] if layers else None
-    maintainer = ""
-    if resource.maintainer_id and resource.maintainer:
-        maintainer = (
-            resource.maintainer.get_full_name() or resource.maintainer.get_username()
-        )
+    uploader = _serialize_uploader(resource.maintainer)
+    maintainer = uploader["displayName"] if uploader else ""
     return {
         "id": resource.id,
         "name": resource.name,
@@ -1077,15 +1147,28 @@ def _serialize_admin_data_resource(resource: DataResource) -> dict[str, Any]:
         "description": resource.description,
         "qualityNote": resource.quality_note,
         "defaultVisualization": resource.default_visualization,
+        "sizeBytes": resource.size_bytes,
+        "itemCount": resource.item_count,
         "status": resource.status,
         "accessGroups": [
             {"id": group.id, "name": group.name}
             for group in resource.access_groups.all()
         ],
         "maintainer": maintainer,
+        "uploader": uploader,
         "createdAt": timezone.localtime(resource.created_at).isoformat(),
         "updatedAt": timezone.localtime(resource.updated_at).isoformat(),
         "defaultLayer": _serialize_admin_resource_layer(layer),
+    }
+
+
+def _serialize_uploader(user) -> dict[str, Any] | None:
+    if user is None:
+        return None
+    return {
+        "id": user.id,
+        "username": user.get_username(),
+        "displayName": user.get_full_name() or user.get_username(),
     }
 
 
@@ -1358,6 +1441,8 @@ def _data_resource_export_rows(
         "数据日期",
         "文件格式",
         "存储路径",
+        "数据大小",
+        "数据条目数",
         "访问用户组",
         "维护人员",
         "更新时间",
@@ -1374,6 +1459,8 @@ def _data_resource_export_rows(
             row["dataDate"] or "",
             row["fileFormat"],
             row["storagePath"],
+            str(row["sizeBytes"]),
+            str(row["itemCount"]),
             "、".join(group["name"] for group in row["accessGroups"]),
             row["maintainer"],
             row["updatedAt"],

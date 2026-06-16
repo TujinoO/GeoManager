@@ -5,6 +5,20 @@ import type {
   LoadedLayerGroup,
 } from "../types";
 
+export interface WrappableLngLat {
+  wrap: () => { lng: number; lat: number };
+}
+
+export function normalizeDisplayLngLat(
+  lngLat: WrappableLngLat,
+): [number, number] | null {
+  const wrapped = lngLat.wrap();
+  if (!Number.isFinite(wrapped.lng) || !Number.isFinite(wrapped.lat)) {
+    return null;
+  }
+  return [clamp(wrapped.lng, -180, 180), clamp(wrapped.lat, -90, 90)];
+}
+
 export function rectangleGeometry(
   start: [number, number],
   end: [number, number],
@@ -207,6 +221,53 @@ export function reorderLayerGroups(
     source,
   );
   return next;
+}
+
+export function moveLayerBetweenGroups(
+  groups: LoadedLayerGroup[],
+  sourceGroupId: string,
+  sourceLayerId: string,
+  targetGroupId: string,
+  targetLayerId: string | null,
+  placement: "before" | "after" | "inside",
+): LoadedLayerGroup[] {
+  const sourceGroup = groups.find((group) => group.id === sourceGroupId);
+  const targetGroup = groups.find((group) => group.id === targetGroupId);
+  const sourceLayer = sourceGroup?.children.find(
+    (layer) => layer.id === sourceLayerId,
+  );
+  if (!sourceGroup || !targetGroup || !sourceLayer) return groups;
+
+  const withoutSource = groups
+    .map((group) =>
+      group.id === sourceGroupId
+        ? {
+            ...group,
+            children: group.children.filter(
+              (layer) => layer.id !== sourceLayerId,
+            ),
+          }
+        : group,
+    )
+    .filter((group) => group.children.length > 0 || group.id === targetGroupId);
+
+  return withoutSource
+    .map((group) => {
+      if (group.id !== targetGroupId) return group;
+      const children = [...group.children];
+      const targetIndex = targetLayerId
+        ? children.findIndex((layer) => layer.id === targetLayerId)
+        : -1;
+      const insertIndex =
+        targetIndex < 0 || placement === "inside"
+          ? children.length
+          : placement === "before"
+            ? targetIndex
+            : targetIndex + 1;
+      children.splice(insertIndex, 0, sourceLayer);
+      return { ...group, children };
+    })
+    .filter((group) => group.children.length > 0);
 }
 
 export function clamp(value: number, min: number, max: number): number {

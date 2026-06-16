@@ -45,8 +45,7 @@ interface Props {
   permissions: User["permissions"];
   onFilterResources: (filters: ResourceFilters) => void;
   onSelectResource: (resource: ResourceListItem) => void;
-  onQuery: (filters: AttributeFilter[]) => void;
-  onLoadResult: () => void;
+  onQueryAndLoad: (filters: AttributeFilter[]) => void;
   onLoadRaster: () => void;
 }
 
@@ -71,8 +70,7 @@ export default function DataPanel({
   permissions,
   onFilterResources,
   onSelectResource,
-  onQuery,
-  onLoadResult,
+  onQueryAndLoad,
   onLoadRaster,
 }: Props) {
   const [resourceFilters, setResourceFilters] = useState<ResourceFilters>({});
@@ -356,38 +354,26 @@ export default function DataPanel({
       )}
 
       <div className="query-footer">
-        {selectedIsRaster ? (
-          permissions.canLoadRasterLayer && (
-            <Button
-              type="primary"
-              disabled={!profile?.raster}
-              onClick={onLoadRaster}
-            >
-              加载栅格
-            </Button>
-          )
-        ) : (
-          <>
-            {canQueryAndLoadVector && (
+        {selectedIsRaster
+          ? permissions.canLoadRasterLayer && (
+              <Button
+                type="primary"
+                disabled={!profile?.raster}
+                onClick={onLoadRaster}
+              >
+                加载栅格
+              </Button>
+            )
+          : canQueryAndLoadVector && (
               <Button
                 type="primary"
                 loading={querying}
                 disabled={!profile}
-                onClick={() => onQuery(attributeFilters)}
+                onClick={() => onQueryAndLoad(attributeFilters)}
               >
-                查询数据
+                查询并加载
               </Button>
             )}
-            {permissions.canLoadVectorLayer && (
-              <Button
-                disabled={!queryResult || queryResult.returnedCount === 0}
-                onClick={onLoadResult}
-              >
-                加载到图层
-              </Button>
-            )}
-          </>
-        )}
       </div>
       {queryResult && (
         <Alert

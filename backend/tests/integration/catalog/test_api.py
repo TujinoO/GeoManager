@@ -10,7 +10,7 @@ from django.test import TestCase
 from shapely.geometry import Point
 
 from apps.audit.models import OperationLog
-from apps.catalog.models import DataResource, MapLayer
+from apps.catalog.models import DataResource, MapLayer, WorkspaceScene
 from apps.catalog.services import scan_catalog_sources, scan_vector_geopackage
 from apps.core.storage import gene_data_path, table_data_path, vector_geopackage_path
 
@@ -285,6 +285,130 @@ class CatalogScanTests(TestCase):
         )
 
 
+class WorkspaceSceneApiTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="workspace-owner", password="pass12345"
+        )
+        self.client.force_login(self.user)
+
+    def test_create_list_load_update_and_delete_workspace_scene(self):
+        snapshot = {
+            "layerGroups": [
+                {
+                    "id": "group-1",
+                    "name": "胡杨样地",
+                    "visible": True,
+                    "layers": [],
+                }
+            ],
+            "activePanel": "layers",
+        }
+
+        create_response = self.client.post(
+            "/api/catalog/workspaces/",
+            data=json.dumps(
+                {
+                    "kind": "project",
+                    "name": "现场判读工程",
+                    "description": "用于恢复当前图层顺序和符号化",
+                    "snapshot": snapshot,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+        created = create_response.json()
+        self.assertEqual(created["kind"], "project")
+        self.assertEqual(created["name"], "现场判读工程")
+        self.assertEqual(created["snapshot"], snapshot)
+        self.assertEqual(created["owner"]["username"], self.user.username)
+
+        WorkspaceScene.objects.create(
+            owner=self.user,
+            kind=WorkspaceScene.Kind.TOPIC,
+            name="退化专题",
+            snapshot={"layerGroups": []},
+        )
+
+        list_response = self.client.get("/api/catalog/workspaces/?kind=project")
+
+        self.assertEqual(list_response.status_code, 200)
+        items = list_response.json()["items"]
+        self.assertEqual([item["name"] for item in items], ["现场判读工程"])
+
+        detail_response = self.client.get(f"/api/catalog/workspaces/{created['id']}/")
+
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(detail_response.json()["snapshot"], snapshot)
+
+        updated_snapshot = {"layerGroups": [], "activePanel": "topics"}
+        update_response = self.client.post(
+            f"/api/catalog/workspaces/{created['id']}/",
+            data=json.dumps(
+                {
+                    "name": "更新后的工程",
+                    "description": "更新说明",
+                    "snapshot": updated_snapshot,
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["name"], "更新后的工程")
+        self.assertEqual(update_response.json()["snapshot"], updated_snapshot)
+
+        delete_response = self.client.post(
+            f"/api/catalog/workspaces/{created['id']}/",
+            data=json.dumps({"action": "delete"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertFalse(WorkspaceScene.objects.filter(pk=created["id"]).exists())
+
+    def test_workspace_scene_is_private_to_owner(self):
+        other = get_user_model().objects.create_user(
+            username="other-workspace-owner", password="pass12345"
+        )
+        scene = WorkspaceScene.objects.create(
+            owner=other,
+            kind=WorkspaceScene.Kind.PROJECT,
+            name="他人的工程",
+            snapshot={"layerGroups": []},
+        )
+
+        response = self.client.get(f"/api/catalog/workspaces/{scene.id}/")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["detail"], "工程或专题不存在")
+
+    def test_workspace_scene_rejects_duplicate_name_per_owner_and_kind(self):
+        WorkspaceScene.objects.create(
+            owner=self.user,
+            kind=WorkspaceScene.Kind.PROJECT,
+            name="重复工程",
+            snapshot={"layerGroups": []},
+        )
+
+        response = self.client.post(
+            "/api/catalog/workspaces/",
+            data=json.dumps(
+                {
+                    "kind": "project",
+                    "name": "重复工程",
+                    "snapshot": {"layerGroups": []},
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "同名工程或专题已存在")
+
+
 class DataImportApiTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(
@@ -354,13 +478,36 @@ class DataImportApiTests(TestCase):
         self.assertEqual(payload["coordinateStats"]["totalRows"], 1)
         self.assertEqual(payload["validationIssues"][0]["code"], "invalid_longitude")
 
+    def test_import_validate_returns_duplicate_sqlite_target(self):
+        with sqlite3.connect(self.table_path) as connection:
+            connection.execute("CREATE TABLE existing_table (name TEXT)")
+
+        response = self.client.post(
+            "/api/catalog/import/validate/",
+            data={
+                "file": self._csv_file("survey.csv", "name\nA\n"),
+                "payload": json.dumps(
+                    {
+                        "importMode": "table",
+                        "tableName": "existing_table",
+                    }
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        duplicate_target = response.json()["duplicateTarget"]
+        self.assertEqual(duplicate_target["targetType"], "sqlite_table")
+        self.assertEqual(duplicate_target["targetName"], "existing_table")
+
     def test_import_geographic_table_writes_gpkg_metadata(self):
         self.assertFalse(self.vector_path.exists())
+        uploaded_file = self._csv_file("points.csv", "name,lon,lat\nA,87.600,43.800\n")
 
         response = self.client.post(
             "/api/catalog/import/commit/",
             data={
-                "file": self._csv_file("points.csv", "name,lon,lat\nA,87.600,43.800\n"),
+                "file": uploaded_file,
                 "payload": json.dumps(
                     {
                         "name": "导入点位",
@@ -397,6 +544,9 @@ class DataImportApiTests(TestCase):
         self.assertEqual(resource.name, "导入点位")
         self.assertEqual(resource.id, payload["resourceId"])
         self.assertEqual(resource.data_type, DataResource.DataType.VECTOR)
+        self.assertEqual(resource.maintainer, self.user)
+        self.assertEqual(resource.size_bytes, uploaded_file.size)
+        self.assertEqual(resource.item_count, 1)
 
         with sqlite3.connect(self.vector_path) as connection:
             description = connection.execute(
@@ -598,13 +748,38 @@ class DataImportApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.json()["importedRows"], 2)
 
-    def test_import_plain_table_writes_sqlite_data_and_metadata(self):
-        self.assertFalse(self.table_path.exists())
+    def test_upload_data_permission_can_import_without_maintain_permission(self):
+        self.user.user_permissions.clear()
+        grant(self.user, ("core", "upload_data"))
 
         response = self.client.post(
             "/api/catalog/import/commit/",
             data={
                 "file": self._csv_file("survey.csv", "name,value\nA,42\n"),
+                "payload": json.dumps(
+                    {
+                        "name": "普通用户上传表",
+                        "tableName": "upload_permission_table",
+                        "importMode": "table",
+                        "overwrite": False,
+                        "fieldMetadata": {},
+                    }
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        resource = DataResource.objects.get(storage_path="upload_permission_table")
+        self.assertEqual(resource.maintainer, self.user)
+
+    def test_import_plain_table_writes_sqlite_data_and_metadata(self):
+        self.assertFalse(self.table_path.exists())
+        uploaded_file = self._csv_file("survey.csv", "name,value\nA,42\n")
+
+        response = self.client.post(
+            "/api/catalog/import/commit/",
+            data={
+                "file": uploaded_file,
                 "payload": json.dumps(
                     {
                         "name": "调查表",
@@ -623,6 +798,9 @@ class DataImportApiTests(TestCase):
         self.assertEqual(payload["resourceName"], "调查表")
         resource = DataResource.objects.get(storage_path="survey_table")
         self.assertEqual(resource.data_type, DataResource.DataType.TABLE)
+        self.assertEqual(resource.maintainer, self.user)
+        self.assertEqual(resource.size_bytes, uploaded_file.size)
+        self.assertEqual(resource.item_count, 1)
         self.assertTrue(self.table_path.is_file())
         with sqlite3.connect(self.table_path) as connection:
             row = connection.execute("SELECT name, value FROM survey_table").fetchone()
@@ -632,6 +810,56 @@ class DataImportApiTests(TestCase):
             ).fetchone()[0]
         self.assertEqual(row, ("A", "42"))
         self.assertEqual(description, "数值")
+
+    def test_import_plain_table_rejects_duplicate_without_overwrite_and_allows_overwrite(
+        self,
+    ):
+        with sqlite3.connect(self.table_path) as connection:
+            connection.execute("CREATE TABLE existing_table (name TEXT)")
+            connection.execute("INSERT INTO existing_table VALUES ('旧值')")
+
+        reject_response = self.client.post(
+            "/api/catalog/import/commit/",
+            data={
+                "file": self._csv_file("survey.csv", "name\n新值\n"),
+                "payload": json.dumps(
+                    {
+                        "name": "重复表",
+                        "tableName": "existing_table",
+                        "importMode": "table",
+                        "overwrite": False,
+                        "fieldMetadata": {},
+                    }
+                ),
+            },
+        )
+
+        self.assertEqual(reject_response.status_code, 400)
+        reject_payload = reject_response.json()
+        self.assertEqual(reject_payload["detail"], "入库目标已存在")
+        self.assertEqual(reject_payload["issues"][0]["code"], "duplicate_target")
+        self.assertEqual(reject_payload["issues"][0]["targetType"], "sqlite_table")
+
+        overwrite_response = self.client.post(
+            "/api/catalog/import/commit/",
+            data={
+                "file": self._csv_file("survey.csv", "name\n新值\n"),
+                "payload": json.dumps(
+                    {
+                        "name": "覆盖表",
+                        "tableName": "existing_table",
+                        "importMode": "table",
+                        "overwrite": True,
+                        "fieldMetadata": {},
+                    }
+                ),
+            },
+        )
+
+        self.assertEqual(overwrite_response.status_code, 201)
+        with sqlite3.connect(self.table_path) as connection:
+            rows = connection.execute("SELECT name FROM existing_table").fetchall()
+        self.assertEqual(rows, [("新值",)])
 
     def test_import_plain_table_respects_included_columns(self):
         response = self.client.post(

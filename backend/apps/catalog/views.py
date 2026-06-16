@@ -1,10 +1,12 @@
 import json
 from datetime import datetime
+from typing import Any
 
 from django.conf import settings
+from django.db import IntegrityError
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from apps.audit.service import log_operation
 from apps.core.api import api_login_required
@@ -21,7 +23,13 @@ from apps.catalog.importer import (
     preview_uploaded_table,
     validate_uploaded_table,
 )
-from apps.catalog.models import Achievement, DataCatalog, DataResource, MapLayer
+from apps.catalog.models import (
+    Achievement,
+    DataCatalog,
+    DataResource,
+    MapLayer,
+    WorkspaceScene,
+)
 from apps.catalog.permissions import filter_accessible, user_can_access
 from apps.catalog.serializers import (
     serialize_achievement,
@@ -152,7 +160,7 @@ def scan_sources(request):
 @require_POST
 @api_login_required
 def import_preview(request):
-    if not has_feature_perm(request.user, "catalog.maintain_dataresource"):
+    if not _can_upload_data(request.user):
         return feature_denied_response(request.user)
     uploaded_file = request.FILES.get("file")
     if uploaded_file is None:
@@ -191,7 +199,7 @@ def import_preview(request):
 @require_POST
 @api_login_required
 def import_validate(request):
-    if not has_feature_perm(request.user, "catalog.maintain_dataresource"):
+    if not _can_upload_data(request.user):
         return feature_denied_response(request.user)
     uploaded_file = request.FILES.get("file")
     if uploaded_file is None:
@@ -242,7 +250,7 @@ def import_validate(request):
 @require_POST
 @api_login_required
 def import_commit(request):
-    if not has_feature_perm(request.user, "catalog.maintain_dataresource"):
+    if not _can_upload_data(request.user):
         return feature_denied_response(request.user)
     uploaded_file = request.FILES.get("file")
     if uploaded_file is None:
@@ -288,6 +296,156 @@ def import_commit(request):
         request,
     )
     return JsonResponse(result, status=201)
+
+
+def _can_upload_data(user) -> bool:
+    return has_feature_perm(user, "core.upload_data") or has_feature_perm(
+        user, "catalog.maintain_dataresource"
+    )
+
+
+@require_http_methods(["GET", "POST"])
+@api_login_required
+def workspaces(request):
+    if request.method == "POST":
+        return _create_workspace(request)
+    kind = str(request.GET.get("kind", "")).strip()
+    if kind and kind not in WorkspaceScene.Kind.values:
+        return JsonResponse({"detail": "kind 仅支持 project 或 topic"}, status=400)
+    queryset = WorkspaceScene.objects.filter(owner=request.user)
+    if kind:
+        queryset = queryset.filter(kind=kind)
+    return JsonResponse({"items": [_serialize_workspace(item) for item in queryset]})
+
+
+def _create_workspace(request):
+    payload = _json_payload(request)
+    if isinstance(payload, JsonResponse):
+        return payload
+    values = _workspace_payload(payload, partial=False)
+    if isinstance(values, JsonResponse):
+        return values
+    try:
+        scene = WorkspaceScene.objects.create(owner=request.user, **values)
+    except IntegrityError:
+        return JsonResponse({"detail": "同名工程或专题已存在"}, status=400)
+    log_operation(
+        request.user,
+        "工作台",
+        f"保存{_workspace_kind_label(scene.kind)}",
+        "success",
+        scene.name,
+        request,
+    )
+    return JsonResponse(_serialize_workspace(scene), status=201)
+
+
+@require_http_methods(["GET", "POST"])
+@api_login_required
+def workspace_detail(request, workspace_id: int):
+    scene = _workspace_for_user(request.user, workspace_id)
+    if isinstance(scene, JsonResponse):
+        return scene
+    if request.method == "GET":
+        return JsonResponse(_serialize_workspace(scene))
+    payload = _json_payload(request)
+    if isinstance(payload, JsonResponse):
+        return payload
+    if payload.get("action") == "delete":
+        name = scene.name
+        kind_label = _workspace_kind_label(scene.kind)
+        scene.delete()
+        log_operation(
+            request.user,
+            "工作台",
+            f"删除{kind_label}",
+            "success",
+            name,
+            request,
+        )
+        return JsonResponse({"detail": f"{kind_label}已删除"})
+    values = _workspace_payload(payload, partial=True)
+    if isinstance(values, JsonResponse):
+        return values
+    for key, value in values.items():
+        setattr(scene, key, value)
+    try:
+        scene.save()
+    except IntegrityError:
+        return JsonResponse({"detail": "同名工程或专题已存在"}, status=400)
+    log_operation(
+        request.user,
+        "工作台",
+        f"更新{_workspace_kind_label(scene.kind)}",
+        "success",
+        scene.name,
+        request,
+    )
+    return JsonResponse(_serialize_workspace(scene))
+
+
+def _workspace_for_user(user, workspace_id: int) -> WorkspaceScene | JsonResponse:
+    try:
+        return WorkspaceScene.objects.get(pk=workspace_id, owner=user)
+    except WorkspaceScene.DoesNotExist:
+        return JsonResponse({"detail": "工程或专题不存在"}, status=404)
+
+
+def _workspace_payload(
+    payload: dict, *, partial: bool
+) -> dict[str, object] | JsonResponse:
+    values: dict[str, object] = {}
+    if not partial or "kind" in payload:
+        kind = str(payload.get("kind", "")).strip()
+        if kind not in WorkspaceScene.Kind.values:
+            return JsonResponse({"detail": "kind 仅支持 project 或 topic"}, status=400)
+        values["kind"] = kind
+    if not partial or "name" in payload:
+        name = str(payload.get("name", "")).strip()
+        if not name:
+            return JsonResponse({"detail": "名称不能为空"}, status=400)
+        values["name"] = name
+    if "description" in payload:
+        values["description"] = str(payload.get("description") or "").strip()
+    elif not partial:
+        values["description"] = ""
+    if not partial or "snapshot" in payload:
+        snapshot = payload.get("snapshot")
+        if not isinstance(snapshot, dict):
+            return JsonResponse({"detail": "snapshot 必须是 JSON 对象"}, status=400)
+        values["snapshot"] = snapshot
+    return values
+
+
+def _serialize_workspace(scene: WorkspaceScene) -> dict[str, object]:
+    return {
+        "id": scene.id,
+        "kind": scene.kind,
+        "name": scene.name,
+        "description": scene.description,
+        "snapshot": scene.snapshot,
+        "owner": {
+            "id": scene.owner_id,
+            "displayName": scene.owner.get_full_name() or scene.owner.get_username(),
+            "username": scene.owner.get_username(),
+        },
+        "createdAt": scene.created_at.isoformat(),
+        "updatedAt": scene.updated_at.isoformat(),
+    }
+
+
+def _workspace_kind_label(kind: str) -> str:
+    return "专题" if kind == WorkspaceScene.Kind.TOPIC else "工程"
+
+
+def _json_payload(request) -> dict[str, Any] | JsonResponse:
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"detail": "请求体不是有效 JSON"}, status=400)
+    if not isinstance(payload, dict):
+        return JsonResponse({"detail": "请求体必须是 JSON 对象"}, status=400)
+    return payload
 
 
 def _import_error_payload(exc: ImportDataError) -> dict:

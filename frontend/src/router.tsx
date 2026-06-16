@@ -19,6 +19,15 @@ export function RequireDataMaintain() {
   return <Outlet />;
 }
 
+/** 需要数据上传或数据维护权限才能访问的后台导入路由 */
+export function RequireDataUpload() {
+  const { user } = useAppContext();
+  if (!user?.permissions.canUploadData && !user?.permissions.canMaintainData) {
+    return <Navigate to="/admin/profile" replace />;
+  }
+  return <Outlet />;
+}
+
 /** 需要查看操作日志权限才能访问的路由 */
 export function RequireViewOperationLogs() {
   const { user } = useAppContext();

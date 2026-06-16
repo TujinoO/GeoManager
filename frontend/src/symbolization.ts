@@ -11,7 +11,7 @@ export type Anchor =
 
 export type Alignment = "map" | "viewport" | "auto";
 export type MapViewport = "map" | "viewport";
-type PointSymbolMode = "circle" | "symbol";
+type PointSymbolMode = "circle" | "symbol" | "heatmap";
 type SymbolPlacement = "point" | "line" | "line-center";
 type SymbolZOrder = "auto" | "viewport-y" | "source";
 type TextJustify = "auto" | "left" | "center" | "right";
@@ -134,11 +134,20 @@ export interface FillSymbolization {
   fillEmissiveStrength: number;
 }
 
+export interface HeatmapSymbolization {
+  heatmapWeight: number;
+  heatmapIntensity: number;
+  heatmapRadius: number;
+  heatmapOpacity: number;
+  heatmapColor: unknown[];
+}
+
 export interface VectorSymbolization {
   opacity: number;
   pointMode: PointSymbolMode;
   circle: CircleSymbolization;
   symbol: SymbolLayerSymbolization;
+  heatmap: HeatmapSymbolization;
   line: LineSymbolization;
   fill: FillSymbolization;
 }
@@ -260,6 +269,27 @@ export const defaultVectorSymbolization: VectorSymbolization = {
     textEmissiveStrength: 0,
     textOcclusionOpacity: 1,
   },
+  heatmap: {
+    heatmapWeight: 1,
+    heatmapIntensity: 1,
+    heatmapRadius: 28,
+    heatmapOpacity: 0.72,
+    heatmapColor: [
+      "interpolate",
+      ["linear"],
+      ["heatmap-density"],
+      0,
+      "rgba(0, 0, 0, 0)",
+      0.18,
+      "#8ecae6",
+      0.42,
+      "#2a9d8f",
+      0.72,
+      "#f4a261",
+      1,
+      "#d62828",
+    ],
+  },
   line: {
     lineColor: "#174f46",
     lineOpacity: 1,
@@ -332,6 +362,10 @@ export function cloneDefaultVectorSymbolization(): VectorSymbolization {
         ...defaultVectorSymbolization.symbol.textVariableAnchor,
       ],
       textWritingMode: [...defaultVectorSymbolization.symbol.textWritingMode],
+    },
+    heatmap: {
+      ...defaultVectorSymbolization.heatmap,
+      heatmapColor: [...defaultVectorSymbolization.heatmap.heatmapColor],
     },
     line: {
       ...defaultVectorSymbolization.line,

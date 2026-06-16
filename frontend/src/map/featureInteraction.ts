@@ -85,7 +85,10 @@ function addVectorInteraction(
 
   const mousemove = (event: MapLayerMouseEvent) => {
     const feature = event.features?.[0];
-    map.getCanvas().style.cursor = feature ? "pointer" : "";
+    const canvas = map.getCanvas();
+    if (canvas.dataset.drawing !== "true") {
+      canvas.style.cursor = feature ? "pointer" : "";
+    }
     const target = feature ? featureStateTarget(feature) : null;
     const state = getMapState(map);
     const current = state.hoveredFeature;
@@ -106,7 +109,10 @@ function addVectorInteraction(
   };
 
   const mouseleave = () => {
-    map.getCanvas().style.cursor = "";
+    const canvas = map.getCanvas();
+    if (canvas.dataset.drawing !== "true") {
+      canvas.style.cursor = "";
+    }
     clearFeatureState(map, "hoveredFeature", "highlight");
   };
 

@@ -19,7 +19,9 @@ from apps.core.permissions import (
 )
 
 SUPERADMIN_GROUP_NAME = "超级管理员"
-GUEST_GROUP_NAME = "游客"
+DEFAULT_USER_GROUP_NAME = "普通用户"
+LEGACY_GUEST_GROUP_NAME = "游客"
+GUEST_GROUP_NAME = DEFAULT_USER_GROUP_NAME
 SUPERADMIN_USERNAME_ENV = "HUYANG_SUPERADMIN_USERNAME"
 SUPERADMIN_PASSWORD_ENV = "HUYANG_SUPERADMIN_PASSWORD"
 SUPERADMIN_EMAIL_ENV = "HUYANG_SUPERADMIN_EMAIL"
@@ -29,6 +31,8 @@ INITIAL_PASSWORD_FILE = "initial_superadmin_password.txt"
 LOCKED_SUPERADMIN_PERMISSIONS: tuple[str, ...] = ()
 GUEST_GROUP_PERMISSIONS = (
     "core.browse_data",
+    "core.query_data",
+    "core.upload_data",
     "core.load_vector_layer",
     "core.load_raster_layer",
 )
@@ -81,9 +85,18 @@ def is_guest_group(group: Group) -> bool:
 
 
 def ensure_guest_group() -> Group:
-    group, created = Group.objects.get_or_create(name=GUEST_GROUP_NAME)
-    if created:
-        _set_group_permissions(group, GUEST_GROUP_PERMISSIONS)
+    group = Group.objects.filter(name=GUEST_GROUP_NAME).first()
+    if group is None:
+        legacy_group = Group.objects.filter(name=LEGACY_GUEST_GROUP_NAME).first()
+        if legacy_group is not None:
+            legacy_group.name = GUEST_GROUP_NAME
+            legacy_group.save(update_fields=["name"])
+            group = legacy_group
+        else:
+            group = Group.objects.create(name=GUEST_GROUP_NAME)
+            _set_group_permissions(group, GUEST_GROUP_PERMISSIONS)
+            return group
+    _add_group_permissions(group, GUEST_GROUP_PERMISSIONS)
     return group
 
 
@@ -140,6 +153,20 @@ def _set_group_permissions(group: Group, permission_names: tuple[str, ...]) -> N
     ]
     if selected:
         group.permissions.set(selected)
+
+
+def _add_group_permissions(group: Group, permission_names: tuple[str, ...]) -> None:
+    permissions_by_name = {
+        f"{permission.content_type.app_label}.{permission.codename}": permission
+        for permission in feature_permission_queryset()
+    }
+    selected = [
+        permissions_by_name[permission_name]
+        for permission_name in permission_names
+        if permission_name in permissions_by_name
+    ]
+    if selected:
+        group.permissions.add(*selected)
 
 
 def _ensure_initial_superadmin(group: Group):

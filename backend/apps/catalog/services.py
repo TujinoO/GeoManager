@@ -152,6 +152,8 @@ def upsert_nongeographic_catalog_record(
             "storage_path": relative_path,
             "description": f"自动扫描非地理{data_type_label}文件：{relative_path}",
             "quality_note": "",
+            "size_bytes": path.stat().st_size,
+            "item_count": 0,
             "status": DataResource.Status.ACTIVE,
         },
     )

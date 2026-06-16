@@ -36,6 +36,17 @@ const periodLabels: Record<ActivePeriod, string> = {
   month: "本月",
 };
 
+type DataOverviewCard = NonNullable<AdminDashboard["cards"]["dataOverview"]>;
+
+const dataTypeLabels: Record<string, string> = {
+  vector: "矢量",
+  raster: "栅格",
+  gene: "基因",
+  table: "表格",
+  document: "文档",
+  image: "图片",
+};
+
 export default function AdminDashboardPage() {
   const { message } = App.useApp();
   const { user } = useAppContext();
@@ -97,7 +108,8 @@ export default function AdminDashboardPage() {
   const hasMetricCards = Boolean(
     dashboard?.cards.resources ||
       dashboard?.cards.layers ||
-      dashboard?.cards.rasters,
+      dashboard?.cards.rasters ||
+      dashboard?.cards.dataOverview,
   );
   const hasServerCards = Boolean(
     server?.cards.cpu || server?.cards.memory || server?.cards.disks,
@@ -159,7 +171,30 @@ export default function AdminDashboardPage() {
                 description={`栅格数据集 ${dashboard.cards.rasters.datasets} 个，栅格图层 ${dashboard.cards.rasters.layers} 个`}
               />
             )}
+            {dashboard.cards.dataOverview && (
+              <>
+                <MetricCard
+                  title="数据总大小"
+                  value={formatBytes(
+                    dashboard.cards.dataOverview.totalSizeBytes,
+                  )}
+                  suffix=""
+                  icon={<HddOutlined />}
+                  description={`启用 ${dashboard.cards.dataOverview.activeResources} / ${dashboard.cards.dataOverview.totalResources} 项`}
+                />
+                <MetricCard
+                  title="数据条目数"
+                  value={dashboard.cards.dataOverview.totalItemCount}
+                  suffix="条"
+                  icon={<DatabaseOutlined />}
+                  description="按导入行数、栅格数据集和扫描文件统计"
+                />
+              </>
+            )}
           </Row>
+          {dashboard.cards.dataOverview && (
+            <DataOverviewDetail overview={dashboard.cards.dataOverview} />
+          )}
         </section>
       )}
 
@@ -356,7 +391,7 @@ function MetricCard({
   description,
 }: {
   title: string;
-  value: number;
+  value: number | string;
   suffix: string;
   icon: ReactNode;
   description: string;
@@ -369,6 +404,60 @@ function MetricCard({
         <Typography.Text type="secondary">{description}</Typography.Text>
       </Card>
     </Col>
+  );
+}
+
+function DataOverviewDetail({ overview }: { overview: DataOverviewCard }) {
+  return (
+    <Card
+      className="admin-dashboard-card admin-data-overview-detail"
+      variant="borderless"
+    >
+      <Row gutter={[16, 16]}>
+        <Col xs={24} xl={overview.uploaders?.length ? 12 : 24}>
+          <Typography.Title level={5}>数据类型分布</Typography.Title>
+          <div className="admin-data-overview-list">
+            {overview.typeBreakdown.map((item) => (
+              <div key={item.dataType} className="admin-data-overview-row">
+                <Space>
+                  <Tag>{dataTypeLabels[item.dataType] ?? item.dataType}</Tag>
+                  <Typography.Text>{item.count} 项</Typography.Text>
+                </Space>
+                <Typography.Text type="secondary">
+                  {formatBytes(item.sizeBytes)} / {item.itemCount} 条
+                </Typography.Text>
+              </div>
+            ))}
+          </div>
+        </Col>
+        {overview.uploaders && overview.uploaders.length > 0 && (
+          <Col xs={24} xl={12}>
+            <Typography.Title level={5}>上传用户统计</Typography.Title>
+            <div className="admin-data-overview-list">
+              {overview.uploaders.map((item) => (
+                <div
+                  key={`${item.user.id}-${item.user.username}`}
+                  className="admin-data-overview-row"
+                >
+                  <Space orientation="vertical" size={0}>
+                    <Typography.Text strong>
+                      {item.user.displayName}
+                    </Typography.Text>
+                    <Typography.Text type="secondary">
+                      {item.user.username || "未记录"}
+                    </Typography.Text>
+                  </Space>
+                  <Typography.Text type="secondary">
+                    {item.resourceCount} 项 / {formatBytes(item.sizeBytes)} /{" "}
+                    {item.itemCount} 条
+                  </Typography.Text>
+                </div>
+              ))}
+            </div>
+          </Col>
+        )}
+      </Row>
+    </Card>
   );
 }
 

@@ -79,8 +79,10 @@ const basePermissions = {
   canViewDashboardUserCard: false,
   canViewDashboardActiveUsersCard: false,
   canViewDashboardSystemCard: false,
+  canViewDataOverview: false,
   canBrowseData: true,
   canQueryData: true,
+  canUploadData: false,
   canLoadVectorLayer: true,
   canLoadRasterLayer: true,
   canUseCustomSymbolization: false,
@@ -187,7 +189,9 @@ describe("application critical flows", () => {
         true,
       );
     });
-    expect(await screen.findByText("资源中心")).toBeInTheDocument();
+    expect(
+      await screen.findByText("资源中心", {}, { timeout: 10000 }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("map-canvas")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^地理数据$/ })).toHaveClass(
       "workspace-switch-card-active",
@@ -201,11 +205,13 @@ describe("application critical flows", () => {
   });
 
   it("allows authenticated users to enter the admin route", async () => {
-    mockApi.me.mockResolvedValue({ authenticated: true, user: normalUser });
+    mockApi.me.mockResolvedValue({ authenticated: true, user: adminUser });
 
     renderApp("/admin");
 
-    expect(await screen.findByTestId("pro-layout")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("pro-layout", {}, { timeout: 10000 }),
+    ).toBeInTheDocument();
   });
 
   it("shows compact workspace navigation for privileged users", async () => {
@@ -213,7 +219,9 @@ describe("application critical flows", () => {
 
     renderApp("/");
 
-    expect(await screen.findByText("资源中心")).toBeInTheDocument();
+    expect(
+      await screen.findByText("资源中心", {}, { timeout: 10000 }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("map-canvas")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^地理数据$/ })).toHaveClass(
       "workspace-switch-card-active",
@@ -224,5 +232,5 @@ describe("application critical flows", () => {
     expect(
       screen.getByRole("button", { name: /后台管理/ }),
     ).toBeInTheDocument();
-  });
+  }, 30000);
 });

@@ -10,6 +10,7 @@ import {
   extractCoordinates,
   geometryFromBoundsText,
   geometryFromPoints,
+  normalizeDisplayLngLat,
   polygonGeometry,
   rasterSourceKey,
   rectangleGeometry,
@@ -105,6 +106,33 @@ describe("clamp", () => {
   it("clamps below min", () => expect(clamp(-5, 0, 10)).toBe(0));
   it("clamps above max", () => expect(clamp(15, 0, 10)).toBe(10));
   it("returns value in range", () => expect(clamp(5, 0, 10)).toBe(5));
+});
+
+describe("normalizeDisplayLngLat", () => {
+  it("uses Mapbox wrap output before display formatting", () => {
+    const normalized = normalizeDisplayLngLat({
+      wrap: () => ({ lng: -179.87654, lat: 43.98765 }),
+    });
+
+    expect(normalized?.[0]).toBeCloseTo(-179.87654);
+    expect(normalized?.[1]).toBeCloseTo(43.98765);
+  });
+
+  it("keeps display coordinates inside valid longitude and latitude ranges", () => {
+    const normalized = normalizeDisplayLngLat({
+      wrap: () => ({ lng: 181, lat: 91 }),
+    });
+
+    expect(normalized).toEqual([180, 90]);
+  });
+
+  it("returns null for invalid coordinates", () => {
+    expect(
+      normalizeDisplayLngLat({
+        wrap: () => ({ lng: Number.NaN, lat: 43 }),
+      }),
+    ).toBeNull();
+  });
 });
 
 describe("sourceIdFor", () => {

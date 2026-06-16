@@ -45,6 +45,10 @@ import type {
   UserPasswordResetResponse,
   UserPermissionUpdateRequest,
   UserUpdateRequest,
+  WorkspaceScene,
+  WorkspaceSceneCreateRequest,
+  WorkspaceSceneKind,
+  WorkspaceSceneUpdateRequest,
 } from "../types";
 import { isDataResource } from "../utils/resources";
 import type { paths } from "./schema";
@@ -383,6 +387,41 @@ export const api = {
   scanCatalogSources: () =>
     unwrap<ListResponse<ResourceListItem> & { count: number }>(
       client.POST("/api/catalog/scan/"),
+    ),
+  workspaces: (kind?: WorkspaceSceneKind) =>
+    unwrap<ListResponse<WorkspaceScene>>(
+      client.GET("/api/catalog/workspaces/", {
+        params: { query: kind ? { kind } : {} },
+      }),
+    ),
+  createWorkspace: (payload: WorkspaceSceneCreateRequest) =>
+    unwrap<WorkspaceScene>(
+      client.POST("/api/catalog/workspaces/", {
+        body: payload,
+      }),
+    ),
+  workspace: (workspaceId: number) =>
+    unwrap<WorkspaceScene>(
+      client.GET("/api/catalog/workspaces/{workspaceId}/", {
+        params: { path: { workspaceId } },
+      }),
+    ),
+  updateWorkspace: (
+    workspaceId: number,
+    payload: WorkspaceSceneUpdateRequest,
+  ) =>
+    unwrap<WorkspaceScene | { detail: string }>(
+      client.POST("/api/catalog/workspaces/{workspaceId}/", {
+        params: { path: { workspaceId } },
+        body: payload,
+      }),
+    ),
+  deleteWorkspace: (workspaceId: number) =>
+    unwrap<{ detail: string }>(
+      client.POST("/api/catalog/workspaces/{workspaceId}/", {
+        params: { path: { workspaceId } },
+        body: { action: "delete" },
+      }),
     ),
   importPreview: (file: File) =>
     unwrap<ImportPreview>(

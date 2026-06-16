@@ -14,7 +14,7 @@ import mapboxgl, {
   type MapboxOptions,
 } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   applyChineseBasemapLanguage,
   createBasemapStyle,
@@ -47,6 +47,7 @@ import type {
 import {
   boundsFromImageCoordinates,
   combinedFeatureBounds,
+  normalizeDisplayLngLat,
   sourceIdFor,
 } from "../utils/geometry";
 
@@ -103,6 +104,9 @@ export default function MapCanvas({
 }: Props) {
   const mapRef = useRef<MapboxMap | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [pointerLngLat, setPointerLngLat] = useState<[number, number] | null>(
+    null,
+  );
   const mapConfig = bootstrap.map;
   const mapboxToken = mapConfig.mapboxAccessToken;
   const shouldUseMapboxStyle = shouldUseMapboxBasemap(mapConfig);
@@ -144,6 +148,16 @@ export default function MapCanvas({
       new mapboxgl.ScaleControl({ unit: "metric" }),
       "bottom-left",
     );
+    const updatePointer = (event: mapboxgl.MapMouseEvent) => {
+      if (!map.isPointOnSurface(event.point)) {
+        setPointerLngLat(null);
+        return;
+      }
+      setPointerLngLat(normalizeDisplayLngLat(event.lngLat));
+    };
+    const clearPointer = () => setPointerLngLat(null);
+    map.on("mousemove", updatePointer);
+    map.on("mouseleave", clearPointer);
     const emitViewState = () => {
       onViewStateChange?.(readMapViewState(map));
     };
@@ -162,6 +176,8 @@ export default function MapCanvas({
       map.off("zoomend", emitViewState);
       map.off("rotateend", emitViewState);
       map.off("pitchend", emitViewState);
+      map.off("mousemove", updatePointer);
+      map.off("mouseleave", clearPointer);
       onMapDestroy?.();
       map.remove();
       mapRef.current = null;
@@ -250,6 +266,20 @@ export default function MapCanvas({
   return (
     <div className="map-shell">
       <div ref={containerRef} className="map-container" />
+      <div
+        className="map-coordinate-panel"
+        role="status"
+        aria-label="鼠标位置经纬度"
+      >
+        {pointerLngLat ? (
+          <>
+            <span>经度 {pointerLngLat[0].toFixed(4)}</span>
+            <span>纬度 {pointerLngLat[1].toFixed(4)}</span>
+          </>
+        ) : (
+          <span>经纬度 --</span>
+        )}
+      </div>
       <div className="map-toolbar">
         <Tooltip title="复位">
           <Button
@@ -334,6 +364,7 @@ function firstStyleLayerIdForLayer(map: MapboxMap, layer: LoadedLayer) {
       : [
           `${sourceId}-fill`,
           `${sourceId}-line`,
+          `${sourceId}-heatmap`,
           `${sourceId}-point`,
           `${sourceId}-symbol`,
         ];

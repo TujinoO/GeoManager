@@ -220,6 +220,7 @@ def import_raster_file(
         bounds_3857 = bounds_from_gdalinfo(processed_info)
         bounds_4326 = bounds_4326_from_gdalinfo(processed_info)
         image_coordinates = image_coordinates_from_gdalinfo(processed_info)
+        dataset.processed_file_size = processed_path.stat().st_size
         data_resource, map_layer = upsert_catalog_records(
             dataset=dataset,
             source_info=source_info,
@@ -235,7 +236,6 @@ def import_raster_file(
         dataset.bounds_4326 = bounds_4326
         dataset.image_coordinates = image_coordinates
         dataset.band_count = len(processed_info.get("bands") or [])
-        dataset.processed_file_size = processed_path.stat().st_size
         dataset.data_resource = data_resource
         dataset.map_layer = map_layer
         dataset.status = RasterDataset.Status.READY

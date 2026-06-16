@@ -179,6 +179,20 @@ class RegistrationApiTests(TestCase):
             ).exists()
         )
 
+    def test_auth_me_reports_upload_and_data_overview_permissions(self):
+        user = get_user_model().objects.create_user(
+            username="permission-flags-user", password="pass12345"
+        )
+        grant(user, ("core", "upload_data"), ("core", "view_data_overview"))
+        self.client.force_login(user)
+
+        response = self.client.get("/api/auth/me/")
+
+        self.assertEqual(response.status_code, 200)
+        permissions = response.json()["user"]["permissions"]
+        self.assertTrue(permissions["canUploadData"])
+        self.assertTrue(permissions["canViewDataOverview"])
+
     def test_registered_user_after_initialization_is_standard_user(self):
         SystemSetting.objects.update_or_create(
             pk=1, defaults={"allow_registration": True}
@@ -696,6 +710,7 @@ class FeaturePermissionTests(TestCase):
             if item["username"] == "direct-permission-target"
         )
         self.assertEqual(target_payload["directPermissions"], ["core.query_data"])
+        self.assertEqual(target_payload["groupPermissions"], ["core.browse_data"])
         self.assertEqual(
             set(target_payload["effectivePermissions"]),
             {"core.browse_data", "core.query_data"},
@@ -1137,6 +1152,63 @@ class FeaturePermissionTests(TestCase):
             payload["cards"]["activeUsers"]["ranking"][0]["username"], "active-user"
         )
         self.assertEqual(len(payload["cards"]["activeUsers"]["series"]), 24)
+
+    def test_admin_dashboard_data_overview_permission_and_superadmin_uploaders(
+        self,
+    ):
+        manager = get_user_model().objects.create_user(
+            username="overview-manager", password="pass12345"
+        )
+        uploader = get_user_model().objects.create_user(
+            username="overview-uploader",
+            first_name="上传人",
+            password="pass12345",
+        )
+        grant(manager, ("core", "view_data_overview"))
+        DataResource.objects.create(
+            name="点位",
+            code="overview-vector",
+            data_type=DataResource.DataType.VECTOR,
+            size_bytes=100,
+            item_count=5,
+            maintainer=uploader,
+        )
+        DataResource.objects.create(
+            name="表格",
+            code="overview-table",
+            data_type=DataResource.DataType.TABLE,
+            status=DataResource.Status.INACTIVE,
+            size_bytes=50,
+            item_count=2,
+        )
+        self.client.force_login(manager)
+
+        response = self.client.get("/api/admin/dashboard/")
+
+        self.assertEqual(response.status_code, 200)
+        overview = response.json()["cards"]["dataOverview"]
+        self.assertEqual(overview["totalResources"], 2)
+        self.assertEqual(overview["activeResources"], 1)
+        self.assertEqual(overview["totalSizeBytes"], 150)
+        self.assertEqual(overview["totalItemCount"], 7)
+        self.assertNotIn("uploaders", overview)
+
+        super_group, _ = Group.objects.get_or_create(name=SUPERADMIN_GROUP_NAME)
+        superadmin = get_user_model().objects.create_user(
+            username="overview-superadmin", password="pass12345"
+        )
+        superadmin.groups.add(super_group)
+        grant(superadmin, ("core", "view_data_overview"))
+        self.client.force_login(superadmin)
+
+        response = self.client.get("/api/admin/dashboard/")
+
+        self.assertEqual(response.status_code, 200)
+        uploaders = response.json()["cards"]["dataOverview"]["uploaders"]
+        uploader_rows = {item["user"]["displayName"]: item for item in uploaders}
+        self.assertEqual(uploader_rows["上传人"]["resourceCount"], 1)
+        self.assertEqual(uploader_rows["上传人"]["sizeBytes"], 100)
+        self.assertEqual(uploader_rows["未记录"]["itemCount"], 2)
 
     def test_admin_dashboard_omits_unauthorized_cards(self):
         manager = get_user_model().objects.create_user(

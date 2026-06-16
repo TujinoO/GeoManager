@@ -318,6 +318,19 @@ export default function AdminDataInventoryPage() {
       ),
     },
     {
+      title: "数据规模",
+      key: "dataSize",
+      width: 150,
+      render: (_, record) => (
+        <Space orientation="vertical" size={0}>
+          <span>{formatBytes(record.sizeBytes ?? 0)}</span>
+          <Typography.Text type="secondary" className="admin-table-subtext">
+            {record.itemCount ?? 0} 条
+          </Typography.Text>
+        </Space>
+      ),
+    },
+    {
       title: "状态",
       dataIndex: "status",
       key: "status",
@@ -344,6 +357,23 @@ export default function AdminDataInventoryPage() {
           <Typography.Text type="secondary" className="admin-table-subtext">
             {record.provider || "未记录提供单位"}
           </Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: "上传用户",
+      key: "uploader",
+      width: 150,
+      render: (_, record) => (
+        <Space orientation="vertical" size={0}>
+          <span>
+            {record.uploader?.displayName || record.maintainer || "未记录"}
+          </span>
+          {record.uploader?.username && (
+            <Typography.Text type="secondary" className="admin-table-subtext">
+              {record.uploader.username}
+            </Typography.Text>
+          )}
         </Space>
       ),
     },
@@ -570,6 +600,17 @@ export default function AdminDataInventoryPage() {
                   {statusLabels[selectedResource.status].text}
                 </Tag>
               </Descriptions.Item>
+              <Descriptions.Item label="上传用户">
+                {selectedResource.uploader?.displayName ||
+                  selectedResource.maintainer ||
+                  "未记录"}
+              </Descriptions.Item>
+              <Descriptions.Item label="数据大小">
+                {formatBytes(selectedResource.sizeBytes ?? 0)}
+              </Descriptions.Item>
+              <Descriptions.Item label="数据条目数">
+                {selectedResource.itemCount ?? 0}
+              </Descriptions.Item>
               <Descriptions.Item label="存储位置">
                 {selectedResource.storagePath || "-"}
               </Descriptions.Item>
@@ -702,4 +743,16 @@ function parseJsonObject(value: string | undefined, label: string) {
     }
     throw new Error(`${label}格式错误`);
   }
+}
+
+function formatBytes(value: number) {
+  if (!value) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let current = value;
+  let unitIndex = 0;
+  while (current >= 1024 && unitIndex < units.length - 1) {
+    current /= 1024;
+    unitIndex += 1;
+  }
+  return `${current.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }

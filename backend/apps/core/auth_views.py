@@ -14,6 +14,7 @@ from apps.core.passwords import password_validation_errors
 from apps.core.permissions import (
     direct_feature_permissions,
     effective_feature_permissions,
+    feature_permission_queryset,
     has_feature_perm,
 )
 from apps.core.views import registration_allowed
@@ -152,8 +153,10 @@ def serialize_user(user):
         "canViewDashboardSystemCard": has_feature_perm(
             user, "core.view_dashboard_system_card"
         ),
+        "canViewDataOverview": has_feature_perm(user, "core.view_data_overview"),
         "canBrowseData": has_feature_perm(user, "core.browse_data"),
         "canQueryData": has_feature_perm(user, "core.query_data"),
+        "canUploadData": has_feature_perm(user, "core.upload_data"),
         "canLoadVectorLayer": has_feature_perm(user, "core.load_vector_layer"),
         "canLoadRasterLayer": has_feature_perm(user, "core.load_raster_layer"),
         "canUseCustomSymbolization": has_feature_perm(
@@ -176,6 +179,7 @@ def serialize_user(user):
         "roles": groups,
         "groupIds": group_ids,
         "isActive": user.is_active,
+        "groupPermissions": sorted(group_feature_permissions(user)),
         "directPermissions": sorted(direct_feature_permissions(user)),
         "effectivePermissions": sorted(effective_feature_permissions(user)),
         "operationLogGroupIds": profile["operation_log_group_ids"],
@@ -195,4 +199,16 @@ def _profile_values(user):
         "avatar_url": avatar_url,
         "department": profile.department,
         "operation_log_group_ids": profile.operation_log_group_ids,
+    }
+
+
+def group_feature_permissions(user) -> set[str]:
+    if not user.is_authenticated:
+        return set()
+    feature_ids = set(feature_permission_queryset().values_list("id", flat=True))
+    return {
+        f"{permission.content_type.app_label}.{permission.codename}"
+        for group in user.groups.prefetch_related("permissions__content_type").all()
+        for permission in group.permissions.all()
+        if permission.id in feature_ids
     }

@@ -52,7 +52,9 @@ export function bindGeometryDraw(
   onComplete: (geometry: GeoJsonGeometry) => void,
 ) {
   clearDrawPreview(map);
-  map.getCanvas().style.cursor = "crosshair";
+  const canvas = map.getCanvas();
+  canvas.dataset.drawing = "true";
+  canvas.style.cursor = "crosshair";
   map.doubleClickZoom.disable();
   let start: [number, number] | null = null;
   let polygonPoints: Array<[number, number]> = [];
@@ -113,7 +115,8 @@ export function bindGeometryDraw(
     map.off("mousemove", handleMouseMove);
     map.off("dblclick", handleDoubleClick);
     map.doubleClickZoom.enable();
-    map.getCanvas().style.cursor = "";
+    delete canvas.dataset.drawing;
+    canvas.style.cursor = "";
     clearDrawPreview(map);
   };
 }

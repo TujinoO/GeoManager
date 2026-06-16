@@ -11,9 +11,11 @@ import type {
   LoadedLayer,
   LoadedLayerGroup,
   LoadedRasterLayer,
+  WorkspaceSceneKind,
 } from "../types";
 
 export type DropPlacement = "before" | "after";
+export type LayerDropPlacement = DropPlacement | "inside";
 export interface ExportOptions {
   epsg: number | null;
   reproject: boolean;
@@ -33,6 +35,7 @@ export interface LayerContextValue {
   selectLayer: (groupId: string, layerId: string) => void;
   openLayerTable: (groupId: string, layerId: string) => void;
   addGroup: (group: LoadedLayerGroup) => void;
+  replaceGroups: (groups: LoadedLayerGroup[]) => void;
   updateLayer: (
     groupId: string,
     layerId: string,
@@ -64,6 +67,13 @@ export interface LayerContextValue {
     targetGroupId: string,
     placement: DropPlacement,
   ) => void;
+  moveLayer: (
+    sourceGroupId: string,
+    sourceLayerId: string,
+    targetGroupId: string,
+    targetLayerId: string | null,
+    placement: LayerDropPlacement,
+  ) => void;
   startRasterRender: (
     groupId: string,
     layerId: string,
@@ -82,6 +92,10 @@ export interface LayerContextValue {
     items: ExportLayerItem[],
     options: ExportOptions,
     onProgress?: ExportProgressHandler,
+  ) => Promise<void>;
+  saveWorkspace: (
+    kind: WorkspaceSceneKind,
+    values: { name: string; description?: string },
   ) => Promise<void>;
 }
 

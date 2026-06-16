@@ -75,18 +75,23 @@ class ImportValidationIssue:
     min_meters: float | None = None
     max_meters: float | None = None
     ratio: float | None = None
+    target_type: str | None = None
+    target_name: str | None = None
 
 
 def preview_uploaded_table(uploaded_file) -> dict[str, Any]:
     df = read_uploaded_table(uploaded_file)
     columns = list(df.columns)
     longitude_column, latitude_column = infer_coordinate_columns(df)
+    suggested_table_name = suggest_table_name(Path(uploaded_file.name).stem)
+    import_mode = "geographic" if longitude_column and latitude_column else "table"
     return {
         "columns": columns,
         "rows": _preview_rows(df),
         "rowCount": int(len(df)),
-        "suggestedTableName": suggest_table_name(Path(uploaded_file.name).stem),
+        "suggestedTableName": suggested_table_name,
         "suggestedName": Path(uploaded_file.name).stem,
+        "duplicateTarget": duplicate_target_for(suggested_table_name, import_mode),
         "detected": {
             "isGeographic": bool(longitude_column and latitude_column),
             "longitudeColumn": longitude_column,
@@ -105,13 +110,22 @@ def preview_uploaded_table(uploaded_file) -> dict[str, Any]:
 def validate_uploaded_table(uploaded_file, payload: dict[str, Any]) -> dict[str, Any]:
     df = read_uploaded_table(uploaded_file)
     import_mode = str(payload.get("importMode") or "").strip()
+    table_name = str(payload.get("tableName") or "").strip()
     longitude_column = str(payload.get("longitudeColumn") or "").strip()
     latitude_column = str(payload.get("latitudeColumn") or "").strip()
 
     if import_mode not in {"geographic", "table"}:
         raise ImportDataError("导入方式必须是 geographic 或 table")
+    duplicate_target = None
+    if table_name:
+        table_name = validate_import_table_name(table_name)
+        duplicate_target = duplicate_target_for(table_name, import_mode)
     if import_mode == "table":
-        return {"coordinateStats": None, "validationIssues": []}
+        return {
+            "coordinateStats": None,
+            "validationIssues": [],
+            "duplicateTarget": duplicate_target,
+        }
     if longitude_column not in df.columns or latitude_column not in df.columns:
         raise ImportDataError("地理数据必须指定有效的经度列和纬度列")
 
@@ -120,6 +134,7 @@ def validate_uploaded_table(uploaded_file, payload: dict[str, Any]) -> dict[str,
     return {
         "coordinateStats": _serialize_coordinate_stats(stats),
         "validationIssues": _serialize_validation_issues(issues),
+        "duplicateTarget": duplicate_target,
     }
 
 
@@ -139,6 +154,7 @@ def import_uploaded_table(
         payload.get("ignoreCoordinateUncertainty", False)
     )
     overwrite = bool(payload.get("overwrite", False))
+    file_size = int(getattr(uploaded_file, "size", 0) or 0)
 
     if import_mode not in {"geographic", "table"}:
         raise ImportDataError("导入方式必须是 geographic 或 table")
@@ -162,6 +178,7 @@ def import_uploaded_table(
             metadata=metadata,
             ignore_coordinate_uncertainty=ignore_coordinate_uncertainty,
             overwrite=overwrite,
+            source_size_bytes=file_size,
             user=user,
         )
 
@@ -174,6 +191,7 @@ def import_uploaded_table(
         table_name=table_name,
         metadata=metadata,
         overwrite=overwrite,
+        source_size_bytes=file_size,
         user=user,
     )
 
@@ -188,6 +206,7 @@ def import_geographic_table(
     metadata: dict[str, str],
     ignore_coordinate_uncertainty: bool,
     overwrite: bool,
+    source_size_bytes: int,
     user,
 ) -> dict[str, Any]:
     stats = coordinate_stats_for(df, longitude_column, latitude_column)
@@ -243,6 +262,7 @@ def import_geographic_table(
         bounds=bounds,
         stats=stats,
         ignore_coordinate_uncertainty=ignore_coordinate_uncertainty,
+        source_size_bytes=source_size_bytes,
         user=user,
     )
     return {
@@ -266,6 +286,7 @@ def import_plain_table(
     table_name: str,
     metadata: dict[str, str],
     overwrite: bool,
+    source_size_bytes: int,
     user,
 ) -> dict[str, Any]:
     path = table_data_path("data.sqlite")
@@ -290,6 +311,8 @@ def import_plain_table(
             "description": f"由 Excel/CSV 导入的非地理表：{table_name}",
             "quality_note": "",
             "maintainer": user if getattr(user, "is_authenticated", False) else None,
+            "size_bytes": source_size_bytes,
+            "item_count": int(len(df)),
             "status": DataResource.Status.ACTIVE,
         },
     )
@@ -474,6 +497,45 @@ def validate_import_table_name(table_name: str) -> str:
             "入库表名只能使用英文字母、数字和下划线，且必须以字母或下划线开头，最长 63 个字符"
         )
     return table_name
+
+
+def duplicate_target_for(table_name: str, import_mode: str) -> dict[str, str] | None:
+    try:
+        table_name = validate_import_table_name(table_name)
+    except ImportDataError:
+        return None
+    geographic = import_mode == "geographic"
+    path = vector_geopackage_path() if geographic else table_data_path("data.sqlite")
+    if not path.exists():
+        return None
+    if geographic:
+        import geopandas as gpd
+
+        layers = gpd.list_layers(path)
+        existing_names = (
+            set(layers["name"].astype(str).tolist())
+            if hasattr(layers, "columns") and "name" in layers.columns
+            else set()
+        )
+        if table_name not in existing_names:
+            return None
+        target_type = "geopackage_layer"
+        label = "GeoPackage 图层"
+    else:
+        with sqlite3.connect(path) as connection:
+            exists = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                (table_name,),
+            ).fetchone()
+        if not exists:
+            return None
+        target_type = "sqlite_table"
+        label = "SQLite 表"
+    return {
+        "targetType": target_type,
+        "targetName": table_name,
+        "message": f"{label}已存在：{table_name}",
+    }
 
 
 def suggest_table_name(source_name: str) -> str:
@@ -754,6 +816,10 @@ def _serialize_validation_issues(
             item["maxMeters"] = issue.max_meters
         if issue.ratio is not None:
             item["ratio"] = issue.ratio
+        if issue.target_type is not None:
+            item["targetType"] = issue.target_type
+        if issue.target_name is not None:
+            item["targetName"] = issue.target_name
         serialized.append(item)
     return serialized
 
@@ -773,7 +839,16 @@ def _ensure_table_can_be_written(
             else set()
         )
         if table_name in existing_names and not overwrite:
-            raise ImportDataError(f"GeoPackage 图层已存在：{table_name}")
+            raise ImportDataError(
+                "入库目标已存在",
+                [
+                    _serialize_duplicate_target_issue(
+                        table_name,
+                        target_type="geopackage_layer",
+                        target_label="GeoPackage 图层",
+                    )
+                ],
+            )
         return
     with sqlite3.connect(path) as connection:
         exists = connection.execute(
@@ -781,7 +856,28 @@ def _ensure_table_can_be_written(
             (table_name,),
         ).fetchone()
     if exists and not overwrite:
-        raise ImportDataError(f"SQLite 表已存在：{table_name}")
+        raise ImportDataError(
+            "入库目标已存在",
+            [
+                _serialize_duplicate_target_issue(
+                    table_name,
+                    target_type="sqlite_table",
+                    target_label="SQLite 表",
+                )
+            ],
+        )
+
+
+def _serialize_duplicate_target_issue(
+    table_name: str, *, target_type: str, target_label: str
+) -> dict[str, Any]:
+    return {
+        "code": "duplicate_target",
+        "message": f"{target_label}已存在：{table_name}。如需覆盖，请打开同名数据覆盖。",
+        "blocking": True,
+        "targetType": target_type,
+        "targetName": table_name,
+    }
 
 
 def _write_geopackage_layer(
@@ -832,6 +928,7 @@ def _upsert_geographic_resource(
     bounds: list[float],
     stats: CoordinateStats,
     ignore_coordinate_uncertainty: bool,
+    source_size_bytes: int,
     user,
 ) -> DataResource:
     code = stable_catalog_code("vector", table_name)
@@ -850,6 +947,8 @@ def _upsert_geographic_resource(
             "description": f"由 Excel/CSV 导入的地理表：{table_name}",
             "quality_note": _quality_note(stats, ignore_coordinate_uncertainty),
             "maintainer": user if getattr(user, "is_authenticated", False) else None,
+            "size_bytes": source_size_bytes,
+            "item_count": int(stats.valid_rows),
             "status": DataResource.Status.ACTIVE,
         },
     )

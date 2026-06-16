@@ -86,7 +86,28 @@ export function addLoadedStyleLayers(
     },
   });
 
-  if (style.pointMode === "circle") {
+  if (style.pointMode === "heatmap") {
+    removeStyleLayer(map, `${sourceId}-point`);
+    removeStyleLayer(map, `${sourceId}-symbol`);
+    upsertLayer(map, {
+      id: `${sourceId}-heatmap`,
+      type: "heatmap",
+      source: sourceId,
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: {
+        "heatmap-weight": style.heatmap.heatmapWeight,
+        "heatmap-intensity": style.heatmap.heatmapIntensity,
+        "heatmap-radius": style.heatmap.heatmapRadius,
+        "heatmap-opacity": clamp(
+          style.heatmap.heatmapOpacity * layerOpacity,
+          0,
+          1,
+        ),
+        "heatmap-color": style.heatmap.heatmapColor as never,
+      },
+    });
+  } else if (style.pointMode === "circle") {
+    removeStyleLayer(map, `${sourceId}-heatmap`);
     removeStyleLayer(map, `${sourceId}-symbol`);
     upsertLayer(map, {
       id: `${sourceId}-point`,
@@ -122,6 +143,7 @@ export function addLoadedStyleLayers(
       },
     });
   } else {
+    removeStyleLayer(map, `${sourceId}-heatmap`);
     removeStyleLayer(map, `${sourceId}-point`);
     const symbolLayout: Record<string, unknown> = {
       "symbol-placement": style.symbol.symbolPlacement,
@@ -213,6 +235,7 @@ export function addLoadedStyleLayers(
 export function removeLoadedLayerGroup(map: MapboxMap, sourceId: string) {
   removeLayerGroup(map, sourceId, [
     `${sourceId}-raster`,
+    `${sourceId}-heatmap`,
     `${sourceId}-fill`,
     `${sourceId}-line`,
     `${sourceId}-point`,
@@ -243,6 +266,7 @@ export function reorderLoadedStyleLayers(
     const sourceId = sourceIdFor(layer.id);
     for (const styleLayerId of [
       `${sourceId}-raster`,
+      `${sourceId}-heatmap`,
       `${sourceId}-fill`,
       `${sourceId}-line`,
       `${sourceId}-point`,

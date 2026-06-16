@@ -59,21 +59,25 @@ function adminRouteFor(user: User | null) {
       icon: <SettingOutlined />,
     });
   }
-  if (user?.permissions.canMaintainData) {
+  if (user?.permissions.canMaintainData || user?.permissions.canUploadData) {
+    const dataChildren: MenuDataItem[] = [];
+    if (user.permissions.canMaintainData) {
+      dataChildren.push({
+        path: "/admin/data/inventory",
+        name: "存量数据",
+      });
+    }
+    if (user.permissions.canUploadData || user.permissions.canMaintainData) {
+      dataChildren.push({
+        path: "/admin/data/import",
+        name: "数据导入",
+      });
+    }
     routes.push({
       path: "/admin/data",
       name: "数据管理",
       icon: <DatabaseOutlined />,
-      children: [
-        {
-          path: "/admin/data/inventory",
-          name: "存量数据",
-        },
-        {
-          path: "/admin/data/import",
-          name: "数据导入",
-        },
-      ],
+      children: dataChildren,
     });
   }
   if (user?.permissions.canManageAuth) {

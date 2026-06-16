@@ -35,6 +35,8 @@ def serialize_resource(resource: DataResource) -> dict:
         "fileFormat": resource.file_format,
         "description": resource.description,
         "qualityNote": resource.quality_note,
+        "sizeBytes": resource.size_bytes,
+        "itemCount": resource.item_count,
         "status": resource.status,
         "isQueryable": bool(
             resource.data_type == DataResource.DataType.VECTOR and resource.storage_path

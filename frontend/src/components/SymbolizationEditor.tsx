@@ -24,6 +24,7 @@ import type {
   CircleSymbolization,
   FillSymbolization,
   GroupSymbolization,
+  HeatmapSymbolization,
   LineSymbolization,
   MapViewport,
   RasterSymbolization,
@@ -47,6 +48,60 @@ const anchorOptions: Anchor[] = [
 const alignmentOptions: Alignment[] = ["auto", "map", "viewport"];
 const mapViewportOptions: MapViewport[] = ["map", "viewport"];
 const rgbBandLabels = ["R", "G", "B"] as const;
+const heatmapPalettes = [
+  {
+    label: "生态密度",
+    value: [
+      "interpolate",
+      ["linear"],
+      ["heatmap-density"],
+      0,
+      "rgba(0, 0, 0, 0)",
+      0.18,
+      "#8ecae6",
+      0.42,
+      "#2a9d8f",
+      0.72,
+      "#f4a261",
+      1,
+      "#d62828",
+    ],
+  },
+  {
+    label: "冷暖过渡",
+    value: [
+      "interpolate",
+      ["linear"],
+      ["heatmap-density"],
+      0,
+      "rgba(0, 0, 0, 0)",
+      0.25,
+      "#3b82f6",
+      0.55,
+      "#22c55e",
+      0.78,
+      "#facc15",
+      1,
+      "#ef4444",
+    ],
+  },
+  {
+    label: "单色强度",
+    value: [
+      "interpolate",
+      ["linear"],
+      ["heatmap-density"],
+      0,
+      "rgba(0, 0, 0, 0)",
+      0.35,
+      "rgba(34, 197, 143, 0.35)",
+      0.7,
+      "rgba(34, 197, 143, 0.72)",
+      1,
+      "#eafff8",
+    ],
+  },
+] as const;
 
 export function GroupSymbolizationEditor({
   value,
@@ -125,6 +180,79 @@ export function VectorSymbolizationEditor({
     onChange({ ...value, fill: { ...value.fill, [key]: nextValue } });
   }
 
+  function updateHeatmap<Key extends keyof HeatmapSymbolization>(
+    key: Key,
+    nextValue: HeatmapSymbolization[Key],
+  ) {
+    onChange({ ...value, heatmap: { ...value.heatmap, [key]: nextValue } });
+  }
+
+  function applyPreset(kind: "point" | "symbol" | "heatmap" | "line" | "fill") {
+    if (kind === "point") {
+      onChange({
+        ...value,
+        pointMode: "circle",
+        circle: {
+          ...value.circle,
+          circleColor: "#2f7d62",
+          circleRadius: 7,
+          circleStrokeColor: "#f4cb68",
+          circleStrokeWidth: 1.6,
+        },
+      });
+    } else if (kind === "symbol") {
+      onChange({
+        ...value,
+        pointMode: "symbol",
+        symbol: {
+          ...value.symbol,
+          iconImage: "marker-15",
+          iconColor: "#d9a441",
+          iconHaloColor: "#173f39",
+          iconHaloWidth: 0.8,
+          iconSize: 1.15,
+          textColor: "#173f39",
+          textHaloColor: "#ffffff",
+          textHaloWidth: 1.2,
+        },
+      });
+    } else if (kind === "heatmap") {
+      onChange({
+        ...value,
+        pointMode: "heatmap",
+        heatmap: {
+          ...value.heatmap,
+          heatmapIntensity: 1.15,
+          heatmapRadius: 32,
+          heatmapOpacity: 0.78,
+          heatmapColor: [
+            ...(heatmapPalettes[0]?.value ?? value.heatmap.heatmapColor),
+          ],
+        },
+      });
+    } else if (kind === "line") {
+      onChange({
+        ...value,
+        line: {
+          ...value.line,
+          lineColor: "#2f7d62",
+          lineWidth: 2.4,
+          lineDasharray: [1, 0],
+        },
+      });
+    } else {
+      onChange({
+        ...value,
+        fill: {
+          ...value.fill,
+          fillColor: "#2f7d62",
+          fillOpacity: 0.42,
+          fillOutlineColor: "#f4cb68",
+        },
+      });
+    }
+  }
+
   const textFieldOptions = [
     { value: "", label: "不显示" },
     ...fields.map((field) => ({ value: `{${field.name}}`, label: field.name })),
@@ -166,8 +294,9 @@ export function VectorSymbolizationEditor({
                     block
                     value={value.pointMode}
                     options={[
-                      { value: "circle", label: "circle" },
-                      { value: "symbol", label: "symbol" },
+                      { value: "circle", label: "圆点" },
+                      { value: "symbol", label: "图标" },
+                      { value: "heatmap", label: "热力图" },
                     ]}
                     onChange={(mode) =>
                       updateRoot(
@@ -176,6 +305,25 @@ export function VectorSymbolizationEditor({
                       )
                     }
                   />
+                </ControlRow>
+                <ControlRow label="样式预设">
+                  <Space wrap>
+                    <Button size="small" onClick={() => applyPreset("point")}>
+                      调查点
+                    </Button>
+                    <Button size="small" onClick={() => applyPreset("symbol")}>
+                      监测站
+                    </Button>
+                    <Button size="small" onClick={() => applyPreset("heatmap")}>
+                      密度热力
+                    </Button>
+                    <Button size="small" onClick={() => applyPreset("line")}>
+                      河流线
+                    </Button>
+                    <Button size="small" onClick={() => applyPreset("fill")}>
+                      保护区
+                    </Button>
+                  </Space>
                 </ControlRow>
               </Space>
             ),
@@ -739,6 +887,62 @@ export function VectorSymbolizationEditor({
                     updateSymbol("textOcclusionOpacity", next)
                   }
                 />
+              </Space>
+            ),
+          },
+          {
+            key: "heatmap",
+            label: "heatmap",
+            children: (
+              <Space
+                orientation="vertical"
+                className="full-width symbolization-stack"
+              >
+                <NumberField
+                  label="heatmap-weight"
+                  value={value.heatmap.heatmapWeight}
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  onChange={(next) => updateHeatmap("heatmapWeight", next)}
+                />
+                <NumberField
+                  label="heatmap-intensity"
+                  value={value.heatmap.heatmapIntensity}
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  onChange={(next) => updateHeatmap("heatmapIntensity", next)}
+                />
+                <NumberField
+                  label="heatmap-radius"
+                  value={value.heatmap.heatmapRadius}
+                  min={1}
+                  max={120}
+                  step={1}
+                  onChange={(next) => updateHeatmap("heatmapRadius", next)}
+                />
+                <NumberField
+                  label="heatmap-opacity"
+                  value={value.heatmap.heatmapOpacity}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={(next) => updateHeatmap("heatmapOpacity", next)}
+                />
+                <ControlRow label="heatmap-color">
+                  <Select
+                    className="full-width"
+                    value={JSON.stringify(value.heatmap.heatmapColor)}
+                    options={heatmapPalettes.map((palette) => ({
+                      label: palette.label,
+                      value: JSON.stringify(palette.value),
+                    }))}
+                    onChange={(next) =>
+                      updateHeatmap("heatmapColor", JSON.parse(next))
+                    }
+                  />
+                </ControlRow>
               </Space>
             ),
           },

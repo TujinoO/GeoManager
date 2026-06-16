@@ -11,7 +11,7 @@ info:
     3. 后续请求携带 `sessionid` Cookie 和 `X-CSRFToken` 请求头
 
     ## 权限体系
-    - **功能权限**：24 项细粒度功能权限，通过用户组分配，按后台权限、日志权限、Dashboard 权限、数据权限、人员权限分组管理
+    - **功能权限**：26 项细粒度功能权限，通过用户组分配，按后台权限、日志权限、Dashboard 权限、数据权限、人员权限分组管理
     - **数据访问权限**：基于 `access_groups` 的数据隔离
 
     ## 错误处理
@@ -1074,13 +1074,127 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /api/catalog/workspaces/:
+    get:
+      tags: [数据目录]
+      summary: 获取工程和专题列表
+      description: 返回当前登录用户私有保存的工程或专题工作台快照。可按 kind 过滤工程或专题。
+      operationId: listCatalogWorkspaces
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: kind
+          in: query
+          schema:
+            type: string
+            enum: [project, topic]
+          description: 工作台快照类型；project 表示工程，topic 表示专题
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceSceneListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [数据目录]
+      summary: 保存工程或专题
+      description: 将当前工作台图层树、顺序、显隐和可视化方案保存为当前用户私有工程或专题。
+      operationId: createCatalogWorkspace
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceSceneCreateRequest'
+      responses:
+        '201':
+          description: 保存成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceScene'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/catalog/workspaces/{workspaceId}/:
+    get:
+      tags: [数据目录]
+      summary: 获取工程或专题详情
+      description: 返回当前用户拥有的单个工程或专题快照。
+      operationId: getCatalogWorkspace
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 工程或专题 ID
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceScene'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [数据目录]
+      summary: 更新或删除工程专题
+      description: 更新当前用户拥有的工程/专题快照，或提交 action=delete 删除。
+      operationId: updateCatalogWorkspace
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 工程或专题 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceSceneUpdateRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/WorkspaceScene'
+                  - $ref: '#/components/schemas/DetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/catalog/import/preview/:
     post:
       tags: [数据目录]
       summary: 导入数据预检
       description: |
         解析上传的 Excel/CSV 第一张表，按文本读取字段，自动推测经纬度列，
-        并返回样例行和字段列表。该接口不执行坐标数据校验，不写入数据。
+        并返回样例行、字段列表和建议入库目标是否重名。该接口不执行坐标数据校验，不写入数据。
+        需要 `core.upload_data` 或 `catalog.maintain_dataresource`。
       operationId: importPreview
       security:
         - sessionAuth: []
@@ -1114,7 +1228,7 @@ paths:
     post:
       tags: [数据目录]
       summary: 上传数据校验
-      description: 按当前表单选择的导入类型和经纬度列校验上传文件，不写入数据
+      description: 按当前表单选择的导入类型、入库表名和经纬度列校验上传文件，不写入数据。需要 `core.upload_data` 或 `catalog.maintain_dataresource`。
       operationId: importValidate
       security:
         - sessionAuth: []
@@ -1132,7 +1246,7 @@ paths:
                   description: 与预检一致的文件
                 payload:
                   type: string
-                  description: JSON 字符串，包含 importMode、longitudeColumn、latitudeColumn
+                  description: JSON 字符串，包含 importMode、tableName、longitudeColumn、latitudeColumn
       responses:
         '200':
           description: 校验成功
@@ -1154,6 +1268,7 @@ paths:
       description: |
         将预检后的 Excel/CSV 导入统一存储。选择地理数据时写入 GeoPackage，
         选择非地理数据时写入 SQLite。接口会同步创建或更新 DataResource。
+        需要 `core.upload_data` 或 `catalog.maintain_dataresource`；覆盖已有入库目标必须显式传入 overwrite=true。
       operationId: importCommit
       security:
         - sessionAuth: []
@@ -2248,8 +2363,10 @@ components:
         - canViewDashboardUserCard
         - canViewDashboardActiveUsersCard
         - canViewDashboardSystemCard
+        - canViewDataOverview
         - canBrowseData
         - canQueryData
+        - canUploadData
         - canLoadVectorLayer
         - canLoadRasterLayer
         - canUseCustomSymbolization
@@ -2302,12 +2419,18 @@ components:
         canViewDashboardSystemCard:
           type: boolean
           description: 是否可查看 Dashboard 系统信息
+        canViewDataOverview:
+          type: boolean
+          description: 是否可查看总数据情况，包括数据大小、条目数和上传用户统计
         canBrowseData:
           type: boolean
           description: 是否可浏览数据目录
         canQueryData:
           type: boolean
           description: 是否可查询数据
+        canUploadData:
+          type: boolean
+          description: 是否可上传数据；不同于维护存量数据权限，不包含删除、启停或默认可视化配置
         canLoadVectorLayer:
           type: boolean
           description: 是否可加载矢量图层
@@ -2498,6 +2621,8 @@ components:
           $ref: '#/components/schemas/AdminDashboardLayerCard'
         rasters:
           $ref: '#/components/schemas/AdminDashboardRasterCard'
+        dataOverview:
+          $ref: '#/components/schemas/AdminDashboardDataOverviewCard'
         users:
           $ref: '#/components/schemas/AdminDashboardUserCard'
         activeUsers:
@@ -2539,6 +2664,68 @@ components:
         layers:
           type: integer
           description: 栅格图层数量
+
+    AdminDashboardDataOverviewCard:
+      type: object
+      required:
+        [totalResources, activeResources, totalSizeBytes, totalItemCount, typeBreakdown]
+      properties:
+        totalResources:
+          type: integer
+          description: 数据资源总数
+        activeResources:
+          type: integer
+          description: 启用状态数据资源数量
+        totalSizeBytes:
+          type: integer
+          description: 数据总大小，单位字节
+        totalItemCount:
+          type: integer
+          description: 数据条目总数
+        typeBreakdown:
+          type: array
+          description: 按数据类型聚合的数据情况
+          items:
+            $ref: '#/components/schemas/AdminDashboardDataTypeOverview'
+        uploaders:
+          type: array
+          description: 超级管理员可见的上传用户统计；普通用户无该字段
+          items:
+            $ref: '#/components/schemas/AdminDashboardUploaderOverview'
+
+    AdminDashboardDataTypeOverview:
+      type: object
+      required: [dataType, count, sizeBytes, itemCount]
+      properties:
+        dataType:
+          type: string
+          enum: [vector, raster, gene, table, document, image]
+          description: 数据类型
+        count:
+          type: integer
+          description: 该类型数据资源数量
+        sizeBytes:
+          type: integer
+          description: 该类型数据大小，单位字节
+        itemCount:
+          type: integer
+          description: 该类型数据条目数
+
+    AdminDashboardUploaderOverview:
+      type: object
+      required: [user, resourceCount, sizeBytes, itemCount]
+      properties:
+        user:
+          $ref: '#/components/schemas/UserReference'
+        resourceCount:
+          type: integer
+          description: 该用户上传或维护的数据资源数量
+        sizeBytes:
+          type: integer
+          description: 该用户数据大小，单位字节
+        itemCount:
+          type: integer
+          description: 该用户数据条目数
 
     AdminDashboardUserCard:
       type: object
@@ -2780,6 +2967,7 @@ components:
             [
               groupIds,
               isActive,
+              groupPermissions,
               directPermissions,
               effectivePermissions,
               operationLogGroupIds,
@@ -2793,6 +2981,11 @@ components:
             isActive:
               type: boolean
               description: 用户账号是否启用
+            groupPermissions:
+              type: array
+              description: 用户通过所属用户组继承的平台功能权限列表
+              items:
+                type: string
             directPermissions:
               type: array
               description: 单独授予该用户的平台功能权限列表，不包含用户组继承权限
@@ -3043,6 +3236,8 @@ components:
         - fileFormat
         - description
         - qualityNote
+        - sizeBytes
+        - itemCount
         - status
         - isQueryable
         - isRenderable
@@ -3091,6 +3286,12 @@ components:
         qualityNote:
           type: string
           description: 数据质量说明
+        sizeBytes:
+          type: integer
+          description: 数据大小，单位字节；未知时为 0
+        itemCount:
+          type: integer
+          description: 数据条目数；未知时为 0
         status:
           type: string
           enum: [active, inactive]
@@ -3186,9 +3387,12 @@ components:
         - description
         - qualityNote
         - defaultVisualization
+        - sizeBytes
+        - itemCount
         - status
         - accessGroups
         - maintainer
+        - uploader
         - createdAt
         - updatedAt
         - defaultLayer
@@ -3243,6 +3447,12 @@ components:
           type: object
           additionalProperties: true
           description: 数据资源默认可视化方案
+        sizeBytes:
+          type: integer
+          description: 数据大小，单位字节；未知时为 0
+        itemCount:
+          type: integer
+          description: 数据条目数；未知时为 0
         status:
           type: string
           enum: [active, inactive]
@@ -3254,7 +3464,12 @@ components:
             $ref: '#/components/schemas/AdminDataResourceAccessGroup'
         maintainer:
           type: string
-          description: 维护人员显示名称
+          description: 维护人员显示名称；兼容旧前端字段
+        uploader:
+          oneOf:
+            - $ref: '#/components/schemas/AdminDataResourceUploader'
+            - type: "null"
+          description: 上传或维护该资源的用户；无法归属时为 null
         createdAt:
           type: string
           format: date-time
@@ -3268,6 +3483,20 @@ components:
             - $ref: '#/components/schemas/AdminDataResourceLayer'
             - type: "null"
           description: 关联默认地图图层，非空间数据可为 null
+
+    AdminDataResourceUploader:
+      type: object
+      required: [id, username, displayName]
+      properties:
+        id:
+          type: integer
+          description: 用户 ID
+        username:
+          type: string
+          description: 登录用户名
+        displayName:
+          type: string
+          description: 展示名称
 
     AdminDataResourceListResponse:
       type: object
@@ -3332,6 +3561,116 @@ components:
         confirmationName:
           type: string
           description: delete 操作要求传入与数据资源名称完全一致的确认文本
+
+    WorkspaceSceneOwner:
+      type: object
+      required: [id, username, displayName]
+      properties:
+        id:
+          type: integer
+          description: 所属用户 ID
+        username:
+          type: string
+          description: 所属用户名
+        displayName:
+          type: string
+          description: 所属用户展示名称
+
+    UserReference:
+      type: object
+      required: [id, username, displayName]
+      properties:
+        id:
+          type: [integer, "null"]
+          description: 用户 ID；未记录用户时为 null
+        username:
+          type: string
+          description: 登录用户名；未记录时为空字符串
+        displayName:
+          type: string
+          description: 展示名称；未记录时为“未记录”
+
+    WorkspaceSceneSnapshot:
+      type: object
+      additionalProperties: true
+      description: 工作台快照 JSON。前端保存图层组、顺序、显隐、符号化、栅格渲染元数据和视图状态，后端仅持久化不解释。
+
+    WorkspaceScene:
+      type: object
+      required: [id, kind, name, description, snapshot, owner, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          description: 工程或专题 ID
+        kind:
+          type: string
+          enum: [project, topic]
+          description: 场景类型：工程或专题
+        name:
+          type: string
+          description: 工程或专题名称
+        description:
+          type: string
+          description: 工程或专题说明
+        snapshot:
+          $ref: '#/components/schemas/WorkspaceSceneSnapshot'
+        owner:
+          $ref: '#/components/schemas/WorkspaceSceneOwner'
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间
+        updatedAt:
+          type: string
+          format: date-time
+          description: 更新时间
+
+    WorkspaceSceneListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: 当前用户保存的工程或专题
+          items:
+            $ref: '#/components/schemas/WorkspaceScene'
+
+    WorkspaceSceneCreateRequest:
+      type: object
+      required: [kind, name, snapshot]
+      properties:
+        kind:
+          type: string
+          enum: [project, topic]
+          description: 保存类型
+        name:
+          type: string
+          description: 工程或专题名称
+        description:
+          type: string
+          description: 工程或专题说明
+        snapshot:
+          $ref: '#/components/schemas/WorkspaceSceneSnapshot'
+
+    WorkspaceSceneUpdateRequest:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [delete]
+          description: 传 delete 时删除该工程或专题；不传时更新字段
+        kind:
+          type: string
+          enum: [project, topic]
+          description: 更新后的类型
+        name:
+          type: string
+          description: 更新后的名称
+        description:
+          type: string
+          description: 更新后的说明
+        snapshot:
+          $ref: '#/components/schemas/WorkspaceSceneSnapshot'
 
     VectorLayerResource:
       type: object
@@ -3823,7 +4162,7 @@ components:
     ImportPreviewResponse:
       type: object
       required:
-        [columns, rows, rowCount, suggestedTableName, suggestedName, detected, limitations]
+        [columns, rows, rowCount, suggestedTableName, suggestedName, duplicateTarget, detected, limitations]
       properties:
         columns:
           type: array
@@ -3846,6 +4185,11 @@ components:
         suggestedName:
           type: string
           description: 建议数据名称
+        duplicateTarget:
+          oneOf:
+            - $ref: '#/components/schemas/ImportDuplicateTarget'
+            - type: "null"
+          description: 按建议入库表名检测到的重复目标；无重复时为 null
         detected:
           $ref: '#/components/schemas/ImportDetectedInfo'
         limitations:
@@ -3881,7 +4225,7 @@ components:
 
     ImportValidateResponse:
       type: object
-      required: [coordinateStats, validationIssues]
+      required: [coordinateStats, validationIssues, duplicateTarget]
       properties:
         coordinateStats:
           oneOf:
@@ -3893,6 +4237,26 @@ components:
           description: 坐标校验问题
           items:
             $ref: '#/components/schemas/ValidationIssue'
+        duplicateTarget:
+          oneOf:
+            - $ref: '#/components/schemas/ImportDuplicateTarget'
+            - type: "null"
+          description: 按当前入库表名和导入类型检测到的重复目标；无重复时为 null
+
+    ImportDuplicateTarget:
+      type: object
+      required: [targetType, targetName, message]
+      properties:
+        targetType:
+          type: string
+          enum: [geopackage_layer, sqlite_table]
+          description: 重复目标类型
+        targetName:
+          type: string
+          description: 重复的 GeoPackage 图层名或 SQLite 表名
+        message:
+          type: string
+          description: 用户可读提示
 
     CoordinateStats:
       type: object
@@ -4040,6 +4404,13 @@ components:
         ratio:
           type: number
           description: 坐标不确定性误差倍率
+        targetType:
+          type: string
+          enum: [geopackage_layer, sqlite_table]
+          description: 重复目标类型，仅 duplicate_target 问题返回
+        targetName:
+          type: string
+          description: 重复的 GeoPackage 图层名或 SQLite 表名，仅 duplicate_target 问题返回
 
     ResourceProfileResponse:
       type: object

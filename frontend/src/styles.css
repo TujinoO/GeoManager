@@ -1332,6 +1332,25 @@ body {
   margin-top: 16px;
 }
 
+.admin-data-overview-detail {
+  margin-top: 16px;
+}
+
+.admin-data-overview-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-data-overview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid rgb(var(--c-primary-dark-rgb) / 0.08);
+}
+
 .admin-group-permission-summary {
   display: flex;
   flex-wrap: wrap;
@@ -1363,6 +1382,8 @@ body {
 .nongeo-stage {
   position: absolute;
   inset: 90px 16px 16px;
+  display: grid;
+  place-items: center;
   background:
     linear-gradient(145deg, rgba(248, 250, 247, 0.18), rgba(56, 86, 85, 0.22)),
     rgba(250, 252, 249, 0.06);
@@ -1372,6 +1393,44 @@ body {
     0 22px 64px rgba(0, 0, 0, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
   backdrop-filter: blur(18px) saturate(1.12);
+
+  & .ant-result-title,
+  & .ant-result-subtitle,
+  & .ant-result-icon {
+    color: #eafff8;
+  }
+}
+
+.nongeo-coming-soon {
+  display: grid;
+  place-items: center;
+  width: min(560px, calc(100vw - 64px));
+  min-height: 260px;
+  padding: 28px;
+  color: #eafff8;
+  background: rgba(7, 30, 38, 0.42);
+  border: 1px solid rgba(95, 231, 221, 0.16);
+  border-radius: 8px;
+
+  & .ant-empty-description,
+  & .ant-typography {
+    color: inherit;
+  }
+
+  & h3.ant-typography {
+    margin: 8px 0 6px;
+  }
+}
+
+.nongeo-coming-soon-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.nongeo-coming-soon-icon {
+  margin-top: 14px;
+  color: #74f3dd;
+  font-size: 28px;
 }
 
 .admin-import-page {
@@ -2503,7 +2562,22 @@ body {
   background: rgba(7, 30, 38, 0.44);
   border: 1px solid rgba(95, 231, 221, 0.14);
   border-radius: 8px;
-  cursor: pointer;
+  cursor: default;
+
+  & > button {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+    padding: 0;
+    color: inherit;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+  }
 
   & span {
     display: grid;
@@ -2528,6 +2602,12 @@ body {
 .layer-list,
 .layer-tree {
   margin-top: 12px;
+}
+
+.layer-save-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .layer-row.ant-list-item {
@@ -2581,6 +2661,7 @@ body {
 }
 
 .layer-tree-node {
+  position: relative;
   width: 100%;
   min-width: 0;
   padding: 10px;
@@ -2588,6 +2669,36 @@ body {
   background: rgba(7, 30, 38, 0.46);
   border: 1px solid rgba(95, 231, 221, 0.14);
   border-radius: 8px;
+
+  &::before,
+  &::after {
+    position: absolute;
+    right: 6px;
+    left: 6px;
+    z-index: 2;
+    height: 2px;
+    background: #62ecd9;
+    border-radius: 999px;
+    content: "";
+    opacity: 0;
+  }
+
+  &::before {
+    top: -5px;
+  }
+
+  &::after {
+    bottom: -5px;
+  }
+
+  &.layer-drop-before::before,
+  &.layer-drop-after::after {
+    opacity: 1;
+  }
+
+  &.is-dragging {
+    opacity: 0.58;
+  }
 }
 
 .layer-tree-node-group {
@@ -2601,7 +2712,14 @@ body {
   gap: 8px;
   margin-left: 26px;
   padding-left: 12px;
+  min-width: 0;
+  border: 0;
   border-left: 1px solid rgba(95, 231, 221, 0.18);
+}
+
+.layer-children-drop-inside {
+  border-left-color: #62ecd9;
+  box-shadow: inset 3px 0 0 rgba(98, 236, 217, 0.34);
 }
 
 .layer-row-main {
@@ -3274,6 +3392,38 @@ body {
     justify-content: center;
     line-height: 1;
   }
+}
+
+.map-coordinate-panel {
+  position: absolute;
+  left: calc(
+    var(--workspace-edge) +
+    var(--side-panel-width) +
+    var(--workspace-gap)
+  );
+  bottom: calc(
+    var(--workspace-edge) +
+    var(--bottom-panel-height) +
+    var(--workspace-gap) +
+    28px
+  );
+  z-index: 6;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 24px;
+  padding: 4px 8px;
+  color: #173f39;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  background: rgba(248, 250, 247, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 6px;
+  box-shadow:
+    0 10px 28px rgb(var(--c-shadow-rgb) / 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+  pointer-events: none;
+  backdrop-filter: blur(18px) saturate(1.18);
 }
 
 .mapboxgl-ctrl-bottom-left,

@@ -13,6 +13,9 @@ interface CachedLayerWorkspace {
 export async function readCachedLayerGroups(
   workspaceKey: string,
 ): Promise<LoadedLayerGroup[]> {
+  if (!hasIndexedDb()) {
+    return [];
+  }
   const db = await openLayerWorkspaceDb();
   try {
     const workspace = await requestToPromise<CachedLayerWorkspace | undefined>(
@@ -31,6 +34,9 @@ export async function writeCachedLayerGroups(
   workspaceKey: string,
   groups: LoadedLayerGroup[],
 ): Promise<void> {
+  if (!hasIndexedDb()) {
+    return;
+  }
   const db = await openLayerWorkspaceDb();
   try {
     await requestToPromise(
@@ -48,13 +54,13 @@ export async function writeCachedLayerGroups(
   }
 }
 
-function openLayerWorkspaceDb(): Promise<IDBDatabase> {
-  if (typeof indexedDB === "undefined") {
-    return Promise.reject(new Error("当前浏览器不支持 IndexedDB"));
-  }
+function hasIndexedDb(): boolean {
+  return typeof globalThis.indexedDB !== "undefined";
+}
 
+function openLayerWorkspaceDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = globalThis.indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {

@@ -77,7 +77,9 @@
           "status": "active",
           "isQueryable": false,
           "isRenderable": true,
-          "updatedAt": "2026-06-07T11:34:08.121395+00:00"
+          "updatedAt": "2026-06-07T11:34:08.121395+00:00",
+          "sizeBytes": 138412032,
+          "itemCount": 1
         },
         {
           "id": 2,
@@ -96,7 +98,9 @@
           "status": "active",
           "isQueryable": false,
           "isRenderable": true,
-          "updatedAt": "2026-06-07T11:34:11.743237+00:00"
+          "updatedAt": "2026-06-07T11:34:11.743237+00:00",
+          "sizeBytes": 138412032,
+          "itemCount": 1
         },
         {
           "id": "vector_survey_points_2026",
@@ -116,7 +120,9 @@
           "source": "GeoPackage 实时读取",
           "isQueryable": true,
           "isRenderable": false,
-          "status": "active"
+          "status": "active",
+          "sizeBytes": 245760,
+          "itemCount": 1
         }
       ]
     }
@@ -142,10 +148,101 @@
           "source": "GeoPackage 实时读取",
           "isQueryable": true,
           "isRenderable": false,
-          "status": "active"
+          "status": "active",
+          "sizeBytes": 245760,
+          "itemCount": 1
         }
       ],
       "count": 1
+    }
+  },
+  "GET /api/catalog/workspaces/": {
+    "200": {
+      "items": [
+        {
+          "id": 1,
+          "kind": "project",
+          "name": "塔里木河样地工程",
+          "description": "样地监测点和遥感底图组合",
+          "snapshot": {
+            "version": 1,
+            "groups": [],
+            "selectedLayerId": null,
+            "mapView": {
+              "center": [
+                87.62,
+                43.8
+              ],
+              "bounds": [
+                87.4,
+                43.6,
+                87.8,
+                44
+              ],
+              "zoom": 8.4,
+              "bearing": 0,
+              "pitch": 18
+            },
+            "savedAt": "2026-06-16T10:20:00+08:00"
+          },
+          "owner": {
+            "id": 1,
+            "username": "admin",
+            "displayName": "系统管理员"
+          },
+          "createdAt": "2026-06-16T10:20:00+08:00",
+          "updatedAt": "2026-06-16T10:20:00+08:00"
+        }
+      ]
+    }
+  },
+  "POST /api/catalog/workspaces/": {
+    "201": {
+      "id": 2,
+      "kind": "topic",
+      "name": "胡杨林密度专题",
+      "description": "点密度热力图专题",
+      "snapshot": {
+        "version": 1,
+        "groups": [],
+        "selectedLayerId": null,
+        "mapView": null,
+        "savedAt": "2026-06-16T10:30:00+08:00"
+      },
+      "owner": {
+        "id": 1,
+        "username": "admin",
+        "displayName": "系统管理员"
+      },
+      "createdAt": "2026-06-16T10:30:00+08:00",
+      "updatedAt": "2026-06-16T10:30:00+08:00"
+    }
+  },
+  "GET /api/catalog/workspaces/{workspaceId}/": {
+    "200": {
+      "id": 1,
+      "kind": "project",
+      "name": "塔里木河样地工程",
+      "description": "样地监测点和遥感底图组合",
+      "snapshot": {
+        "version": 1,
+        "groups": [],
+        "selectedLayerId": null,
+        "mapView": null,
+        "savedAt": "2026-06-16T10:20:00+08:00"
+      },
+      "owner": {
+        "id": 1,
+        "username": "admin",
+        "displayName": "系统管理员"
+      },
+      "createdAt": "2026-06-16T10:20:00+08:00",
+      "updatedAt": "2026-06-16T10:20:00+08:00"
+    }
+  },
+  "POST /api/catalog/workspaces/{workspaceId}/": {
+    "200": {
+      "detail": "工程已删除"
     }
   },
   "POST /api/catalog/import/preview/": {
@@ -191,6 +288,11 @@
       "rowCount": 128,
       "suggestedTableName": "populus_plots_2026",
       "suggestedName": "胡杨样地调查点 2026",
+      "duplicateTarget": {
+        "targetType": "geopackage_layer",
+        "targetName": "populus_plots_2026",
+        "message": "GeoPackage 图层 populus_plots_2026 已存在，关闭覆盖时不能重复导入。"
+      },
       "detected": {
         "isGeographic": true,
         "longitudeColumn": "longitude",
@@ -230,7 +332,12 @@
           "maxMeters": 3.2,
           "ratio": 1.4
         }
-      ]
+      ],
+      "duplicateTarget": {
+        "targetType": "geopackage_layer",
+        "targetName": "populus_plots_2026",
+        "message": "GeoPackage 图层 populus_plots_2026 已存在，关闭覆盖时不能重复导入。"
+      }
     }
   },
   "POST /api/catalog/import/commit/": {
@@ -287,7 +394,9 @@
         "source": "GeoPackage 实时读取",
         "isQueryable": true,
         "isRenderable": false,
-        "status": "active"
+        "status": "active",
+        "sizeBytes": 245760,
+        "itemCount": 1
       },
       "fields": [
         {
@@ -460,7 +569,9 @@
           "source": "GeoPackage 实时读取",
           "isQueryable": true,
           "isRenderable": false,
-          "status": "active"
+          "status": "active",
+          "sizeBytes": 245760,
+          "itemCount": 1
         },
         {
           "id": 1,
@@ -627,7 +738,9 @@
         "source": "GeoPackage 实时读取",
         "isQueryable": true,
         "isRenderable": false,
-        "status": "active"
+        "status": "active",
+        "sizeBytes": 245760,
+        "itemCount": 1
       },
       "fields": [
         {
@@ -806,7 +919,9 @@
           "status": "active",
           "isQueryable": false,
           "isRenderable": true,
-          "updatedAt": "2026-06-07T11:34:08.121395+00:00"
+          "updatedAt": "2026-06-07T11:34:08.121395+00:00",
+          "sizeBytes": 138412032,
+          "itemCount": 1
         },
         {
           "id": 2,
@@ -825,7 +940,9 @@
           "status": "active",
           "isQueryable": false,
           "isRenderable": true,
-          "updatedAt": "2026-06-07T11:34:11.743237+00:00"
+          "updatedAt": "2026-06-07T11:34:11.743237+00:00",
+          "sizeBytes": 138412032,
+          "itemCount": 1
         },
         {
           "id": "vector_survey_points_2026",
@@ -845,7 +962,9 @@
           "source": "GeoPackage 实时读取",
           "isQueryable": true,
           "isRenderable": false,
-          "status": "active"
+          "status": "active",
+          "sizeBytes": 245760,
+          "itemCount": 1
         }
       ],
       "achievements": [

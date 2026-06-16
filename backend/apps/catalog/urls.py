@@ -6,6 +6,12 @@ from apps.catalog import views
 urlpatterns = [
     path("catalog/directories/", views.directories, name="catalog-directories"),
     path("catalog/resources/", views.resources, name="catalog-resources"),
+    path("catalog/workspaces/", views.workspaces, name="catalog-workspaces"),
+    path(
+        "catalog/workspaces/<int:workspace_id>/",
+        views.workspace_detail,
+        name="catalog-workspace-detail",
+    ),
     path("catalog/scan/", views.scan_sources, name="catalog-scan"),
     path(
         "catalog/import/preview/", views.import_preview, name="catalog-import-preview"

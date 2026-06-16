@@ -873,6 +873,18 @@ export default function AdminAuthPage() {
                   <Tag>未单独授予</Tag>
                 )}
               </dd>
+              <dt>用户组继承权限</dt>
+              <dd>
+                {(activeUser.groupPermissions ?? []).length > 0 ? (
+                  <PermissionTags
+                    permissionIds={activeUser.groupPermissions ?? []}
+                    permissionLabelById={permissionLabelById}
+                    maxVisible={10}
+                  />
+                ) : (
+                  <Tag>未继承</Tag>
+                )}
+              </dd>
               <dt>实际生效权限</dt>
               <dd>
                 <PermissionTags
@@ -1059,6 +1071,20 @@ export default function AdminAuthPage() {
                 </div>
               ))}
             </Checkbox.Group>
+            <div className="admin-permission-effective">
+              <Typography.Text strong>用户组继承权限</Typography.Text>
+              {(permissionUser.groupPermissions ?? []).length > 0 ? (
+                <PermissionTags
+                  permissionIds={permissionUser.groupPermissions ?? []}
+                  permissionLabelById={permissionLabelById}
+                  maxVisible={14}
+                />
+              ) : (
+                <Typography.Text type="secondary">
+                  暂无用户组继承权限
+                </Typography.Text>
+              )}
+            </div>
             <div className="admin-permission-effective">
               <Typography.Text strong>当前实际生效权限</Typography.Text>
               {(permissionUser.effectivePermissions ?? []).length > 0 ? (

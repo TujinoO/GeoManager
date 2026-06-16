@@ -82,11 +82,12 @@ backend/apps/
 - 平台功能权限统一基于 Django `Permission + Group`，不引入独立角色表。用户通过所属用户组获得功能权限。
 - `apps.core.permissions.FEATURE_PERMISSIONS` 是统一注册表；后台用户组配置页只同步注册表内权限，保留用户组已有其他模型权限。
 - 功能权限元数据按 `后台权限`、`数据权限`、`人员权限` 三类返回，前端认证授权页按该分组展示和维护。
-- 迁移后初始化会先按注册表统一创建或更新 Django `Permission` 记录，再同步 `超级管理员` 用户组并补齐全部功能权限，同时创建 `游客` 用户组并授予浏览数据、加载矢量图层、加载栅格图层权限。
-- 管理员新建普通用户和修改普通用户组归属时必须保留至少一个用户组；自助注册用户默认加入 `游客` 用户组。
+- 迁移后初始化会先按注册表统一创建或更新 Django `Permission` 记录，再同步 `超级管理员` 用户组并补齐全部功能权限，同时创建 `普通用户` 用户组并授予浏览数据、查询数据、上传数据、加载矢量图层、加载栅格图层权限；历史 `游客` 用户组会自动改名为 `普通用户`。
+- 管理员新建普通用户和修改普通用户组归属时必须保留至少一个用户组；自助注册用户默认加入 `普通用户` 用户组。
 - 数据资源和图层的 `access_groups` 继续控制“能看见哪些对象”；功能权限控制“能对可见对象做什么”。
 - 首批平台功能权限包括：功能权限配置、数据浏览、数据查询、矢量加载、栅格加载、自定义符号化等后台内部功能权限。
-- 现有导出、数据维护、栅格数据集管理权限也纳入同一用户组配置入口；`catalog.maintain_dataresource` 覆盖后台数据导入、存量数据启停、默认可视化、访问范围配置和删除确认。
+- 现有导出、数据维护、栅格数据集管理权限也纳入同一用户组配置入口；`core.upload_data` 独立控制后台导入，`catalog.maintain_dataresource` 控制存量数据启停、默认可视化、访问范围配置和删除确认，并兼容允许导入。
+- `core.view_data_overview` 独立控制 Dashboard 总数据情况卡片；卡片包含资源总数、启用资源数、数据大小、条目数和类型聚合，超级管理员额外看到按 `DataResource.maintainer` 聚合的上传用户统计。
 - 前后端无权限提示统一为 `当前用户组“xxxx”无权限`；无用户组时显示 `未分组`。
 - `core.load_raster_layer` 控制按默认规则加载栅格和访问 XYZ；`core.custom_symbolization` 只控制用户打开符号化编辑器并提交自定义规则。
 - 栅格渲染 API 使用 `rulesMode` 区分默认/自定义：默认加载不传 `rules` 或传 `rulesMode: "default"`；自定义符号化传 `rulesMode: "custom"` 和 `rules`。
@@ -151,6 +152,7 @@ frontend/src/
 - Mapbox 公共 token 从 TOML 的 `[application.map].mapbox_access_token` 读取，经后端 bootstrap 下发，前端不硬编码默认 token。
 - Mapbox 底图标注语言使用 `zh-Hans`，并在样式加载后优先读取中文名称字段。
 - 前端初始化 Mapbox GL JS 时禁用 `EVENTS_URL` 和性能指标采集，避免浏览器插件拦截 `events.mapbox.com` 后产生控制台噪声；样式、瓦片和业务接口请求不受影响。
+- 鼠标经纬度面板先用 Mapbox `map.isPointOnSurface(event.point)` 判断鼠标是否落在地球表面；不在地球表面时清空显示，在表面时使用 `event.lngLat.wrap()` 并限制到合法经纬度范围。不从屏幕像素、瓦片坐标或墨卡托坐标自行换算。
 
 ## 管理后台实现约定
 
@@ -173,6 +175,8 @@ frontend/src/
 - 属性查询基于后端读取到的字段列表构建过滤条件，后端在 GeoPackage 读取结果上执行过滤。
 - 后端资源能力边界：只有带 `storage_path` 的矢量 GeoPackage 资源可查询；元数据资源只可浏览和筛选。
 - 后台 `/admin/data/inventory` 是存量数据管理入口，使用 `/api/admin/data/resources/` 查询启用和禁用资源；常规业务目录 `/api/catalog/resources/`、搜索和资源 profile/query 仍只处理 `status=active` 的数据资源。
+- `DataResource.maintainer` 同时作为上传用户和维护人员的来源；后台数据资源接口暴露结构化 `uploader`。`DataResource.size_bytes` 和 `DataResource.item_count` 记录数据大小与条目数：Excel/CSV 导入使用上传文件大小和导入行数，栅格资源使用源文件与预处理文件大小，扫描到的非地理文件使用文件大小。
+- Excel/CSV 导入预检和校验会按实际入库目标检测重复：地理数据检查 GeoPackage 图层名，非地理数据检查 SQLite 表名。`overwrite=false` 的提交必须由后端阻断，前端提示不能作为安全边界。
 - `DataResource.default_visualization` 保存默认可视化方案 JSON；空间资源保存方案时会创建或更新关联 `MapLayer`，同步默认图层名称、默认显隐、默认透明度、矢量符号化和栅格规则。栅格色带和 PNG/XYZ 生成仍由后端栅格服务处理。
 - 存量数据启停、默认可视化保存、访问用户组配置、删除和清单导出均写入 `OperationLog(module="数据管理")`。删除用户导入的矢量/表格资源时清理 GeoPackage 图层或 SQLite 表；栅格等可能复用的研究数据文件保留，仅删除资源登记和关联图层。
 - 操作日志中的模块、动作和说明统一使用中文。除认证、用户组、用户、系统配置和存量数据管理外，目录扫描、导入预览/校验/提交、数据查询、已加载图层导出、异步导出发起/下载、个人资料更新、个人权限开关更新、栅格渲染样式注册、栅格渲染任务发起、栅格唯一值统计、栅格导入和栅格扫描发起也写入 `OperationLog`。异步任务内部的执行进度仍保留在任务消息或 `RasterDataset.progress_log`，操作日志记录用户可归属的发起和下载动作。
@@ -184,7 +188,7 @@ frontend/src/
 - 栅格数据在前端状态模型中作为图层组下的栅格子图层加载，子图层持有 `tileUrl`、Mapbox 图片角点、透明度、元数据和符号化配置；栅格符号化仍由后端完成。
 - 图层组和子图层均保留独立显隐、定位、导出和符号化入口；透明度在符号化面板内配置。
 - 子图层提供数据表按钮，点击后以弹窗展示整层属性表；元数据在底部导航面板中展示。
-- 已加载图层组默认按当前用户写入浏览器 IndexedDB 的 `huyang-system-map-workspace/layer-groups`，保存完整前端运行态（包含矢量 GeoJSON 查询结果、栅格 tile URL、显隐、顺序、命名和符号化方案）。地图页刷新后由 `useLayerGroups` 自动恢复；缓存失败只影响本地恢复，不改变后端数据和权限边界。
+- 已加载图层组默认按当前用户写入浏览器 IndexedDB 的 `huyang-system-map-workspace/layer-groups`，保存完整前端运行态（包含矢量 GeoJSON 查询结果、栅格 tile URL、显隐、顺序、命名、符号化方案、栅格渲染元数据和当前本地工作台状态）。地图页刷新或切换界面后由 `useLayerGroups` 自动恢复；缓存失败只影响本地恢复，不改变后端数据和权限边界。服务器端工程/专题只在用户显式保存时写入 `WorkspaceScene`，不做实时 server autosave。
 
 ## 矢量图层符号化与交互
 
@@ -193,7 +197,7 @@ frontend/src/
 - 点要素符号化按 Mapbox Style Specification 的 `circle` 和 `symbol` 图层拆分：`circle` 参数覆盖颜色、半径、描边、模糊、位移、pitch、sort key、emissive 等；`symbol` 参数覆盖 icon/text 的 layout 与 paint 配置。
 - 线、面要素继续使用 Mapbox `line`、`fill` 图层表达，符号化面板同步暴露线色、线宽、线型、填充色、透明度、位移、sort key 等参数。
 - 每个前端加载的 GeoJSON source 使用 `generateId`，所有矢量 style layer 注册统一交互：鼠标覆盖仅改变指针并高亮要素，单击要素后选中并在右侧导航面板的"要素属性"标签中展示该单条记录属性。
-- 主界面侧栏参考 `docs/ui-redesign-mockups.html` 的 V2 布局：左侧统一为 `数据`、`图层`、`专题` 三个切换页；右侧拆成上方平面缩略图窗口和下方生态数据窗口，下方包含 `概览`、`要素`、`监测` 三个切换页，其中 `要素` 继续承载地图单击要素属性；底部面板改为空间查询工作区，包含 `空间查询`、`结果`、`时间`、`图例` 标签，`空间查询` 内按左右区域组织范围绘制/导入导出与查询状态/图例占位。共享空间范围仍同时用于空间查询和导出裁切，当前选中图层范围开关继续将 `minLng,minLat,maxLng,maxLat` 范围绘制为地图覆盖层。
+- 主界面侧栏参考 `docs/ui-redesign-mockups.html` 的 V2 布局：左侧统一为 `数据`、`图层`、`工程`、`专题` 四个切换页；右侧拆成上方平面缩略图窗口和下方生态数据窗口，下方包含 `概览`、`要素`、`监测` 三个切换页，其中 `要素` 继续承载地图单击要素属性；底部面板改为空间查询工作区，包含 `空间查询`、`结果`、`时间`、`图例` 标签，`空间查询` 内按左右区域组织范围绘制/导入导出与查询状态/图例占位。共享空间范围仍同时用于空间查询和导出裁切，当前选中图层范围开关继续将 `minLng,minLat,maxLng,maxLat` 范围绘制为地图覆盖层。
 - 当前符号化模型位于 `frontend/src/symbolization.ts`，编辑界面位于 `frontend/src/components/SymbolizationEditor.tsx`，Mapbox 转换逻辑位于 `frontend/src/map/vectorLayerSync.ts`。
 
 ## 栅格符号化与加载方案

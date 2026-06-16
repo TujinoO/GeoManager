@@ -12,6 +12,7 @@ import {
   RedirectIfAuth,
   RequireAuth,
   RequireDataMaintain,
+  RequireDataUpload,
   RequireManageAuth,
   RequireManageSystemSettings,
   RequireViewOperationLogs,
@@ -185,6 +186,8 @@ export default function App() {
                   path="data/inventory"
                   element={<AdminDataInventoryPage />}
                 />
+              </Route>
+              <Route element={<RequireDataUpload />}>
                 <Route path="data/import" element={<AdminDataImportPage />} />
               </Route>
             </Route>

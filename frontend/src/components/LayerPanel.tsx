@@ -11,6 +11,7 @@ import {
   FolderOpenOutlined,
   HolderOutlined,
   RightOutlined,
+  SaveOutlined,
   SearchOutlined,
   TableOutlined,
 } from "@ant-design/icons";
@@ -21,8 +22,10 @@ import {
   Button,
   Card,
   Empty,
+  Form,
   Input,
   InputNumber,
+  Modal,
   Popover,
   Progress,
   Space,
@@ -31,7 +34,11 @@ import {
   Typography,
 } from "antd";
 import { type DragEvent, useEffect, useMemo, useState } from "react";
-import { type DropPlacement, useLayerContext } from "../hooks/LayerContext";
+import {
+  type DropPlacement,
+  type LayerDropPlacement,
+  useLayerContext,
+} from "../hooks/LayerContext";
 import type {
   GroupSymbolization,
   RasterSymbolization,
@@ -43,6 +50,7 @@ import type {
   LoadedLayerGroup,
   RasterBandMetadata,
   ResourceField,
+  WorkspaceSceneKind,
 } from "../types";
 import { resourceExportId } from "../utils/resources";
 import {
@@ -53,6 +61,8 @@ import {
 
 export default function LayerPanel() {
   const ctx = useLayerContext();
+  const { message } = App.useApp();
+  const [saveForm] = Form.useForm<{ name: string; description?: string }>();
   const groups = ctx.groups;
   const [query, setQuery] = useState("");
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
@@ -63,6 +73,18 @@ export default function LayerPanel() {
     groupId: string;
     placement: DropPlacement;
   } | null>(null);
+  const [draggingLayer, setDraggingLayer] = useState<{
+    groupId: string;
+    layerId: string;
+  } | null>(null);
+  const [layerDropTarget, setLayerDropTarget] = useState<{
+    groupId: string;
+    layerId: string | null;
+    placement: LayerDropPlacement;
+  } | null>(null);
+  const [saveKind, setSaveKind] = useState<WorkspaceSceneKind>("project");
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [savingWorkspace, setSavingWorkspace] = useState(false);
   const filteredGroups = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     if (!keyword) {
@@ -97,10 +119,34 @@ export default function LayerPanel() {
     });
   }
 
+  function openSaveWorkspace(kind: WorkspaceSceneKind) {
+    if (groups.length === 0) {
+      message.warning("当前没有可保存的图层");
+      return;
+    }
+    setSaveKind(kind);
+    saveForm.setFieldsValue({
+      name: "",
+      description: "",
+    });
+    setSaveOpen(true);
+  }
+
+  async function submitSaveWorkspace() {
+    const values = await saveForm.validateFields();
+    setSavingWorkspace(true);
+    try {
+      await ctx.saveWorkspace(saveKind, values);
+      setSaveOpen(false);
+    } finally {
+      setSavingWorkspace(false);
+    }
+  }
+
   function handleDragStart(event: DragEvent<HTMLElement>, groupId: string) {
     event.stopPropagation();
     event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", groupId);
+    event.dataTransfer.setData("text/plain", `group:${groupId}`);
     setDraggingGroupId(groupId);
   }
 
@@ -109,7 +155,8 @@ export default function LayerPanel() {
     targetGroupId: string,
   ) {
     const sourceGroupId =
-      draggingGroupId ?? event.dataTransfer.getData("text/plain");
+      draggingGroupId ??
+      groupIdFromDrag(event.dataTransfer.getData("text/plain"));
     if (!sourceGroupId || sourceGroupId === targetGroupId) {
       return;
     }
@@ -123,7 +170,8 @@ export default function LayerPanel() {
 
   function handleDrop(event: DragEvent<HTMLElement>, targetGroupId: string) {
     const sourceGroupId =
-      event.dataTransfer.getData("text/plain") || draggingGroupId;
+      groupIdFromDrag(event.dataTransfer.getData("text/plain")) ||
+      draggingGroupId;
     if (!sourceGroupId || sourceGroupId === targetGroupId) {
       setDraggingGroupId(null);
       setDragTarget(null);
@@ -136,6 +184,83 @@ export default function LayerPanel() {
     ctx.reorderGroups(sourceGroupId, targetGroupId, placement);
     setDraggingGroupId(null);
     setDragTarget(null);
+  }
+
+  function handleLayerDragStart(
+    event: DragEvent<HTMLElement>,
+    groupId: string,
+    layerId: string,
+  ) {
+    event.stopPropagation();
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", `layer:${groupId}:${layerId}`);
+    setDraggingLayer({ groupId, layerId });
+  }
+
+  function handleLayerDragOverGroup(
+    event: DragEvent<HTMLElement>,
+    targetGroupId: string,
+  ) {
+    const sourceLayer =
+      draggingLayer ??
+      layerPayloadFromDrag(event.dataTransfer.getData("text/plain"));
+    if (!sourceLayer) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setLayerDropTarget({
+      groupId: targetGroupId,
+      layerId: null,
+      placement: "inside",
+    });
+  }
+
+  function handleLayerDragOverLayer(
+    event: DragEvent<HTMLElement>,
+    targetGroupId: string,
+    targetLayerId: string,
+  ) {
+    const sourceLayer =
+      draggingLayer ??
+      layerPayloadFromDrag(event.dataTransfer.getData("text/plain"));
+    if (!sourceLayer || sourceLayer.layerId === targetLayerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    const rect = event.currentTarget.getBoundingClientRect();
+    const placement =
+      event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+    setLayerDropTarget({
+      groupId: targetGroupId,
+      layerId: targetLayerId,
+      placement,
+    });
+  }
+
+  function handleLayerDrop(
+    event: DragEvent<HTMLElement>,
+    targetGroupId: string,
+    targetLayerId: string | null,
+    placement: LayerDropPlacement,
+  ) {
+    const sourceLayer =
+      layerPayloadFromDrag(event.dataTransfer.getData("text/plain")) ||
+      draggingLayer;
+    if (!sourceLayer) {
+      setDraggingLayer(null);
+      setLayerDropTarget(null);
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    ctx.moveLayer(
+      sourceLayer.groupId,
+      sourceLayer.layerId,
+      targetGroupId,
+      targetLayerId,
+      placement,
+    );
+    setDraggingLayer(null);
+    setLayerDropTarget(null);
   }
 
   function handleLayerSymbolizationChange(
@@ -174,6 +299,24 @@ export default function LayerPanel() {
           count={groups.filter((group) => group.visible).length}
           color="#2f7d62"
         />
+      </div>
+      <div className="layer-save-actions">
+        <Button
+          size="small"
+          icon={<SaveOutlined style={{ fontSize: 14 }} />}
+          disabled={groups.length === 0}
+          onClick={() => openSaveWorkspace("project")}
+        >
+          保存为工程
+        </Button>
+        <Button
+          size="small"
+          icon={<SaveOutlined style={{ fontSize: 14 }} />}
+          disabled={groups.length === 0}
+          onClick={() => openSaveWorkspace("topic")}
+        >
+          保存为专题
+        </Button>
       </div>
       <Input
         prefix={<SearchOutlined style={{ fontSize: 15 }} />}
@@ -224,12 +367,53 @@ export default function LayerPanel() {
                   exportItems={exportItemsForGroup(group)}
                 />
                 {expanded && (
-                  <fieldset className="layer-children">
+                  <fieldset
+                    className={
+                      layerDropTarget?.groupId === group.id &&
+                      layerDropTarget.layerId === null
+                        ? "layer-children layer-children-drop-inside"
+                        : "layer-children"
+                    }
+                    onDragOver={(event) =>
+                      handleLayerDragOverGroup(event, group.id)
+                    }
+                    onDrop={(event) =>
+                      handleLayerDrop(event, group.id, null, "inside")
+                    }
+                  >
                     {group.children.map((layer) => (
                       <LayerItemNode
                         key={layer.id}
                         groupId={group.id}
                         layer={layer}
+                        dragging={
+                          draggingLayer?.groupId === group.id &&
+                          draggingLayer.layerId === layer.id
+                        }
+                        dropPlacement={
+                          layerDropTarget?.groupId === group.id &&
+                          layerDropTarget.layerId === layer.id
+                            ? layerDropTarget.placement
+                            : null
+                        }
+                        onDragStart={(event) =>
+                          handleLayerDragStart(event, group.id, layer.id)
+                        }
+                        onDragEnd={() => {
+                          setDraggingLayer(null);
+                          setLayerDropTarget(null);
+                        }}
+                        onDragOver={(event) =>
+                          handleLayerDragOverLayer(event, group.id, layer.id)
+                        }
+                        onDrop={(event) =>
+                          handleLayerDrop(
+                            event,
+                            group.id,
+                            layer.id,
+                            layerDropTarget?.placement ?? "after",
+                          )
+                        }
                         onVisibilityChange={ctx.setLayerVisibility}
                         onNameChange={ctx.setLayerName}
                         onSymbolizationChange={handleLayerSymbolizationChange}
@@ -253,6 +437,28 @@ export default function LayerPanel() {
           description="暂无已加载图层"
         />
       )}
+      <Modal
+        title={saveKind === "project" ? "保存为工程" : "保存为专题"}
+        open={saveOpen}
+        okText="保存"
+        confirmLoading={savingWorkspace}
+        onOk={submitSaveWorkspace}
+        onCancel={() => setSaveOpen(false)}
+        destroyOnHidden
+      >
+        <Form form={saveForm} layout="vertical">
+          <Form.Item
+            name="name"
+            label={saveKind === "project" ? "工程名称" : "专题名称"}
+            rules={[{ required: true, message: "请输入名称" }]}
+          >
+            <Input maxLength={80} />
+          </Form.Item>
+          <Form.Item name="description" label="说明">
+            <Input.TextArea rows={3} maxLength={300} />
+          </Form.Item>
+        </Form>
+      </Modal>
     </section>
   );
 }
@@ -372,6 +578,12 @@ function LayerGroupNode({
 interface LayerNodeProps {
   groupId: string;
   layer: LoadedLayer;
+  dragging: boolean;
+  dropPlacement: LayerDropPlacement | null;
+  onDragStart: (event: DragEvent<HTMLElement>) => void;
+  onDragEnd: () => void;
+  onDragOver: (event: DragEvent<HTMLElement>) => void;
+  onDrop: (event: DragEvent<HTMLElement>) => void;
   onVisibilityChange: (
     groupId: string,
     layerId: string,
@@ -393,6 +605,12 @@ interface LayerNodeProps {
 function LayerItemNode({
   groupId,
   layer,
+  dragging,
+  dropPlacement,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
   onVisibilityChange,
   onNameChange,
   onSymbolizationChange,
@@ -403,9 +621,14 @@ function LayerItemNode({
   exportItems,
 }: LayerNodeProps) {
   const ctx = useLayerContext();
+  const dropClass = dropPlacement ? ` layer-drop-${dropPlacement}` : "";
   return (
     <div
-      className={`layer-tree-node${selected ? " layer-tree-node-selected" : ""}`}
+      className={`layer-tree-node${selected ? " layer-tree-node-selected" : ""}${dragging ? " is-dragging" : ""}${dropClass}`}
+      role="treeitem"
+      tabIndex={0}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
     >
       <div className="layer-row-main">
         <div className="layer-heading">
@@ -423,32 +646,47 @@ function LayerItemNode({
           />
           <FileOutlined style={{ fontSize: 14 }} />
         </div>
-        <NodeActions
-          symbolization={layer.symbolization}
-          fields={layer.fields}
-          rasterBands={
-            layer.layerType === "raster"
-              ? (layer.rasterMetadata?.bands ?? [])
-              : []
-          }
-          rasterDatasetId={
-            layer.layerType === "raster" ? layer.rasterDatasetId : undefined
-          }
-          subjectName={layer.name}
-          onSymbolizationChange={(next) =>
-            onSymbolizationChange(
-              groupId,
-              layer.id,
-              next as VectorSymbolization | RasterSymbolization,
-            )
-          }
-          onLocate={() => onLocate(groupId, layer.id)}
-          onRemove={() => onRemove(groupId, layer.id)}
-          exportItems={exportItems}
-          canUseCustomSymbolization={ctx.canUseCustomSymbolization}
-          canExportData={ctx.canExportData}
-          onOpenTable={() => ctx.openLayerTable(groupId, layer.id)}
-        />
+        <div className="layer-row-tools">
+          <NodeActions
+            symbolization={layer.symbolization}
+            fields={layer.fields}
+            rasterBands={
+              layer.layerType === "raster"
+                ? (layer.rasterMetadata?.bands ?? [])
+                : []
+            }
+            rasterDatasetId={
+              layer.layerType === "raster" ? layer.rasterDatasetId : undefined
+            }
+            subjectName={layer.name}
+            onSymbolizationChange={(next) =>
+              onSymbolizationChange(
+                groupId,
+                layer.id,
+                next as VectorSymbolization | RasterSymbolization,
+              )
+            }
+            onLocate={() => onLocate(groupId, layer.id)}
+            onRemove={() => onRemove(groupId, layer.id)}
+            exportItems={exportItems}
+            canUseCustomSymbolization={ctx.canUseCustomSymbolization}
+            canExportData={ctx.canExportData}
+            onOpenTable={() => ctx.openLayerTable(groupId, layer.id)}
+          />
+          <Tooltip title="拖动排序">
+            <Button
+              className="layer-drag-handle action-btn"
+              type="text"
+              size="small"
+              aria-label={`拖动${layer.name}排序`}
+              draggable
+              icon={<HolderOutlined style={{ fontSize: 14 }} />}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onClick={(event) => event.stopPropagation()}
+            />
+          </Tooltip>
+        </div>
       </div>
       <div className="layer-name-row">
         <Typography.Text
@@ -470,6 +708,19 @@ function LayerItemNode({
       </div>
     </div>
   );
+}
+
+function groupIdFromDrag(value: string): string | null {
+  const match = value.match(/^group:(.+)$/);
+  return match?.[1] ?? null;
+}
+
+function layerPayloadFromDrag(
+  value: string,
+): { groupId: string; layerId: string } | null {
+  const match = value.match(/^layer:([^:]+):(.+)$/);
+  if (!match?.[1] || !match[2]) return null;
+  return { groupId: match[1], layerId: match[2] };
 }
 
 interface NodeActionProps {

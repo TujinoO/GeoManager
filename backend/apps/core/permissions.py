@@ -115,10 +115,20 @@ FEATURE_PERMISSIONS: tuple[FeaturePermissionDef, ...] = (
         "Dashboard 权限",
     ),
     FeaturePermissionDef(
+        "core",
+        "FeaturePermission",
+        "view_data_overview",
+        "查看总数据情况",
+        "Dashboard 权限",
+    ),
+    FeaturePermissionDef(
         "core", "FeaturePermission", "browse_data", "浏览数据", "数据权限"
     ),
     FeaturePermissionDef(
         "core", "FeaturePermission", "query_data", "查询数据", "数据权限"
+    ),
+    FeaturePermissionDef(
+        "core", "FeaturePermission", "upload_data", "上传数据", "数据权限"
     ),
     FeaturePermissionDef(
         "core", "FeaturePermission", "load_vector_layer", "加载矢量图层", "数据权限"
