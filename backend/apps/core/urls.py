@@ -4,6 +4,7 @@ from apps.core import admin_api, auth_views, views
 
 urlpatterns = [
     path("bootstrap/", views.bootstrap, name="bootstrap"),
+    path("login/overview/", views.login_overview, name="login-overview"),
     path("health/", views.health, name="health"),
     path("auth/csrf/", auth_views.csrf_cookie, name="csrf"),
     path("auth/login/", auth_views.login_view, name="login"),

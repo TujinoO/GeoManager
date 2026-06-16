@@ -4,7 +4,7 @@ from pathlib import Path
 
 import tomlkit
 from apps.audit.models import OperationLog
-from apps.catalog.models import DataResource, MapLayer
+from apps.catalog.models import DataResource, DictionaryItem, MapLayer
 from apps.core.config import (
     APP_SUBDIRS,
     RESEARCH_SUBDIRS,
@@ -47,6 +47,77 @@ class BootstrapApiTests(TestCase):
         self.assertIn("systemName", payload)
         self.assertFalse(payload["allowRegistration"])
         self.assertIn("map", payload)
+
+
+class LoginOverviewApiTests(TestCase):
+    def test_login_overview_returns_public_platform_summary_without_auth(self):
+        DataResource.objects.create(
+            name="胡杨林分布矢量",
+            code="poplar-vector",
+            data_type=DataResource.DataType.VECTOR,
+            spatial_extent="塔里木河流域",
+            storage_path="private/vector.gpkg",
+        )
+        DataResource.objects.create(
+            name="停用数据",
+            code="inactive-resource",
+            data_type=DataResource.DataType.TABLE,
+            status=DataResource.Status.INACTIVE,
+        )
+        DictionaryItem.objects.create(
+            dict_type=DictionaryItem.DictType.REGION,
+            code="tarim",
+            name="塔里木河流域",
+        )
+        MapLayer.objects.create(
+            name="样方监测点",
+            code="monitoring-sites",
+            layer_type=MapLayer.LayerType.VECTOR,
+            geometry_type=MapLayer.GeometryType.POINT,
+            is_active=True,
+            source_path="private-layer",
+        )
+        MapLayer.objects.create(
+            name="停用点图层",
+            code="inactive-points",
+            layer_type=MapLayer.LayerType.VECTOR,
+            geometry_type=MapLayer.GeometryType.POINT,
+            is_active=False,
+        )
+
+        response = self.client.get("/api/login/overview/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(
+            payload["platform"]["chineseName"],
+            "中亚胡杨林生态系统保护数据共享平台",
+        )
+        self.assertEqual(payload["platform"]["version"], "v0.1.0")
+        metrics = {item["id"]: item for item in payload["metrics"]}
+        self.assertEqual(metrics["dataResources"]["value"], 1)
+        self.assertEqual(metrics["thematicLayers"]["value"], 1)
+        self.assertEqual(metrics["monitoringSites"]["value"], 1)
+        self.assertEqual(metrics["coveredBasins"]["value"], 1)
+        self.assertEqual(metrics["dataResources"]["displayValue"], "1")
+        self.assertEqual(payload["serviceStatus"]["nodeSummary"]["total"], 24)
+        self.assertEqual(payload["serviceStatus"]["nodeSummary"]["warning"], 0)
+        encoded_payload = json.dumps(payload, ensure_ascii=False)
+        self.assertNotIn("storage_path", encoded_payload)
+        self.assertNotIn("private/vector.gpkg", encoded_payload)
+        self.assertNotIn("private-layer", encoded_payload)
+
+    def test_login_overview_reports_warning_when_catalog_is_empty(self):
+        response = self.client.get("/api/login/overview/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        services = {
+            service["id"]: service for service in payload["serviceStatus"]["services"]
+        }
+        self.assertEqual(services["resourceCatalog"]["status"], "warning")
+        self.assertEqual(services["layerService"]["status"], "warning")
+        self.assertEqual(payload["serviceStatus"]["nodeSummary"]["warning"], 2)
 
 
 class CsrfSettingsTests(SimpleTestCase):
