@@ -1,8 +1,11 @@
 import {
   AimOutlined,
+  BarChartOutlined,
+  ClockCircleOutlined,
   CloseOutlined,
   DownloadOutlined,
   InfoCircleOutlined,
+  TableOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
 import {
@@ -52,33 +55,35 @@ export default function WorkspaceBottomPanel({
     <Tabs
       className="workspace-bottom-tabs"
       size="small"
-      tabPlacement="bottom"
       items={[
         {
-          key: "draw",
+          key: "spatial",
           label: (
             <span className="tab-label">
               <AimOutlined style={{ fontSize: 14 }} />
-              空间范围
+              空间查询
             </span>
           ),
           children: (
-            <DrawingPanel
+            <SpatialQueryPanel
+              selectedLayer={selectedLayer}
               spatialFilter={spatialFilter}
               exportClipGeometry={exportClipGeometry}
+              layerExtentVisible={layerExtentVisible}
               activeDraw={activeDraw}
               onStartQueryDraw={onStartQueryDraw}
+              onLayerExtentVisibleChange={onLayerExtentVisibleChange}
               onClearSpatialFilter={onClearSpatialFilter}
               onImportSpatialFilter={onImportSpatialFilter}
             />
           ),
         },
         {
-          key: "metadata",
+          key: "result",
           label: (
             <span className="tab-label">
-              <InfoCircleOutlined style={{ fontSize: 14 }} />
-              元数据
+              <TableOutlined style={{ fontSize: 14 }} />
+              结果
             </span>
           ),
           children: (
@@ -89,8 +94,126 @@ export default function WorkspaceBottomPanel({
             />
           ),
         },
+        {
+          key: "time",
+          label: (
+            <span className="tab-label">
+              <ClockCircleOutlined style={{ fontSize: 14 }} />
+              时间
+            </span>
+          ),
+          children: (
+            <BottomPlaceholderPanel
+              title="时间筛选"
+              description="后续在这里接入时间范围、监测周期和时序结果联动。"
+            />
+          ),
+        },
+        {
+          key: "legend",
+          label: (
+            <span className="tab-label">
+              <InfoCircleOutlined style={{ fontSize: 14 }} />
+              图例
+            </span>
+          ),
+          children: <LegendPlaceholderPanel />,
+        },
       ]}
     />
+  );
+}
+
+function SpatialQueryPanel({
+  selectedLayer,
+  spatialFilter,
+  exportClipGeometry,
+  layerExtentVisible,
+  activeDraw,
+  onStartQueryDraw,
+  onLayerExtentVisibleChange,
+  onClearSpatialFilter,
+  onImportSpatialFilter,
+}: Props) {
+  const currentGeometry = spatialFilter?.geometry ?? exportClipGeometry;
+  const rangeLabel = spatialFilter
+    ? `已绘制${spatialModeName(spatialFilter.mode)}`
+    : currentGeometry
+      ? "已设置范围"
+      : "未设置范围";
+
+  return (
+    <div className="spatial-query-grid">
+      <section className="spatial-query-region spatial-query-tools">
+        <div className="bottom-region-heading">
+          <span>
+            <AimOutlined style={{ fontSize: 15 }} />
+            <strong>范围工具</strong>
+          </span>
+          <Tag color={currentGeometry ? "green" : "default"}>{rangeLabel}</Tag>
+        </div>
+        <DrawingPanel
+          spatialFilter={spatialFilter}
+          exportClipGeometry={exportClipGeometry}
+          activeDraw={activeDraw}
+          onStartQueryDraw={onStartQueryDraw}
+          onClearSpatialFilter={onClearSpatialFilter}
+          onImportSpatialFilter={onImportSpatialFilter}
+        />
+      </section>
+      <section className="spatial-query-region spatial-query-insight">
+        <div className="bottom-region-heading">
+          <span>
+            <BarChartOutlined style={{ fontSize: 15 }} />
+            <strong>查询命中预估</strong>
+          </span>
+          <Typography.Text type="secondary">当前仅为布局占位</Typography.Text>
+        </div>
+        <div className="spatial-insight-grid">
+          <div className="spatial-layer-card">
+            <Typography.Text strong>
+              {selectedLayer?.name ?? "请选择已加载图层"}
+            </Typography.Text>
+            <Typography.Text type="secondary">
+              {selectedLayer
+                ? selectedLayer.summary
+                : "绘制范围后，后续查询结果将在这里联动展示。"}
+            </Typography.Text>
+            <div className="spatial-layer-switch">
+              <span>显示当前图层范围</span>
+              <Switch
+                size="small"
+                checked={layerExtentVisible}
+                disabled={!selectedLayer}
+                onChange={onLayerExtentVisibleChange}
+              />
+            </div>
+          </div>
+          <div className="spatial-hit-preview" aria-label="查询命中预估图">
+            <span style={{ height: "44%" }} />
+            <span style={{ height: "66%" }} />
+            <span style={{ height: "82%" }} />
+            <span style={{ height: "56%" }} />
+            <span style={{ height: "72%" }} />
+            <span style={{ height: "38%" }} />
+          </div>
+          <div className="spatial-symbol-list" aria-label="当前图例">
+            <span>
+              <i className="spatial-symbol spatial-symbol-border" />
+              查询范围边框
+            </span>
+            <span>
+              <i className="spatial-symbol" />
+              胡杨林分布
+            </span>
+            <span>
+              <i className="spatial-symbol spatial-symbol-water" />
+              水文监测
+            </span>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -287,6 +410,47 @@ function DrawingPanel({
         </Space>
       </section>
     </div>
+  );
+}
+
+function BottomPlaceholderPanel({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <section className="bottom-placeholder-panel">
+      <Typography.Text strong>{title}</Typography.Text>
+      <Typography.Text type="secondary">{description}</Typography.Text>
+    </section>
+  );
+}
+
+function LegendPlaceholderPanel() {
+  return (
+    <section className="bottom-placeholder-panel legend-placeholder-panel">
+      <Typography.Text strong>当前图例</Typography.Text>
+      <div className="spatial-symbol-list spatial-symbol-list-wide">
+        <span>
+          <i className="spatial-symbol spatial-symbol-border" />
+          查询范围边框
+        </span>
+        <span>
+          <i className="spatial-symbol" />
+          胡杨林分布
+        </span>
+        <span>
+          <i className="spatial-symbol spatial-symbol-water" />
+          水文监测
+        </span>
+        <span>
+          <i className="spatial-symbol spatial-symbol-risk" />
+          风险区域
+        </span>
+      </div>
+    </section>
   );
 }
 

@@ -187,16 +187,16 @@ describe("application critical flows", () => {
         true,
       );
     });
-    expect(await screen.findByText("数据管理")).toBeInTheDocument();
+    expect(await screen.findByText("资源中心")).toBeInTheDocument();
     expect(screen.getByTestId("map-canvas")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /地理数据界面/ })).toHaveClass(
+    expect(screen.getByRole("button", { name: /^地理数据$/ })).toHaveClass(
       "workspace-switch-card-active",
     );
     expect(
-      screen.getByRole("button", { name: /非地理可视化/ }),
+      screen.getByRole("button", { name: /^非地理数据$/ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /管理后台/ }),
+      screen.getByRole("button", { name: /后台管理/ }),
     ).toBeInTheDocument();
   });
 
@@ -213,16 +213,16 @@ describe("application critical flows", () => {
 
     renderApp("/");
 
-    expect(await screen.findByText("数据管理")).toBeInTheDocument();
+    expect(await screen.findByText("资源中心")).toBeInTheDocument();
     expect(screen.getByTestId("map-canvas")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /地理数据界面/ })).toHaveClass(
+    expect(screen.getByRole("button", { name: /^地理数据$/ })).toHaveClass(
       "workspace-switch-card-active",
     );
     expect(
-      screen.getByRole("button", { name: /非地理可视化/ }),
+      screen.getByRole("button", { name: /^非地理数据$/ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /管理后台/ }),
+      screen.getByRole("button", { name: /后台管理/ }),
     ).toBeInTheDocument();
   });
 });

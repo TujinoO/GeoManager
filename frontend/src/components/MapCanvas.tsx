@@ -7,7 +7,11 @@ import {
   ZoomOutOutlined,
 } from "@ant-design/icons";
 import { Button, Tooltip } from "antd";
-import type { Map as MapboxMap } from "mapbox-gl";
+import type {
+  Map as MapboxMap,
+  MapboxOptions,
+  StyleSpecification,
+} from "mapbox-gl";
 import { useEffect, useRef } from "react";
 // mapboxgl 通过 CDN 加载，使用全局变量
 import { syncVectorInteractions } from "../map/featureInteraction";
@@ -38,7 +42,31 @@ import {
   sourceIdFor,
 } from "../utils/geometry";
 
-const mapStyle = "mapbox://styles/mapbox/satellite-streets-v12";
+const mapboxSatelliteStyle = "mapbox://styles/mapbox/satellite-streets-v12";
+const osmRasterStyle: StyleSpecification = {
+  version: 8,
+  sources: {
+    "osm-raster": {
+      type: "raster",
+      tiles: [
+        "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      ],
+      tileSize: 256,
+      attribution: "&copy; OpenStreetMap contributors",
+    },
+  },
+  layers: [
+    {
+      id: "osm-raster",
+      type: "raster",
+      source: "osm-raster",
+      minzoom: 0,
+      maxzoom: 19,
+    },
+  ],
+};
 const globeOverviewZoom = 2.4;
 const spatialFilterSourceId = "query-spatial-filter";
 const spatialFilterFillId = "query-spatial-filter-fill";
@@ -89,12 +117,14 @@ export default function MapCanvas({
   const mapRef = useRef<MapboxMap | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapboxToken = bootstrap.map.mapboxAccessToken;
+  const shouldUseMapboxStyle =
+    Boolean(mapboxToken) && bootstrap.map.defaultBasemap !== "osm";
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const map = new mapboxgl.Map({
+    const mapOptions: MapboxOptions = {
       container: containerRef.current,
-      style: mapStyle,
+      style: shouldUseMapboxStyle ? mapboxSatelliteStyle : osmRasterStyle,
       center: bootstrap.map.defaultCenter,
       zoom: Math.min(bootstrap.map.defaultZoom, globeOverviewZoom),
       pitch: 18,
@@ -102,9 +132,12 @@ export default function MapCanvas({
       projection: "globe",
       language: "zh-Hans",
       localIdeographFontFamily: '"Microsoft YaHei", "PingFang SC", sans-serif',
-      accessToken: mapboxToken,
       attributionControl: false,
-    });
+    };
+    if (mapboxToken) {
+      mapOptions.accessToken = mapboxToken;
+    }
+    const map = new mapboxgl.Map(mapOptions);
     map.on("style.load", () => {
       map.setFog({
         color: "rgb(221, 232, 224)",
@@ -113,10 +146,12 @@ export default function MapCanvas({
         "space-color": "rgb(8, 20, 28)",
         "star-intensity": 0.22,
       });
-      map.setLanguage("zh-Hans");
-      applyChineseLabels(map);
-      hideAdministrativeBoundaries(map);
-      map.once("idle", () => hideAdministrativeBoundaries(map));
+      if (shouldUseMapboxStyle) {
+        map.setLanguage("zh-Hans");
+        applyChineseLabels(map);
+        hideAdministrativeBoundaries(map);
+        map.once("idle", () => hideAdministrativeBoundaries(map));
+      }
     });
     map.addControl(
       new mapboxgl.ScaleControl({ unit: "metric" }),
@@ -136,6 +171,7 @@ export default function MapCanvas({
     mapboxToken,
     onMapDestroy,
     onMapReady,
+    shouldUseMapboxStyle,
   ]);
 
   useEffect(() => {

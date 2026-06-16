@@ -24,6 +24,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/login/overview/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 获取登录页平台概览
+         * @description 返回登录页首屏需要公开展示的平台品牌、数据统计、能力标签、服务状态和版本信息。
+         *     该接口用于替换前端登录页中的静态展示数据，便于前后端分离开发时统一统计口径。
+         *     接口无需登录，但不得返回敏感路径、内部配置、具体用户、权限组、服务器资源明细或未公开数据清单。
+         */
+        get: operations["getLoginOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health/": {
         parameters: {
             query?: never;
@@ -1023,6 +1045,207 @@ export interface components {
             allowRegistration: boolean;
             map: components["schemas"]["MapConfig"];
             limits: components["schemas"]["SystemLimits"];
+        };
+        LoginOverviewResponse: {
+            /**
+             * Format: date-time
+             * @description 登录页概览数据生成时间，用于前端判断统计数据新鲜度。
+             * @example 2026-06-15T10:30:00+08:00
+             */
+            generatedAt: string;
+            platform: components["schemas"]["LoginOverviewPlatform"];
+            hero: components["schemas"]["LoginOverviewHero"];
+            /** @description 登录页四个数据统计卡片，按前端展示顺序返回。 */
+            metrics: [
+                components["schemas"]["LoginOverviewMetric"],
+                components["schemas"]["LoginOverviewMetric"],
+                components["schemas"]["LoginOverviewMetric"],
+                components["schemas"]["LoginOverviewMetric"]
+            ];
+            serviceStatus: components["schemas"]["LoginOverviewServiceStatus"];
+            footer: components["schemas"]["LoginOverviewFooter"];
+        };
+        LoginOverviewPlatform: {
+            /**
+             * @description 平台中文全称，用于登录页主标题和 logo 替代文本。
+             * @example 中亚胡杨林生态系统保护数据共享平台
+             */
+            chineseName: string;
+            /**
+             * @description 平台英文名称，用于登录页英文标题和品牌副标题。
+             * @example Central Asia Poplar Forest Ecosystem Data Platform
+             */
+            englishName: string;
+            /**
+             * @description 平台英文缩写，用于品牌区短名称。
+             * @example CAPFED
+             */
+            abbreviation: string;
+            /**
+             * @description 平台版本型号或发行版名称，用于登录页底部版本栏。
+             * @example CAPFED-WebGIS Research Edition
+             */
+            edition: string;
+            /**
+             * @description 当前软件语义化版本号，用于登录页底部版本栏。
+             * @example v1.0.0
+             */
+            version: string;
+        };
+        LoginOverviewHero: {
+            /**
+             * @description 登录页主标题上方的短标签文案。
+             * @example 生态保护数据共享平台
+             */
+            badge: string;
+            /**
+             * @description 平台一句话概述，需高度概括平台数据集成、可视化、查询分析与共享服务能力。
+             * @example 平台集成遥感影像、空间矢量、野外样方、长期监测与保护成果数据，提供统一编目、三维地理可视化、综合查询分析和共享服务。
+             */
+            summary: string;
+            /**
+             * @description 登录页展示的平台能力或数据类型标签，按前端展示顺序返回。
+             * @example [
+             *       "遥感影像",
+             *       "矢量边界",
+             *       "野外样方",
+             *       "长期监测",
+             *       "成果共享"
+             *     ]
+             */
+            capabilityTags: [
+                string,
+                ...string[]
+            ];
+        };
+        LoginOverviewMetric: {
+            /**
+             * @description 统计卡片标识，前端据此选择图标和稳定排序。
+             * @example dataResources
+             * @enum {string}
+             */
+            id: "dataResources" | "thematicLayers" | "monitoringSites" | "coveredBasins";
+            /**
+             * @description 统计卡片标题。
+             * @example 数据资源
+             */
+            label: string;
+            /**
+             * @description 统计项原始数值，前端可用于本地格式化和无障碍文本。
+             * @example 1286
+             */
+            value: number;
+            /**
+             * @description 后端按统一统计口径格式化后的展示数值。
+             * @example 1,286
+             */
+            displayValue: string;
+            /**
+             * @description 统计卡片短说明，描述统计范围或包含的数据类型。
+             * @example 空间、表格、文档
+             */
+            note: string;
+            /**
+             * Format: date-time
+             * @description 该统计项最近更新时间；无法逐项计算时可省略并使用顶层 generatedAt。
+             * @example 2026-06-15T10:30:00+08:00
+             */
+            updatedAt?: string;
+        };
+        LoginOverviewServiceStatus: {
+            /**
+             * @description 服务状态模块标题。
+             * @example 平台服务状态
+             */
+            title: string;
+            /**
+             * @description 服务状态模块主说明，概括当前平台关键服务能力。
+             * @example 资源目录已接入 · 图层服务可用 · 权限认证开启
+             */
+            headline: string;
+            /**
+             * @description 服务状态模块补充说明，描述登录后可进入的主要功能范围。
+             * @example 登录后可按账号权限进入数据目录、地图工作台与后台管理功能。
+             */
+            description: string;
+            /** @description 登录页公开展示的关键服务状态列表。 */
+            services: [
+                components["schemas"]["LoginOverviewServiceItem"],
+                ...components["schemas"]["LoginOverviewServiceItem"][]
+            ];
+            nodeSummary: components["schemas"]["LoginOverviewNodeSummary"];
+        };
+        LoginOverviewServiceItem: {
+            /**
+             * @description 服务项标识，前端可据此匹配固定文案或图标。
+             * @example resourceCatalog
+             * @enum {string}
+             */
+            id: "resourceCatalog" | "layerService" | "permissionGateway";
+            /**
+             * @description 服务项显示名称。
+             * @example 资源目录
+             */
+            label: string;
+            status: components["schemas"]["LoginOverviewStatus"];
+            /**
+             * @description 服务项状态说明。
+             * @example 已完成公开资源目录索引统计。
+             */
+            description: string;
+        };
+        LoginOverviewNodeSummary: {
+            /**
+             * @description 服务状态点阵节点总数。
+             * @example 24
+             */
+            total: number;
+            /**
+             * @description 正常节点数量。
+             * @example 21
+             */
+            normal: number;
+            /**
+             * @description 待同步或告警节点数量。
+             * @example 2
+             */
+            warning: number;
+            /**
+             * @description 异常或风险节点数量。
+             * @example 1
+             */
+            risk: number;
+            /** @description 点阵图例，前端按该数组展示状态名称和数量。 */
+            legend: [
+                components["schemas"]["LoginOverviewStatusLegendItem"],
+                ...components["schemas"]["LoginOverviewStatusLegendItem"][]
+            ];
+        };
+        LoginOverviewStatusLegendItem: {
+            status: components["schemas"]["LoginOverviewStatus"];
+            /**
+             * @description 状态中文标签。
+             * @example 正常
+             */
+            label: string;
+            /**
+             * @description 该状态对应的节点数量。
+             * @example 21
+             */
+            count: number;
+        };
+        /**
+         * @description 登录页公开服务状态；normal 表示正常，warning 表示待同步或告警，risk 表示异常或风险。
+         * @example normal
+         * @enum {string}
+         */
+        LoginOverviewStatus: "normal" | "warning" | "risk";
+        LoginOverviewFooter: {
+            /**
+             * @description 登录页底部统计口径说明或后端数据来源说明。
+             * @example 统计口径已接入后端平台概览接口
+             */
+            statisticsNotice: string;
         };
         MapConfig: {
             /**
@@ -2555,6 +2778,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BootstrapResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    getLoginOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginOverviewResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];

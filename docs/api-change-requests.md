@@ -1,4 +1,4 @@
-# API Change Requests
+﻿# API Change Requests
 
 This document is the frontend-to-backend handoff queue for API contract changes.
 
@@ -19,6 +19,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | ID | Status | Endpoint | Change Type | OpenAPI | Mock | Backend | Tests | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | API-20260615-001 | ContractReady | Multiple API endpoints | mock separation and JSON errors | Done | Done | Pending | Pending | Initial frontend/backend split contract |
+| API-20260615-002 | ContractReady | GET /api/login/overview/ | new endpoint | Done | Done | Pending | Pending | Login page public overview contract |
 
 ## Entry Template
 
@@ -49,3 +50,15 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: ensure real Django responses conform to `docs/openapi.yaml`, especially `401 {"detail":"请先登录"}` and `403 {"detail":"CSRF 验证失败"}` for API requests.
 - Verification: run backend API tests plus `cd frontend && pnpm run check:api && pnpm run mock:build`.
 - Result: backend implementation pending final owner verification.
+## API-20260615-002 - Login Page Public Overview
+
+- Status: ContractReady
+- Owner: Frontend / Backend
+- Endpoints: `GET /api/login/overview/`
+- Change type: new endpoint, response fields, mock data
+- OpenAPI change: Adds a public login overview response containing platform brand text, hero copy, capability tags, four metric cards, service status summary, node legend, and footer statistics notice.
+- Mock examples: `mock/prism/examples/05-login-overview.json`
+- Frontend reason: The rebuilt login page currently preserves the approved visual design with static display values, but the data structure must be contract-ready so future frontend work can replace static values with generated OpenAPI types after backend implementation.
+- Backend implementation notes: Implement a no-auth Django API endpoint that returns only public overview data. Do not expose internal paths, user records, permission group details, server resource internals, or private data inventory. Recommended cache TTL is 60 seconds to 5 minutes.
+- Verification: run backend API tests for `GET /api/login/overview/`, then run `cd frontend && pnpm run check:api && pnpm run mock:build`.
+- Result: Backend implementation pending; frontend login UI remains visually unchanged and does not directly modify backend code.

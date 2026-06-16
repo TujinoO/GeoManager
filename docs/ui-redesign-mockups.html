@@ -1,0 +1,2752 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>中亚胡杨林生态保护数据共享平台 - 前端优化高保真原型</title>
+    <style>
+      :root {
+        --ink: #061b18;
+        --ink-2: #071821;
+        --panel: rgba(246, 251, 248, 0.82);
+        --panel-dark: rgba(7, 29, 28, 0.72);
+        --line: rgba(255, 255, 255, 0.2);
+        --line-dark: rgba(12, 48, 44, 0.14);
+        --text: #183530;
+        --muted: #6f837d;
+        --white: #f7fbf7;
+        --green: #20b486;
+        --green-2: #0e5c4c;
+        --cyan: #49c7ff;
+        --blue: #2f80ed;
+        --gold: #f2b84b;
+        --red: #e85d75;
+        --violet: #7c6cff;
+        --shadow: 0 24px 80px rgba(3, 19, 19, 0.34);
+        --soft-shadow: 0 14px 44px rgba(17, 46, 43, 0.16);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--text);
+        background: #e9f0ed;
+        font-family:
+          "Microsoft YaHei",
+          "PingFang SC",
+          "Segoe UI",
+          Arial,
+          sans-serif;
+        letter-spacing: 0;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .prototype-nav {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 24px;
+        color: var(--white);
+        background: #092420;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .prototype-nav strong {
+        font-size: 16px;
+      }
+
+      .prototype-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .prototype-links a {
+        padding: 7px 10px;
+        color: #d6f2e8;
+        text-decoration: none;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 8px;
+      }
+
+      .prototype-note {
+        max-width: 1200px;
+        margin: 22px auto 0;
+        padding: 0 22px;
+        color: #425a54;
+        line-height: 1.7;
+      }
+
+      .artboard-wrap {
+        max-width: 1488px;
+        margin: 28px auto 48px;
+        padding: 0 24px;
+      }
+
+      .screen-title {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 18px;
+        margin: 0 0 12px;
+      }
+
+      .screen-title h2 {
+        margin: 0;
+        color: #123832;
+        font-size: 22px;
+      }
+
+      .screen-title span {
+        color: #687d77;
+        font-size: 13px;
+      }
+
+      .artboard-scroll {
+        overflow: auto;
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+      }
+
+      .artboard {
+        position: relative;
+        width: 1440px;
+        height: 900px;
+        overflow: hidden;
+        background: #f3f7f4;
+      }
+
+      .glass {
+        background: var(--panel);
+        border: 1px solid rgba(255, 255, 255, 0.36);
+        box-shadow: var(--soft-shadow);
+        backdrop-filter: blur(22px) saturate(1.18);
+      }
+
+      .glass-dark {
+        color: var(--white);
+        background: var(--panel-dark);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(22px) saturate(1.18);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 28px;
+        padding: 0 10px;
+        font-size: 12px;
+        white-space: nowrap;
+        border-radius: 8px;
+        border: 1px solid var(--line-dark);
+      }
+
+      .pill.green {
+        color: #075642;
+        background: rgba(32, 180, 134, 0.14);
+      }
+
+      .pill.cyan {
+        color: #075b76;
+        background: rgba(73, 199, 255, 0.14);
+      }
+
+      .pill.gold {
+        color: #715014;
+        background: rgba(242, 184, 75, 0.18);
+      }
+
+      .pill.red {
+        color: #8a2d3d;
+        background: rgba(232, 93, 117, 0.14);
+      }
+
+      .icon-button {
+        display: inline-grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        color: inherit;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 8px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 36px;
+        padding: 0 14px;
+        color: var(--text);
+        background: #ffffff;
+        border: 1px solid rgba(16, 62, 56, 0.14);
+        border-radius: 8px;
+        font-weight: 700;
+      }
+
+      .btn.primary {
+        color: #ffffff;
+        background: linear-gradient(135deg, #1fb07f, #167b67);
+        border-color: rgba(255, 255, 255, 0.18);
+      }
+
+      .input {
+        display: flex;
+        align-items: center;
+        height: 38px;
+        padding: 0 12px;
+        color: #66827b;
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid rgba(16, 62, 56, 0.12);
+        border-radius: 8px;
+      }
+
+      .metric-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .metric {
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.68);
+        border: 1px solid rgba(15, 69, 59, 0.12);
+        border-radius: 8px;
+      }
+
+      .metric strong {
+        display: block;
+        color: #103e38;
+        font-size: 22px;
+        line-height: 1.1;
+      }
+
+      .metric span {
+        display: block;
+        margin-top: 5px;
+        color: #6d817b;
+        font-size: 12px;
+      }
+
+      .section-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .section-heading h3,
+      .section-heading h4 {
+        margin: 0;
+      }
+
+      .section-heading h3 {
+        font-size: 16px;
+      }
+
+      .section-heading h4 {
+        font-size: 14px;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .mini-bars {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        align-items: end;
+        gap: 6px;
+        height: 72px;
+        padding: 10px 6px 0;
+      }
+
+      .mini-bars i {
+        display: block;
+        min-height: 8px;
+        border-radius: 6px 6px 0 0;
+        background: linear-gradient(180deg, var(--cyan), var(--green));
+      }
+
+      .donut {
+        width: 82px;
+        height: 82px;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at center, #f8fbf8 0 48%, transparent 49%),
+          conic-gradient(
+            var(--green) 0 35%,
+            var(--cyan) 35% 58%,
+            var(--gold) 58% 75%,
+            var(--violet) 75% 88%,
+            var(--red) 88% 100%
+          );
+      }
+
+      .line-chart {
+        width: 100%;
+        height: 92px;
+      }
+
+      .bar-chart {
+        display: grid;
+        gap: 9px;
+      }
+
+      .bar-line {
+        display: grid;
+        grid-template-columns: 68px 1fr 32px;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+      }
+
+      .bar-track {
+        height: 8px;
+        overflow: hidden;
+        background: rgba(18, 67, 59, 0.1);
+        border-radius: 8px;
+      }
+
+      .bar-track i {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, var(--green), var(--cyan));
+      }
+
+      .heat-grid {
+        display: grid;
+        grid-template-columns: repeat(9, 1fr);
+        gap: 4px;
+      }
+
+      .heat-grid i {
+        display: block;
+        height: 22px;
+        border-radius: 5px;
+        background: var(--green);
+        opacity: 0.6;
+      }
+
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+
+      .data-table th,
+      .data-table td {
+        padding: 9px 8px;
+        text-align: left;
+        border-bottom: 1px solid rgba(16, 62, 56, 0.1);
+      }
+
+      .data-table th {
+        color: #47615b;
+        font-weight: 700;
+        background: rgba(14, 92, 76, 0.06);
+      }
+
+      /* 登录页 */
+      .login-screen {
+        color: var(--white);
+        background:
+          linear-gradient(125deg, rgba(6, 27, 24, 0.96), rgba(9, 59, 53, 0.82)),
+          #0a2c27;
+      }
+
+      .login-scene {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .login-copy {
+        position: absolute;
+        left: 86px;
+        top: 86px;
+        width: 680px;
+      }
+
+      .login-copy .brand-mark {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 10px;
+        color: #c9f7e5;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 8px;
+      }
+
+      .login-copy h1 {
+        margin: 28px 0 18px;
+        font-size: 42px;
+        line-height: 1.22;
+      }
+
+      .login-copy p {
+        width: 590px;
+        margin: 0;
+        color: #d2ebe2;
+        font-size: 17px;
+        line-height: 1.9;
+      }
+
+      .login-data-strip {
+        position: absolute;
+        left: 86px;
+        bottom: 74px;
+        display: grid;
+        grid-template-columns: repeat(4, 150px);
+        gap: 12px;
+      }
+
+      .login-data-strip .metric {
+        color: var(--white);
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+
+      .login-data-strip .metric strong {
+        color: #ffffff;
+      }
+
+      .login-data-strip .metric span {
+        color: #cce4dd;
+      }
+
+      .login-panel {
+        position: absolute;
+        right: 86px;
+        top: 108px;
+        width: 430px;
+        padding: 32px;
+        color: var(--text);
+        border-radius: 8px;
+      }
+
+      .login-panel h2 {
+        margin: 0 0 8px;
+        font-size: 26px;
+      }
+
+      .login-panel p {
+        margin: 0 0 24px;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      .form-stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      .field label {
+        display: block;
+        margin-bottom: 8px;
+        color: #35524c;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .field .input {
+        height: 44px;
+        background: #ffffff;
+      }
+
+      .login-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #52736b;
+        font-size: 13px;
+      }
+
+      .login-panel .btn {
+        width: 100%;
+        height: 44px;
+      }
+
+      .login-mini-visual {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 16px;
+        align-items: center;
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(16, 62, 56, 0.12);
+      }
+
+      .tiny-trend {
+        height: 56px;
+      }
+
+      /* 地图工作台通用 */
+      .geo-screen {
+        color: var(--white);
+        background:
+          linear-gradient(180deg, rgba(4, 18, 22, 0.9), rgba(7, 24, 33, 0.94)),
+          #071821;
+      }
+
+      .map-grid {
+        position: absolute;
+        inset: 0;
+        opacity: 0.6;
+      }
+
+      .topbar {
+        position: absolute;
+        left: 18px;
+        right: 18px;
+        top: 18px;
+        z-index: 4;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 16px;
+        height: 58px;
+        padding: 0 14px;
+        border-radius: 8px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        font-weight: 800;
+      }
+
+      .brand-icon {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        color: #07241f;
+        background: linear-gradient(135deg, #a8f3d8, #49c7ff);
+        border-radius: 8px;
+      }
+
+      .nav-tabs {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .nav-tabs .tab {
+        display: inline-flex;
+        align-items: center;
+        height: 34px;
+        padding: 0 12px;
+        color: #d6eee8;
+        border-radius: 8px;
+      }
+
+      .nav-tabs .active {
+        color: #041d19;
+        background: #dff8ee;
+        font-weight: 800;
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .global-search {
+        width: 260px;
+        height: 34px;
+        color: #cce4dd;
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.18);
+      }
+
+      .side-panel {
+        position: absolute;
+        top: 94px;
+        bottom: 18px;
+        z-index: 3;
+        width: 340px;
+        padding: 14px;
+        border-radius: 8px;
+      }
+
+      .side-panel.left {
+        left: 18px;
+      }
+
+      .side-panel.right {
+        right: 18px;
+        width: 360px;
+      }
+
+      .bottom-panel {
+        position: absolute;
+        left: 374px;
+        right: 394px;
+        bottom: 18px;
+        z-index: 3;
+        height: 230px;
+        padding: 14px;
+        border-radius: 8px;
+      }
+
+      .panel-tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 14px;
+      }
+
+      .panel-tabs span {
+        display: inline-flex;
+        align-items: center;
+        height: 28px;
+        padding: 0 10px;
+        color: #d8eee7;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        font-size: 12px;
+      }
+
+      .panel-tabs .active {
+        color: #061b18;
+        background: #dcf7ec;
+        font-weight: 800;
+      }
+
+      .asset-card {
+        display: grid;
+        gap: 10px;
+        padding: 10px;
+        margin-bottom: 10px;
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.34);
+        border-radius: 8px;
+      }
+
+      .asset-card h4 {
+        margin: 0;
+        font-size: 14px;
+      }
+
+      .resource-item {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: center;
+        padding: 9px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+      }
+
+      .resource-item strong {
+        display: block;
+        overflow: hidden;
+        color: #f7fffb;
+        font-size: 13px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .resource-item span {
+        color: #a7c7bf;
+        font-size: 12px;
+      }
+
+      .globe-stage {
+        position: absolute;
+        left: 374px;
+        right: 394px;
+        top: 96px;
+        bottom: 264px;
+        display: grid;
+        place-items: center;
+      }
+
+      .globe {
+        position: relative;
+        width: 500px;
+        height: 500px;
+        overflow: hidden;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.46), transparent 7%),
+          radial-gradient(circle at 37% 28%, #4aaed0 0, #11617c 31%, #07324a 62%, #020b13 100%);
+        box-shadow:
+          inset -54px -26px 100px rgba(0, 0, 0, 0.56),
+          inset 18px 10px 44px rgba(255, 255, 255, 0.12),
+          0 0 0 1px rgba(168, 214, 205, 0.2),
+          0 36px 130px rgba(17, 107, 117, 0.46);
+      }
+
+      .globe::before {
+        position: absolute;
+        inset: 9%;
+        content: "";
+        border-radius: 50%;
+        background:
+          repeating-linear-gradient(90deg, transparent 0 9%, rgba(205, 241, 235, 0.11) 9.4% 9.8%, transparent 10.3% 20%),
+          repeating-linear-gradient(0deg, transparent 0 9%, rgba(205, 241, 235, 0.11) 9.4% 9.8%, transparent 10.3% 20%);
+        mask-image: radial-gradient(circle, #000 64%, transparent 66%);
+      }
+
+      .continent {
+        position: absolute;
+        background: linear-gradient(135deg, #7dbb74, #34624a);
+        box-shadow: inset -12px -10px 22px rgba(7, 43, 30, 0.28);
+      }
+
+      .eurasia {
+        left: 47%;
+        top: 24%;
+        width: 36%;
+        height: 26%;
+        clip-path: polygon(4% 48%, 22% 8%, 70% 0, 100% 24%, 92% 70%, 64% 84%, 34% 62%, 8% 82%);
+      }
+
+      .africa {
+        left: 50%;
+        top: 46%;
+        width: 21%;
+        height: 29%;
+        clip-path: polygon(28% 0, 82% 18%, 94% 54%, 54% 100%, 18% 76%, 0 30%);
+      }
+
+      .americas {
+        left: 18%;
+        top: 28%;
+        width: 28%;
+        height: 43%;
+        clip-path: polygon(28% 0, 78% 8%, 100% 30%, 70% 45%, 66% 76%, 38% 100%, 22% 70%, 0 48%);
+      }
+
+      .australia {
+        left: 72%;
+        top: 62%;
+        width: 13%;
+        height: 9%;
+        clip-path: polygon(0 28%, 66% 0, 100% 50%, 58% 100%, 8% 78%);
+      }
+
+      .marker {
+        position: absolute;
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: var(--gold);
+        box-shadow:
+          0 0 0 5px rgba(242, 184, 75, 0.2),
+          0 0 20px rgba(242, 184, 75, 0.9);
+      }
+
+      .marker.m1 {
+        left: 64%;
+        top: 42%;
+      }
+
+      .marker.m2 {
+        left: 56%;
+        top: 47%;
+      }
+
+      .marker.m3 {
+        left: 67%;
+        top: 37%;
+      }
+
+      .map-toolbox {
+        position: absolute;
+        right: 394px;
+        bottom: 266px;
+        z-index: 4;
+        display: flex;
+        gap: 4px;
+        padding: 4px;
+        border-radius: 8px;
+      }
+
+      .overview-chart {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 14px;
+        align-items: center;
+      }
+
+      .gauge {
+        position: relative;
+        width: 112px;
+        height: 112px;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at center, rgba(8, 36, 33, 0.96) 0 54%, transparent 55%),
+          conic-gradient(var(--green) 0 72%, var(--gold) 72% 86%, var(--red) 86% 100%);
+      }
+
+      .gauge b {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: #ffffff;
+        font-size: 28px;
+      }
+
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: 5px;
+      }
+
+      .status-grid i {
+        display: block;
+        height: 18px;
+        border-radius: 5px;
+        background: var(--green);
+      }
+
+      .status-grid i:nth-child(4n) {
+        background: var(--gold);
+      }
+
+      .status-grid i:nth-child(11) {
+        background: var(--red);
+      }
+
+      .bottom-grid {
+        display: grid;
+        grid-template-columns: 230px 1fr 220px;
+        gap: 14px;
+        height: calc(100% - 40px);
+      }
+
+      .draw-modes {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+      }
+
+      .draw-modes span {
+        display: grid;
+        place-items: center;
+        height: 34px;
+        color: #d8eee7;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        font-size: 12px;
+      }
+
+      .draw-modes .active {
+        color: #061b18;
+        background: #dcf7ec;
+      }
+
+      .timeline {
+        position: relative;
+        height: 80px;
+        margin-top: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+      }
+
+      .timeline i {
+        position: absolute;
+        bottom: -4px;
+        display: block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--gold);
+      }
+
+      .legend-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .legend-list span {
+        display: grid;
+        grid-template-columns: 34px 1fr;
+        align-items: center;
+        gap: 8px;
+        color: #d8eee7;
+        font-size: 12px;
+      }
+
+      .legend-color {
+        display: block;
+        height: 10px;
+        border-radius: 8px;
+        background: var(--green);
+      }
+
+      /* 数据资源中心 */
+      .catalog-overlay {
+        position: absolute;
+        left: 80px;
+        right: 80px;
+        top: 106px;
+        bottom: 54px;
+        z-index: 5;
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: 16px;
+        padding: 18px;
+        border-radius: 8px;
+      }
+
+      .catalog-main {
+        display: grid;
+        grid-template-columns: 250px 1fr 320px;
+        gap: 16px;
+        min-height: 0;
+      }
+
+      .catalog-list {
+        display: grid;
+        gap: 10px;
+        overflow: hidden;
+      }
+
+      .catalog-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.68);
+        border: 1px solid rgba(16, 62, 56, 0.1);
+        border-radius: 8px;
+      }
+
+      .catalog-row strong {
+        display: block;
+        margin-bottom: 5px;
+      }
+
+      .catalog-row small {
+        color: var(--muted);
+      }
+
+      /* 非地理页面 */
+      .nongeo-screen {
+        background:
+          linear-gradient(135deg, rgba(247, 251, 248, 0.96), rgba(230, 240, 238, 0.94)),
+          #eef5f2;
+      }
+
+      .nongeo-topbar {
+        color: var(--white);
+      }
+
+      .nongeo-shell {
+        position: absolute;
+        left: 26px;
+        right: 26px;
+        top: 96px;
+        bottom: 26px;
+        display: grid;
+        grid-template-columns: 278px 1fr 306px;
+        gap: 18px;
+      }
+
+      .light-panel {
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid rgba(15, 68, 60, 0.1);
+        border-radius: 8px;
+        box-shadow: var(--soft-shadow);
+      }
+
+      .dataset-row {
+        display: grid;
+        gap: 6px;
+        padding: 12px 0;
+        border-bottom: 1px solid rgba(15, 68, 60, 0.1);
+      }
+
+      .nongeo-main-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-auto-rows: minmax(180px, auto);
+        gap: 16px;
+      }
+
+      .chart-card {
+        padding: 14px;
+        background: #ffffff;
+        border: 1px solid rgba(15, 68, 60, 0.1);
+        border-radius: 8px;
+      }
+
+      .network-chart {
+        width: 100%;
+        height: 190px;
+      }
+
+      .cloud {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: center;
+        gap: 8px;
+        min-height: 130px;
+      }
+
+      .cloud span {
+        color: #0f4e43;
+        background: rgba(32, 180, 134, 0.12);
+        border-radius: 8px;
+        padding: 6px 8px;
+        font-weight: 700;
+      }
+
+      /* 后台 */
+      .admin-screen {
+        background: #f3f6f4;
+      }
+
+      .admin-shell {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-columns: 236px 1fr;
+        color: var(--text);
+      }
+
+      .admin-side {
+        padding: 20px 14px;
+        color: #dff2eb;
+        background: #123832;
+      }
+
+      .admin-side .brand {
+        margin-bottom: 26px;
+      }
+
+      .admin-menu {
+        display: grid;
+        gap: 7px;
+      }
+
+      .admin-menu span {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 38px;
+        padding: 0 12px;
+        border-radius: 8px;
+      }
+
+      .admin-menu .active {
+        color: #08231f;
+        background: #dff8ee;
+        font-weight: 800;
+      }
+
+      .admin-main {
+        display: grid;
+        grid-template-rows: 66px 1fr;
+        min-width: 0;
+      }
+
+      .admin-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 0 24px;
+        background: #ffffff;
+        border-bottom: 1px solid rgba(16, 62, 56, 0.08);
+      }
+
+      .admin-content {
+        padding: 22px;
+        overflow: hidden;
+      }
+
+      .admin-kpis {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 14px;
+        margin-bottom: 16px;
+      }
+
+      .admin-card {
+        padding: 16px;
+        background: #ffffff;
+        border: 1px solid rgba(16, 62, 56, 0.08);
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(17, 46, 43, 0.08);
+      }
+
+      .admin-card strong {
+        display: block;
+        font-size: 24px;
+      }
+
+      .admin-dashboard-grid {
+        display: grid;
+        grid-template-columns: 1.35fr 0.9fr;
+        gap: 16px;
+      }
+
+      .admin-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+      }
+
+      .ring-small {
+        position: relative;
+        width: 96px;
+        height: 96px;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at center, #fff 0 55%, transparent 56%),
+          conic-gradient(var(--green) 0 65%, var(--gold) 65% 82%, #dce6e1 82% 100%);
+      }
+
+      .ring-small b {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: #123832;
+      }
+
+      .import-steps {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+      }
+
+      .step {
+        padding: 12px;
+        background: rgba(32, 180, 134, 0.09);
+        border: 1px solid rgba(32, 180, 134, 0.18);
+        border-radius: 8px;
+      }
+
+      .step.active {
+        color: #ffffff;
+        background: #16846c;
+      }
+
+      .permission-matrix {
+        display: grid;
+        grid-template-columns: 130px repeat(6, 1fr);
+        gap: 6px;
+        align-items: center;
+        font-size: 12px;
+      }
+
+      .permission-matrix span {
+        display: grid;
+        place-items: center;
+        min-height: 30px;
+        padding: 4px;
+        background: #eef5f2;
+        border-radius: 6px;
+      }
+
+      .permission-matrix .ok {
+        color: #075642;
+        background: rgba(32, 180, 134, 0.16);
+        font-weight: 800;
+      }
+
+      .permission-matrix .warn {
+        color: #715014;
+        background: rgba(242, 184, 75, 0.2);
+        font-weight: 800;
+      }
+
+      .log-timeline {
+        display: grid;
+        gap: 10px;
+      }
+
+      .log-timeline div {
+        display: grid;
+        grid-template-columns: 88px 1fr auto;
+        gap: 10px;
+        padding: 10px;
+        background: #f7fbf7;
+        border: 1px solid rgba(16, 62, 56, 0.08);
+        border-radius: 8px;
+        font-size: 12px;
+      }
+
+      /* 深化版画板 */
+      .v2-screen {
+        color: var(--white);
+        background:
+          radial-gradient(circle at 54% 40%, rgba(42, 153, 151, 0.24), transparent 28%),
+          linear-gradient(180deg, #061618, #071821 56%, #041012);
+      }
+
+      .v2-topbar {
+        position: absolute;
+        left: 18px;
+        right: 18px;
+        top: 18px;
+        z-index: 5;
+        display: grid;
+        grid-template-columns: 312px 1fr auto;
+        align-items: center;
+        gap: 14px;
+        height: 62px;
+        padding: 0 14px;
+        border-radius: 8px;
+      }
+
+      .v2-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        font-weight: 800;
+      }
+
+      .v2-brand b {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .v2-icon {
+        display: inline-grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        color: #06221e;
+        background: linear-gradient(135deg, #dff8ee, #49c7ff);
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .v2-nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .v2-nav span {
+        display: inline-flex;
+        align-items: center;
+        height: 34px;
+        padding: 0 11px;
+        color: #d9efe8;
+        border-radius: 8px;
+        white-space: nowrap;
+      }
+
+      .v2-nav .active {
+        color: #06221e;
+        background: #dff8ee;
+        font-weight: 800;
+      }
+
+      .v2-search {
+        flex: 1;
+        min-width: 220px;
+        max-width: 330px;
+        height: 34px;
+        padding: 0 12px;
+        color: #adcac3;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+      }
+
+      .v2-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .v2-left,
+      .v2-right-map,
+      .v2-right-info,
+      .v2-bottom {
+        position: absolute;
+        z-index: 4;
+        border-radius: 8px;
+      }
+
+      .v2-left {
+        left: 18px;
+        top: 96px;
+        bottom: 18px;
+        width: 366px;
+        padding: 14px;
+      }
+
+      .v2-right-map {
+        top: 96px;
+        right: 18px;
+        width: 342px;
+        height: 168px;
+        padding: 12px;
+      }
+
+      .v2-right-info {
+        top: 276px;
+        right: 18px;
+        bottom: 18px;
+        width: 342px;
+        padding: 14px;
+      }
+
+      .v2-bottom {
+        left: 400px;
+        right: 374px;
+        bottom: 18px;
+        height: 242px;
+        padding: 14px;
+      }
+
+      .v2-center {
+        position: absolute;
+        left: 400px;
+        right: 374px;
+        top: 96px;
+        bottom: 278px;
+        display: grid;
+        place-items: center;
+      }
+
+      .v2-center .globe {
+        width: 470px;
+        height: 470px;
+      }
+
+      .v2-tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+
+      .v2-tabs span {
+        display: inline-flex;
+        align-items: center;
+        height: 28px;
+        padding: 0 10px;
+        color: #d8eee7;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        font-size: 12px;
+      }
+
+      .v2-tabs .active {
+        color: #06221e;
+        background: #dff8ee;
+        font-weight: 800;
+      }
+
+      .v2-card {
+        padding: 12px;
+        margin-bottom: 10px;
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.76);
+        border: 1px solid rgba(255, 255, 255, 0.34);
+        border-radius: 8px;
+      }
+
+      .v2-card.dark {
+        color: var(--white);
+        background: rgba(255, 255, 255, 0.07);
+        border-color: rgba(255, 255, 255, 0.14);
+      }
+
+      .v2-card h4,
+      .v2-card h5 {
+        margin: 0;
+      }
+
+      .v2-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+      }
+
+      .v2-stat {
+        padding: 10px 8px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(14, 92, 76, 0.1);
+        border-radius: 8px;
+      }
+
+      .v2-stat strong {
+        display: block;
+        color: #0e4b40;
+        font-size: 20px;
+      }
+
+      .v2-stat span {
+        color: #6b807a;
+        font-size: 11px;
+      }
+
+      .v2-tab-board {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 18px;
+        height: 100%;
+        padding: 22px;
+      }
+
+      .v2-tab-sidebar {
+        padding: 14px;
+        border-radius: 8px;
+      }
+
+      .v2-tab-content {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+        min-width: 0;
+      }
+
+      .v2-big-card {
+        min-height: 190px;
+        padding: 16px;
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid rgba(16, 62, 56, 0.1);
+        border-radius: 8px;
+        box-shadow: var(--soft-shadow);
+      }
+
+      .v2-big-card.dark {
+        color: var(--white);
+        background: rgba(8, 36, 33, 0.78);
+        border-color: rgba(255, 255, 255, 0.16);
+      }
+
+      .v2-map-mini {
+        position: relative;
+        height: 98px;
+        overflow: hidden;
+        background:
+          linear-gradient(145deg, rgba(32, 180, 134, 0.16), transparent),
+          #123934;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+      }
+
+      .v2-map-mini svg {
+        width: 100%;
+        height: 100%;
+      }
+
+      .v2-map-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 8px;
+        color: #cce4dd;
+        font-size: 12px;
+      }
+
+      .v2-logic-flow {
+        position: absolute;
+        left: 410px;
+        right: 386px;
+        top: 92px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        color: #dff8ee;
+        font-size: 12px;
+        pointer-events: none;
+      }
+
+      .v2-flow-item {
+        padding: 8px 10px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+      }
+
+      .v2-layer-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .v2-switch {
+        width: 36px;
+        height: 18px;
+        padding: 2px;
+        background: rgba(32, 180, 134, 0.32);
+        border-radius: 12px;
+      }
+
+      .v2-switch::after {
+        display: block;
+        width: 14px;
+        height: 14px;
+        background: #dff8ee;
+        border-radius: 50%;
+        content: "";
+        transform: translateX(16px);
+      }
+
+      .v2-radar {
+        width: 100%;
+        height: 155px;
+      }
+
+      .v2-bottom-pages {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        height: calc(100% - 40px);
+      }
+
+      .v2-mini-page {
+        min-width: 0;
+        padding: 12px;
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.82);
+        border-radius: 8px;
+      }
+
+      .v2-mini-page h4 {
+        margin: 0 0 10px;
+      }
+
+      .v2-symbol-row {
+        display: grid;
+        grid-template-columns: 40px 1fr;
+        gap: 8px;
+        align-items: center;
+        margin: 8px 0;
+        font-size: 12px;
+      }
+
+      .v2-symbol {
+        height: 12px;
+        border-radius: 8px;
+        background: linear-gradient(90deg, var(--green), var(--cyan));
+      }
+
+      .v2-symbol.border {
+        height: 18px;
+        background: transparent;
+        border: 2px solid var(--gold);
+        border-radius: 4px;
+      }
+
+      .v2-admin-pages {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        height: calc(100% - 84px);
+        padding: 20px;
+      }
+
+      .v2-admin-page-card {
+        display: grid;
+        grid-template-rows: auto auto 1fr;
+        gap: 10px;
+        min-width: 0;
+        padding: 14px;
+        background: #ffffff;
+        border: 1px solid rgba(16, 62, 56, 0.09);
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(17, 46, 43, 0.08);
+      }
+
+      .v2-admin-page-card h3 {
+        margin: 0;
+        font-size: 16px;
+      }
+
+      .v2-admin-page-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .v2-mini-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+      }
+
+      .v2-mini-table td,
+      .v2-mini-table th {
+        padding: 7px 5px;
+        border-bottom: 1px solid rgba(16, 62, 56, 0.08);
+      }
+
+      .v2-doc-note {
+        position: absolute;
+        left: 24px;
+        right: 24px;
+        top: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .v2-doc-note h2 {
+        margin: 0;
+        color: #123832;
+      }
+
+      .v2-doc-note span {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="prototype-nav">
+      <strong>前端优化高保真原型</strong>
+      <div class="prototype-links">
+        <a href="#login">登录</a>
+        <a href="#geo">三维地球主界面</a>
+        <a href="#catalog">数据资源中心</a>
+        <a href="#nongeo">非地理可视化</a>
+        <a href="#admin-dashboard">后台 Dashboard</a>
+        <a href="#admin-data">存量数据与导入</a>
+        <a href="#admin-auth">权限日志设置</a>
+        <a href="#geo-v2-layout">主界面深化</a>
+        <a href="#geo-v2-tabs">左侧/底部/右侧细化</a>
+        <a href="#catalog-v2">资源中心增强</a>
+        <a href="#admin-v2-pages">后台八页</a>
+      </div>
+    </nav>
+
+    <p class="prototype-note">
+      这些画板是独立静态 HTML 设计图，不依赖现有前端运行环境。重点展示优化后的页面信息架构、视觉层级和生态数据可视化布局，后续实现时可按现有 React、Ant Design、Mapbox GL JS 组件边界拆分。
+    </p>
+
+    <div class="artboard-wrap" id="login">
+      <div class="screen-title">
+        <h2>01 统一登录界面</h2>
+        <span>建立生态科研平台第一印象，登录后直接进入三维地球主界面</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard login-screen" aria-label="统一登录界面">
+          <svg class="login-scene" viewBox="0 0 1440 900" role="img" aria-label="胡杨林与河流走廊背景">
+            <defs>
+              <linearGradient id="river" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%" stop-color="#49c7ff" stop-opacity="0.85" />
+                <stop offset="100%" stop-color="#20b486" stop-opacity="0.28" />
+              </linearGradient>
+              <linearGradient id="sand" x1="0" x2="1">
+                <stop offset="0%" stop-color="#f2b84b" stop-opacity="0.5" />
+                <stop offset="100%" stop-color="#20b486" stop-opacity="0.22" />
+              </linearGradient>
+            </defs>
+            <path d="M0 710 C180 620 270 665 406 592 C548 516 674 530 782 456 C926 357 1102 360 1440 250 L1440 900 L0 900 Z" fill="url(#sand)" opacity="0.36" />
+            <path d="M0 812 C210 724 404 785 568 664 C720 553 825 574 988 480 C1120 404 1262 398 1440 338" fill="none" stroke="url(#river)" stroke-width="38" opacity="0.42" />
+            <path d="M0 832 C210 744 404 805 568 684 C720 573 825 594 988 500 C1120 424 1262 418 1440 358" fill="none" stroke="#d9fff3" stroke-width="2" opacity="0.28" />
+            <g opacity="0.14" stroke="#d9fff3">
+              <path d="M150 120 L150 820" />
+              <path d="M300 120 L300 820" />
+              <path d="M450 120 L450 820" />
+              <path d="M600 120 L600 820" />
+              <path d="M750 120 L750 820" />
+              <path d="M900 120 L900 820" />
+              <path d="M1050 120 L1050 820" />
+              <path d="M1200 120 L1200 820" />
+              <path d="M60 250 L1380 250" />
+              <path d="M60 420 L1380 420" />
+              <path d="M60 590 L1380 590" />
+              <path d="M60 760 L1380 760" />
+            </g>
+            <g fill="#20b486" opacity="0.44">
+              <circle cx="806" cy="432" r="5" />
+              <circle cx="912" cy="390" r="5" />
+              <circle cx="1028" cy="350" r="5" />
+              <circle cx="1166" cy="320" r="5" />
+              <circle cx="646" cy="542" r="5" />
+              <circle cx="482" cy="640" r="5" />
+            </g>
+          </svg>
+          <div class="login-copy">
+            <span class="brand-mark">▦ Central Asia Poplar Forest Data</span>
+            <h1>中亚胡杨林生态系统保护数据共享平台</h1>
+            <p>
+              汇聚遥感影像、矢量边界、野外样方、长期监测和保护成果，以三维地球为核心入口，完成生态数据的检索、叠加、分析与共享。
+            </p>
+          </div>
+          <div class="login-data-strip">
+            <div class="metric">
+              <strong>1,286</strong>
+              <span>数据资源</span>
+            </div>
+            <div class="metric">
+              <strong>94</strong>
+              <span>监测站点</span>
+            </div>
+            <div class="metric">
+              <strong>37</strong>
+              <span>专题图层</span>
+            </div>
+            <div class="metric">
+              <strong>12</strong>
+              <span>覆盖流域</span>
+            </div>
+          </div>
+          <aside class="login-panel glass" aria-label="登录表单">
+            <h2>用户登录</h2>
+            <p>登录后直接进入三维地球工作台，后台功能按当前账号权限显示。</p>
+            <div class="form-stack">
+              <div class="field">
+                <label>账号</label>
+                <div class="input">请输入账号</div>
+              </div>
+              <div class="field">
+                <label>密码</label>
+                <div class="input">请输入密码</div>
+              </div>
+              <div class="login-actions">
+                <span>☑ 记住登录状态</span>
+                <span>忘记密码</span>
+              </div>
+              <div class="btn primary">登录并进入三维地球</div>
+            </div>
+            <div class="login-mini-visual">
+              <div class="donut" aria-label="数据覆盖度环形图"></div>
+              <svg class="tiny-trend" viewBox="0 0 240 70" role="img" aria-label="最近数据更新趋势">
+                <polyline points="4,54 38,46 72,49 106,30 140,34 174,18 210,24 236,10" fill="none" stroke="#20b486" stroke-width="4" />
+                <polyline points="4,62 38,58 72,59 106,48 140,50 174,44 210,46 236,42" fill="none" stroke="#49c7ff" stroke-width="3" opacity="0.72" />
+              </svg>
+            </div>
+          </aside>
+        </section>
+      </div>
+    </div>
+
+    <div class="artboard-wrap" id="geo">
+      <div class="screen-title">
+        <h2>02 三维地球主界面</h2>
+        <span>登录后的默认主界面，非地理可视化与管理后台进入顶部导航</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard geo-screen" aria-label="三维地球主界面">
+          <svg class="map-grid" viewBox="0 0 1440 900" aria-hidden="true">
+            <g fill="none" stroke="#8adbc9" stroke-opacity="0.08">
+              <path d="M0 170 C180 130 270 210 430 170 S700 120 860 170 1120 240 1440 150" />
+              <path d="M0 300 C210 235 370 330 560 278 S920 190 1090 276 1260 360 1440 292" />
+              <path d="M0 560 C250 490 410 600 620 520 S1000 430 1180 520 1310 640 1440 550" />
+              <path d="M0 700 C210 642 390 720 560 678 S890 600 1080 670 1250 760 1440 710" />
+            </g>
+            <g stroke="#dff8ee" stroke-opacity="0.08">
+              <path d="M120 0 V900" />
+              <path d="M300 0 V900" />
+              <path d="M480 0 V900" />
+              <path d="M660 0 V900" />
+              <path d="M840 0 V900" />
+              <path d="M1020 0 V900" />
+              <path d="M1200 0 V900" />
+              <path d="M0 160 H1440" />
+              <path d="M0 320 H1440" />
+              <path d="M0 480 H1440" />
+              <path d="M0 640 H1440" />
+              <path d="M0 800 H1440" />
+            </g>
+          </svg>
+
+          <header class="topbar glass-dark">
+            <div class="brand">
+              <span class="brand-icon">▦</span>
+              <span>中亚胡杨林生态保护数据共享平台</span>
+            </div>
+            <nav class="nav-tabs" aria-label="主导航">
+              <span class="tab active">地理可视化</span>
+              <span class="tab">非地理可视化</span>
+              <span class="tab">成果目录</span>
+              <span class="tab">管理后台</span>
+              <span class="input global-search">搜索数据、图层、站点、成果</span>
+            </nav>
+            <div class="top-actions">
+              <span class="pill green">超级管理员</span>
+              <span class="icon-button">🔔</span>
+              <span class="icon-button">👤</span>
+              <span class="btn">退出</span>
+            </div>
+          </header>
+
+          <aside class="side-panel left glass-dark">
+            <div class="panel-tabs">
+              <span class="active">数据</span>
+              <span>图层</span>
+              <span>专题</span>
+            </div>
+            <div class="input">搜索数据资源或图层</div>
+            <div class="asset-card">
+              <div class="section-heading">
+                <h4>数据资产概览</h4>
+                <span class="pill green">1286 项</span>
+              </div>
+              <div class="overview-chart">
+                <div class="donut"></div>
+                <div class="bar-chart">
+                  <div class="bar-line"><span>矢量</span><div class="bar-track"><i style="width: 78%"></i></div><b>356</b></div>
+                  <div class="bar-line"><span>栅格</span><div class="bar-track"><i style="width: 62%"></i></div><b>284</b></div>
+                  <div class="bar-line"><span>表格</span><div class="bar-track"><i style="width: 46%"></i></div><b>209</b></div>
+                  <div class="bar-line"><span>成果</span><div class="bar-track"><i style="width: 34%"></i></div><b>154</b></div>
+                </div>
+              </div>
+            </div>
+            <div class="asset-card">
+              <div class="section-heading">
+                <h4>近 7 日更新</h4>
+                <span class="muted">入库趋势</span>
+              </div>
+              <div class="mini-bars">
+                <i style="height: 24px"></i><i style="height: 36px"></i><i style="height: 20px"></i><i style="height: 50px"></i><i style="height: 42px"></i><i style="height: 62px"></i><i style="height: 48px"></i>
+              </div>
+            </div>
+            <div class="section-heading">
+              <h3>推荐数据资源</h3>
+              <span class="pill cyan">可加载</span>
+            </div>
+            <div class="resource-item">
+              <div><strong>塔里木河胡杨林分布边界</strong><span>矢量 · 2025 · 保护区</span></div>
+              <span class="pill green">加载</span>
+            </div>
+            <div class="resource-item">
+              <div><strong>NDVI 月尺度遥感产品</strong><span>栅格 · 2024-2026 · COG</span></div>
+              <span class="pill cyan">瓦片</span>
+            </div>
+            <div class="resource-item">
+              <div><strong>地下水埋深长期监测</strong><span>表格 · 监测站 · 可关联</span></div>
+              <span class="pill gold">分析</span>
+            </div>
+          </aside>
+
+          <div class="globe-stage">
+            <div class="globe" aria-label="三维地球">
+              <i class="continent eurasia"></i>
+              <i class="continent africa"></i>
+              <i class="continent americas"></i>
+              <i class="continent australia"></i>
+              <i class="marker m1"></i>
+              <i class="marker m2"></i>
+              <i class="marker m3"></i>
+            </div>
+          </div>
+
+          <div class="map-toolbox glass">
+            <span class="icon-button">⌂</span>
+            <span class="icon-button">＋</span>
+            <span class="icon-button">－</span>
+            <span class="icon-button">◎</span>
+            <span class="icon-button">▣</span>
+          </div>
+
+          <aside class="side-panel right glass-dark">
+            <div class="panel-tabs">
+              <span class="active">概览</span>
+              <span>要素</span>
+              <span>监测</span>
+            </div>
+            <div class="section-heading">
+              <h3>生态态势</h3>
+              <span class="pill green">正常</span>
+            </div>
+            <div class="overview-chart">
+              <div class="gauge"><b>82</b></div>
+              <div>
+                <p style="margin: 0 0 12px; color: #d8eee7; line-height: 1.7">综合生态健康指数稳定，局部区域出现轻度水分胁迫。</p>
+                <div class="metric-row">
+                  <div class="metric"><strong>0.61</strong><span>NDVI</span></div>
+                  <div class="metric"><strong>14%</strong><span>风险面积</span></div>
+                  <div class="metric"><strong>89%</strong><span>站点在线</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="asset-card" style="margin-top: 12px">
+              <div class="section-heading">
+                <h4>NDVI 与水分指数</h4>
+                <span class="muted">近 12 月</span>
+              </div>
+              <svg class="line-chart" viewBox="0 0 300 110">
+                <g stroke="#dce8e4" stroke-width="1"><path d="M0 25 H300" /><path d="M0 55 H300" /><path d="M0 85 H300" /></g>
+                <polyline points="0,76 28,62 56,66 84,48 112,42 140,36 168,40 196,28 224,34 252,30 280,38 300,32" fill="none" stroke="#20b486" stroke-width="4" />
+                <polyline points="0,84 28,78 56,80 84,68 112,58 140,56 168,60 196,50 224,52 252,48 280,54 300,50" fill="none" stroke="#49c7ff" stroke-width="3" />
+              </svg>
+            </div>
+            <div class="asset-card">
+              <div class="section-heading">
+                <h4>监测站在线状态</h4>
+                <span class="pill gold">3 个异常</span>
+              </div>
+              <div class="status-grid" aria-label="监测站状态矩阵">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+              </div>
+            </div>
+          </aside>
+
+          <section class="bottom-panel glass-dark" aria-label="底部空间查询与结果面板">
+            <div class="panel-tabs">
+              <span class="active">空间查询</span>
+              <span>结果</span>
+              <span>时间</span>
+              <span>图例</span>
+            </div>
+            <div class="bottom-grid">
+              <div>
+                <div class="section-heading"><h4>绘制范围</h4><span class="pill green">多边形</span></div>
+                <div class="draw-modes">
+                  <span>无</span><span>矩形</span><span>圆</span><span class="active">多边形</span>
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 12px">
+                  <span class="btn">导入</span><span class="btn">导出</span>
+                </div>
+              </div>
+              <div>
+                <div class="section-heading"><h4>查询命中统计</h4><span class="muted">当前范围 4,286 km²</span></div>
+                <svg class="line-chart" viewBox="0 0 520 110">
+                  <g fill="#20b486"><rect x="16" y="56" width="34" height="40" rx="5" /><rect x="70" y="38" width="34" height="58" rx="5" /><rect x="124" y="22" width="34" height="74" rx="5" /><rect x="178" y="48" width="34" height="48" rx="5" /><rect x="232" y="30" width="34" height="66" rx="5" /></g>
+                  <g fill="#49c7ff"><rect x="310" y="68" width="34" height="28" rx="5" /><rect x="364" y="42" width="34" height="54" rx="5" /><rect x="418" y="58" width="34" height="38" rx="5" /><rect x="472" y="34" width="34" height="62" rx="5" /></g>
+                </svg>
+              </div>
+              <div>
+                <div class="section-heading"><h4>时间轴</h4><span class="pill cyan">2026</span></div>
+                <div class="timeline">
+                  <i style="left: 6%"></i><i style="left: 20%"></i><i style="left: 45%"></i><i style="left: 62%"></i><i style="left: 82%"></i>
+                </div>
+                <div class="legend-list">
+                  <span><i class="legend-color"></i>胡杨林分布</span>
+                  <span><i class="legend-color" style="background: #49c7ff"></i>水文监测</span>
+                  <span><i class="legend-color" style="background: #f2b84b"></i>风险区域</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+      </div>
+    </div>
+
+    <div class="artboard-wrap" id="catalog">
+      <div class="screen-title">
+        <h2>03 数据资源中心弹层</h2>
+        <span>不离开三维地球，在主界面上完成资源筛选、预览、加载</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard geo-screen" aria-label="数据资源中心弹层">
+          <svg class="map-grid" viewBox="0 0 1440 900" aria-hidden="true">
+            <path d="M0 460 C210 360 370 500 560 410 S920 300 1090 410 1260 550 1440 450" fill="none" stroke="#8adbc9" stroke-opacity="0.1" />
+            <path d="M0 650 C240 560 400 690 640 590 S990 520 1200 620 1320 700 1440 660" fill="none" stroke="#8adbc9" stroke-opacity="0.1" />
+          </svg>
+          <header class="topbar glass-dark">
+            <div class="brand"><span class="brand-icon">▦</span><span>数据资源中心</span></div>
+            <nav class="nav-tabs"><span class="tab active">地理可视化</span><span class="tab">非地理可视化</span><span class="tab">管理后台</span></nav>
+            <div class="top-actions"><span class="pill green">超级管理员</span><span class="btn">关闭弹层</span></div>
+          </header>
+          <section class="catalog-overlay glass">
+            <div class="section-heading">
+              <div>
+                <h3>平台数据资源</h3>
+                <span class="muted">按主题、时间、空间、来源检索，并直接加载到三维地球</span>
+              </div>
+              <div style="display: flex; gap: 8px">
+                <span class="pill green">矢量 356</span>
+                <span class="pill cyan">栅格 284</span>
+                <span class="pill gold">成果 154</span>
+              </div>
+            </div>
+            <div class="catalog-main">
+              <aside class="light-panel">
+                <div class="section-heading"><h4>筛选条件</h4><span class="pill green">6 类</span></div>
+                <div class="form-stack">
+                  <div class="input">关键词：胡杨林 / NDVI</div>
+                  <div class="input">数据类型：全部</div>
+                  <div class="input">专题分类：水文生态</div>
+                  <div class="input">时间范围：2020-2026</div>
+                  <div class="input">来源单位：全部</div>
+                  <div class="btn primary">筛选数据</div>
+                </div>
+                <div style="margin-top: 18px" class="bar-chart">
+                  <div class="bar-line"><span>胡杨分布</span><div class="bar-track"><i style="width: 84%"></i></div><b>248</b></div>
+                  <div class="bar-line"><span>水文</span><div class="bar-track"><i style="width: 72%"></i></div><b>212</b></div>
+                  <div class="bar-line"><span>土壤</span><div class="bar-track"><i style="width: 54%"></i></div><b>166</b></div>
+                  <div class="bar-line"><span>气候</span><div class="bar-track"><i style="width: 43%"></i></div><b>121</b></div>
+                </div>
+              </aside>
+              <main class="catalog-list">
+                <div class="metric-row">
+                  <div class="metric"><strong>1,286</strong><span>资源总数</span></div>
+                  <div class="metric"><strong>642</strong><span>可地图加载</span></div>
+                  <div class="metric"><strong>93%</strong><span>元数据完整度</span></div>
+                </div>
+                <div class="catalog-row">
+                  <div><strong>塔里木河下游胡杨林分布边界</strong><small>矢量 · 2025 · EPSG:4326 · 自然保护区专题</small></div>
+                  <span class="btn primary">加载</span>
+                </div>
+                <div class="catalog-row">
+                  <div><strong>NDVI 月尺度遥感产品 2020-2026</strong><small>栅格 · COG · 12 波段 · 默认伪彩色规则</small></div>
+                  <span class="btn primary">加载瓦片</span>
+                </div>
+                <div class="catalog-row">
+                  <div><strong>地下水埋深长期监测数据</strong><small>表格 · 94 站点 · 可关联空间点位</small></div>
+                  <span class="btn">分析</span>
+                </div>
+                <div class="catalog-row">
+                  <div><strong>野外样方调查记录与植被盖度</strong><small>表格/图片 · 样方 · 2024-2026</small></div>
+                  <span class="btn">预览</span>
+                </div>
+                <div class="catalog-row">
+                  <div><strong>胡杨林保护工程成果文档</strong><small>文档 · PDF · 成果共享</small></div>
+                  <span class="btn">查看</span>
+                </div>
+              </main>
+              <aside class="light-panel">
+                <div class="section-heading"><h4>资源详情预览</h4><span class="pill green">可渲染</span></div>
+                <p class="muted" style="line-height: 1.7">当前选中资源覆盖塔里木河下游关键胡杨林斑块，包含边界、保护等级、面积、年份等字段。</p>
+                <svg class="line-chart" viewBox="0 0 280 110">
+                  <g fill="none" stroke="#dce8e4"><path d="M0 25 H280" /><path d="M0 55 H280" /><path d="M0 85 H280" /></g>
+                  <polyline points="0,80 35,64 70,58 105,46 140,50 175,32 210,36 245,26 280,30" fill="none" stroke="#20b486" stroke-width="4" />
+                </svg>
+                <table class="data-table">
+                  <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+                  <tr><td>name</td><td>string</td><td>斑块名称</td></tr>
+                  <tr><td>area</td><td>number</td><td>面积</td></tr>
+                  <tr><td>level</td><td>enum</td><td>保护等级</td></tr>
+                  <tr><td>year</td><td>date</td><td>数据年份</td></tr>
+                </table>
+              </aside>
+            </div>
+          </section>
+        </section>
+      </div>
+    </div>
+
+    <div class="artboard-wrap" id="nongeo">
+      <div class="screen-title">
+        <h2>04 非地理可视化界面</h2>
+        <span>基因、表格、成果文档与图片资料的科研分析工作台</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard nongeo-screen" aria-label="非地理可视化界面">
+          <header class="topbar glass-dark nongeo-topbar">
+            <div class="brand"><span class="brand-icon">✦</span><span>非地理可视化</span></div>
+            <nav class="nav-tabs"><span class="tab">地理可视化</span><span class="tab active">非地理可视化</span><span class="tab">管理后台</span><span class="input global-search">搜索表格、基因、成果、样本</span></nav>
+            <div class="top-actions"><span class="pill green">研究员</span><span class="btn">返回地球</span></div>
+          </header>
+          <div class="nongeo-shell">
+            <aside class="light-panel">
+              <div class="section-heading"><h3>数据集</h3><span class="pill cyan">328 项</span></div>
+              <div class="input">筛选非地理数据</div>
+              <div class="dataset-row"><strong>胡杨群体遗传样本矩阵</strong><span class="muted">基因 · 256 样本 · 18 指标</span></div>
+              <div class="dataset-row"><strong>样方植被盖度调查表</strong><span class="muted">表格 · 2020-2026</span></div>
+              <div class="dataset-row"><strong>保护工程成果文档库</strong><span class="muted">文档 · PDF · 154 项</span></div>
+              <div class="dataset-row"><strong>野外照片与样方影像</strong><span class="muted">图片 · 2,480 张</span></div>
+              <div style="margin-top: 16px" class="overview-chart">
+                <div class="donut"></div>
+                <div class="bar-chart">
+                  <div class="bar-line"><span>基因</span><div class="bar-track"><i style="width: 62%"></i></div><b>86</b></div>
+                  <div class="bar-line"><span>表格</span><div class="bar-track"><i style="width: 84%"></i></div><b>132</b></div>
+                  <div class="bar-line"><span>文档</span><div class="bar-track"><i style="width: 58%"></i></div><b>77</b></div>
+                </div>
+              </div>
+            </aside>
+            <main class="nongeo-main-grid">
+              <section class="chart-card">
+                <div class="section-heading"><h3>基因表达热力图</h3><span class="pill green">聚类</span></div>
+                <div class="heat-grid">
+                  <i style="opacity: .25"></i><i style="opacity: .5"></i><i style="opacity: .8"></i><i style="opacity: .35"></i><i style="opacity: .95"></i><i style="opacity: .7"></i><i style="opacity: .42"></i><i style="opacity: .88"></i><i style="opacity: .55"></i>
+                  <i style="opacity: .72"></i><i style="opacity: .2"></i><i style="opacity: .44"></i><i style="opacity: .91"></i><i style="opacity: .6"></i><i style="opacity: .3"></i><i style="opacity: .82"></i><i style="opacity: .48"></i><i style="opacity: .76"></i>
+                  <i style="opacity: .45"></i><i style="opacity: .82"></i><i style="opacity: .32"></i><i style="opacity: .61"></i><i style="opacity: .28"></i><i style="opacity: .9"></i><i style="opacity: .74"></i><i style="opacity: .5"></i><i style="opacity: .66"></i>
+                  <i style="opacity: .88"></i><i style="opacity: .58"></i><i style="opacity: .74"></i><i style="opacity: .26"></i><i style="opacity: .47"></i><i style="opacity: .7"></i><i style="opacity: .92"></i><i style="opacity: .37"></i><i style="opacity: .8"></i>
+                  <i style="opacity: .38"></i><i style="opacity: .92"></i><i style="opacity: .54"></i><i style="opacity: .78"></i><i style="opacity: .31"></i><i style="opacity: .62"></i><i style="opacity: .84"></i><i style="opacity: .44"></i><i style="opacity: .7"></i>
+                </div>
+              </section>
+              <section class="chart-card">
+                <div class="section-heading"><h3>样本关系网络</h3><span class="pill cyan">256 样本</span></div>
+                <svg class="network-chart" viewBox="0 0 420 190">
+                  <g stroke="#9db7b0" stroke-opacity="0.55">
+                    <path d="M92 92 L170 50 L252 74 L310 136 L204 150 Z" />
+                    <path d="M170 50 L204 150 L300 42" />
+                    <path d="M92 92 L300 42 L252 74" />
+                    <path d="M130 145 L170 50 L310 136" />
+                  </g>
+                  <g fill="#20b486"><circle cx="92" cy="92" r="14" /><circle cx="170" cy="50" r="11" /><circle cx="252" cy="74" r="16" /><circle cx="310" cy="136" r="13" /><circle cx="204" cy="150" r="12" /><circle cx="300" cy="42" r="10" /><circle cx="130" cy="145" r="9" /></g>
+                  <g fill="#49c7ff"><circle cx="52" cy="52" r="7" /><circle cx="368" cy="86" r="8" /><circle cx="230" cy="28" r="7" /></g>
+                </svg>
+              </section>
+              <section class="chart-card">
+                <div class="section-heading"><h3>样方指标趋势</h3><span class="pill green">2020-2026</span></div>
+                <svg class="line-chart" viewBox="0 0 520 160">
+                  <g stroke="#e3ebe7"><path d="M0 40 H520" /><path d="M0 80 H520" /><path d="M0 120 H520" /></g>
+                  <polyline points="0,120 65,96 130,102 195,70 260,62 325,58 390,46 455,54 520,36" fill="none" stroke="#20b486" stroke-width="4" />
+                  <polyline points="0,130 65,118 130,110 195,104 260,94 325,88 390,84 455,76 520,70" fill="none" stroke="#f2b84b" stroke-width="4" />
+                </svg>
+              </section>
+              <section class="chart-card">
+                <div class="section-heading"><h3>成果关键词</h3><span class="pill gold">154 文档</span></div>
+                <div class="cloud">
+                  <span style="font-size: 22px">胡杨林</span><span>生态修复</span><span style="font-size: 18px">水文过程</span><span>遥感反演</span><span style="font-size: 20px">样方调查</span><span>盐渍化</span><span>地下水</span><span>保护区</span><span>碳汇</span>
+                </div>
+              </section>
+            </main>
+            <aside class="light-panel">
+              <div class="section-heading"><h3>图表配置</h3><span class="pill green">自动</span></div>
+              <div class="form-stack">
+                <div class="input">X 轴：年份</div>
+                <div class="input">Y 轴：盖度 / NDVI</div>
+                <div class="input">分组：流域</div>
+                <div class="input">聚合：均值</div>
+                <div class="btn primary">更新图表</div>
+              </div>
+              <div style="margin-top: 18px">
+                <div class="section-heading"><h4>数据质量</h4><span class="pill gold">需复核 8%</span></div>
+                <div class="bar-chart">
+                  <div class="bar-line"><span>完整</span><div class="bar-track"><i style="width: 92%"></i></div><b>92%</b></div>
+                  <div class="bar-line"><span>异常</span><div class="bar-track"><i style="width: 8%; background: var(--red)"></i></div><b>8%</b></div>
+                  <div class="bar-line"><span>已校验</span><div class="bar-track"><i style="width: 76%; background: var(--cyan)"></i></div><b>76%</b></div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="artboard-wrap" id="admin-dashboard">
+      <div class="screen-title">
+        <h2>05 管理后台 Dashboard</h2>
+        <span>保持 Ant Design Pro 管理效率，强化资源、任务、系统状态图表</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard admin-screen" aria-label="管理后台 Dashboard">
+          <div class="admin-shell">
+            <aside class="admin-side">
+              <div class="brand"><span class="brand-icon">▣</span><span>生态保护管理</span></div>
+              <nav class="admin-menu">
+                <span class="active">Dashboard</span><span>用户设置</span><span>数据管理</span><span>数据导入</span><span>认证授权</span><span>操作日志</span><span>系统设置</span>
+              </nav>
+            </aside>
+            <main class="admin-main">
+              <header class="admin-header">
+                <div><strong>Dashboard</strong><span class="muted" style="margin-left: 12px">汇总平台数据、系统监控与栅格任务</span></div>
+                <div style="display: flex; gap: 8px"><span class="btn">返回三维地球</span><span class="pill green">超级管理员</span></div>
+              </header>
+              <section class="admin-content">
+                <div class="admin-kpis">
+                  <div class="admin-card"><span class="muted">数据资源</span><strong>1,286</strong><span class="pill green">启用 1,042</span></div>
+                  <div class="admin-card"><span class="muted">图层数</span><strong>312</strong><span class="pill cyan">在线 278</span></div>
+                  <div class="admin-card"><span class="muted">栅格任务</span><strong>47</strong><span class="pill gold">处理中 6</span></div>
+                  <div class="admin-card"><span class="muted">用户数</span><strong>168</strong><span class="pill green">活跃 42</span></div>
+                  <div class="admin-card"><span class="muted">系统告警</span><strong>3</strong><span class="pill red">待处理</span></div>
+                </div>
+                <div class="admin-dashboard-grid">
+                  <div class="admin-card">
+                    <div class="section-heading"><h3>资源增长趋势</h3><span class="pill green">最近 12 月</span></div>
+                    <svg class="line-chart" viewBox="0 0 760 210">
+                      <g stroke="#e3ebe7"><path d="M0 45 H760" /><path d="M0 95 H760" /><path d="M0 145 H760" /></g>
+                      <polyline points="0,160 70,148 140,134 210,124 280,110 350,102 420,82 490,88 560,70 630,58 700,50 760,38" fill="none" stroke="#20b486" stroke-width="5" />
+                      <polyline points="0,178 70,170 140,162 210,152 280,142 350,130 420,118 490,112 560,98 630,86 700,76 760,68" fill="none" stroke="#49c7ff" stroke-width="4" />
+                    </svg>
+                  </div>
+                  <div class="admin-card">
+                    <div class="section-heading"><h3>服务器监控</h3><span class="muted">5 秒刷新</span></div>
+                    <div class="admin-row">
+                      <div><div class="ring-small"><b>42%</b></div><p>CPU</p></div>
+                      <div><div class="ring-small" style="background: radial-gradient(circle at center, #fff 0 55%, transparent 56%), conic-gradient(#49c7ff 0 58%, #dce6e1 58% 100%)"><b>58%</b></div><p>内存</p></div>
+                      <div><div class="ring-small" style="background: radial-gradient(circle at center, #fff 0 55%, transparent 56%), conic-gradient(#f2b84b 0 73%, #dce6e1 73% 100%)"><b>73%</b></div><p>磁盘</p></div>
+                    </div>
+                  </div>
+                  <div class="admin-card">
+                    <div class="section-heading"><h3>活跃用户</h3><span class="pill cyan">本周</span></div>
+                    <div class="mini-bars">
+                      <i style="height: 44px"></i><i style="height: 64px"></i><i style="height: 54px"></i><i style="height: 82px"></i><i style="height: 68px"></i><i style="height: 76px"></i><i style="height: 48px"></i>
+                    </div>
+                  </div>
+                  <div class="admin-card">
+                    <div class="section-heading"><h3>最近操作</h3><span class="pill gold">审计</span></div>
+                    <div class="log-timeline">
+                      <div><span>15:18</span><strong>导入 NDVI 栅格</strong><span>成功</span></div>
+                      <div><span>14:32</span><strong>修改图层权限</strong><span>成功</span></div>
+                      <div><span>13:05</span><strong>栅格脚本执行</strong><span>异常</span></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </main>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="artboard-wrap" id="admin-data">
+      <div class="screen-title">
+        <h2>06 存量数据管理与数据导入</h2>
+        <span>表格管理保持高效率，导入流程增加校验可视化和入库状态</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard admin-screen" aria-label="存量数据管理与数据导入">
+          <div class="admin-shell">
+            <aside class="admin-side">
+              <div class="brand"><span class="brand-icon">▣</span><span>生态保护管理</span></div>
+              <nav class="admin-menu">
+                <span>Dashboard</span><span class="active">存量数据</span><span>数据导入</span><span>认证授权</span><span>操作日志</span><span>系统设置</span>
+              </nav>
+            </aside>
+            <main class="admin-main">
+              <header class="admin-header">
+                <div><strong>存量数据管理</strong><span class="muted" style="margin-left: 12px">权限、默认可视化、状态与导出</span></div>
+                <div style="display: flex; gap: 8px"><span class="btn primary">新增导入</span><span class="btn">返回三维地球</span></div>
+              </header>
+              <section class="admin-content">
+                <div class="admin-kpis">
+                  <div class="admin-card"><span class="muted">当前结果</span><strong>428</strong></div>
+                  <div class="admin-card"><span class="muted">启用</span><strong>386</strong></div>
+                  <div class="admin-card"><span class="muted">受限访问</span><strong>119</strong></div>
+                  <div class="admin-card"><span class="muted">未配置可视化</span><strong>24</strong></div>
+                  <div class="admin-card"><span class="muted">可导出</span><strong>312</strong></div>
+                </div>
+                <div class="admin-dashboard-grid">
+                  <div class="admin-card">
+                    <div class="section-heading"><h3>资源清单</h3><span class="input" style="width: 260px">按名称、编号、来源检索</span></div>
+                    <table class="data-table">
+                      <tr><th>数据资源</th><th>类型</th><th>状态</th><th>来源</th><th>访问范围</th><th>可视化</th><th>操作</th></tr>
+                      <tr><td>塔里木河胡杨分布边界</td><td>矢量</td><td>启用</td><td>保护区</td><td>科研组</td><td>已配置</td><td>配置</td></tr>
+                      <tr><td>NDVI 月尺度遥感产品</td><td>栅格</td><td>启用</td><td>遥感中心</td><td>全部</td><td>已配置</td><td>配置</td></tr>
+                      <tr><td>地下水埋深长期监测</td><td>表格</td><td>启用</td><td>监测站</td><td>数据管理员</td><td>未配置</td><td>配置</td></tr>
+                      <tr><td>保护工程成果文档</td><td>文档</td><td>禁用</td><td>项目组</td><td>管理员</td><td>不适用</td><td>配置</td></tr>
+                    </table>
+                  </div>
+                  <div class="admin-card">
+                    <div class="section-heading"><h3>默认可视化配置</h3><span class="pill green">抽屉态</span></div>
+                    <div class="form-stack">
+                      <div class="input">默认图层名：NDVI 月尺度产品</div>
+                      <div class="input">默认透明度：82%</div>
+                      <div class="input">栅格规则：单波段伪彩色</div>
+                      <div class="input">色带：生态绿 - 沙金 - 胭红</div>
+                    </div>
+                    <div style="margin-top: 16px" class="bar-chart">
+                      <div class="bar-line"><span>配置完成</span><div class="bar-track"><i style="width: 86%"></i></div><b>86%</b></div>
+                      <div class="bar-line"><span>权限覆盖</span><div class="bar-track"><i style="width: 72%; background: var(--cyan)"></i></div><b>72%</b></div>
+                      <div class="bar-line"><span>可导出</span><div class="bar-track"><i style="width: 68%; background: var(--gold)"></i></div><b>68%</b></div>
+                    </div>
+                  </div>
+                  <div class="admin-card">
+                    <div class="section-heading"><h3>导入流程</h3><span class="pill cyan">校验预览</span></div>
+                    <div class="import-steps">
+                      <div class="step">1 选择文件</div>
+                      <div class="step">2 导入配置</div>
+                      <div class="step active">3 校验预览</div>
+                      <div class="step">4 提交入库</div>
+                    </div>
+                    <div class="admin-row" style="margin-top: 16px">
+                      <div><div class="ring-small"><b>96%</b></div><p>结构通过</p></div>
+                      <div><div class="ring-small" style="background: radial-gradient(circle at center, #fff 0 55%, transparent 56%), conic-gradient(#49c7ff 0 88%, #dce6e1 88% 100%)"><b>88%</b></div><p>字段匹配</p></div>
+                      <div><div class="ring-small" style="background: radial-gradient(circle at center, #fff 0 55%, transparent 56%), conic-gradient(#f2b84b 0 74%, #dce6e1 74% 100%)"><b>74%</b></div><p>范围校验</p></div>
+                    </div>
+                  </div>
+                  <div class="admin-card">
+                    <div class="section-heading"><h3>错误类型排行</h3><span class="pill red">需修正</span></div>
+                    <div class="bar-chart">
+                      <div class="bar-line"><span>字段缺失</span><div class="bar-track"><i style="width: 58%; background: var(--red)"></i></div><b>12</b></div>
+                      <div class="bar-line"><span>坐标为空</span><div class="bar-track"><i style="width: 42%; background: var(--gold)"></i></div><b>8</b></div>
+                      <div class="bar-line"><span>类型不符</span><div class="bar-track"><i style="width: 25%; background: var(--violet)"></i></div><b>5</b></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </main>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="artboard-wrap" id="admin-auth">
+      <div class="screen-title">
+        <h2>07 认证授权、操作日志、系统设置</h2>
+        <span>用权限矩阵、日志趋势和配置健康状态提升后台可读性</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard admin-screen" aria-label="认证授权操作日志系统设置">
+          <div class="admin-shell">
+            <aside class="admin-side">
+              <div class="brand"><span class="brand-icon">▣</span><span>生态保护管理</span></div>
+              <nav class="admin-menu">
+                <span>Dashboard</span><span>数据管理</span><span class="active">认证授权</span><span>操作日志</span><span>系统设置</span>
+              </nav>
+            </aside>
+            <main class="admin-main">
+              <header class="admin-header">
+                <div><strong>认证授权</strong><span class="muted" style="margin-left: 12px">用户、角色、权限、审计与配置健康</span></div>
+                <div style="display: flex; gap: 8px"><span class="btn">返回三维地球</span><span class="pill green">安全状态正常</span></div>
+              </header>
+              <section class="admin-content">
+                <div class="admin-kpis">
+                  <div class="admin-card"><span class="muted">用户总数</span><strong>168</strong></div>
+                  <div class="admin-card"><span class="muted">管理员</span><strong>12</strong></div>
+                  <div class="admin-card"><span class="muted">活跃账号</span><strong>42</strong></div>
+                  <div class="admin-card"><span class="muted">异常登录</span><strong>2</strong></div>
+                  <div class="admin-card"><span class="muted">配置健康</span><strong>91%</strong></div>
+                </div>
+                <div class="admin-dashboard-grid">
+                  <div class="admin-card">
+                    <div class="section-heading"><h3>权限矩阵</h3><span class="pill green">按用户组继承</span></div>
+                    <div class="permission-matrix">
+                      <span></span><span>浏览</span><span>查询</span><span>加载</span><span>导出</span><span>维护</span><span>后台</span>
+                      <span>普通用户</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span>－</span><span>－</span><span>－</span>
+                      <span>科研用户</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span>－</span><span>－</span>
+                      <span>数据管理员</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="warn">部分</span>
+                      <span>系统管理员</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span>
+                    </div>
+                  </div>
+                  <div class="admin-card">
+                    <div class="section-heading"><h3>角色人数</h3><span class="pill cyan">当前</span></div>
+                    <div class="mini-bars">
+                      <i style="height: 82px"></i><i style="height: 64px"></i><i style="height: 48px"></i><i style="height: 30px"></i><i style="height: 22px"></i><i style="height: 16px"></i><i style="height: 12px"></i>
+                    </div>
+                  </div>
+                  <div class="admin-card">
+                    <div class="section-heading"><h3>操作日志趋势</h3><span class="pill gold">24 小时</span></div>
+                    <svg class="line-chart" viewBox="0 0 760 180">
+                      <g stroke="#e3ebe7"><path d="M0 40 H760" /><path d="M0 90 H760" /><path d="M0 140 H760" /></g>
+                      <polyline points="0,132 70,118 140,126 210,82 280,90 350,74 420,64 490,88 560,56 630,62 700,46 760,52" fill="none" stroke="#20b486" stroke-width="5" />
+                      <polyline points="0,152 70,148 140,140 210,130 280,136 350,118 420,126 490,112 560,108 630,98 700,92 760,96" fill="none" stroke="#e85d75" stroke-width="4" />
+                    </svg>
+                  </div>
+                  <div class="admin-card">
+                    <div class="section-heading"><h3>系统设置健康检查</h3><span class="pill green">TOML</span></div>
+                    <div class="bar-chart">
+                      <div class="bar-line"><span>业务数据根</span><div class="bar-track"><i style="width: 100%"></i></div><b>正常</b></div>
+                      <div class="bar-line"><span>地理数据根</span><div class="bar-track"><i style="width: 100%"></i></div><b>正常</b></div>
+                      <div class="bar-line"><span>缓存容量</span><div class="bar-track"><i style="width: 76%; background: var(--gold)"></i></div><b>76%</b></div>
+                      <div class="bar-line"><span>脚本接口</span><div class="bar-track"><i style="width: 91%; background: var(--cyan)"></i></div><b>91%</b></div>
+                    </div>
+                    <div class="log-timeline" style="margin-top: 14px">
+                      <div><span>15:20</span><strong>用户组权限调整</strong><span>成功</span></div>
+                      <div><span>14:58</span><strong>导出成果目录</strong><span>成功</span></div>
+                      <div><span>13:40</span><strong>配置缓存上限</strong><span>复核</span></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </main>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="artboard-wrap" id="geo-v2-layout">
+      <div class="screen-title">
+        <h2>08 三维地球主界面 V2 总布局</h2>
+        <span>左侧负责数据与图层，底部负责空间查询闭环，右侧拆成平面缩略图与生态洞察两栏</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard v2-screen" aria-label="三维地球主界面深化总布局">
+          <svg class="map-grid" viewBox="0 0 1440 900" aria-hidden="true">
+            <g fill="none" stroke="#8adbc9" stroke-opacity="0.08">
+              <path d="M0 210 C200 160 310 240 520 190 S860 120 1040 210 1260 300 1440 230" />
+              <path d="M0 420 C230 330 430 465 650 370 S1010 290 1200 405 1330 520 1440 430" />
+              <path d="M0 690 C240 600 450 740 690 620 S1040 560 1210 660 1340 760 1440 710" />
+            </g>
+            <g stroke="#dff8ee" stroke-opacity="0.06">
+              <path d="M160 0 V900" /><path d="M340 0 V900" /><path d="M520 0 V900" /><path d="M700 0 V900" /><path d="M880 0 V900" /><path d="M1060 0 V900" /><path d="M1240 0 V900" />
+              <path d="M0 160 H1440" /><path d="M0 320 H1440" /><path d="M0 480 H1440" /><path d="M0 640 H1440" /><path d="M0 800 H1440" />
+            </g>
+          </svg>
+          <header class="v2-topbar glass-dark">
+            <div class="v2-brand"><span class="v2-icon">G</span><b>中亚胡杨林生态保护数据共享平台</b></div>
+            <nav class="v2-nav">
+              <span class="active">地理可视化</span><span>非地理可视化</span><span>成果目录</span><span>管理后台</span>
+              <div class="v2-search">搜索数据、图层、站点、成果</div>
+            </nav>
+            <div class="v2-actions"><span class="pill green">超级管理员</span><span class="icon-button">N</span><span class="icon-button">U</span><span class="btn">退出</span></div>
+          </header>
+
+          <div class="v2-logic-flow">
+            <div class="v2-flow-item">1 选数据</div>
+            <div class="v2-flow-item">2 管图层</div>
+            <div class="v2-flow-item">3 查空间</div>
+            <div class="v2-flow-item">4 看生态</div>
+          </div>
+
+          <aside class="v2-left glass-dark">
+            <div class="v2-tabs"><span class="active">数据</span><span>图层</span><span>专题</span></div>
+            <div class="input">搜索数据资源、图层或专题</div>
+            <div class="v2-card">
+              <div class="section-heading"><h4>数据资产总览</h4><span class="pill green">1286 项</span></div>
+              <div class="v2-stat-grid">
+                <div class="v2-stat"><strong>642</strong><span>可渲染</span></div>
+                <div class="v2-stat"><strong>93%</strong><span>完整度</span></div>
+                <div class="v2-stat"><strong>28</strong><span>今日更新</span></div>
+                <div class="v2-stat"><strong>15</strong><span>已加载</span></div>
+              </div>
+            </div>
+            <div class="v2-card">
+              <div class="overview-chart">
+                <div class="donut"></div>
+                <div class="bar-chart">
+                  <div class="bar-line"><span>矢量</span><div class="bar-track"><i style="width:78%"></i></div><b>356</b></div>
+                  <div class="bar-line"><span>栅格</span><div class="bar-track"><i style="width:62%;background:linear-gradient(90deg,#49c7ff,#7c6cff)"></i></div><b>284</b></div>
+                  <div class="bar-line"><span>表格</span><div class="bar-track"><i style="width:46%;background:linear-gradient(90deg,#f2b84b,#20b486)"></i></div><b>209</b></div>
+                </div>
+              </div>
+            </div>
+            <div class="section-heading"><h3>推荐加载</h3><span class="pill cyan">按当前视角</span></div>
+            <div class="v2-layer-row"><span class="v2-icon">V</span><div><strong>胡杨林分布边界</strong><br /><span class="muted">矢量 · 2025 · 保护区</span></div><span class="pill green">加载</span></div>
+            <div class="v2-layer-row"><span class="v2-icon">R</span><div><strong>NDVI 月尺度产品</strong><br /><span class="muted">栅格 · COG · 12 波段</span></div><span class="pill cyan">瓦片</span></div>
+            <div class="v2-layer-row"><span class="v2-icon">T</span><div><strong>地下水埋深监测</strong><br /><span class="muted">表格 · 站点 · 可关联</span></div><span class="pill gold">分析</span></div>
+          </aside>
+
+          <main class="v2-center">
+            <div class="globe">
+              <i class="continent eurasia"></i><i class="continent africa"></i><i class="continent americas"></i><i class="continent australia"></i>
+              <i class="marker m1"></i><i class="marker m2"></i><i class="marker m3"></i>
+            </div>
+          </main>
+
+          <aside class="v2-right-map glass-dark">
+            <div class="section-heading"><h4>当前视角平面缩略图</h4><span class="pill cyan">塔里木河</span></div>
+            <div class="v2-map-mini">
+              <svg viewBox="0 0 320 98" role="img" aria-label="当前范围平面缩略图">
+                <path d="M0 72 C52 50 82 70 128 48 S212 18 320 30 L320 98 L0 98 Z" fill="#1b6b5d" opacity=".55" />
+                <path d="M0 76 C72 56 116 74 168 52 S248 34 320 40" fill="none" stroke="#49c7ff" stroke-width="10" opacity=".52" />
+                <rect x="118" y="28" width="96" height="46" rx="6" fill="none" stroke="#f2b84b" stroke-width="3" />
+                <circle cx="166" cy="51" r="5" fill="#f2b84b" />
+              </svg>
+            </div>
+            <div class="v2-map-meta"><span>中心 40.16N / 84.21E</span><span>缩放 6.4</span></div>
+          </aside>
+
+          <aside class="v2-right-info glass-dark">
+            <div class="v2-tabs"><span class="active">概览</span><span>要素</span><span>监测</span></div>
+            <div class="section-heading"><h3>当前范围生态态势</h3><span class="pill green">正常</span></div>
+            <div class="overview-chart">
+              <div class="gauge"><b>82</b></div>
+              <div class="metric-row">
+                <div class="metric"><strong>0.61</strong><span>NDVI</span></div>
+                <div class="metric"><strong>14%</strong><span>风险面积</span></div>
+                <div class="metric"><strong>89%</strong><span>站点在线</span></div>
+              </div>
+            </div>
+            <div class="v2-card">
+              <div class="section-heading"><h4>NDVI / 水分趋势</h4><span class="muted">近 12 月</span></div>
+              <svg class="line-chart" viewBox="0 0 300 110">
+                <g stroke="#dce8e4"><path d="M0 25 H300" /><path d="M0 55 H300" /><path d="M0 85 H300" /></g>
+                <polyline points="0,76 28,62 56,66 84,48 112,42 140,36 168,40 196,28 224,34 252,30 280,38 300,32" fill="none" stroke="#20b486" stroke-width="4" />
+                <polyline points="0,84 28,78 56,80 84,68 112,58 140,56 168,60 196,50 224,52 252,48 280,54 300,50" fill="none" stroke="#49c7ff" stroke-width="3" />
+              </svg>
+            </div>
+            <div class="status-grid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </aside>
+
+          <section class="v2-bottom glass-dark">
+            <div class="v2-tabs"><span class="active">空间查询</span><span>结果</span><span>时间</span><span>图例</span></div>
+            <div class="bottom-grid">
+              <div>
+                <div class="section-heading"><h4>范围工具</h4><span class="pill green">多边形</span></div>
+                <div class="draw-modes"><span>无</span><span>矩形</span><span>圆</span><span class="active">多边形</span></div>
+                <div style="display:flex;gap:8px;margin-top:12px"><span class="btn">导入</span><span class="btn">导出</span><span class="btn">保存</span></div>
+              </div>
+              <div>
+                <div class="section-heading"><h4>查询命中预估</h4><span class="muted">4,286 km²</span></div>
+                <svg class="line-chart" viewBox="0 0 480 110">
+                  <g fill="#20b486"><rect x="10" y="60" width="30" height="36" rx="5" /><rect x="56" y="42" width="30" height="54" rx="5" /><rect x="102" y="24" width="30" height="72" rx="5" /><rect x="148" y="50" width="30" height="46" rx="5" /><rect x="194" y="34" width="30" height="62" rx="5" /></g>
+                  <g fill="#49c7ff"><rect x="270" y="68" width="30" height="28" rx="5" /><rect x="316" y="40" width="30" height="56" rx="5" /><rect x="362" y="58" width="30" height="38" rx="5" /><rect x="408" y="30" width="30" height="66" rx="5" /></g>
+                </svg>
+              </div>
+              <div>
+                <div class="section-heading"><h4>当前图例</h4><span class="pill gold">含边界</span></div>
+                <div class="v2-symbol-row"><i class="v2-symbol border"></i><span>查询范围边框</span></div>
+                <div class="v2-symbol-row"><i class="v2-symbol"></i><span>胡杨林分布</span></div>
+                <div class="v2-symbol-row"><i class="v2-symbol" style="background:#49c7ff"></i><span>水文监测</span></div>
+                <div class="v2-symbol-row"><i class="v2-symbol" style="background:#e85d75"></i><span>风险区域</span></div>
+              </div>
+            </div>
+          </section>
+        </section>
+      </div>
+    </div>
+
+    <div class="artboard-wrap" id="geo-v2-tabs">
+      <div class="screen-title">
+        <h2>09 左侧栏三类内容细化</h2>
+        <span>数据、图层、专题三个 Tab 各自承载不同任务，避免所有功能挤在一个树列表里</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard v2-screen" aria-label="左侧栏三类内容细化">
+          <div class="v2-doc-note"><h2>左侧业务控制中心</h2><span>数据负责发现，图层负责控制，专题负责业务场景</span></div>
+          <div class="v2-tab-board" style="padding-top:82px">
+            <aside class="v2-tab-sidebar glass-dark">
+              <div class="v2-tabs"><span class="active">数据</span><span>图层</span><span>专题</span></div>
+              <div class="input">关键词 / 类型 / 来源 / 时间</div>
+              <div class="v2-card"><div class="v2-stat-grid"><div class="v2-stat"><strong>1286</strong><span>资源</span></div><div class="v2-stat"><strong>642</strong><span>可加载</span></div><div class="v2-stat"><strong>93%</strong><span>完整</span></div><div class="v2-stat"><strong>28</strong><span>今日</span></div></div></div>
+              <div class="v2-card"><div class="overview-chart"><div class="donut"></div><div class="bar-chart"><div class="bar-line"><span>矢量</span><div class="bar-track"><i style="width:78%"></i></div><b>356</b></div><div class="bar-line"><span>栅格</span><div class="bar-track"><i style="width:62%"></i></div><b>284</b></div><div class="bar-line"><span>表格</span><div class="bar-track"><i style="width:46%"></i></div><b>209</b></div></div></div></div>
+              <div class="mini-bars"><i style="height:24px"></i><i style="height:38px"></i><i style="height:22px"></i><i style="height:56px"></i><i style="height:44px"></i><i style="height:68px"></i><i style="height:50px"></i></div>
+            </aside>
+            <main class="v2-tab-content">
+              <section class="v2-big-card">
+                <div class="section-heading"><h3>图层 Tab：已加载图层控制</h3><span class="pill green">15 层</span></div>
+                <div class="v2-layer-row"><span class="v2-switch"></span><div><strong>胡杨林分布组</strong><br /><span class="muted">3 图层 · 透明度 88%</span></div><span class="pill green">可见</span></div>
+                <div class="v2-layer-row"><span class="v2-switch"></span><div><strong>NDVI 栅格组</strong><br /><span class="muted">瓦片 86% · 缓存命中 74%</span></div><span class="pill cyan">渲染</span></div>
+                <div class="v2-layer-row"><span class="v2-switch"></span><div><strong>监测站点组</strong><br /><span class="muted">94 站点 · 3 异常</span></div><span class="pill gold">提醒</span></div>
+                <div class="bar-chart" style="margin-top:12px">
+                  <div class="bar-line"><span>瓦片进度</span><div class="bar-track"><i style="width:86%;background:linear-gradient(90deg,#49c7ff,#7c6cff)"></i></div><b>86%</b></div>
+                  <div class="bar-line"><span>渲染耗时</span><div class="bar-track"><i style="width:38%;background:linear-gradient(90deg,#20b486,#f2b84b)"></i></div><b>312ms</b></div>
+                </div>
+              </section>
+              <section class="v2-big-card">
+                <div class="section-heading"><h3>图层图例与性能</h3><span class="pill cyan">当前可见</span></div>
+                <div class="v2-symbol-row"><i class="v2-symbol"></i><span>胡杨林斑块填充</span></div>
+                <div class="v2-symbol-row"><i class="v2-symbol border"></i><span>保护区边界</span></div>
+                <div class="v2-symbol-row"><i class="v2-symbol" style="background:linear-gradient(90deg,#0b6b4f,#20b486,#f2b84b,#e85d75)"></i><span>NDVI 伪彩色</span></div>
+                <div class="v2-stat-grid"><div class="v2-stat"><strong>15</strong><span>可见层</span></div><div class="v2-stat"><strong>3.2w</strong><span>要素</span></div><div class="v2-stat"><strong>74%</strong><span>缓存</span></div><div class="v2-stat"><strong>312</strong><span>ms</span></div></div>
+              </section>
+              <section class="v2-big-card">
+                <div class="section-heading"><h3>专题 Tab：业务场景</h3><span class="pill gold">5 场景</span></div>
+                <div class="v2-layer-row"><span class="v2-icon">P</span><div><strong>胡杨林分布专题</strong><br /><span class="muted">边界、密度、保护等级</span></div><span class="pill green">加载</span></div>
+                <div class="v2-layer-row"><span class="v2-icon">W</span><div><strong>水文生态专题</strong><br /><span class="muted">河流、地下水、站点</span></div><span class="pill cyan">加载</span></div>
+                <div class="v2-layer-row"><span class="v2-icon">R</span><div><strong>遥感影像专题</strong><br /><span class="muted">NDVI、LST、土地覆盖</span></div><span class="pill gold">加载</span></div>
+              </section>
+              <section class="v2-big-card">
+                <div class="section-heading"><h3>专题完整度雷达</h3><span class="pill green">推荐</span></div>
+                <svg class="v2-radar" viewBox="0 0 300 160">
+                  <g transform="translate(150 78)" fill="none" stroke="#cfded9">
+                    <polygon points="0,-62 59,-19 36,50 -36,50 -59,-19" />
+                    <polygon points="0,-42 40,-13 24,34 -24,34 -40,-13" />
+                    <polygon points="0,-22 21,-7 13,18 -13,18 -21,-7" />
+                  </g>
+                  <polygon points="150,24 205,62 184,118 120,112 92,60" fill="rgba(32,180,134,.32)" stroke="#20b486" stroke-width="3" />
+                  <g fill="#123832" font-size="12"><text x="138" y="12">空间</text><text x="214" y="65">时间</text><text x="185" y="145">质量</text><text x="78" y="145">来源</text><text x="55" y="65">更新</text></g>
+                </svg>
+              </section>
+            </main>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="artboard-wrap" id="geo-v2-bottom-tabs">
+      <div class="screen-title">
+        <h2>10 底部栏四个功能页细化</h2>
+        <span>空间查询、结果、时间、图例共同构成查询分析闭环，图例补充边框范围表达</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard v2-screen" aria-label="底部栏四个功能页细化">
+          <div class="v2-doc-note"><h2>底部空间分析台</h2><span>绘制范围 → 查看命中 → 时间对比 → 解释符号</span></div>
+          <div style="position:absolute;left:32px;right:32px;top:92px;bottom:32px" class="glass-dark">
+            <div class="v2-tabs" style="padding:14px 14px 0"><span class="active">空间查询</span><span>结果</span><span>时间</span><span>图例</span></div>
+            <div class="v2-bottom-pages" style="padding:14px">
+              <section class="v2-mini-page">
+                <h4>空间查询页</h4>
+                <div class="draw-modes"><span>无</span><span>矩形</span><span>圆</span><span class="active">多边形</span></div>
+                <div class="v2-stat-grid" style="grid-template-columns:repeat(2,1fr);margin-top:10px"><div class="v2-stat"><strong>4,286</strong><span>km²</span></div><div class="v2-stat"><strong>312</strong><span>km 周长</span></div></div>
+                <svg class="line-chart" viewBox="0 0 250 120"><g fill="#20b486"><rect x="18" y="68" width="28" height="34" rx="5"/><rect x="58" y="42" width="28" height="60" rx="5"/><rect x="98" y="24" width="28" height="78" rx="5"/><rect x="138" y="54" width="28" height="48" rx="5"/><rect x="178" y="38" width="28" height="64" rx="5"/></g></svg>
+              </section>
+              <section class="v2-mini-page">
+                <h4>结果页</h4>
+                <div class="v2-stat-grid" style="grid-template-columns:repeat(2,1fr)"><div class="v2-stat"><strong>1,204</strong><span>命中</span></div><div class="v2-stat"><strong>800</strong><span>返回</span></div></div>
+                <table class="v2-mini-table" style="margin-top:8px"><tr><th>名称</th><th>类型</th><th>等级</th></tr><tr><td>斑块 A01</td><td>面</td><td>高</td></tr><tr><td>站点 T12</td><td>点</td><td>正常</td></tr><tr><td>河段 R08</td><td>线</td><td>中</td></tr></table>
+                <div class="bar-chart" style="margin-top:8px"><div class="bar-line"><span>一级</span><div class="bar-track"><i style="width:72%"></i></div><b>72</b></div><div class="bar-line"><span>二级</span><div class="bar-track"><i style="width:46%;background:var(--gold)"></i></div><b>46</b></div></div>
+              </section>
+              <section class="v2-mini-page">
+                <h4>时间页</h4>
+                <svg class="line-chart" viewBox="0 0 250 120"><g stroke="#dce8e4"><path d="M0 30 H250"/><path d="M0 62 H250"/><path d="M0 94 H250"/></g><polyline points="0,90 40,78 80,84 120,58 160,52 200,42 250,36" fill="none" stroke="#20b486" stroke-width="4"/><polyline points="0,100 40,94 80,88 120,80 160,78 200,68 250,64" fill="none" stroke="#49c7ff" stroke-width="3"/></svg>
+                <div class="timeline"><i style="left:8%"></i><i style="left:24%"></i><i style="left:42%"></i><i style="left:64%"></i><i style="left:86%"></i></div>
+              </section>
+              <section class="v2-mini-page">
+                <h4>图例页</h4>
+                <div class="v2-symbol-row"><i class="v2-symbol border"></i><span>查询范围边框</span></div>
+                <div class="v2-symbol-row"><i class="v2-symbol" style="background:#20b486"></i><span>胡杨林面</span></div>
+                <div class="v2-symbol-row"><i class="v2-symbol" style="background:#49c7ff"></i><span>河流线</span></div>
+                <div class="v2-symbol-row"><i class="v2-symbol" style="background:linear-gradient(90deg,#0b6b4f,#20b486,#f2b84b,#e85d75)"></i><span>NDVI 色带</span></div>
+                <div class="v2-symbol-row"><i class="v2-symbol" style="background:#e85d75"></i><span>风险区域</span></div>
+              </section>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="artboard-wrap" id="geo-v2-right-tabs">
+      <div class="screen-title">
+        <h2>11 右侧双栏与生态信息细化</h2>
+        <span>上栏固定显示当前视角平面缩略图，下栏通过概览、要素、监测展示不同洞察</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard v2-screen" aria-label="右侧双栏与生态信息细化">
+          <div class="v2-doc-note"><h2>右侧定位与生态洞察</h2><span>始终知道自己在哪里，也能快速理解当前范围发生了什么</span></div>
+          <div style="position:absolute;left:32px;right:32px;top:92px;bottom:32px;display:grid;grid-template-columns:330px 1fr;gap:18px">
+            <aside class="glass-dark" style="padding:14px;border-radius:8px">
+              <div class="section-heading"><h3>固定上栏：平面缩略图</h3><span class="pill cyan">无 Tab</span></div>
+              <div class="v2-map-mini" style="height:170px"><svg viewBox="0 0 330 170"><path d="M0 120 C72 84 120 116 172 78 S260 38 330 58 L330 170 L0 170 Z" fill="#1b6b5d" opacity=".6"/><path d="M0 126 C80 94 126 120 184 88 S260 62 330 74" fill="none" stroke="#49c7ff" stroke-width="13" opacity=".58"/><rect x="126" y="50" width="110" height="62" rx="8" fill="none" stroke="#f2b84b" stroke-width="4"/><circle cx="180" cy="82" r="6" fill="#f2b84b"/></svg></div>
+              <div class="v2-map-meta"><span>当前范围：塔里木河下游</span><span>4,286 km²</span></div>
+              <div class="v2-card dark"><div class="bar-chart"><div class="bar-line"><span>视角高度</span><div class="bar-track"><i style="width:54%"></i></div><b>6.4</b></div><div class="bar-line"><span>范围覆盖</span><div class="bar-track"><i style="width:72%;background:var(--gold)"></i></div><b>72%</b></div></div></div>
+            </aside>
+            <main class="v2-tab-content" style="grid-template-columns:repeat(3,1fr)">
+              <section class="v2-big-card">
+                <div class="section-heading"><h3>概览 Tab</h3><span class="pill green">态势</span></div>
+                <div class="overview-chart"><div class="gauge"><b>82</b></div><div class="bar-chart"><div class="bar-line"><span>NDVI</span><div class="bar-track"><i style="width:61%"></i></div><b>0.61</b></div><div class="bar-line"><span>风险</span><div class="bar-track"><i style="width:14%;background:var(--red)"></i></div><b>14%</b></div><div class="bar-line"><span>在线</span><div class="bar-track"><i style="width:89%;background:var(--cyan)"></i></div><b>89%</b></div></div></div>
+                <svg class="line-chart" viewBox="0 0 300 110"><g stroke="#dce8e4"><path d="M0 28 H300"/><path d="M0 58 H300"/><path d="M0 88 H300"/></g><polyline points="0,80 30,68 60,72 90,54 120,48 150,44 180,50 210,36 240,42 270,38 300,34" fill="none" stroke="#20b486" stroke-width="4"/><polyline points="0,90 30,82 60,84 90,72 120,66 150,64 180,66 210,58 240,60 270,56 300,54" fill="none" stroke="#49c7ff" stroke-width="3"/></svg>
+              </section>
+              <section class="v2-big-card">
+                <div class="section-heading"><h3>要素 Tab</h3><span class="pill cyan">选中对象</span></div>
+                <div class="v2-stat-grid" style="grid-template-columns:repeat(2,1fr)"><div class="v2-stat"><strong>A-102</strong><span>斑块编号</span></div><div class="v2-stat"><strong>2.8</strong><span>km²</span></div></div>
+                <table class="v2-mini-table" style="margin-top:8px"><tr><td>所属图层</td><td>胡杨林分布</td></tr><tr><td>保护等级</td><td>一级</td></tr><tr><td>更新时间</td><td>2026-05</td></tr></table>
+                <svg class="line-chart" viewBox="0 0 300 95"><polyline points="0,76 40,66 80,70 120,48 160,42 200,52 240,35 300,30" fill="none" stroke="#20b486" stroke-width="4"/><polyline points="0,84 40,80 80,78 120,66 160,60 200,64 240,52 300,48" fill="none" stroke="#f2b84b" stroke-width="3"/></svg>
+              </section>
+              <section class="v2-big-card">
+                <div class="section-heading"><h3>监测 Tab</h3><span class="pill gold">任务</span></div>
+                <div class="status-grid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="bar-chart" style="margin-top:12px"><div class="bar-line"><span>站点在线</span><div class="bar-track"><i style="width:89%"></i></div><b>89%</b></div><div class="bar-line"><span>样方完成</span><div class="bar-track"><i style="width:76%;background:var(--cyan)"></i></div><b>76%</b></div><div class="bar-line"><span>栅格任务</span><div class="bar-track"><i style="width:42%;background:var(--gold)"></i></div><b>6</b></div></div>
+              </section>
+            </main>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="artboard-wrap" id="catalog-v2">
+      <div class="screen-title">
+        <h2>12 数据资源中心 V2</h2>
+        <span>保留地图上下文，强化资源态势、筛选画像、预览信息和加载前判断</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard v2-screen" aria-label="数据资源中心增强设计">
+          <header class="v2-topbar glass-dark">
+            <div class="v2-brand"><span class="v2-icon">D</span><b>数据资源中心</b></div>
+            <nav class="v2-nav"><span class="active">资源检索</span><span>最近使用</span><span>批量加载</span><span>收藏专题</span><div class="v2-search">搜索名称、编号、来源、字段</div></nav>
+            <div class="v2-actions"><span class="pill green">地图上下文保持</span><span class="btn">关闭</span></div>
+          </header>
+          <section class="catalog-overlay glass" style="top:104px">
+            <div class="section-heading">
+              <div><h3>资源态势</h3><span class="muted">加载前即可判断数据类型、权限、空间范围和默认符号化</span></div>
+              <div style="display:flex;gap:8px"><span class="pill green">资源 1286</span><span class="pill cyan">可渲染 642</span><span class="pill gold">受限 119</span><span class="pill red">需修复 24</span></div>
+            </div>
+            <div class="catalog-main" style="grid-template-columns:270px 1fr 340px">
+              <aside class="light-panel">
+                <div class="section-heading"><h4>筛选画像</h4><span class="pill cyan">6 维</span></div>
+                <div class="form-stack"><div class="input">关键词：胡杨 / NDVI</div><div class="input">数据类型：矢量、栅格</div><div class="input">专题：水文生态</div><div class="input">时间：2020-2026</div><div class="input">权限：我可访问</div><div class="btn primary">更新筛选</div></div>
+                <div class="v2-card" style="margin-top:14px"><div class="overview-chart"><div class="donut"></div><div class="bar-chart"><div class="bar-line"><span>矢量</span><div class="bar-track"><i style="width:78%"></i></div><b>356</b></div><div class="bar-line"><span>栅格</span><div class="bar-track"><i style="width:62%;background:var(--cyan)"></i></div><b>284</b></div><div class="bar-line"><span>成果</span><div class="bar-track"><i style="width:36%;background:var(--gold)"></i></div><b>154</b></div></div></div></div>
+                <div class="heat-grid" style="margin-top:12px"><i style="opacity:.2"></i><i style="opacity:.4"></i><i style="opacity:.8"></i><i style="opacity:.3"></i><i style="opacity:.7"></i><i style="opacity:.9"></i><i style="opacity:.5"></i><i style="opacity:.6"></i><i style="opacity:.4"></i><i style="opacity:.75"></i><i style="opacity:.3"></i><i style="opacity:.9"></i><i style="opacity:.58"></i><i style="opacity:.42"></i><i style="opacity:.66"></i><i style="opacity:.84"></i><i style="opacity:.38"></i><i style="opacity:.7"></i></div>
+              </aside>
+              <main class="catalog-list">
+                <div class="metric-row"><div class="metric"><strong>428</strong><span>当前结果</span></div><div class="metric"><strong>312</strong><span>可地图加载</span></div><div class="metric"><strong>76</strong><span>可导出</span></div></div>
+                <div class="catalog-row"><div><strong>塔里木河下游胡杨林分布边界</strong><small>矢量 · 2025 · EPSG:4326 · 默认绿色面填充 + 沙金边框</small></div><span class="btn primary">加载</span></div>
+                <div class="catalog-row"><div><strong>NDVI 月尺度遥感产品 2020-2026</strong><small>栅格 · COG · 12 波段 · 已配置后端 XYZ 规则</small></div><span class="btn primary">加载瓦片</span></div>
+                <div class="catalog-row"><div><strong>地下水埋深长期监测数据</strong><small>表格 · 94 站点 · 可关联点位 · 支持趋势分析</small></div><span class="btn">分析</span></div>
+                <div class="catalog-row"><div><strong>野外样方调查记录与植被盖度</strong><small>表格/图片 · 2024-2026 · 含样方照片</small></div><span class="btn">预览</span></div>
+                <div class="catalog-row"><div><strong>保护工程成果文档</strong><small>PDF · 成果共享 · 可加入成果目录</small></div><span class="btn">查看</span></div>
+              </main>
+              <aside class="light-panel">
+                <div class="section-heading"><h4>加载前预览</h4><span class="pill green">可用</span></div>
+                <div class="v2-map-mini" style="height:128px"><svg viewBox="0 0 330 128"><path d="M0 90 C80 62 118 88 172 58 S258 30 330 48 L330 128 L0 128 Z" fill="#1b6b5d" opacity=".5"/><path d="M0 96 C76 70 126 94 184 68 S266 48 330 58" fill="none" stroke="#49c7ff" stroke-width="12" opacity=".5"/><rect x="126" y="38" width="116" height="56" rx="8" fill="none" stroke="#f2b84b" stroke-width="3"/></svg></div>
+                <div class="v2-stat-grid" style="margin-top:10px"><div class="v2-stat"><strong>4</strong><span>字段</span></div><div class="v2-stat"><strong>2.4w</strong><span>要素</span></div><div class="v2-stat"><strong>86%</strong><span>完整</span></div><div class="v2-stat"><strong>312ms</strong><span>预计</span></div></div>
+                <table class="data-table" style="margin-top:10px"><tr><th>字段</th><th>类型</th><th>说明</th></tr><tr><td>name</td><td>string</td><td>斑块名称</td></tr><tr><td>area</td><td>number</td><td>面积</td></tr><tr><td>level</td><td>enum</td><td>保护等级</td></tr></table>
+              </aside>
+            </div>
+          </section>
+        </section>
+      </div>
+    </div>
+
+    <div class="artboard-wrap" id="nongeo-v2">
+      <div class="screen-title">
+        <h2>13 非地理可视化 V2</h2>
+        <span>将基因、表格、成果、图片资料整理成科研分析工作台</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard nongeo-screen" aria-label="非地理可视化增强设计">
+          <header class="topbar glass-dark nongeo-topbar">
+            <div class="brand"><span class="brand-icon">N</span><span>非地理可视化</span></div>
+            <nav class="nav-tabs"><span class="tab">地理可视化</span><span class="tab active">非地理可视化</span><span class="tab">管理后台</span><span class="input global-search">搜索样本、字段、成果、图片</span></nav>
+            <div class="top-actions"><span class="pill green">研究员</span><span class="btn">返回地球</span></div>
+          </header>
+          <div class="nongeo-shell" style="grid-template-columns:280px 1fr 320px">
+            <aside class="light-panel">
+              <div class="section-heading"><h3>数据集导航</h3><span class="pill cyan">328 项</span></div>
+              <div class="input">筛选非空间数据</div>
+              <div class="dataset-row"><strong>基因样本矩阵</strong><span class="muted">热力图 / 聚类 / 网络</span></div>
+              <div class="dataset-row"><strong>样方调查表</strong><span class="muted">折线 / 箱线 / 相关性</span></div>
+              <div class="dataset-row"><strong>成果文档库</strong><span class="muted">关键词 / 年份 / 下载</span></div>
+              <div class="dataset-row"><strong>野外图片资料</strong><span class="muted">图册 / 标签 / 样方关联</span></div>
+              <div class="overview-chart" style="margin-top:14px"><div class="donut"></div><div class="bar-chart"><div class="bar-line"><span>表格</span><div class="bar-track"><i style="width:84%"></i></div><b>132</b></div><div class="bar-line"><span>基因</span><div class="bar-track"><i style="width:62%;background:var(--violet)"></i></div><b>86</b></div><div class="bar-line"><span>文档</span><div class="bar-track"><i style="width:58%;background:var(--gold)"></i></div><b>77</b></div></div></div>
+            </aside>
+            <main class="nongeo-main-grid">
+              <section class="chart-card"><div class="section-heading"><h3>基因热力图</h3><span class="pill green">聚类</span></div><div class="heat-grid"><i style="opacity:.25"></i><i style="opacity:.5"></i><i style="opacity:.8"></i><i style="opacity:.35"></i><i style="opacity:.95"></i><i style="opacity:.7"></i><i style="opacity:.42"></i><i style="opacity:.88"></i><i style="opacity:.55"></i><i style="opacity:.72"></i><i style="opacity:.2"></i><i style="opacity:.44"></i><i style="opacity:.91"></i><i style="opacity:.6"></i><i style="opacity:.3"></i><i style="opacity:.82"></i><i style="opacity:.48"></i><i style="opacity:.76"></i><i style="opacity:.45"></i><i style="opacity:.82"></i><i style="opacity:.32"></i><i style="opacity:.61"></i><i style="opacity:.28"></i><i style="opacity:.9"></i><i style="opacity:.74"></i><i style="opacity:.5"></i><i style="opacity:.66"></i></div></section>
+              <section class="chart-card"><div class="section-heading"><h3>相关性矩阵</h3><span class="pill cyan">字段关系</span></div><div class="heat-grid"><i style="opacity:.95;background:#49c7ff"></i><i style="opacity:.74;background:#49c7ff"></i><i style="opacity:.25;background:#e85d75"></i><i style="opacity:.45;background:#f2b84b"></i><i style="opacity:.62;background:#20b486"></i><i style="opacity:.72;background:#20b486"></i><i style="opacity:.3;background:#e85d75"></i><i style="opacity:.86;background:#49c7ff"></i><i style="opacity:.55;background:#f2b84b"></i><i style="opacity:.46;background:#20b486"></i><i style="opacity:.78;background:#49c7ff"></i><i style="opacity:.64;background:#20b486"></i><i style="opacity:.88;background:#49c7ff"></i><i style="opacity:.36;background:#e85d75"></i><i style="opacity:.52;background:#f2b84b"></i><i style="opacity:.68;background:#20b486"></i><i style="opacity:.42;background:#f2b84b"></i><i style="opacity:.81;background:#49c7ff"></i></div></section>
+              <section class="chart-card"><div class="section-heading"><h3>样方指标趋势</h3><span class="pill green">2020-2026</span></div><svg class="line-chart" viewBox="0 0 520 160"><g stroke="#e3ebe7"><path d="M0 40 H520"/><path d="M0 80 H520"/><path d="M0 120 H520"/></g><polyline points="0,120 65,96 130,102 195,70 260,62 325,58 390,46 455,54 520,36" fill="none" stroke="#20b486" stroke-width="4"/><polyline points="0,130 65,118 130,110 195,104 260,94 325,88 390,84 455,76 520,70" fill="none" stroke="#f2b84b" stroke-width="4"/></svg></section>
+              <section class="chart-card"><div class="section-heading"><h3>成果关键词与下载</h3><span class="pill gold">154 文档</span></div><div class="cloud"><span style="font-size:22px">胡杨林</span><span>生态修复</span><span style="font-size:18px">水文过程</span><span>遥感反演</span><span style="font-size:20px">样方调查</span><span>盐渍化</span><span>地下水</span><span>保护区</span></div></section>
+            </main>
+            <aside class="light-panel">
+              <div class="section-heading"><h3>图表配置</h3><span class="pill green">字段映射</span></div>
+              <div class="form-stack"><div class="input">X 轴：年份</div><div class="input">Y 轴：盖度 / NDVI</div><div class="input">分组：流域</div><div class="input">聚合：均值</div><div class="input">过滤：异常值隐藏</div><div class="btn primary">更新图表</div></div>
+              <div class="bar-chart" style="margin-top:16px"><div class="bar-line"><span>完整</span><div class="bar-track"><i style="width:92%"></i></div><b>92%</b></div><div class="bar-line"><span>异常</span><div class="bar-track"><i style="width:8%;background:var(--red)"></i></div><b>8%</b></div><div class="bar-line"><span>已校验</span><div class="bar-track"><i style="width:76%;background:var(--cyan)"></i></div><b>76%</b></div></div>
+            </aside>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="artboard-wrap" id="admin-v2-pages">
+      <div class="screen-title">
+        <h2>14 管理后台八页面设计 A</h2>
+        <span>Dashboard、用户设置、操作日志、系统设置四个页面的图表化设计</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard admin-screen" aria-label="管理后台八页面设计 A">
+          <div class="v2-doc-note"><h2>后台页面组 A</h2><span>保持 Ant Design Pro 操作效率，图表服务于状态判断</span></div>
+          <div class="v2-admin-pages" style="padding-top:92px">
+            <section class="v2-admin-page-card"><h3>Dashboard</h3><p>平台运行总览，第一屏判断资源、任务、系统和活跃度。</p><div class="v2-stat-grid"><div class="v2-stat"><strong>1286</strong><span>资源</span></div><div class="v2-stat"><strong>47</strong><span>任务</span></div><div class="v2-stat"><strong>168</strong><span>用户</span></div><div class="v2-stat"><strong>3</strong><span>告警</span></div></div><svg class="line-chart" viewBox="0 0 300 115"><polyline points="0,92 40,84 80,72 120,62 160,50 200,54 240,36 300,28" fill="none" stroke="#20b486" stroke-width="4"/><polyline points="0,102 40,96 80,88 120,82 160,74 200,68 240,58 300,52" fill="none" stroke="#49c7ff" stroke-width="3"/></svg></section>
+            <section class="v2-admin-page-card"><h3>用户设置</h3><p>个人资料、安全状态、当前权限可见性和最近登录情况。</p><div class="overview-chart"><div class="ring-small"><b>86%</b></div><div class="bar-chart"><div class="bar-line"><span>资料</span><div class="bar-track"><i style="width:92%"></i></div><b>92</b></div><div class="bar-line"><span>安全</span><div class="bar-track"><i style="width:86%;background:var(--cyan)"></i></div><b>86</b></div><div class="bar-line"><span>权限</span><div class="bar-track"><i style="width:74%;background:var(--gold)"></i></div><b>74</b></div></div></div><div class="mini-bars"><i style="height:34px"></i><i style="height:48px"></i><i style="height:28px"></i><i style="height:62px"></i><i style="height:44px"></i><i style="height:36px"></i><i style="height:52px"></i></div></section>
+            <section class="v2-admin-page-card"><h3>操作日志</h3><p>按用户、模块、时间和结果筛选，快速定位异常操作。</p><svg class="line-chart" viewBox="0 0 300 115"><polyline points="0,80 38,70 76,82 114,48 152,56 190,38 228,46 266,30 300,34" fill="none" stroke="#20b486" stroke-width="4"/><polyline points="0,100 38,98 76,90 114,86 152,88 190,72 228,76 266,68 300,64" fill="none" stroke="#e85d75" stroke-width="3"/></svg><div class="log-timeline"><div><span>15:20</span><strong>导入数据</strong><span>成功</span></div><div><span>13:40</span><strong>脚本执行</strong><span>异常</span></div></div></section>
+            <section class="v2-admin-page-card"><h3>系统设置</h3><p>TOML 路径、缓存策略、栅格脚本接口和配置健康检查。</p><div class="bar-chart"><div class="bar-line"><span>业务根</span><div class="bar-track"><i style="width:100%"></i></div><b>正常</b></div><div class="bar-line"><span>地理根</span><div class="bar-track"><i style="width:100%"></i></div><b>正常</b></div><div class="bar-line"><span>缓存</span><div class="bar-track"><i style="width:76%;background:var(--gold)"></i></div><b>76%</b></div><div class="bar-line"><span>脚本</span><div class="bar-track"><i style="width:91%;background:var(--cyan)"></i></div><b>91%</b></div></div><div class="v2-stat-grid"><div class="v2-stat"><strong>0</strong><span>路径错</span></div><div class="v2-stat"><strong>2</strong><span>提醒</span></div><div class="v2-stat"><strong>8</strong><span>脚本</span></div><div class="v2-stat"><strong>91</strong><span>健康</span></div></div></section>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="artboard-wrap" id="admin-v2-pages-b">
+      <div class="screen-title">
+        <h2>15 管理后台八页面设计 B</h2>
+        <span>存量数据、数据导入、用户管理、用户组权限四个页面的图表化设计</span>
+      </div>
+      <div class="artboard-scroll">
+        <section class="artboard admin-screen" aria-label="管理后台八页面设计 B">
+          <div class="v2-doc-note"><h2>后台页面组 B</h2><span>数据维护与权限维护继续以表格、步骤、矩阵为核心</span></div>
+          <div class="v2-admin-pages" style="padding-top:92px">
+            <section class="v2-admin-page-card"><h3>存量数据</h3><p>维护资源状态、默认可视化、访问范围、删除与导出。</p><div class="v2-stat-grid"><div class="v2-stat"><strong>428</strong><span>结果</span></div><div class="v2-stat"><strong>386</strong><span>启用</span></div><div class="v2-stat"><strong>119</strong><span>受限</span></div><div class="v2-stat"><strong>24</strong><span>未配置</span></div></div><table class="v2-mini-table"><tr><th>资源</th><th>类型</th><th>状态</th></tr><tr><td>胡杨边界</td><td>矢量</td><td>启用</td></tr><tr><td>NDVI</td><td>栅格</td><td>启用</td></tr><tr><td>成果文档</td><td>文档</td><td>禁用</td></tr></table></section>
+            <section class="v2-admin-page-card"><h3>数据导入</h3><p>选择文件、导入配置、校验预览、提交入库的四步流程。</p><div class="import-steps" style="grid-template-columns:repeat(2,1fr)"><div class="step">1 文件</div><div class="step">2 配置</div><div class="step active">3 校验</div><div class="step">4 入库</div></div><div class="admin-row"><div><div class="ring-small"><b>96%</b></div><p>结构</p></div><div><div class="ring-small" style="background:radial-gradient(circle at center,#fff 0 55%,transparent 56%),conic-gradient(#49c7ff 0 88%,#dce6e1 88% 100%)"><b>88%</b></div><p>字段</p></div><div><div class="ring-small" style="background:radial-gradient(circle at center,#fff 0 55%,transparent 56%),conic-gradient(#f2b84b 0 74%,#dce6e1 74% 100%)"><b>74%</b></div><p>范围</p></div></div></section>
+            <section class="v2-admin-page-card"><h3>用户管理</h3><p>用户列表、账号状态、角色分配、最近登录和禁用操作。</p><div class="overview-chart"><div class="donut"></div><div class="bar-chart"><div class="bar-line"><span>普通</span><div class="bar-track"><i style="width:76%"></i></div><b>96</b></div><div class="bar-line"><span>科研</span><div class="bar-track"><i style="width:48%;background:var(--cyan)"></i></div><b>42</b></div><div class="bar-line"><span>管理</span><div class="bar-track"><i style="width:22%;background:var(--gold)"></i></div><b>12</b></div></div></div><table class="v2-mini-table"><tr><td>活跃</td><td>142</td></tr><tr><td>禁用</td><td>9</td></tr><tr><td>待激活</td><td>17</td></tr></table></section>
+            <section class="v2-admin-page-card"><h3>用户组权限</h3><p>用矩阵维护角色权限，展示模块覆盖率和敏感权限风险。</p><div class="permission-matrix" style="grid-template-columns:76px repeat(4,1fr);font-size:11px"><span></span><span>浏览</span><span>查询</span><span>导出</span><span>后台</span><span>普通</span><span class="ok">✓</span><span class="ok">✓</span><span>－</span><span>－</span><span>科研</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span>－</span><span>管理</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="warn">部分</span><span>系统</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span><span class="ok">✓</span></div><div class="bar-chart"><div class="bar-line"><span>覆盖</span><div class="bar-track"><i style="width:84%"></i></div><b>84%</b></div><div class="bar-line"><span>风险</span><div class="bar-track"><i style="width:12%;background:var(--red)"></i></div><b>12%</b></div></div></section>
+          </div>
+        </section>
+      </div>
+    </div>
+  </body>
+</html>

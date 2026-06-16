@@ -1464,7 +1464,7 @@ def _cpu_usage_percent(logical_count: int, load_average: list[float]) -> float:
 def _load_average() -> list[float]:
     try:
         return [round(value, 2) for value in os.getloadavg()]
-    except OSError:
+    except (AttributeError, OSError):
         return [0.0, 0.0, 0.0]
 
 

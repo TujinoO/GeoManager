@@ -1,4 +1,9 @@
-import { App, Layout } from "antd";
+import {
+  ApartmentOutlined,
+  AppstoreOutlined,
+  DatabaseOutlined,
+} from "@ant-design/icons";
+import { App, Layout, Tabs, Tag, Typography } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
@@ -572,7 +577,7 @@ export default function MapPage() {
     exportLayers,
   };
 
-  const dataPanel = (
+  const renderDataPanel = () => (
     <DataPanel
       resources={resources}
       profile={resourceProfile}
@@ -588,6 +593,7 @@ export default function MapPage() {
       onLoadRaster={handleLoadRaster}
     />
   );
+  const dataPanel = renderDataPanel();
 
   return (
     <Layout className="workspace">
@@ -623,7 +629,43 @@ export default function MapPage() {
             </main>
             <aside className="floating-panel floating-panel-left">
               <LayerContext.Provider value={layerContextValue}>
-                <LayerPanel />
+                <Tabs
+                  className="workspace-side-tabs workspace-left-tabs"
+                  defaultActiveKey="data"
+                  size="small"
+                  items={[
+                    {
+                      key: "data",
+                      label: (
+                        <span className="tab-label">
+                          <DatabaseOutlined style={{ fontSize: 14 }} />
+                          数据
+                        </span>
+                      ),
+                      children: renderDataPanel(),
+                    },
+                    {
+                      key: "layers",
+                      label: (
+                        <span className="tab-label">
+                          <ApartmentOutlined style={{ fontSize: 14 }} />
+                          图层
+                        </span>
+                      ),
+                      children: <LayerPanel />,
+                    },
+                    {
+                      key: "topics",
+                      label: (
+                        <span className="tab-label">
+                          <AppstoreOutlined style={{ fontSize: 14 }} />
+                          专题
+                        </span>
+                      ),
+                      children: <TopicWorkspacePanel />,
+                    },
+                  ]}
+                />
                 <LayerDataTableModal
                   layer={tableLayer}
                   open={Boolean(tableLayer)}
@@ -660,6 +702,46 @@ export default function MapPage() {
         )}
       </div>
     </Layout>
+  );
+}
+
+function TopicWorkspacePanel() {
+  return (
+    <section className="panel-section topic-workspace-panel">
+      <div className="panel-title">
+        <AppstoreOutlined style={{ fontSize: 18 }} />
+        <Typography.Title level={5}>专题场景</Typography.Title>
+      </div>
+      <div className="topic-summary-card">
+        <Typography.Text strong>生态保护专题工作区</Typography.Text>
+        <Typography.Text type="secondary">
+          后续可承载胡杨林分布、水文生态、遥感监测等专题入口。
+        </Typography.Text>
+      </div>
+      <div className="topic-scenario-list" aria-label="专题场景">
+        <button type="button" className="topic-scenario-row">
+          <span>
+            <strong>胡杨林分布专题</strong>
+            <small>边界、密度、保护等级</small>
+          </span>
+          <Tag color="green">待完善</Tag>
+        </button>
+        <button type="button" className="topic-scenario-row">
+          <span>
+            <strong>水文生态专题</strong>
+            <small>河流、地下水、监测站点</small>
+          </span>
+          <Tag color="blue">待完善</Tag>
+        </button>
+        <button type="button" className="topic-scenario-row">
+          <span>
+            <strong>遥感影像专题</strong>
+            <small>NDVI、地表温度、土地覆盖</small>
+          </span>
+          <Tag color="gold">待完善</Tag>
+        </button>
+      </div>
+    </section>
   );
 }
 

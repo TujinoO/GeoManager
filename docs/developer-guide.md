@@ -1,4 +1,4 @@
-# 开发者指南（Developer Guide）
+﻿# 开发者指南（Developer Guide）
 
 > 中亚胡杨林生态系统保护数据共享平台  
 > 版本：v0.1.0
@@ -140,6 +140,36 @@ pnpm run dev:with-mock
 ```
 
 `dev:mock` 会通过 `.env.mock` 将 Vite `/api` 代理到 `http://127.0.0.1:4010`。Mock 响应样例位于 `mock/prism/examples/`，由 `pnpm run mock:build` 注入到 `mock/prism/openapi.prism.json`。
+
+### 登录页公开概览接口
+
+新版登录页包含平台品牌、能力标签、数据统计卡片、服务状态点阵和版本信息。为避免前端硬编码统计口径，后端需要提供公共概览接口：
+
+```typescript
+const { data: overview, error } = await client.GET("/api/login/overview/");
+
+if (error) {
+  throw new Error(error.detail);
+}
+
+console.log(overview.platform.chineseName);
+console.log(overview.metrics.map((item) => item.displayValue));
+```
+
+`GET /api/login/overview/` 无需认证，专门服务登录页公开展示内容；它不同于 `/api/admin/dashboard/`，后者需要登录和后台权限，不能直接用于未登录的首页。该接口不得返回敏感路径、用户信息、权限组明细、内部服务器资源或未公开数据清单。
+
+登录页字段和前端展示关系：
+
+| 前端区域 | OpenAPI 字段 | 后端实现口径 |
+| --- | --- | --- |
+| 中文名称、英文名称、CAPFED、版本型号 | `platform` | 来自系统设置或后端常量，需与软件发布版本保持一致 |
+| 主标题上方标签、一句话概述、能力标签 | `hero` | 后端返回可配置文案，前端只负责排版展示 |
+| 四个统计卡片 | `metrics` | 当前需要 `dataResources`、`thematicLayers`、`monitoringSites`、`coveredBasins` 四项，返回原始 `value` 和格式化 `displayValue` |
+| 平台服务状态 | `serviceStatus.services` | 返回资源目录、图层服务、权限认证三个公开状态，不暴露内部错误堆栈 |
+| 点阵图例与数量 | `serviceStatus.nodeSummary` | 返回 `normal`、`warning`、`risk` 数量和图例，前端据此渲染状态点阵 |
+| 底部统计说明 | `footer.statisticsNotice` | 说明统计口径是否已接入后端概览接口 |
+
+推荐后端将该接口结果短时间缓存，例如 60 秒到 5 分钟；数据资源、图层和监测站点数量不要求实时到秒级，但应与后台 Dashboard 或数据管理统计口径保持一致。
 
 **Python**
 

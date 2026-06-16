@@ -478,7 +478,7 @@ describe("admin routes", () => {
   it("redirects /admin to dashboard", async () => {
     renderAdminRoute("/admin");
 
-    expect(await screen.findByRole("button", { name: /管理后台/ })).toHaveClass(
+    expect(await screen.findByRole("button", { name: /后台管理/ })).toHaveClass(
       "workspace-switch-card-active",
     );
     expect(await screen.findByText("图层数")).toBeInTheDocument();
