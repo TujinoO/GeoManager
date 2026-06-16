@@ -17,9 +17,7 @@ import {
   Input,
   Popover,
   QRCode,
-  Select,
   Space,
-  Tag,
   Typography,
 } from "antd";
 import type { ReactNode } from "react";
@@ -30,7 +28,6 @@ import capfedLogo from "../assets/capfed-logo.png";
 import { useAppContext } from "../contexts/AppContext";
 
 export type WorkspaceTab = "map" | "nongeo" | "admin";
-type SearchScope = "geo" | "nongeo";
 
 const platformChineseName = "中亚胡杨林生态系统保护数据共享平台";
 
@@ -40,6 +37,7 @@ interface WorkspaceHeaderProps {
   dataPanel?: ReactNode;
   dataPanelOpen?: boolean;
   onDataPanelOpenChange?: (open: boolean) => void;
+  onGlobalSearch?: (keyword: string) => void;
 }
 
 export default function WorkspaceHeader({
@@ -48,12 +46,11 @@ export default function WorkspaceHeader({
   dataPanel,
   dataPanelOpen,
   onDataPanelOpenChange,
+  onGlobalSearch,
 }: WorkspaceHeaderProps) {
   const { bootstrap, user, setUser } = useAppContext();
   const { message } = App.useApp();
   const navigate = useNavigate();
-  const userRoles = user?.roles ?? [];
-  const [searchScope, setSearchScope] = useState<SearchScope>("geo");
   const [searchText, setSearchText] = useState("");
 
   async function handleLogout() {
@@ -70,17 +67,14 @@ export default function WorkspaceHeader({
 
   function handleSearch(value: string) {
     const keyword = value.trim();
-    const scopeLabel = searchScope === "geo" ? "地理数据" : "非地理数据";
-    if (searchScope === "geo") {
-      navigate("/map");
-      onDataPanelOpenChange?.(Boolean(dataPanel));
-    } else {
-      navigate("/nongeo");
-    }
+    const query = keyword ? `?resourceQ=${encodeURIComponent(keyword)}` : "";
+    navigate(`/map${query}`);
+    onDataPanelOpenChange?.(Boolean(dataPanel));
+    onGlobalSearch?.(keyword);
     if (keyword) {
-      message.info(`已进入${scopeLabel}检索入口：${keyword}`);
+      message.info(`已搜索全部数据资源：${keyword}`);
     } else {
-      message.info(`已切换到${scopeLabel}检索入口`);
+      message.info("已打开全部数据资源");
     }
   }
 
@@ -143,13 +137,6 @@ export default function WorkspaceHeader({
         {user?.department && <span>部门：{user.department}</span>}
         {user?.email && <span>邮箱：{user.email}</span>}
       </div>
-      <Space wrap className="user-popover-roles">
-        {userRoles.map((role) => (
-          <Tag key={role} color="green">
-            {role}
-          </Tag>
-        ))}
-      </Space>
       <div className="user-popover-actions">
         <Button size="small" onClick={() => navigate("/admin/profile")}>
           个人信息
@@ -174,16 +161,6 @@ export default function WorkspaceHeader({
       </div>
 
       <Space.Compact className="workspace-global-search">
-        <Select<SearchScope>
-          className="workspace-search-select"
-          value={searchScope}
-          options={[
-            { value: "geo", label: "地理数据" },
-            { value: "nongeo", label: "非地理数据" },
-          ]}
-          onChange={setSearchScope}
-          popupMatchSelectWidth={132}
-        />
         <Input.Search
           className="workspace-global-input"
           allowClear
@@ -293,13 +270,6 @@ export default function WorkspaceHeader({
             公众号
           </Button>
         </Popover>
-        <span className="role-tags">
-          {userRoles.slice(0, 1).map((role) => (
-            <Tag key={role} color="green">
-              {role}
-            </Tag>
-          ))}
-        </span>
         <Popover
           trigger="click"
           placement="bottomRight"
@@ -319,9 +289,6 @@ export default function WorkspaceHeader({
             </span>
           </Button>
         </Popover>
-        <Button icon={<LogoutOutlined />} onClick={handleLogout}>
-          安全退出
-        </Button>
       </div>
     </header>
   );

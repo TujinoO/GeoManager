@@ -91,6 +91,7 @@ backend/apps/
 - 前后端无权限提示统一为 `当前用户组“xxxx”无权限`；无用户组时显示 `未分组`。
 - `core.load_raster_layer` 控制按默认规则加载栅格和访问 XYZ；`core.custom_symbolization` 只控制用户打开符号化编辑器并提交自定义规则。
 - 栅格渲染 API 使用 `rulesMode` 区分默认/自定义：默认加载不传 `rules` 或传 `rulesMode: "default"`；自定义符号化传 `rulesMode: "custom"` 和 `rules`。
+- 游客访问使用专用系统账号 `guest` 和独立 `游客` 用户组实现，不再复用 `普通用户` 组。`普通用户` 继续用于自助注册和后台创建的常规账号，默认保留上传权限；`游客` 默认只授予浏览、查询、矢量加载和栅格加载权限。`guest` 账号密码不可用，只能通过 `/api/auth/guest-login/` 建立会话，并在后台管理中禁止删除、停用、重置密码、改组或单独授予直授权限。
 
 ## 前端模块结构
 

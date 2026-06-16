@@ -3,8 +3,10 @@ from django.contrib.auth.models import Group, Permission
 from django.test import TestCase
 
 from apps.core.initialization import (
+    DEFAULT_USER_GROUP_NAME,
     GUEST_GROUP_NAME,
     SUPERADMIN_GROUP_NAME,
+    default_user_group_permissions,
     ensure_superadmin_defaults,
     guest_group_permissions,
     is_superadmin_user,
@@ -156,7 +158,20 @@ class SuperadminInitializationTests(TestCase):
         }
         self.assertEqual(group_permissions, set(protected_group_permissions()))
 
-    def test_ensure_superadmin_defaults_creates_guest_group_with_browse_and_load_permissions(
+    def test_ensure_superadmin_defaults_creates_default_user_group_with_upload_permission(
+        self,
+    ):
+        ensure_superadmin_defaults(create_account=False)
+
+        group = Group.objects.get(name=DEFAULT_USER_GROUP_NAME)
+        group_permissions = {
+            f"{permission.content_type.app_label}.{permission.codename}"
+            for permission in group.permissions.select_related("content_type")
+        }
+        self.assertEqual(group_permissions, default_user_group_permissions())
+        self.assertIn("core.upload_data", group_permissions)
+
+    def test_ensure_superadmin_defaults_creates_guest_group_without_upload_permission(
         self,
     ):
         ensure_superadmin_defaults(create_account=False)
@@ -167,6 +182,7 @@ class SuperadminInitializationTests(TestCase):
             for permission in group.permissions.select_related("content_type")
         }
         self.assertEqual(group_permissions, guest_group_permissions())
+        self.assertNotIn("core.upload_data", group_permissions)
 
     def test_ensure_superadmin_defaults_restores_guest_group_default_permissions(
         self,

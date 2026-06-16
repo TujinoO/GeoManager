@@ -5,6 +5,7 @@ import { removeVectorInteraction } from "./featureInteraction";
 import { getMapState } from "./mapState";
 import {
   buildVectorPaintProperties,
+  hasMapStyle,
   removeStyleLayer,
   stateColor,
   stateNumber,
@@ -249,6 +250,7 @@ export function removeLayerGroup(
   layerIds: string[],
   options?: { cleanInteraction?: boolean },
 ) {
+  if (!hasMapStyle(map)) return;
   const cleanInteraction = options?.cleanInteraction ?? true;
   layerIds.forEach((id) => {
     if (cleanInteraction) removeVectorInteraction(map, id);
@@ -262,6 +264,7 @@ export function reorderLoadedStyleLayers(
   map: MapboxMap,
   layers: LoadedLayer[],
 ) {
+  if (!hasMapStyle(map)) return;
   for (const layer of [...layers].reverse()) {
     const sourceId = sourceIdFor(layer.id);
     for (const styleLayerId of [

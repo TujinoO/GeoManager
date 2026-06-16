@@ -21,6 +21,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260615-001 | ContractReady | Multiple API endpoints | mock separation and JSON errors | Done | Done | Pending | Pending | Initial frontend/backend split contract |
 | API-20260615-002 | ContractReady | GET /api/login/overview/ | new endpoint | Done | Done | Pending | Pending | Login page public overview contract |
 | API-20260616-001 | Implementing | Multiple catalog/admin/auth endpoints | new endpoints, response fields, permission behavior | Done | Updating | Implementing | Pending | Layer workspace snapshots, upload duplicate detection, data overview stats |
+| API-20260617-001 | BackendReady | POST /api/auth/guest-login/ | new endpoint, permission behavior | Done | N/A | Done | Done | Dedicated guest login account and group |
 
 ## Entry Template
 
@@ -76,3 +77,16 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Add `WorkspaceScene`; persist `DataResource.size_bytes` and `item_count`; treat `DataResource.maintainer` as uploader; enforce workspace ownership; reject duplicate import targets when `overwrite=false`; initialize default `普通用户` group with upload/load/query permissions.
 - Verification: run `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build`, plus backend workspace/import/dashboard/auth tests.
 - Result: Backend and frontend implementation in progress.
+
+## API-20260617-001 - Dedicated Guest Login
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `POST /api/auth/guest-login/`
+- Change type: new endpoint, permission behavior
+- OpenAPI change: Adds public CSRF-protected guest login endpoint returning the existing `LoginResponse`; documents dedicated `guest` account and separate `游客` group permissions.
+- Mock examples: N/A
+- Frontend reason: Login page needs a no-password visitor entry while keeping visitor permissions distinct from registered normal users.
+- Backend implementation notes: Create or repair the `guest` account with unusable password, active state, display name “游客”, and only the `游客` group. Protect the account from delete, disable, password reset, group changes, and direct permission updates.
+- Verification: run backend auth/admin tests plus `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check`.
+- Result: Implemented in backend and ready for frontend verification.

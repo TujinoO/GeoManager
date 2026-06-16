@@ -12,8 +12,10 @@ from apps.core.config import (
     update_runtime_application_config,
 )
 from apps.core.initialization import (
+    DEFAULT_USER_GROUP_NAME,
     GUEST_GROUP_NAME,
     SUPERADMIN_GROUP_NAME,
+    ensure_guest_user,
     ensure_superadmin_defaults,
     protected_group_permissions,
 )
@@ -222,7 +224,34 @@ class RegistrationApiTests(TestCase):
                 permissions__codename="manage_auth",
             ).exists()
         )
+        self.assertTrue(user.groups.filter(name=DEFAULT_USER_GROUP_NAME).exists())
+        self.assertFalse(user.groups.filter(name=GUEST_GROUP_NAME).exists())
+
+    def test_guest_login_creates_dedicated_guest_user_with_browse_permissions(self):
+        response = self.client.post("/api/auth/guest-login/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()["user"]
+        self.assertEqual(payload["username"], "guest")
+        self.assertEqual(payload["displayName"], "游客")
+        self.assertEqual(payload["roles"], [GUEST_GROUP_NAME])
+        permissions = payload["permissions"]
+        self.assertTrue(permissions["canBrowseData"])
+        self.assertTrue(permissions["canQueryData"])
+        self.assertTrue(permissions["canLoadVectorLayer"])
+        self.assertTrue(permissions["canLoadRasterLayer"])
+        self.assertFalse(permissions["canUploadData"])
+        user = get_user_model().objects.get(username="guest")
+        self.assertFalse(user.has_usable_password())
         self.assertTrue(user.groups.filter(name=GUEST_GROUP_NAME).exists())
+        self.assertTrue(
+            OperationLog.objects.filter(
+                user=user,
+                module="认证授权",
+                action="游客登录",
+                status="success",
+            ).exists()
+        )
 
     def test_registration_can_be_closed_by_system_setting(self):
         SystemSetting.objects.update_or_create(
@@ -617,6 +646,51 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["permissions"], ["core.query_data"])
         self.assertEqual(response.json()["lockedPermissions"], [])
+
+    def test_guest_account_is_protected_from_admin_user_mutations(self):
+        manager = get_user_model().objects.create_user(
+            username="guest-account-manager", password="pass12345"
+        )
+        grant(manager, ("core", "manage_auth"), ("core", "manage_feature_permissions"))
+        ensure_superadmin_defaults(create_account=False)
+        guest = ensure_guest_user()
+        normal_group = Group.objects.get(name=DEFAULT_USER_GROUP_NAME)
+        self.client.force_login(manager)
+
+        delete_response = self.client.post(
+            f"/api/users/{guest.id}/",
+            data=json.dumps({"action": "delete"}),
+            content_type="application/json",
+        )
+        disable_response = self.client.post(
+            f"/api/users/{guest.id}/",
+            data=json.dumps({"isActive": False}),
+            content_type="application/json",
+        )
+        reset_response = self.client.post(
+            f"/api/users/{guest.id}/password/reset/",
+        )
+        groups_response = self.client.post(
+            f"/api/users/{guest.id}/groups/",
+            data=json.dumps({"groupIds": [normal_group.id]}),
+            content_type="application/json",
+        )
+        permissions_response = self.client.post(
+            f"/api/users/{guest.id}/permissions/",
+            data=json.dumps({"directPermissions": ["core.upload_data"]}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(delete_response.status_code, 400)
+        self.assertEqual(disable_response.status_code, 400)
+        self.assertEqual(reset_response.status_code, 400)
+        self.assertEqual(groups_response.status_code, 400)
+        self.assertEqual(permissions_response.status_code, 400)
+        guest.refresh_from_db()
+        self.assertTrue(guest.is_active)
+        self.assertFalse(guest.has_usable_password())
+        self.assertEqual(list(guest.groups.values_list("name", flat=True)), ["游客"])
+        self.assertEqual(guest.user_permissions.count(), 0)
 
     def test_superadmin_group_cannot_be_deleted_and_keeps_protected_permissions(self):
         manager = get_user_model().objects.create_user(

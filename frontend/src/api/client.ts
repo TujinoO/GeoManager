@@ -235,6 +235,8 @@ export const api = {
         body: { username, password, remember },
       }),
     ),
+  guestLogin: () =>
+    unwrap<{ user: User }>(client.POST("/api/auth/guest-login/")),
   register: (
     username: string,
     email: string,

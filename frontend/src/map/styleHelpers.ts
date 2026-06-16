@@ -29,7 +29,12 @@ export function stateNumber(base: number, selected: number, highlight: number) {
   ] as unknown as ExpressionSpecification;
 }
 
+export function hasMapStyle(map: MapboxMap) {
+  return Boolean((map as unknown as { style?: unknown }).style);
+}
+
 export function upsertLayer(map: MapboxMap, layer: AnyLayer) {
+  if (!hasMapStyle(map)) return;
   const existing = map.getLayer(layer.id);
   if (existing && existing.type !== layer.type) {
     removeStyleLayer(map, layer.id);
@@ -63,6 +68,7 @@ export function upsertLayer(map: MapboxMap, layer: AnyLayer) {
 
 export function removeStyleLayer(map: MapboxMap, layerId: string) {
   removeVectorInteraction(map, layerId);
+  if (!hasMapStyle(map)) return;
   if (map.getLayer(layerId)) {
     map.removeLayer(layerId);
   }

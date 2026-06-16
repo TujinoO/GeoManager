@@ -25,6 +25,7 @@ const { MockApiError, mockApi } = vi.hoisted(() => {
       csrf: vi.fn(),
       me: vi.fn(),
       login: vi.fn(),
+      guestLogin: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
       resources: vi.fn(),
@@ -143,6 +144,15 @@ describe("application critical flows", () => {
     mockApi.csrf.mockResolvedValue({ detail: "csrf cookie set" });
     mockApi.me.mockRejectedValue(new MockApiError("未登录", 401));
     mockApi.login.mockResolvedValue({ user: normalUser });
+    mockApi.guestLogin.mockResolvedValue({
+      user: {
+        ...normalUser,
+        id: 99,
+        username: "guest",
+        displayName: "游客",
+        roles: ["游客"],
+      },
+    });
     mockApi.adminDashboard.mockResolvedValue({
       generatedAt: "2026-01-01T00:00:00+08:00",
       cards: {},
@@ -180,7 +190,9 @@ describe("application critical flows", () => {
     fireEvent.change(screen.getByPlaceholderText("请输入密码"), {
       target: { value: "pass12345" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /登录/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /登录并进入三维地球$/ }),
+    );
 
     await waitFor(() => {
       expect(mockApi.login).toHaveBeenCalledWith(
@@ -202,6 +214,24 @@ describe("application critical flows", () => {
     expect(
       screen.getByRole("button", { name: /后台管理/ }),
     ).toBeInTheDocument();
+  });
+
+  it("allows visitors to enter the geographic workspace through guest login", async () => {
+    renderApp("/");
+
+    expect(
+      await screen.findByRole("heading", { name: "用户登录" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /游客登录/ }));
+
+    await waitFor(() => {
+      expect(mockApi.guestLogin).toHaveBeenCalled();
+    });
+    expect(
+      await screen.findByText("资源中心", {}, { timeout: 10000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("map-canvas")).toBeInTheDocument();
   });
 
   it("allows authenticated users to enter the admin route", async () => {
@@ -232,5 +262,8 @@ describe("application critical flows", () => {
     expect(
       screen.getByRole("button", { name: /后台管理/ }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /安全退出/ }),
+    ).not.toBeInTheDocument();
   }, 30000);
 });

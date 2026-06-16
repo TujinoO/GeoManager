@@ -18,7 +18,7 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   AttributeFilter,
   DataResourceProfile,
@@ -43,8 +43,10 @@ interface Props {
   loadingProfile: boolean;
   querying: boolean;
   permissions: User["permissions"];
+  searchKeyword?: string;
   onFilterResources: (filters: ResourceFilters) => void;
   onSelectResource: (resource: ResourceListItem) => void;
+  onQuickLoadResource: (resource: ResourceListItem) => void;
   onQueryAndLoad: (filters: AttributeFilter[]) => void;
   onLoadRaster: () => void;
 }
@@ -68,8 +70,10 @@ export default function DataPanel({
   loadingProfile,
   querying,
   permissions,
+  searchKeyword,
   onFilterResources,
   onSelectResource,
+  onQuickLoadResource,
   onQueryAndLoad,
   onLoadRaster,
 }: Props) {
@@ -104,6 +108,13 @@ export default function DataPanel({
   const selectedIsRaster = profile?.resource.dataType === "raster";
   const canQueryAndLoadVector =
     permissions.canQueryData && permissions.canLoadVectorLayer;
+
+  useEffect(() => {
+    const nextQuery = searchKeyword?.trim() || undefined;
+    setResourceFilters((current) =>
+      current.q === nextQuery ? current : { ...current, q: nextQuery },
+    );
+  }, [searchKeyword]);
 
   function updateResourceFilter(
     key: keyof ResourceFilters,
@@ -237,6 +248,15 @@ export default function DataPanel({
                 onClick={() => onSelectResource(resource)}
               >
                 选择
+              </Button>
+              <Button
+                size="small"
+                type="primary"
+                ghost
+                disabled={!resource.isQueryable && !resource.isRenderable}
+                onClick={() => onQuickLoadResource(resource)}
+              >
+                快速加载
               </Button>
             </li>
           ))}

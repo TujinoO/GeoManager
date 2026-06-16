@@ -100,6 +100,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/guest-login/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 游客登录
+         * @description 使用系统维护的专用 `guest` 账号建立游客会话。游客账号不可使用密码登录，只归属 `游客` 用户组，默认仅具备浏览、查询和图层加载权限。
+         */
+        post: operations["guestLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/register/": {
         parameters: {
             query?: never;
@@ -1877,7 +1897,7 @@ export interface components {
             userCount: number;
             /** @description 用户组授予的平台功能权限列表 */
             permissions: string[];
-            /** @description 是否为系统受保护用户组，受保护组不能删除或重命名。初始化内置组包含超级管理员和游客；游客权限允许编辑 */
+            /** @description 是否为系统受保护用户组，受保护组不能删除或重命名。初始化内置组包含超级管理员、普通用户和游客；游客权限允许编辑 */
             isProtected: boolean;
             /** @description 受保护用户组中不可关闭的平台功能权限列表。游客用户组返回空列表 */
             lockedPermissions: string[];
@@ -3080,6 +3100,27 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+        };
+    };
+    guestLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 游客登录成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+            403: components["responses"]["Forbidden"];
         };
     };
     register: {

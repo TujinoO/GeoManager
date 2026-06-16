@@ -7,6 +7,7 @@ import {
   LoginOutlined,
   SafetyCertificateOutlined,
   UserOutlined,
+  UserSwitchOutlined,
 } from "@ant-design/icons";
 import {
   Alert,
@@ -140,6 +141,21 @@ export default function LoginPage() {
       navigate("/map", { replace: true });
     } catch (error) {
       message.error(error instanceof Error ? error.message : "注册失败");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleGuestLogin() {
+    setSubmitting(true);
+    try {
+      await api.csrf();
+      const response = await api.guestLogin();
+      setUser(response.user);
+      message.success("游客登录成功");
+      navigate("/map", { replace: true });
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "游客登录失败");
     } finally {
       setSubmitting(false);
     }
@@ -287,6 +303,15 @@ export default function LoginPage() {
               size="large"
             >
               登录并进入三维地球
+            </Button>
+            <Button
+              block
+              loading={submitting}
+              icon={<UserSwitchOutlined style={{ fontSize: 16 }} />}
+              size="large"
+              onClick={handleGuestLogin}
+            >
+              游客登录
             </Button>
             {bootstrap.allowRegistration && (
               <Button type="link" block onClick={() => setMode("register")}>

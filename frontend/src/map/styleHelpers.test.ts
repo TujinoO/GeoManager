@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import type { Map as MapboxMap } from "mapbox-gl";
+import { describe, expect, it, vi } from "vitest";
 import type { VectorSymbolization } from "../symbolization";
-import { buildVectorPaintProperties } from "./styleHelpers";
+import { buildVectorPaintProperties, removeStyleLayer } from "./styleHelpers";
+import { removeLayerGroup } from "./vectorLayerSync";
 
 function makeStyle(
   overrides: Partial<VectorSymbolization> = {},
@@ -187,5 +189,50 @@ describe("buildVectorPaintProperties", () => {
     expect(result.circleOpacity).toBeCloseTo(0.5);
     expect(result.lineOpacity).toBeCloseTo(0.3);
     expect(result.fillOpacity).toBeCloseTo(0.8);
+  });
+});
+
+describe("Mapbox style cleanup helpers", () => {
+  it("skips style layer removal after the Mapbox style has been destroyed", () => {
+    const map = {
+      style: undefined,
+      getLayer: vi.fn(() => {
+        throw new TypeError(
+          "Cannot read properties of undefined (reading 'getOwnLayer')",
+        );
+      }),
+      removeLayer: vi.fn(),
+    } as unknown as MapboxMap;
+
+    expect(() =>
+      removeStyleLayer(map, "query-draw-preview-fill"),
+    ).not.toThrow();
+    expect(map.getLayer).not.toHaveBeenCalled();
+    expect(map.removeLayer).not.toHaveBeenCalled();
+  });
+
+  it("skips layer group removal after the Mapbox style has been destroyed", () => {
+    const map = {
+      style: undefined,
+      getLayer: vi.fn(() => {
+        throw new TypeError(
+          "Cannot read properties of undefined (reading 'getOwnLayer')",
+        );
+      }),
+      getSource: vi.fn(),
+      removeLayer: vi.fn(),
+      removeSource: vi.fn(),
+    } as unknown as MapboxMap;
+
+    expect(() =>
+      removeLayerGroup(
+        map,
+        "query-draw-preview",
+        ["query-draw-preview-fill", "query-draw-preview-line"],
+        { cleanInteraction: false },
+      ),
+    ).not.toThrow();
+    expect(map.getLayer).not.toHaveBeenCalled();
+    expect(map.getSource).not.toHaveBeenCalled();
   });
 });

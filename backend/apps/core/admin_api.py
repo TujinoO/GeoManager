@@ -40,8 +40,10 @@ from apps.core.config import (
 from apps.core.initialization import (
     GUEST_GROUP_NAME,
     SUPERADMIN_GROUP_NAME,
+    ensure_guest_user,
     ensure_superadmin_defaults,
     is_guest_group,
+    is_guest_user,
     is_initial_superadmin_user,
     is_superadmin_group,
     is_superadmin_user,
@@ -337,6 +339,7 @@ def update_admin_profile_password(request):
 def group_list(request):
     if request.method == "GET":
         ensure_superadmin_defaults(create_account=False)
+        ensure_guest_user()
         return JsonResponse(
             {
                 "items": [_serialize_group(group) for group in _groups()],
@@ -407,7 +410,7 @@ def group_detail(request, group_id: int):
             )
         if is_guest_group(group) and name != GUEST_GROUP_NAME:
             return JsonResponse(
-                {"detail": "普通用户用户组名称不能修改"},
+                {"detail": "游客用户组名称不能修改"},
                 status=400,
             )
         group.name = name
@@ -490,6 +493,8 @@ def user_detail(request, user_id: int):
             return JsonResponse({"detail": "不能删除当前登录用户"}, status=400)
         if is_initial_superadmin_user(user):
             return JsonResponse({"detail": "初始化管理员不能删除"}, status=400)
+        if is_guest_user(user):
+            return JsonResponse({"detail": "游客账号不能删除"}, status=400)
         username = user.get_username()
         user.delete()
         log_operation(
@@ -512,6 +517,8 @@ def user_detail(request, user_id: int):
         return JsonResponse({"detail": "不能停用当前登录用户"}, status=400)
     if not is_active and is_initial_superadmin_user(user):
         return JsonResponse({"detail": "初始化管理员不能停用"}, status=400)
+    if not is_active and is_guest_user(user):
+        return JsonResponse({"detail": "游客账号不能停用"}, status=400)
     user.is_active = is_active
     user.save(update_fields=["is_active"])
     log_operation(
@@ -535,6 +542,8 @@ def reset_user_password(request, user_id: int):
         return JsonResponse({"detail": "用户不存在"}, status=404)
     if user.pk == request.user.pk:
         return JsonResponse({"detail": "不能重置当前登录用户密码"}, status=400)
+    if is_guest_user(user):
+        return JsonResponse({"detail": "游客账号不能重置密码"}, status=400)
 
     password = generate_password()
     user.set_password(password)
@@ -571,6 +580,8 @@ def update_user_groups(request, user_id: int):
         return JsonResponse({"detail": "不能修改当前登录用户的用户组"}, status=400)
     if is_superadmin_user(user):
         return JsonResponse({"detail": "不能修改超级管理员的用户组"}, status=400)
+    if is_guest_user(user):
+        return JsonResponse({"detail": "游客账号不能修改用户组"}, status=400)
 
     try:
         normalized_group_ids = {int(group_id) for group_id in group_ids}
@@ -630,6 +641,8 @@ def update_user_permissions(request, user_id: int):
         return JsonResponse({"detail": "用户不存在"}, status=404)
     if user.pk == request.user.pk:
         return JsonResponse({"detail": "请到用户设置中修改自己的权限"}, status=400)
+    if is_guest_user(user):
+        return JsonResponse({"detail": "游客账号不能设置直授权限"}, status=400)
 
     _set_user_feature_permissions(user, permissions)
     _set_operation_log_group_ids(user, operation_log_group_ids)

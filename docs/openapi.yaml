@@ -144,6 +144,24 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /api/auth/guest-login/:
+    post:
+      tags: [认证接口]
+      summary: 游客登录
+      description: |
+        使用系统维护的专用 `guest` 账号建立游客会话。游客账号不可使用密码登录，只归属 `游客` 用户组，默认仅具备浏览、查询和图层加载权限。
+      operationId: guestLogin
+      security: []
+      responses:
+        '200':
+          description: 游客登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /api/auth/register/:
     post:
       tags: [认证接口]
@@ -3112,7 +3130,7 @@ components:
             type: string
         isProtected:
           type: boolean
-          description: 是否为系统受保护用户组，受保护组不能删除或重命名。初始化内置组包含超级管理员和游客；游客权限允许编辑
+          description: 是否为系统受保护用户组，受保护组不能删除或重命名。初始化内置组包含超级管理员、普通用户和游客；游客权限允许编辑
         lockedPermissions:
           type: array
           description: 受保护用户组中不可关闭的平台功能权限列表。游客用户组返回空列表

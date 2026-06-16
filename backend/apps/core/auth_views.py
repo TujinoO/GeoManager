@@ -9,7 +9,11 @@ from django.views.decorators.http import require_GET, require_POST
 
 from apps.audit.service import log_operation
 from apps.core.api import api_login_required
-from apps.core.initialization import ensure_guest_group, ensure_superadmin_defaults
+from apps.core.initialization import (
+    ensure_default_user_group,
+    ensure_guest_user,
+    ensure_superadmin_defaults,
+)
 from apps.core.passwords import password_validation_errors
 from apps.core.permissions import (
     direct_feature_permissions,
@@ -56,6 +60,16 @@ def login_view(request):
 
 
 @require_POST
+def guest_login_view(request):
+    ensure_superadmin_defaults(create_account=False)
+    user = ensure_guest_user()
+    login(request, user)
+    request.session.set_expiry(0)
+    log_operation(user, "认证授权", "游客登录", "success", "游客登录成功", request)
+    return JsonResponse({"user": serialize_user(user)})
+
+
+@require_POST
 def register_view(request):
     if not registration_allowed():
         return JsonResponse({"detail": "当前系统未开放自助注册"}, status=403)
@@ -78,14 +92,14 @@ def register_view(request):
         return JsonResponse({"detail": "；".join(password_errors)}, status=400)
 
     ensure_superadmin_defaults()
-    guest_group = ensure_guest_group()
+    default_user_group = ensure_default_user_group()
     User = get_user_model()
     user = User(username=username, email=email)
     try:
         with transaction.atomic():
             user.set_password(password)
             user.save()
-            user.groups.add(guest_group)
+            user.groups.add(default_user_group)
     except IntegrityError:
         return JsonResponse({"detail": "账号已存在"}, status=400)
 

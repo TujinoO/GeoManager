@@ -20,8 +20,8 @@ from apps.core.permissions import (
 
 SUPERADMIN_GROUP_NAME = "超级管理员"
 DEFAULT_USER_GROUP_NAME = "普通用户"
-LEGACY_GUEST_GROUP_NAME = "游客"
-GUEST_GROUP_NAME = DEFAULT_USER_GROUP_NAME
+GUEST_GROUP_NAME = "游客"
+GUEST_USERNAME = "guest"
 SUPERADMIN_USERNAME_ENV = "HUYANG_SUPERADMIN_USERNAME"
 SUPERADMIN_PASSWORD_ENV = "HUYANG_SUPERADMIN_PASSWORD"
 SUPERADMIN_EMAIL_ENV = "HUYANG_SUPERADMIN_EMAIL"
@@ -30,6 +30,12 @@ DEFAULT_SUPERADMIN_EMAIL = "admin@example.local"
 INITIAL_PASSWORD_FILE = "initial_superadmin_password.txt"
 LOCKED_SUPERADMIN_PERMISSIONS: tuple[str, ...] = ()
 GUEST_GROUP_PERMISSIONS = (
+    "core.browse_data",
+    "core.query_data",
+    "core.load_vector_layer",
+    "core.load_raster_layer",
+)
+DEFAULT_USER_GROUP_PERMISSIONS = (
     "core.browse_data",
     "core.query_data",
     "core.upload_data",
@@ -43,7 +49,9 @@ def ensure_superadmin_defaults(
 ) -> tuple[Any | None, Group]:
     with transaction.atomic():
         ensure_feature_permissions()
+        ensure_default_user_group()
         ensure_guest_group()
+        ensure_guest_user()
         group, _ = Group.objects.get_or_create(name=SUPERADMIN_GROUP_NAME)
         _grant_all_feature_permissions(group)
         user = _ensure_initial_superadmin(group) if create_account else None
@@ -84,20 +92,70 @@ def is_guest_group(group: Group) -> bool:
     return group.name == GUEST_GROUP_NAME
 
 
+def ensure_default_user_group() -> Group:
+    group, created = Group.objects.get_or_create(name=DEFAULT_USER_GROUP_NAME)
+    if created:
+        _set_group_permissions(group, DEFAULT_USER_GROUP_PERMISSIONS)
+    else:
+        _add_group_permissions(group, DEFAULT_USER_GROUP_PERMISSIONS)
+    return group
+
+
 def ensure_guest_group() -> Group:
-    group = Group.objects.filter(name=GUEST_GROUP_NAME).first()
-    if group is None:
-        legacy_group = Group.objects.filter(name=LEGACY_GUEST_GROUP_NAME).first()
-        if legacy_group is not None:
-            legacy_group.name = GUEST_GROUP_NAME
-            legacy_group.save(update_fields=["name"])
-            group = legacy_group
-        else:
-            group = Group.objects.create(name=GUEST_GROUP_NAME)
-            _set_group_permissions(group, GUEST_GROUP_PERMISSIONS)
-            return group
+    group, created = Group.objects.get_or_create(name=GUEST_GROUP_NAME)
+    if created:
+        _set_group_permissions(group, GUEST_GROUP_PERMISSIONS)
+        return group
     _add_group_permissions(group, GUEST_GROUP_PERMISSIONS)
     return group
+
+
+def ensure_guest_user():
+    User = get_user_model()
+    guest_group = ensure_guest_group()
+    with transaction.atomic():
+        user, _ = User.objects.select_for_update().get_or_create(
+            username=GUEST_USERNAME,
+            defaults={
+                "first_name": "游客",
+                "email": "",
+                "is_active": True,
+                "is_staff": False,
+                "is_superuser": False,
+            },
+        )
+        user.first_name = "游客"
+        user.last_name = ""
+        user.email = ""
+        user.is_active = True
+        user.is_staff = False
+        user.is_superuser = False
+        user.set_unusable_password()
+        user.save(
+            update_fields=[
+                "first_name",
+                "last_name",
+                "email",
+                "is_active",
+                "is_staff",
+                "is_superuser",
+                "password",
+            ]
+        )
+        user.groups.set([guest_group])
+        user.user_permissions.clear()
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        if profile.department != "公开访问":
+            profile.department = "公开访问"
+            profile.save(update_fields=["department", "updated_at"])
+        return user
+
+
+def is_guest_user(user) -> bool:
+    return bool(
+        getattr(user, "is_authenticated", False)
+        and getattr(user, "username", "") == GUEST_USERNAME
+    )
 
 
 def is_superadmin_user(user) -> bool:
@@ -124,6 +182,10 @@ def protected_group_permissions() -> list[str]:
 
 def guest_group_permissions() -> set[str]:
     return set(GUEST_GROUP_PERMISSIONS)
+
+
+def default_user_group_permissions() -> set[str]:
+    return set(DEFAULT_USER_GROUP_PERMISSIONS)
 
 
 def initial_password_path() -> Path:

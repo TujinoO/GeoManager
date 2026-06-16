@@ -18,6 +18,7 @@ import {
 } from "antd";
 import type { LngLatBounds, Map as MapboxMap } from "mapbox-gl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import DataPanel from "../components/DataPanel";
 import LayerDataTableModal from "../components/LayerDataTableModal";
@@ -39,6 +40,7 @@ import { clearFeatureState, getMapState } from "../map/mapState";
 import type { DrawMode } from "../map/spatialDraw";
 import type {
   AttributeFilter,
+  DataResource,
   DataResourceProfile,
   ExportLayerItem,
   FeatureInfo,
@@ -104,8 +106,10 @@ const emptyPermissions = {
 export default function MapPage() {
   const { bootstrap, user } = useAppContext();
   const { message, notification } = App.useApp();
+  const [searchParams] = useSearchParams();
 
   const [resources, setResources] = useState<ResourceListItem[]>([]);
+  const [resourceSearchKeyword, setResourceSearchKeyword] = useState("");
   const [selectedResource, setSelectedResource] =
     useState<ResourceListItem | null>(null);
   const [resourceProfile, setResourceProfile] =
@@ -212,6 +216,18 @@ export default function MapPage() {
     }
   }, [permissions.canBrowseData, loadResources]);
 
+  useEffect(() => {
+    const keyword = searchParams.get("resourceQ")?.trim() ?? "";
+    setResourceSearchKeyword(keyword);
+    if (!permissions.canBrowseData) {
+      return;
+    }
+    if (keyword) {
+      setDataPanelOpen(true);
+      void loadResources({ q: keyword });
+    }
+  }, [loadResources, permissions.canBrowseData, searchParams]);
+
   const waitForJob = useCallback(async (jobId: string) => {
     while (true) {
       await new Promise((resolve) => window.setTimeout(resolve, 900));
@@ -252,21 +268,27 @@ export default function MapPage() {
     void scanAndRefreshResources();
   }, [loadResources, message, permissions.canBrowseData, waitForJob]);
 
-  async function handleSelectResource(resource: ResourceListItem) {
+  async function fetchResourceProfile(resource: ResourceListItem) {
     setSelectedResource(resource);
     setQueryResult(null);
     setLoadingProfile(true);
     try {
       const profile = await api.resourceProfile(resource);
       setResourceProfile(profile);
+      return profile;
     } catch (error) {
       setResourceProfile(null);
       message.error(
         error instanceof Error ? error.message : "读取字段和元信息失败",
       );
+      return null;
     } finally {
       setLoadingProfile(false);
     }
+  }
+
+  async function handleSelectResource(resource: ResourceListItem) {
+    await fetchResourceProfile(resource);
   }
 
   const handleDrawComplete = useCallback(
@@ -294,32 +316,35 @@ export default function MapPage() {
       message.warning("请先等待字段和元信息加载完成");
       return;
     }
-    setQuerying(true);
-    try {
-      const result = await api.queryResource(selectedResource, {
-        attributeFilters,
+    await loadVectorResource(
+      selectedResource,
+      resourceProfile,
+      attributeFilters,
+      {
         spatialFilter,
-        limit: bootstrap.limits.queryResultLimit,
+        successMessage: "查询并加载完成",
+        emptyMessage: "查询完成",
+        errorMessage: "查询并加载失败",
+      },
+    );
+  }
+
+  async function handleQuickLoadResource(resource: ResourceListItem) {
+    const profile = await fetchResourceProfile(resource);
+    if (!profile) {
+      return;
+    }
+    if (resource.isRenderable && resource.dataType === "raster") {
+      loadRasterResource(resource, profile);
+      return;
+    }
+    if (resource.isQueryable) {
+      await loadVectorResource(resource, profile, [], {
+        spatialFilter: null,
+        successMessage: "快速加载完成",
+        emptyMessage: "快速加载完成",
+        errorMessage: "快速加载失败",
       });
-      setQueryResult(result);
-      showGeojsonWarnings(notification, result.warnings);
-      if (result.returnedCount === 0) {
-        message.warning(`查询完成：返回 ${result.returnedCount} 条`);
-        return;
-      }
-      const group = createVectorLayerGroup(
-        selectedResource,
-        resourceProfile,
-        result,
-      );
-      layerGroups.addGroup(group);
-      setSelectedLayerId(group.children[0]?.id ?? null);
-      setDataPanelOpen(false);
-      message.success(`查询并加载完成：返回 ${result.returnedCount} 条`);
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : "查询并加载失败");
-    } finally {
-      setQuerying(false);
     }
   }
 
@@ -332,7 +357,18 @@ export default function MapPage() {
       message.warning("请先选择已完成预处理的栅格数据");
       return;
     }
-    const group = createRasterLayerGroup(selectedResource, resourceProfile);
+    loadRasterResource(selectedResource, resourceProfile);
+  }
+
+  function loadRasterResource(
+    resource: DataResource,
+    profile: DataResourceProfile,
+  ) {
+    if (!permissions.canLoadRasterLayer) {
+      message.warning(permissionDeniedMessage);
+      return;
+    }
+    const group = createRasterLayerGroup(resource, profile);
     if (!group) return;
     layerGroups.addGroup(group);
     setSelectedLayerId(group.children[0]?.id ?? null);
@@ -345,6 +381,52 @@ export default function MapPage() {
       child,
       "default",
     );
+  }
+
+  async function loadVectorResource(
+    resource: ResourceListItem,
+    profile: DataResourceProfile,
+    attributeFilters: AttributeFilter[],
+    options: {
+      spatialFilter: SpatialFilter | null;
+      successMessage: string;
+      emptyMessage: string;
+      errorMessage: string;
+    },
+  ) {
+    if (!permissions.canQueryData || !permissions.canLoadVectorLayer) {
+      message.warning(permissionDeniedMessage);
+      return;
+    }
+    setQuerying(true);
+    try {
+      const result = await api.queryResource(resource, {
+        attributeFilters,
+        spatialFilter: options.spatialFilter,
+        limit: bootstrap.limits.queryResultLimit,
+      });
+      setQueryResult(result);
+      showGeojsonWarnings(notification, result.warnings);
+      if (result.returnedCount === 0) {
+        message.warning(
+          `${options.emptyMessage}：返回 ${result.returnedCount} 条`,
+        );
+        return;
+      }
+      const group = createVectorLayerGroup(resource, profile, result);
+      layerGroups.addGroup(group);
+      setSelectedLayerId(group.children[0]?.id ?? null);
+      setDataPanelOpen(false);
+      message.success(
+        `${options.successMessage}：返回 ${result.returnedCount} 条`,
+      );
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : options.errorMessage,
+      );
+    } finally {
+      setQuerying(false);
+    }
   }
 
   const handleMapReady = useCallback(
@@ -659,8 +741,10 @@ export default function MapPage() {
       loadingProfile={loadingProfile}
       querying={querying}
       permissions={permissions}
+      searchKeyword={resourceSearchKeyword}
       onFilterResources={loadResources}
       onSelectResource={handleSelectResource}
+      onQuickLoadResource={handleQuickLoadResource}
       onQueryAndLoad={handleQueryAndLoad}
       onLoadRaster={handleLoadRaster}
     />
@@ -675,6 +759,12 @@ export default function MapPage() {
         dataPanel={dataPanel}
         dataPanelOpen={dataPanelOpen}
         onDataPanelOpenChange={setDataPanelOpen}
+        onGlobalSearch={(keyword) => {
+          setResourceSearchKeyword(keyword);
+          if (permissions.canBrowseData) {
+            void loadResources(keyword ? { q: keyword } : {});
+          }
+        }}
       />
       <div className="workspace-body">
         <main className="map-stage">

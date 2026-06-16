@@ -103,6 +103,160 @@ const heatmapPalettes = [
   },
 ] as const;
 
+const symbolizationLabels: Record<string, string> = {
+  A: "Alpha 透明度",
+  "circle-color": "圆点颜色",
+  "circle-radius": "圆点半径",
+  "circle-blur": "圆点模糊",
+  "circle-opacity": "圆点不透明度",
+  "circle-stroke-color": "圆点描边颜色",
+  "circle-stroke-width": "圆点描边宽度",
+  "circle-stroke-opacity": "圆点描边不透明度",
+  "circle-pitch-alignment": "圆点俯仰对齐方式",
+  "circle-pitch-scale": "圆点俯仰缩放基准",
+  "circle-translate": "圆点平移偏移",
+  "circle-translate-anchor": "圆点平移锚点",
+  "circle-emissive-strength": "圆点自发光强度",
+  "circle-sort-key": "圆点排序键",
+  "symbol-placement": "符号放置方式",
+  "symbol-spacing": "符号间距",
+  "symbol-sort-key": "符号排序键",
+  "symbol-z-order": "符号层级顺序",
+  "symbol-avoid-edges": "避开瓦片边缘",
+  "icon-image": "图标名称",
+  "icon-size": "图标大小",
+  "icon-size-scale-range": "图标缩放范围",
+  "icon-anchor": "图标锚点",
+  "icon-offset": "图标偏移",
+  "icon-padding": "图标碰撞留白",
+  "icon-rotate": "图标旋转角度",
+  "icon-pitch-alignment": "图标俯仰对齐方式",
+  "icon-rotation-alignment": "图标旋转对齐方式",
+  "icon-text-fit": "图标适配文字",
+  "icon-text-fit-padding": "图标适配文字留白",
+  "icon-allow-overlap": "允许图标重叠",
+  "icon-ignore-placement": "图标忽略避让",
+  "icon-optional": "图标可选显示",
+  "icon-keep-upright": "图标保持正向",
+  "icon-color": "图标颜色",
+  "icon-opacity": "图标不透明度",
+  "icon-halo-color": "图标光晕颜色",
+  "icon-halo-width": "图标光晕宽度",
+  "icon-halo-blur": "图标光晕模糊",
+  "icon-translate": "图标平移偏移",
+  "icon-translate-anchor": "图标平移锚点",
+  "icon-emissive-strength": "图标自发光强度",
+  "icon-color-brightness-min": "图标最低亮度",
+  "icon-color-brightness-max": "图标最高亮度",
+  "icon-color-contrast": "图标对比度",
+  "icon-color-saturation": "图标饱和度",
+  "icon-occlusion-opacity": "图标遮挡不透明度",
+  "text-field": "标注字段",
+  "text-font": "标注字体",
+  "text-size": "标注字号",
+  "text-max-width": "标注最大宽度",
+  "text-line-height": "标注行高",
+  "text-letter-spacing": "标注字距",
+  "text-justify": "标注对齐方式",
+  "text-anchor": "标注锚点",
+  "text-offset": "标注偏移",
+  "text-radial-offset": "标注径向偏移",
+  "text-variable-anchor": "标注可变锚点",
+  "text-writing-mode": "标注书写方向",
+  "text-padding": "标注碰撞留白",
+  "text-rotate": "标注旋转角度",
+  "text-pitch-alignment": "标注俯仰对齐方式",
+  "text-rotation-alignment": "标注旋转对齐方式",
+  "text-transform": "标注大小写转换",
+  "text-allow-overlap": "允许标注重叠",
+  "text-ignore-placement": "标注忽略避让",
+  "text-optional": "标注可选显示",
+  "text-keep-upright": "标注保持正向",
+  "text-color": "标注颜色",
+  "text-opacity": "标注不透明度",
+  "text-halo-color": "标注光晕颜色",
+  "text-halo-width": "标注光晕宽度",
+  "text-halo-blur": "标注光晕模糊",
+  "text-translate": "标注平移偏移",
+  "text-translate-anchor": "标注平移锚点",
+  "text-emissive-strength": "标注自发光强度",
+  "text-occlusion-opacity": "标注遮挡不透明度",
+  "heatmap-weight": "热力权重",
+  "heatmap-intensity": "热力强度",
+  "heatmap-radius": "热力半径",
+  "heatmap-opacity": "热力不透明度",
+  "heatmap-color": "热力色带",
+  "line-color": "线颜色",
+  "line-width": "线宽",
+  "line-opacity": "线不透明度",
+  "line-blur": "线模糊",
+  "line-cap": "线端点样式",
+  "line-join": "线连接样式",
+  "line-miter-limit": "斜接限制",
+  "line-round-limit": "圆角限制",
+  "line-offset": "线偏移",
+  "line-gap-width": "线间隙宽度",
+  "line-dasharray": "虚线数组",
+  "line-translate": "线平移偏移",
+  "line-translate-anchor": "线平移锚点",
+  "line-emissive-strength": "线自发光强度",
+  "fill-color": "填充颜色",
+  "fill-opacity": "填充不透明度",
+  "fill-outline-color": "填充描边颜色",
+  "fill-antialias": "填充抗锯齿",
+  "fill-sort-key": "填充排序键",
+  "fill-translate": "填充平移偏移",
+  "fill-translate-anchor": "填充平移锚点",
+  "fill-emissive-strength": "填充自发光强度",
+  "启用 nodata": "启用无数据值",
+};
+
+const symbolizationOptionLabels: Record<string, string> = {
+  auto: "自动",
+  map: "地图",
+  viewport: "视口",
+  center: "中心",
+  left: "左侧",
+  right: "右侧",
+  top: "上方",
+  bottom: "下方",
+  "top-left": "左上",
+  "top-right": "右上",
+  "bottom-left": "左下",
+  "bottom-right": "右下",
+  point: "点",
+  line: "沿线",
+  "line-center": "线中心",
+  "viewport-y": "视口 Y 轴",
+  source: "数据源顺序",
+  none: "无",
+  width: "宽度",
+  height: "高度",
+  both: "宽高",
+  horizontal: "水平",
+  vertical: "垂直",
+  uppercase: "大写",
+  lowercase: "小写",
+  butt: "平头",
+  round: "圆头",
+  square: "方头",
+  bevel: "斜角",
+  miter: "尖角",
+  mask: "掩膜",
+  poplar: "胡杨专题",
+  viridis: "Viridis 连续色带",
+  terrain: "地形色带",
+  thermal: "热力色带",
+};
+
+function displaySymbolizationLabel(label: string) {
+  return symbolizationLabels[label] ?? label;
+}
+
+function displaySymbolizationOption(option: string) {
+  return symbolizationOptionLabels[option] ?? option;
+}
+
 export function GroupSymbolizationEditor({
   value,
   onChange,
@@ -330,7 +484,7 @@ export function VectorSymbolizationEditor({
           },
           {
             key: "circle",
-            label: "circle",
+            label: "圆点",
             children: (
               <Space
                 orientation="vertical"
@@ -434,13 +588,13 @@ export function VectorSymbolizationEditor({
           },
           {
             key: "symbol",
-            label: "symbol",
+            label: "图标",
             children: (
               <Space
                 orientation="vertical"
                 className="full-width symbolization-stack"
               >
-                <Typography.Text strong>layout</Typography.Text>
+                <Typography.Text strong>符号布局</Typography.Text>
                 <SelectField
                   label="symbol-placement"
                   value={value.symbol.symbolPlacement}
@@ -472,7 +626,7 @@ export function VectorSymbolizationEditor({
                   onChange={(next) => updateSymbol("symbolAvoidEdges", next)}
                 />
                 <Divider className="symbolization-divider" />
-                <Typography.Text strong>icon layout</Typography.Text>
+                <Typography.Text strong>图标布局</Typography.Text>
                 <TextField
                   label="icon-image"
                   value={value.symbol.iconImage}
@@ -563,7 +717,7 @@ export function VectorSymbolizationEditor({
                   onChange={(next) => updateSymbol("iconKeepUpright", next)}
                 />
                 <Divider className="symbolization-divider" />
-                <Typography.Text strong>icon paint</Typography.Text>
+                <Typography.Text strong>图标绘制</Typography.Text>
                 <ColorField
                   label="icon-color"
                   value={value.symbol.iconColor}
@@ -670,13 +824,13 @@ export function VectorSymbolizationEditor({
           },
           {
             key: "text",
-            label: "text",
+            label: "标注",
             children: (
               <Space
                 orientation="vertical"
                 className="full-width symbolization-stack"
               >
-                <Typography.Text strong>text layout</Typography.Text>
+                <Typography.Text strong>标注布局</Typography.Text>
                 <ControlRow label="text-field">
                   <Select
                     className="full-width"
@@ -821,7 +975,7 @@ export function VectorSymbolizationEditor({
                   onChange={(next) => updateSymbol("textKeepUpright", next)}
                 />
                 <Divider className="symbolization-divider" />
-                <Typography.Text strong>text paint</Typography.Text>
+                <Typography.Text strong>标注绘制</Typography.Text>
                 <ColorField
                   label="text-color"
                   value={value.symbol.textColor}
@@ -892,7 +1046,7 @@ export function VectorSymbolizationEditor({
           },
           {
             key: "heatmap",
-            label: "heatmap",
+            label: "热力",
             children: (
               <Space
                 orientation="vertical"
@@ -948,7 +1102,7 @@ export function VectorSymbolizationEditor({
           },
           {
             key: "line",
-            label: "line",
+            label: "线",
             children: (
               <Space
                 orientation="vertical"
@@ -1051,7 +1205,7 @@ export function VectorSymbolizationEditor({
           },
           {
             key: "fill",
-            label: "fill",
+            label: "面",
             children: (
               <Space
                 orientation="vertical"
@@ -1132,13 +1286,13 @@ export function RasterSymbolizationEditor({
   const bandOptions = (
     bands.length > 0
       ? bands
-      : [{ band: 1, description: "Band 1", type: "Byte" } as RasterBandMetadata]
+      : [{ band: 1, description: "波段 1", type: "Byte" } as RasterBandMetadata]
   ).map((band) => ({
     value: band.band,
     label: `${band.band} · ${band.description || band.type}`,
   }));
   const alphaBandOptions = [
-    { value: "mask", label: "mask" },
+    { value: "mask", label: "掩膜" },
     { value: "none", label: "无" },
     ...bandOptions,
   ];
@@ -1363,7 +1517,7 @@ export function RasterSymbolizationEditor({
                     <Space.Compact key={band} className="full-width">
                       <Input
                         className="stretch-band-label"
-                        value={`Band ${band}`}
+                        value={`波段 ${band}`}
                         disabled
                       />
                       <InputNumber
@@ -1508,7 +1662,7 @@ function ControlRow({
 }) {
   return (
     <div className="symbolization-control-row">
-      <span>{label}</span>
+      <span title={label}>{displaySymbolizationLabel(label)}</span>
       <div>{children}</div>
     </div>
   );
@@ -1616,7 +1770,10 @@ function SelectField<Option extends string>({
       <Select
         className="full-width"
         value={value}
-        options={options.map((option) => ({ value: option, label: option }))}
+        options={options.map((option) => ({
+          value: option,
+          label: displaySymbolizationOption(option),
+        }))}
         onChange={onChange}
       />
     </ControlRow>
@@ -1640,7 +1797,10 @@ function MultiSelectField<Option extends string>({
         className="full-width"
         mode="multiple"
         value={value}
-        options={options.map((option) => ({ value: option, label: option }))}
+        options={options.map((option) => ({
+          value: option,
+          label: displaySymbolizationOption(option),
+        }))}
         onChange={onChange}
       />
     </ControlRow>
