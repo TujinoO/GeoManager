@@ -1,0 +1,316 @@
+{
+  "GET /api/admin/operation-logs/": {
+    "200": {
+      "items": [
+        {
+          "id": 101,
+          "occurredAt": "2026-06-14 09:30:00",
+          "operator": "系统管理员",
+          "module": "认证授权",
+          "action": "登录系统",
+          "result": "success",
+          "ipAddress": "127.0.0.1",
+          "summary": "系统管理员登录 mock 前端"
+        },
+        {
+          "id": 102,
+          "occurredAt": "2026-06-14 09:32:00",
+          "operator": "李数据管理员",
+          "module": "栅格数据",
+          "action": "启动栅格扫描",
+          "result": "success",
+          "ipAddress": "127.0.0.1",
+          "summary": "扫描研究数据根目录 raster/original"
+        },
+        {
+          "id": 103,
+          "occurredAt": "2026-06-14 09:35:00",
+          "operator": "陈研究员",
+          "module": "数据目录",
+          "action": "查询数据资源",
+          "result": "success",
+          "ipAddress": "127.0.0.1",
+          "summary": "查询 Traim 和 survey_points_2026"
+        },
+        {
+          "id": 104,
+          "occurredAt": "2026-06-14 09:38:00",
+          "operator": "李数据管理员",
+          "module": "数据导入",
+          "action": "导入校验",
+          "result": "warning",
+          "ipAddress": "127.0.0.1",
+          "summary": "2 行坐标精度不足，允许继续导入"
+        },
+        {
+          "id": 105,
+          "occurredAt": "2026-06-14 09:41:00",
+          "operator": "系统",
+          "module": "异步任务",
+          "action": "生成导出文件",
+          "result": "success",
+          "ipAddress": "",
+          "summary": "生成 layers_export_mock_20260614.zip"
+        }
+      ],
+      "total": 5
+    }
+  },
+  "GET /api/admin/dashboard/": {
+    "200": {
+      "generatedAt": "2026-06-14T09:35:00+08:00",
+      "cards": {
+        "resources": {
+          "total": 8,
+          "active": 7
+        },
+        "layers": {
+          "total": 5,
+          "active": 4
+        },
+        "rasters": {
+          "resources": 2,
+          "datasets": 2,
+          "layers": 2
+        },
+        "users": {
+          "total": 4,
+          "active": 3,
+          "disabled": 1,
+          "groups": 4,
+          "vectorResources": 2,
+          "tableResources": 2
+        },
+        "activeUsers": {
+          "period": "day",
+          "rangeStart": "2026-06-14",
+          "rangeEnd": "2026-06-14",
+          "count": 2,
+          "loginCount": 5,
+          "series": [
+            {
+              "key": "09",
+              "label": "09:00",
+              "count": 3
+            },
+            {
+              "key": "10",
+              "label": "10:00",
+              "count": 2
+            }
+          ],
+          "ranking": [
+            {
+              "userId": 1,
+              "displayName": "系统管理员",
+              "username": "admin",
+              "loginCount": 3
+            }
+          ]
+        }
+      }
+    }
+  },
+  "GET /api/admin/dashboard/server/": {
+    "200": {
+      "generatedAt": "2026-06-14T09:35:05+08:00",
+      "hostname": "mock-dev",
+      "platform": "Darwin arm64",
+      "cards": {
+        "cpu": {
+          "model": "Apple Silicon",
+          "physicalCount": 8,
+          "logicalCount": 8,
+          "usagePercent": 18.5,
+          "loadAverage": [
+            1.12,
+            1.05,
+            0.98
+          ]
+        },
+        "memory": {
+          "model": "Unified Memory",
+          "slotCount": 1,
+          "totalBytes": 34359738368,
+          "usedBytes": 12884901888,
+          "availableBytes": 21474836480,
+          "usagePercent": 37.5
+        },
+        "disks": {
+          "count": 1,
+          "devices": [
+            {
+              "name": "disk0",
+              "model": "APPLE SSD",
+              "size": "1 TB"
+            }
+          ],
+          "mount": "/",
+          "totalBytes": 1000000000000,
+          "usedBytes": 420000000000,
+          "freeBytes": 580000000000,
+          "usagePercent": 42
+        }
+      }
+    }
+  },
+  "GET /api/admin/data/resources/": {
+    "200": {
+      "items": [
+        {
+          "id": 11,
+          "name": "塔里木河胡杨林样地监测点",
+          "code": "RES-POPULUS-PLOTS",
+          "dataType": "vector",
+          "category": {
+            "id": 1,
+            "type": "topic",
+            "code": "field_monitoring",
+            "name": "野外监测"
+          },
+          "source": "塔里木河野外调查",
+          "provider": "生态监测组",
+          "dataDate": "2026-05-20",
+          "spatialExtent": "塔里木河中游",
+          "coordinateSystem": "EPSG:4326",
+          "fileFormat": "GPKG",
+          "storagePath": "populus_monitoring_plots",
+          "description": "胡杨林样地监测点及冠幅、胸径、健康等级属性。",
+          "qualityNote": "坐标经人工抽查，字段完整率 98%。",
+          "defaultVisualization": {
+            "layerName": "样地监测点",
+            "defaultVisible": true
+          },
+          "status": "active",
+          "accessGroups": [
+            {
+              "id": 3,
+              "name": "科研用户"
+            }
+          ],
+          "maintainer": "系统管理员",
+          "createdAt": "2026-06-01T10:00:00+08:00",
+          "updatedAt": "2026-06-14T09:20:00+08:00",
+          "defaultLayer": {
+            "id": 21,
+            "name": "样地监测点",
+            "code": "LAYER-POPULUS-PLOTS",
+            "layerType": "vector",
+            "geometryType": "point",
+            "defaultVisible": true,
+            "defaultOpacity": 90,
+            "symbolization": {
+              "color": "#1d7f45",
+              "radius": 6
+            },
+            "rasterRules": {},
+            "isActive": true
+          }
+        },
+        {
+          "id": 12,
+          "name": "Traim",
+          "code": "raster-91d2a5ecd116",
+          "dataType": "raster",
+          "category": null,
+          "source": "栅格导入",
+          "provider": "生态监测组",
+          "dataDate": null,
+          "spatialExtent": "88.328434,40.079174,88.401642,40.160831",
+          "coordinateSystem": "EPSG:3857",
+          "fileFormat": "COG",
+          "storagePath": "原始影像/Traim.cog.tif",
+          "description": "源文件：原始影像/Traim.tif",
+          "qualityNote": "导入时使用 gdalwarp 统一投影到 EPSG:3857 并输出 COG。",
+          "defaultVisualization": {
+            "layerName": "Traim 原始影像",
+            "defaultVisible": false,
+            "defaultOpacity": 90
+          },
+          "status": "active",
+          "accessGroups": [
+            {
+              "id": 3,
+              "name": "科研用户"
+            },
+            {
+              "id": 4,
+              "name": "数据管理员"
+            }
+          ],
+          "maintainer": "李数据管理员",
+          "createdAt": "2026-06-07T11:32:47+08:00",
+          "updatedAt": "2026-06-07T11:34:08+08:00",
+          "defaultLayer": {
+            "id": 1,
+            "name": "Traim",
+            "code": "raster-91d2a5ecd116",
+            "layerType": "raster",
+            "geometryType": "mixed",
+            "defaultVisible": false,
+            "defaultOpacity": 90,
+            "symbolization": {},
+            "rasterRules": {
+              "mode": "rgb",
+              "bands": [
+                1,
+                2,
+                3
+              ]
+            },
+            "isActive": true
+          }
+        },
+        {
+          "id": 13,
+          "name": "胡杨样地生长指标表",
+          "code": "table-populus-growth-2026",
+          "dataType": "table",
+          "category": {
+            "id": 2,
+            "type": "topic",
+            "code": "growth_monitoring",
+            "name": "生长监测"
+          },
+          "source": "塔里木河野外调查",
+          "provider": "生态监测组",
+          "dataDate": "2026-05-21",
+          "spatialExtent": "塔里木河中游",
+          "coordinateSystem": "",
+          "fileFormat": "SQLite",
+          "storagePath": "populus_growth_2026",
+          "description": "样地胸径、冠幅、健康等级和地下水位观测表。",
+          "qualityNote": "非空间表，字段完整率 96%。",
+          "defaultVisualization": {},
+          "status": "inactive",
+          "accessGroups": [
+            {
+              "id": 4,
+              "name": "数据管理员"
+            }
+          ],
+          "maintainer": "李数据管理员",
+          "createdAt": "2026-06-10T15:20:00+08:00",
+          "updatedAt": "2026-06-11T10:15:00+08:00",
+          "defaultLayer": null
+        }
+      ],
+      "total": 3,
+      "availableAccessGroups": [
+        {
+          "id": 2,
+          "name": "游客"
+        },
+        {
+          "id": 3,
+          "name": "科研用户"
+        }
+      ]
+    }
+  },
+  "POST /api/admin/data/resources/{id}/": {
+    "200": {
+      "detail": "数据资源已更新"
+    }
+  }
+}

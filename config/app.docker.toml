@@ -1,0 +1,34 @@
+# Docker 容器内运行配置示例。
+# 适用于手动 docker run 时挂载到 /config/app.toml。
+# 业务数据和科研数据通过 geomanager-data 数据卷统一挂载到 /data 下。
+
+[runtime]
+debug = false
+allowed_hosts = ["localhost", "127.0.0.1"]
+csrf_trusted_origins = []
+gunicorn_bind = "0.0.0.0:8000"
+gunicorn_workers = 3
+http_port = 8000
+disable_catalog_startup_scan = false
+disable_raster_startup_scan = false
+
+[application.system]
+name = "中亚胡杨林生态系统保护数据共享平台"
+allow_registration = true
+
+[application.storage]
+app_data = "/data/app"
+research_data_root = "/data/research"
+
+[application.map]
+default_center = [80.0, 41.5]
+default_zoom = 4.5
+default_basemap = "osm"
+mapbox_access_token = ""
+
+[application.limits]
+upload_max_mb = 512
+query_result_limit = 30000
+
+[application.raster]
+symbolizer_timeout_seconds = 120

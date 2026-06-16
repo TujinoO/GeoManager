@@ -1,0 +1,30 @@
+[runtime]
+debug = false
+allowed_hosts = ["localhost", "127.0.0.1"]
+csrf_trusted_origins = []
+gunicorn_bind = "0.0.0.0:8000"
+gunicorn_workers = 3
+http_port = 80
+disable_catalog_startup_scan = false
+disable_raster_startup_scan = false
+
+[application.system]
+name = "Data Sharing Platform"
+allow_registration = true
+
+[application.storage]
+app_data = "/path/to/data/appdata"
+research_data_root = "/path/to/data/research"
+
+[application.map]
+default_center = [80.0, 41.5]
+default_zoom = 4.5
+default_basemap = "osm"
+mapbox_access_token = ""
+
+[application.limits]
+upload_max_mb = 512
+query_result_limit = 30000
+
+[application.raster]
+symbolizer_timeout_seconds = 120

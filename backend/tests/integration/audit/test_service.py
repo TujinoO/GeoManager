@@ -1,0 +1,119 @@
+from unittest.mock import MagicMock
+
+from django.contrib.auth import get_user_model
+from django.test import RequestFactory, TestCase
+
+from apps.audit.models import OperationLog
+from apps.audit.service import _client_ip, log_operation
+
+
+class OperationLogModelTests(TestCase):
+    def test_str_representation(self):
+        log = OperationLog(module="数据导出", action="导出数据", status="success")
+        self.assertEqual(str(log), "数据导出.导出数据 success")
+
+    def test_status_choices(self):
+        self.assertEqual(OperationLog.Status.SUCCESS, "success")
+        self.assertEqual(OperationLog.Status.WARNING, "warning")
+        self.assertEqual(OperationLog.Status.FAILED, "failed")
+
+    def test_ordering_by_created_at_desc(self):
+        OperationLog.objects.create(
+            module="认证授权", action="用户登录", status="success"
+        )
+        OperationLog.objects.create(
+            module="数据查询", action="查询数据", status="success"
+        )
+        logs = list(OperationLog.objects.all())
+        self.assertEqual(logs[0].module, "数据查询")
+        self.assertEqual(logs[1].module, "认证授权")
+
+
+class LogOperationTests(TestCase):
+    def test_creates_log_for_authenticated_user(self):
+        user = get_user_model().objects.create_user(
+            username="logger-test", password="pass12345"
+        )
+
+        log_operation(user, "数据导出", "导出数据", "success", "导出成功")
+
+        log = OperationLog.objects.first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.user, user)
+        self.assertEqual(log.module, "数据导出")
+        self.assertEqual(log.action, "导出数据")
+        self.assertEqual(log.status, "success")
+        self.assertEqual(log.message, "导出成功")
+
+    def test_creates_log_with_null_user_for_anonymous(self):
+        anonymous = MagicMock()
+        anonymous.is_authenticated = False
+
+        log_operation(anonymous, "认证授权", "用户登录", "failed", "登录失败")
+
+        log = OperationLog.objects.first()
+        self.assertIsNotNone(log)
+        self.assertIsNone(log.user)
+
+    def test_creates_log_with_null_user_for_none(self):
+        log_operation(None, "认证授权", "用户登录", "failed", "登录失败")
+
+        log = OperationLog.objects.first()
+        self.assertIsNotNone(log)
+        self.assertIsNone(log.user)
+
+    def test_extracts_ip_from_request(self):
+        user = get_user_model().objects.create_user(
+            username="ip-test", password="pass12345"
+        )
+        factory = RequestFactory()
+        request = factory.get("/api/test/")
+        request.META["REMOTE_ADDR"] = "192.168.1.100"
+
+        log_operation(user, "数据查询", "查询数据", "success", request=request)
+
+        log = OperationLog.objects.first()
+        self.assertEqual(log.ip_address, "192.168.1.100")
+
+    def test_extracts_ip_from_x_forwarded_for(self):
+        user = get_user_model().objects.create_user(
+            username="forwarded-test", password="pass12345"
+        )
+        factory = RequestFactory()
+        request = factory.get("/api/test/")
+        request.META["HTTP_X_FORWARDED_FOR"] = "10.0.0.1, 10.0.0.2"
+
+        log_operation(user, "数据查询", "查询数据", "success", request=request)
+
+        log = OperationLog.objects.first()
+        self.assertEqual(log.ip_address, "10.0.0.1")
+
+    def test_handles_none_request(self):
+        user = get_user_model().objects.create_user(
+            username="no-request-test", password="pass12345"
+        )
+
+        log_operation(user, "系统测试", "测试日志", "success")
+
+        log = OperationLog.objects.first()
+        self.assertIsNone(log.ip_address)
+
+
+class ClientIpTests(TestCase):
+    def test_returns_none_for_none_request(self):
+        self.assertIsNone(_client_ip(None))
+
+    def test_returns_remote_addr(self):
+        request = MagicMock()
+        request.META = {"REMOTE_ADDR": "127.0.0.1"}
+        self.assertEqual(_client_ip(request), "127.0.0.1")
+
+    def test_returns_first_x_forwarded_for(self):
+        request = MagicMock()
+        request.META = {"HTTP_X_FORWARDED_FOR": "10.0.0.1, 10.0.0.2, 10.0.0.3"}
+        self.assertEqual(_client_ip(request), "10.0.0.1")
+
+    def test_returns_none_when_no_ip_info(self):
+        request = MagicMock()
+        request.META = {}
+        self.assertIsNone(_client_ip(request))

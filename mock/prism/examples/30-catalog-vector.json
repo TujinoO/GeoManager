@@ -1,0 +1,877 @@
+{
+  "GET /api/catalog/directories/": {
+    "200": {
+      "items": [
+        {
+          "id": 1,
+          "name": "矢量数据",
+          "code": "vector",
+          "parentId": null,
+          "resourceIds": [
+            "vector_survey_points_2026"
+          ],
+          "children": []
+        },
+        {
+          "id": 2,
+          "name": "栅格数据",
+          "code": "raster",
+          "parentId": null,
+          "resourceIds": [
+            1,
+            2
+          ],
+          "children": [
+            {
+              "id": 21,
+              "name": "原始影像",
+              "code": "raster_original",
+              "parentId": 2,
+              "resourceIds": [
+                1
+              ],
+              "children": []
+            },
+            {
+              "id": 22,
+              "name": "胡杨提取结果",
+              "code": "raster_result",
+              "parentId": 2,
+              "resourceIds": [
+                2
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "name": "表格数据",
+          "code": "table",
+          "parentId": null,
+          "resourceIds": [
+            13
+          ],
+          "children": []
+        }
+      ]
+    }
+  },
+  "GET /api/catalog/resources/": {
+    "200": {
+      "items": [
+        {
+          "id": 1,
+          "name": "Traim",
+          "code": "raster-91d2a5ecd116",
+          "dataType": "raster",
+          "category": null,
+          "source": "栅格导入",
+          "provider": "",
+          "dataDate": null,
+          "spatialExtent": "88.328434,40.079174,88.401642,40.160831",
+          "coordinateSystem": "EPSG:3857",
+          "fileFormat": "COG",
+          "description": "源文件：原始影像/Traim.tif",
+          "qualityNote": "导入时使用 gdalwarp 统一投影到 EPSG:3857 并输出 COG。",
+          "status": "active",
+          "isQueryable": false,
+          "isRenderable": true,
+          "updatedAt": "2026-06-07T11:34:08.121395+00:00"
+        },
+        {
+          "id": 2,
+          "name": "Traim_result",
+          "code": "raster-fa42b738b42f",
+          "dataType": "raster",
+          "category": null,
+          "source": "栅格导入",
+          "provider": "",
+          "dataDate": null,
+          "spatialExtent": "88.328434,40.079174,88.401642,40.160831",
+          "coordinateSystem": "EPSG:3857",
+          "fileFormat": "COG",
+          "description": "源文件：胡杨提取结果/Traim_result.tif",
+          "qualityNote": "导入时使用 gdalwarp 统一投影到 EPSG:3857 并输出 COG。",
+          "status": "active",
+          "isQueryable": false,
+          "isRenderable": true,
+          "updatedAt": "2026-06-07T11:34:11.743237+00:00"
+        },
+        {
+          "id": "vector_survey_points_2026",
+          "name": "survey_points_2026",
+          "code": "vector_survey_points_2026",
+          "dataType": "vector",
+          "layerType": "vector",
+          "geometryType": "point",
+          "bounds": [
+            87.6,
+            43.8,
+            87.6,
+            43.8
+          ],
+          "coordinateSystem": "EPSG:4326",
+          "featureCount": 1,
+          "source": "GeoPackage 实时读取",
+          "isQueryable": true,
+          "isRenderable": false,
+          "status": "active"
+        }
+      ]
+    }
+  },
+  "POST /api/catalog/scan/": {
+    "200": {
+      "items": [
+        {
+          "id": "vector_survey_points_2026",
+          "name": "survey_points_2026",
+          "code": "vector_survey_points_2026",
+          "dataType": "vector",
+          "layerType": "vector",
+          "geometryType": "point",
+          "bounds": [
+            87.6,
+            43.8,
+            87.6,
+            43.8
+          ],
+          "coordinateSystem": "EPSG:4326",
+          "featureCount": 1,
+          "source": "GeoPackage 实时读取",
+          "isQueryable": true,
+          "isRenderable": false,
+          "status": "active"
+        }
+      ],
+      "count": 1
+    }
+  },
+  "POST /api/catalog/import/preview/": {
+    "200": {
+      "columns": [
+        "样地编号",
+        "longitude",
+        "latitude",
+        "胸径_cm",
+        "冠幅_m",
+        "健康等级",
+        "调查日期"
+      ],
+      "rows": [
+        {
+          "样地编号": "TP-2026-001",
+          "longitude": "87.600000",
+          "latitude": "43.800000",
+          "胸径_cm": "32.5",
+          "冠幅_m": "7.8",
+          "健康等级": "良好",
+          "调查日期": "2026-05-20"
+        },
+        {
+          "样地编号": "TP-2026-002",
+          "longitude": "87.615320",
+          "latitude": "43.812450",
+          "胸径_cm": "28.1",
+          "冠幅_m": "6.4",
+          "健康等级": "一般",
+          "调查日期": "2026-05-20"
+        },
+        {
+          "样地编号": "TP-2026-003",
+          "longitude": "87.642800",
+          "latitude": "43.795100",
+          "胸径_cm": "35.7",
+          "冠幅_m": "8.1",
+          "健康等级": "良好",
+          "调查日期": "2026-05-21"
+        }
+      ],
+      "rowCount": 128,
+      "suggestedTableName": "populus_plots_2026",
+      "suggestedName": "胡杨样地调查点 2026",
+      "detected": {
+        "isGeographic": true,
+        "longitudeColumn": "longitude",
+        "latitudeColumn": "latitude",
+        "coordinateStats": null,
+        "validationIssues": []
+      },
+      "limitations": [
+        "仅预览前 20 行；提交前仍需执行坐标和字段校验。"
+      ]
+    }
+  },
+  "POST /api/catalog/import/validate/": {
+    "200": {
+      "coordinateStats": {
+        "totalRows": 128,
+        "validRows": 126,
+        "missingRows": 2,
+        "quantizationErrorMeters": {
+          "min": 0.03,
+          "max": 0.62
+        }
+      },
+      "validationIssues": [
+        {
+          "code": "missing_coordinate",
+          "message": "2 行缺少经纬度，将在导入时跳过。",
+          "blocking": false,
+          "count": 2
+        },
+        {
+          "code": "low_precision",
+          "message": "部分坐标小数位较少，建议核对原始记录。",
+          "blocking": false,
+          "count": 5,
+          "minMeters": 0.3,
+          "maxMeters": 3.2,
+          "ratio": 1.4
+        }
+      ]
+    }
+  },
+  "POST /api/catalog/import/commit/": {
+    "201": {
+      "mode": "geographic",
+      "resourceId": 31,
+      "resourceName": "胡杨样地调查点 2026",
+      "layerName": "populus_plots_2026",
+      "tableName": "populus_plots_2026",
+      "importedRows": 126,
+      "skippedRows": 2,
+      "bounds": [
+        87.6,
+        43.7951,
+        87.6428,
+        43.81245
+      ],
+      "coordinateStats": {
+        "totalRows": 128,
+        "validRows": 126,
+        "missingRows": 2,
+        "quantizationErrorMeters": {
+          "min": 0.03,
+          "max": 0.62
+        }
+      },
+      "validationIssues": [
+        {
+          "code": "missing_coordinate",
+          "message": "2 行缺少经纬度，已跳过。",
+          "blocking": false,
+          "count": 2
+        }
+      ]
+    }
+  },
+  "GET /api/catalog/resources/{id}/profile/": {
+    "200": {
+      "resource": {
+        "id": "vector_survey_points_2026",
+        "name": "survey_points_2026",
+        "code": "vector_survey_points_2026",
+        "dataType": "vector",
+        "layerType": "vector",
+        "geometryType": "point",
+        "bounds": [
+          87.6,
+          43.8,
+          87.6,
+          43.8
+        ],
+        "coordinateSystem": "EPSG:4326",
+        "featureCount": 1,
+        "source": "GeoPackage 实时读取",
+        "isQueryable": true,
+        "isRenderable": false,
+        "status": "active"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "str",
+          "nullable": false,
+          "sampleValues": [
+            "A"
+          ],
+          "description": ""
+        },
+        {
+          "name": "lon",
+          "type": "str",
+          "nullable": false,
+          "sampleValues": [
+            "87.600"
+          ],
+          "description": ""
+        },
+        {
+          "name": "lat",
+          "type": "str",
+          "nullable": false,
+          "sampleValues": [
+            "43.800"
+          ],
+          "description": ""
+        }
+      ],
+      "featureCount": 1,
+      "geometryType": "Point",
+      "bounds": [
+        87.6,
+        43.8,
+        87.6,
+        43.8
+      ]
+    }
+  },
+  "POST /api/catalog/resources/{id}/query/": {
+    "200": {
+      "resourceId": "vector_survey_points_2026",
+      "resourceName": "survey_points_2026",
+      "totalCount": 3,
+      "returnedCount": 3,
+      "limit": 30000,
+      "fields": [
+        {
+          "name": "name",
+          "type": "str",
+          "nullable": false,
+          "sampleValues": [
+            "A"
+          ],
+          "description": ""
+        },
+        {
+          "name": "lon",
+          "type": "str",
+          "nullable": false,
+          "sampleValues": [
+            "87.600"
+          ],
+          "description": ""
+        },
+        {
+          "name": "lat",
+          "type": "str",
+          "nullable": false,
+          "sampleValues": [
+            "43.800"
+          ],
+          "description": ""
+        }
+      ],
+      "geojson": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                87.6,
+                43.8
+              ]
+            },
+            "properties": {
+              "id": 1,
+              "name": "TP-2026-001",
+              "health": "良好",
+              "dbh_cm": 32.5,
+              "canopy_m": 7.8
+            }
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                87.61532,
+                43.81245
+              ]
+            },
+            "properties": {
+              "id": 2,
+              "name": "TP-2026-002",
+              "health": "一般",
+              "dbh_cm": 28.1,
+              "canopy_m": 6.4
+            }
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                87.6428,
+                43.7951
+              ]
+            },
+            "properties": {
+              "id": 3,
+              "name": "TP-2026-003",
+              "health": "良好",
+              "dbh_cm": 35.7,
+              "canopy_m": 8.1
+            }
+          }
+        ]
+      },
+      "warnings": []
+    }
+  },
+  "POST /api/catalog/export/async/": {
+    "202": {
+      "id": "export-mock-20260614-001",
+      "kind": "export",
+      "status": "queued",
+      "progressPercent": 5,
+      "messages": [
+        "导出任务已提交",
+        "等待后台打包图层文件"
+      ],
+      "result": null,
+      "error": "",
+      "startedAt": 1781413200,
+      "finishedAt": null
+    }
+  },
+  "GET /api/layers/": {
+    "200": {
+      "items": [
+        {
+          "id": "vector_survey_points_2026",
+          "name": "survey_points_2026",
+          "code": "vector_survey_points_2026",
+          "dataType": "vector",
+          "layerType": "vector",
+          "geometryType": "point",
+          "bounds": [
+            87.6,
+            43.8,
+            87.6,
+            43.8
+          ],
+          "coordinateSystem": "EPSG:4326",
+          "featureCount": 1,
+          "source": "GeoPackage 实时读取",
+          "isQueryable": true,
+          "isRenderable": false,
+          "status": "active"
+        },
+        {
+          "id": 1,
+          "name": "Traim",
+          "code": "raster-91d2a5ecd116",
+          "layerType": "raster",
+          "geometryType": "mixed",
+          "category": null,
+          "dataResourceId": 1,
+          "sortOrder": 100,
+          "defaultVisible": false,
+          "defaultOpacity": 90,
+          "symbolization": {},
+          "bounds": [
+            88.3284339,
+            40.0791742,
+            88.4016422,
+            40.1608305
+          ],
+          "legend": "",
+          "rasterRules": {
+            "mode": "rgb",
+            "bands": [
+              1,
+              2,
+              3
+            ],
+            "stretch": {
+              "enabled": true,
+              "type": "minmax",
+              "perBand": {
+                "1": {
+                  "min": 0,
+                  "max": 74
+                },
+                "2": {
+                  "min": 0,
+                  "max": 83
+                },
+                "3": {
+                  "min": 0,
+                  "max": 93
+                },
+                "4": {
+                  "min": 0,
+                  "max": 106
+                },
+                "5": {
+                  "min": 0,
+                  "max": 112
+                },
+                "6": {
+                  "min": 0,
+                  "max": 108
+                },
+                "7": {
+                  "min": 0,
+                  "max": 117
+                },
+                "8": {
+                  "min": 0,
+                  "max": 92
+                }
+              }
+            },
+            "palette": "poplar",
+            "uniqueValues": [],
+            "alphaBand": "mask",
+            "nodata": {
+              "enabled": true
+            }
+          },
+          "isActive": true,
+          "updatedAt": "2026-06-07T11:34:08.123065+00:00"
+        },
+        {
+          "id": 2,
+          "name": "Traim_result",
+          "code": "raster-fa42b738b42f",
+          "layerType": "raster",
+          "geometryType": "mixed",
+          "category": null,
+          "dataResourceId": 2,
+          "sortOrder": 100,
+          "defaultVisible": false,
+          "defaultOpacity": 90,
+          "symbolization": {},
+          "bounds": [
+            88.3284339,
+            40.0791742,
+            88.4016422,
+            40.1608305
+          ],
+          "legend": "",
+          "rasterRules": {
+            "mode": "gray",
+            "bands": [
+              1
+            ],
+            "stretch": {
+              "enabled": true,
+              "type": "minmax",
+              "perBand": {
+                "1": {
+                  "min": 0,
+                  "max": 2
+                }
+              }
+            },
+            "palette": "poplar",
+            "uniqueValues": [],
+            "alphaBand": "mask",
+            "nodata": {
+              "enabled": true
+            }
+          },
+          "isActive": true,
+          "updatedAt": "2026-06-07T11:34:11.744219+00:00"
+        }
+      ]
+    }
+  },
+  "GET /api/layers/{layer_name}/features/": {
+    "200": {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "id": "0",
+          "type": "Feature",
+          "properties": {
+            "name": "A",
+            "lon": "87.600",
+            "lat": "43.800"
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              87.6,
+              43.8
+            ]
+          }
+        }
+      ],
+      "warnings": []
+    }
+  },
+  "GET /api/layers/{layer_name}/profile/": {
+    "200": {
+      "resource": {
+        "id": "vector_survey_points_2026",
+        "name": "survey_points_2026",
+        "code": "vector_survey_points_2026",
+        "dataType": "vector",
+        "layerType": "vector",
+        "geometryType": "point",
+        "bounds": [
+          87.6,
+          43.8,
+          87.6,
+          43.8
+        ],
+        "coordinateSystem": "EPSG:4326",
+        "featureCount": 1,
+        "source": "GeoPackage 实时读取",
+        "isQueryable": true,
+        "isRenderable": false,
+        "status": "active"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "str",
+          "nullable": false,
+          "sampleValues": [
+            "A"
+          ],
+          "description": ""
+        },
+        {
+          "name": "lon",
+          "type": "str",
+          "nullable": false,
+          "sampleValues": [
+            "87.600"
+          ],
+          "description": ""
+        },
+        {
+          "name": "lat",
+          "type": "str",
+          "nullable": false,
+          "sampleValues": [
+            "43.800"
+          ],
+          "description": ""
+        }
+      ],
+      "featureCount": 1,
+      "geometryType": "Point",
+      "bounds": [
+        87.6,
+        43.8,
+        87.6,
+        43.8
+      ]
+    }
+  },
+  "POST /api/layers/{layer_name}/query/": {
+    "200": {
+      "resourceId": "vector_survey_points_2026",
+      "resourceName": "survey_points_2026",
+      "totalCount": 3,
+      "returnedCount": 3,
+      "limit": 30000,
+      "fields": [
+        {
+          "name": "name",
+          "type": "str",
+          "nullable": false,
+          "sampleValues": [
+            "A"
+          ],
+          "description": ""
+        },
+        {
+          "name": "lon",
+          "type": "str",
+          "nullable": false,
+          "sampleValues": [
+            "87.600"
+          ],
+          "description": ""
+        },
+        {
+          "name": "lat",
+          "type": "str",
+          "nullable": false,
+          "sampleValues": [
+            "43.800"
+          ],
+          "description": ""
+        }
+      ],
+      "geojson": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                87.6,
+                43.8
+              ]
+            },
+            "properties": {
+              "id": 1,
+              "name": "TP-2026-001",
+              "health": "良好",
+              "dbh_cm": 32.5,
+              "canopy_m": 7.8
+            }
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                87.61532,
+                43.81245
+              ]
+            },
+            "properties": {
+              "id": 2,
+              "name": "TP-2026-002",
+              "health": "一般",
+              "dbh_cm": 28.1,
+              "canopy_m": 6.4
+            }
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                87.6428,
+                43.7951
+              ]
+            },
+            "properties": {
+              "id": 3,
+              "name": "TP-2026-003",
+              "health": "良好",
+              "dbh_cm": 35.7,
+              "canopy_m": 8.1
+            }
+          }
+        ]
+      },
+      "warnings": []
+    }
+  },
+  "GET /api/achievements/": {
+    "200": {
+      "items": [
+        {
+          "id": 1,
+          "title": "中亚胡杨林生态保护年度监测报告",
+          "code": "ACH-2026-REPORT",
+          "category": {
+            "id": 4,
+            "type": "achievement",
+            "code": "report",
+            "name": "研究报告"
+          },
+          "summary": "汇总 2026 年样地监测和遥感反演结果。",
+          "source": "生态监测组",
+          "relatedLayerId": 21,
+          "displayOrder": 1,
+          "status": "published",
+          "updatedAt": "2026-06-14T09:20:00+08:00"
+        }
+      ]
+    }
+  },
+  "GET /api/search/": {
+    "200": {
+      "resources": [
+        {
+          "id": 1,
+          "name": "Traim",
+          "code": "raster-91d2a5ecd116",
+          "dataType": "raster",
+          "category": null,
+          "source": "栅格导入",
+          "provider": "",
+          "dataDate": null,
+          "spatialExtent": "88.328434,40.079174,88.401642,40.160831",
+          "coordinateSystem": "EPSG:3857",
+          "fileFormat": "COG",
+          "description": "源文件：原始影像/Traim.tif",
+          "qualityNote": "导入时使用 gdalwarp 统一投影到 EPSG:3857 并输出 COG。",
+          "status": "active",
+          "isQueryable": false,
+          "isRenderable": true,
+          "updatedAt": "2026-06-07T11:34:08.121395+00:00"
+        },
+        {
+          "id": 2,
+          "name": "Traim_result",
+          "code": "raster-fa42b738b42f",
+          "dataType": "raster",
+          "category": null,
+          "source": "栅格导入",
+          "provider": "",
+          "dataDate": null,
+          "spatialExtent": "88.328434,40.079174,88.401642,40.160831",
+          "coordinateSystem": "EPSG:3857",
+          "fileFormat": "COG",
+          "description": "源文件：胡杨提取结果/Traim_result.tif",
+          "qualityNote": "导入时使用 gdalwarp 统一投影到 EPSG:3857 并输出 COG。",
+          "status": "active",
+          "isQueryable": false,
+          "isRenderable": true,
+          "updatedAt": "2026-06-07T11:34:11.743237+00:00"
+        },
+        {
+          "id": "vector_survey_points_2026",
+          "name": "survey_points_2026",
+          "code": "vector_survey_points_2026",
+          "dataType": "vector",
+          "layerType": "vector",
+          "geometryType": "point",
+          "bounds": [
+            87.6,
+            43.8,
+            87.6,
+            43.8
+          ],
+          "coordinateSystem": "EPSG:4326",
+          "featureCount": 1,
+          "source": "GeoPackage 实时读取",
+          "isQueryable": true,
+          "isRenderable": false,
+          "status": "active"
+        }
+      ],
+      "achievements": [
+        {
+          "id": 1,
+          "title": "中亚胡杨林生态保护年度监测报告",
+          "code": "ACH-2026-REPORT",
+          "category": {
+            "id": 4,
+            "type": "achievement",
+            "code": "report",
+            "name": "研究报告"
+          },
+          "summary": "汇总 2026 年样地监测和遥感反演结果。",
+          "source": "生态监测组",
+          "relatedLayerId": 21,
+          "displayOrder": 1,
+          "status": "published",
+          "updatedAt": "2026-06-14T09:20:00+08:00"
+        }
+      ]
+    }
+  },
+  "GET /api/catalog/export/jobs/{job_id}/download/": {
+    "409": {
+      "detail": "导出任务尚未完成"
+    }
+  }
+}

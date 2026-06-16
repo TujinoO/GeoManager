@@ -1,0 +1,245 @@
+{
+  "GET /api/bootstrap/": {
+    "200": {
+      "systemName": "中亚胡杨林生态系统保护数据共享平台",
+      "allowRegistration": true,
+      "map": {
+        "defaultCenter": [
+          80,
+          41.5
+        ],
+        "defaultZoom": 4.5,
+        "defaultBasemap": "osm",
+        "mapboxAccessToken": "pk.mock-mapbox-token"
+      },
+      "limits": {
+        "uploadMaxMb": 512,
+        "queryResultLimit": 30000
+      }
+    }
+  },
+  "GET /api/health/": {
+    "200": {
+      "status": "ok",
+      "configLoaded": true,
+      "configFormat": "toml",
+      "appSubdirs": [
+        "database",
+        "media",
+        "uploads",
+        "exports",
+        "logs",
+        "static",
+        "config"
+      ],
+      "researchSubdirs": [
+        "vector",
+        "raster/original",
+        "raster/preprocessed",
+        "raster/metadata/source",
+        "raster/metadata/preprocessed",
+        "gene",
+        "table"
+      ]
+    }
+  },
+  "GET /api/auth/csrf/": {
+    "200": {
+      "detail": "csrf cookie set"
+    }
+  },
+  "POST /api/auth/login/": {
+    "200": {
+      "user": {
+        "id": 1,
+        "username": "admin",
+        "displayName": "系统管理员",
+        "email": "admin@example.local",
+        "avatarUrl": "",
+        "department": "平台运维组",
+        "isStaff": false,
+        "isSuperuser": false,
+        "roles": [
+          "超级管理员"
+        ],
+        "permissions": {
+          "canAccessAdmin": true,
+          "canManageFeaturePermissions": true,
+          "canCreateUser": true,
+          "canViewOperationLogs": true,
+          "canViewAllOperationLogs": true,
+          "canViewOwnOperationLogs": true,
+          "canViewGroupOperationLogs": true,
+          "canManageSystemSettings": true,
+          "canManageAuth": true,
+          "canViewDashboardResourceCard": true,
+          "canViewDashboardLayerCard": true,
+          "canViewDashboardRasterCard": true,
+          "canViewDashboardUserCard": true,
+          "canViewDashboardActiveUsersCard": true,
+          "canViewDashboardSystemCard": true,
+          "canBrowseData": true,
+          "canQueryData": true,
+          "canLoadVectorLayer": true,
+          "canLoadRasterLayer": true,
+          "canUseCustomSymbolization": true,
+          "canExportData": true,
+          "canMaintainData": true,
+          "canManageRasterData": true
+        },
+        "groupIds": [
+          1
+        ],
+        "isActive": true,
+        "directPermissions": [],
+        "effectivePermissions": [
+          "core.manage_feature_permissions",
+          "core.create_user",
+          "core.view_operation_logs",
+          "core.view_all_operation_logs",
+          "core.view_own_operation_logs",
+          "core.view_group_operation_logs",
+          "core.manage_system_settings",
+          "core.manage_auth",
+          "core.view_dashboard_resource_card",
+          "core.view_dashboard_layer_card",
+          "core.view_dashboard_raster_card",
+          "core.view_dashboard_user_card",
+          "core.view_dashboard_active_users_card",
+          "core.view_dashboard_system_card",
+          "core.browse_data",
+          "core.query_data",
+          "core.load_vector_layer",
+          "core.load_raster_layer",
+          "core.custom_symbolization",
+          "catalog.export_dataresource",
+          "catalog.maintain_dataresource",
+          "raster.manage_rasterdataset"
+        ],
+        "operationLogGroupIds": [
+          1,
+          2
+        ]
+      }
+    }
+  },
+  "POST /api/auth/register/": {
+    "200": {
+      "detail": "用户注册成功",
+      "user": {
+        "id": 3,
+        "username": "researcher",
+        "displayName": "科研用户",
+        "email": "researcher@example.local",
+        "avatarUrl": "",
+        "department": "生态监测组",
+        "isStaff": false,
+        "isSuperuser": false,
+        "roles": [
+          "游客"
+        ],
+        "permissions": {
+          "canAccessAdmin": true,
+          "canManageFeaturePermissions": false,
+          "canCreateUser": false,
+          "canViewOperationLogs": false,
+          "canViewAllOperationLogs": false,
+          "canViewOwnOperationLogs": false,
+          "canViewGroupOperationLogs": false,
+          "canManageSystemSettings": false,
+          "canManageAuth": false,
+          "canViewDashboardResourceCard": false,
+          "canViewDashboardLayerCard": false,
+          "canViewDashboardRasterCard": false,
+          "canViewDashboardUserCard": false,
+          "canViewDashboardActiveUsersCard": false,
+          "canViewDashboardSystemCard": false,
+          "canBrowseData": true,
+          "canQueryData": true,
+          "canLoadVectorLayer": true,
+          "canLoadRasterLayer": true,
+          "canUseCustomSymbolization": false,
+          "canExportData": false,
+          "canMaintainData": false,
+          "canManageRasterData": false
+        },
+        "groupIds": [
+          2
+        ],
+        "isActive": true,
+        "directPermissions": [],
+        "effectivePermissions": [
+          "core.browse_data",
+          "core.query_data",
+          "core.load_vector_layer",
+          "core.load_raster_layer"
+        ],
+        "operationLogGroupIds": []
+      }
+    }
+  },
+  "POST /api/auth/logout/": {
+    "200": {
+      "detail": "已退出登录"
+    }
+  },
+  "GET /api/auth/me/": {
+    "200": {
+      "authenticated": true,
+      "user": {
+        "id": 1,
+        "username": "admin",
+        "displayName": "系统管理员",
+        "email": "admin@example.local",
+        "avatarUrl": "",
+        "department": "平台运维组",
+        "isStaff": false,
+        "isSuperuser": false,
+        "roles": [
+          "超级管理员"
+        ],
+        "permissions": {
+          "canAccessAdmin": true,
+          "canManageFeaturePermissions": true,
+          "canCreateUser": true,
+          "canViewOperationLogs": true,
+          "canViewAllOperationLogs": true,
+          "canViewOwnOperationLogs": true,
+          "canViewGroupOperationLogs": true,
+          "canManageSystemSettings": true,
+          "canManageAuth": true,
+          "canViewDashboardResourceCard": true,
+          "canViewDashboardLayerCard": true,
+          "canViewDashboardRasterCard": true,
+          "canViewDashboardUserCard": true,
+          "canViewDashboardActiveUsersCard": true,
+          "canViewDashboardSystemCard": true,
+          "canBrowseData": true,
+          "canQueryData": true,
+          "canLoadVectorLayer": true,
+          "canLoadRasterLayer": true,
+          "canUseCustomSymbolization": true,
+          "canExportData": true,
+          "canMaintainData": true,
+          "canManageRasterData": true
+        },
+        "groupIds": [
+          1
+        ],
+        "isActive": true,
+        "directPermissions": [],
+        "effectivePermissions": [
+          "core.manage_auth",
+          "core.browse_data",
+          "core.query_data",
+          "core.load_vector_layer",
+          "core.load_raster_layer"
+        ],
+        "operationLogGroupIds": [
+          1,
+          2
+        ]
+      }
+    }
+  }
+}
