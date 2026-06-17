@@ -103,8 +103,8 @@ frontend/src/
 ├── symbolization.ts            # 符号化类型、默认值、规则解析
 ├── styles.css                  # 全局样式
 ├── api/
-│   ├── client.ts               # openapi-fetch 客户端、CSRF、API 端点
-│   └── schema.d.ts             # openapi-typescript 自动生成的 API 契约类型
+│   ├── client.ts               # Hey API SDK 门面、CSRF、统一错误处理
+│   └── generated/              # @hey-api/openapi-ts 自动生成的类型、SDK 和 fetch client
 ├── pages/
 │   ├── LoginPage.tsx            # 登录页
 │   └── MapPage.tsx              # 地图工作台主页面（协调各组件）
@@ -139,9 +139,9 @@ frontend/src/
 - **WeakMap 替代属性挂载**：`mapState.ts` 用 `WeakMap<Map, MapInternalState>` 管理 Mapbox 实例的内部状态，避免在 map 对象上挂载自定义属性。
 - **Context 消除 props drilling**：`LayerContext` 提供图层组全部操作，`LayerPanel` 零 props 通过 `useLayerContext()` 消费。
 - **Discriminated union 类型安全**：`LoadedLayer = LoadedVectorLayer | LoadedRasterLayer`，通过 `layerType` 字段判别，编译期消除可选字段歧义。
-- **OpenAPI 契约驱动类型**：`frontend/src/api/schema.d.ts` 由 `docs/openapi.yaml` 通过 `openapi-typescript` 生成；`frontend/src/types.ts` 只保留前端运行态类型和少量 UI 扩展，后端 DTO 必须从生成 schema 派生。
-- **类型安全 API 请求**：`frontend/src/api/client.ts` 使用 `openapi-fetch` 的 `createClient<paths>()`，路径、路径参数、查询参数和 JSON 请求体必须来自 `docs/openapi.yaml`。表单上传和 ZIP 下载保留浏览器运行时处理，但仍通过 OpenAPI 路径和统一错误对象收敛。
-- **API 类型生成命令**：修改 `docs/openapi.yaml` 后运行 `pnpm run generate:api`，该命令先执行 Redocly lint 再生成 `schema.d.ts`；提交前运行 `pnpm run check:api` 确认 OpenAPI lint 通过且生成文件未漂移。
+- **OpenAPI 契约驱动类型**：`frontend/src/api/generated/` 由 `docs/openapi.yaml` 通过 `@hey-api/openapi-ts` 生成；`frontend/src/types.ts` 只保留前端运行态类型、少量 UI 扩展和对生成 DTO 的统一转出。
+- **类型安全 API 请求**：`frontend/src/api/client.ts` 调用 Hey API 生成的 SDK 函数，并集中处理 CSRF、中文错误、Blob 下载文件名和业务资源分支；路径、路径参数、查询参数和 JSON 请求体必须来自 `docs/openapi.yaml`。
+- **API 类型生成命令**：修改 `docs/openapi.yaml` 后运行 `pnpm run generate:api`，该命令先执行 Redocly lint 再生成 `src/api/generated/`；提交前运行 `pnpm run check:api` 确认 OpenAPI lint 通过且生成文件未漂移。
 - **API 文档生成命令**：运行 `pnpm run api:docs` 生成 Redoc HTML 文档，运行 `pnpm run api:bundle` 生成单文件 OpenAPI bundle，便于查阅和外部工具导入。
 
 ## 首批前端边界

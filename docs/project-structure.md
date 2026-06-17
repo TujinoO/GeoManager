@@ -21,7 +21,7 @@
 
 ## 前端目录
 
-- `frontend/src/api/`：OpenAPI 类型和统一 API 客户端。`schema.d.ts` 只能由生成命令更新。
+- `frontend/src/api/`：OpenAPI 生成 SDK、类型和统一 API 客户端。`generated/` 只能由生成命令更新。
 - `frontend/src/admin/`：管理后台页面、后台专用数据转换和后台测试。
 - `frontend/src/components/`：地图工作台通用组件和业务面板。
 - `frontend/src/hooks/`：React 状态和业务 hook，包括图层上下文、缓存恢复和栅格渲染调度。

@@ -1,4 +1,3 @@
-import createClient, { type Middleware } from "openapi-fetch";
 import type {
   Achievement,
   AdminDashboard,
@@ -51,7 +50,8 @@ import type {
   WorkspaceSceneUpdateRequest,
 } from "../types";
 import { isDataResource } from "../utils/resources";
-import type { paths } from "./schema";
+import { client as heyClient } from "./generated/client.gen";
+import * as sdk from "./generated/sdk.gen";
 
 interface ListResponse<T> {
   items: T[];
@@ -77,65 +77,54 @@ class ApiError extends Error {
   }
 }
 
-const client = createClient<paths>({
+heyClient.setConfig({
+  baseUrl: "",
   credentials: "include",
   fetch: (request) => fetch(request),
 });
 
-const csrfMiddleware: Middleware = {
-  onRequest({ request }) {
-    if (request.method !== "GET") {
-      request.headers.set("X-CSRFToken", getCookie("csrftoken") ?? "");
-    }
-    return request;
-  },
-};
+heyClient.interceptors.request.use((request) => {
+  if (request.method !== "GET") {
+    request.headers.set("X-CSRFToken", getCookie("csrftoken") ?? "");
+  }
+  return request;
+});
 
-client.use(csrfMiddleware);
-
-interface OpenApiResponse<T> {
+interface HeyApiResponse<T = unknown> {
   data?: T;
   error?: unknown;
-  response: Response;
+  response?: Response;
 }
 
-async function unwrap<T>(
-  request: Promise<OpenApiResponse<unknown>>,
-): Promise<T> {
+async function unwrap<T>(request: Promise<HeyApiResponse>): Promise<T> {
   const { data, error, response } = await request;
   if (error !== undefined) {
-    if (response.status === 403 && onForbiddenHandler) {
+    const status = response?.status ?? 0;
+    if (status === 403 && onForbiddenHandler) {
       onForbiddenHandler();
     }
-    throw new ApiError(
-      errorMessage(error, response.status),
-      response.status,
-      error,
-    );
+    throw new ApiError(errorMessage(error, status), status, error);
   }
   return data as T;
 }
 
 async function unwrapBlob(
-  request: Promise<OpenApiResponse<unknown>>,
+  request: Promise<HeyApiResponse>,
 ): Promise<{ blob: Blob; filename: string }> {
   const { data, error, response } = await request;
+  const status = response?.status ?? 0;
   if (error !== undefined) {
-    if (response.status === 403 && onForbiddenHandler) {
+    if (status === 403 && onForbiddenHandler) {
       onForbiddenHandler();
     }
-    throw new ApiError(
-      errorMessage(error, response.status),
-      response.status,
-      error,
-    );
+    throw new ApiError(errorMessage(error, status), status, error);
   }
   if (!(data instanceof Blob)) {
-    throw new ApiError("导出响应内容为空", response.status, data);
+    throw new ApiError("导出响应内容为空", status, data);
   }
   return {
     blob: data,
-    filename: filenameFromResponse(response),
+    filename: response ? filenameFromResponse(response) : "layers-export.zip",
   };
 }
 
@@ -146,7 +135,7 @@ function errorMessage(error: unknown, status: number) {
   if (isRecord(error) && typeof error.detail === "string") {
     return error.detail;
   }
-  return `请求失败：${status}`;
+  return status > 0 ? `请求失败：${status}` : "网络请求失败";
 }
 
 function readableErrorText(text: string, status: number) {
@@ -180,33 +169,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function importFileBody(file: File) {
-  return {
-    body: { file: file.name },
-    bodySerializer: () => {
-      const body = new FormData();
-      body.append("file", file);
-      return body;
-    },
-  };
-}
-
-function importFilePayloadBody(
-  file: File,
-  payload: ImportCommitPayload | ImportValidatePayload,
-) {
-  const serializedPayload = JSON.stringify(payload);
-  return {
-    body: { file: file.name, payload: serializedPayload },
-    bodySerializer: () => {
-      const body = new FormData();
-      body.append("file", file);
-      body.append("payload", serializedPayload);
-      return body;
-    },
-  };
-}
-
 function getCookie(name: string): string | null {
   const match = document.cookie
     .split("; ")
@@ -226,17 +188,14 @@ export function unregisterForbiddenHandler() {
 }
 
 export const api = {
-  bootstrap: () => unwrap<Bootstrap>(client.GET("/api/bootstrap/")),
-  csrf: () => unwrap<{ detail: string }>(client.GET("/api/auth/csrf/")),
-  me: () => unwrap<MeResponse>(client.GET("/api/auth/me/")),
+  bootstrap: () => unwrap<Bootstrap>(sdk.getBootstrap()),
+  csrf: () => unwrap<{ detail: string }>(sdk.getCsrfCookie()),
+  me: () => unwrap<MeResponse>(sdk.getCurrentUser()),
   login: (username: string, password: string, remember: boolean) =>
     unwrap<{ user: User }>(
-      client.POST("/api/auth/login/", {
-        body: { username, password, remember },
-      }),
+      sdk.login({ body: { username, password, remember } }),
     ),
-  guestLogin: () =>
-    unwrap<{ user: User }>(client.POST("/api/auth/guest-login/")),
+  guestLogin: () => unwrap<{ user: User }>(sdk.guestLogin()),
   register: (
     username: string,
     email: string,
@@ -244,217 +203,143 @@ export const api = {
     passwordConfirm: string,
   ) =>
     unwrap<{ user: User; detail: string }>(
-      client.POST("/api/auth/register/", {
+      sdk.register({
         body: { username, email, password, passwordConfirm },
       }),
     ),
-  logout: () => unwrap<{ detail: string }>(client.POST("/api/auth/logout/")),
-  adminProfile: () => unwrap<AdminProfile>(client.GET("/api/admin/profile/")),
+  logout: () => unwrap<{ detail: string }>(sdk.logout()),
+  adminProfile: () => unwrap<AdminProfile>(sdk.getAdminProfile()),
   updateAdminProfile: (payload: AdminProfileUpdate) =>
-    unwrap<AdminProfile>(
-      client.POST("/api/admin/profile/update/", {
-        body: payload,
-      }),
-    ),
+    unwrap<AdminProfile>(sdk.updateAdminProfile({ body: payload })),
   updateAdminProfilePermissions: (payload: AdminProfilePermissionsUpdate) =>
-    unwrap<AdminProfile>(
-      client.POST("/api/admin/profile/permissions/", {
-        body: payload,
-      }),
-    ),
+    unwrap<AdminProfile>(sdk.updateAdminProfilePermissions({ body: payload })),
   updateAdminProfilePassword: (payload: AdminProfilePasswordUpdate) =>
     unwrap<{ detail: string }>(
-      client.POST("/api/admin/profile/password/", {
-        body: payload,
-      }),
+      sdk.updateAdminProfilePassword({ body: payload }),
     ),
   adminOperationLogs: (filters: AdminOperationLogQuery = {}) =>
     unwrap<PaginatedListResponse<AdminOperationLog>>(
-      client.GET("/api/admin/operation-logs/", {
-        params: { query: filters },
-      }),
+      sdk.listAdminOperationLogs({ query: filters }),
     ),
   adminDashboard: (period: "day" | "week" | "month" = "day") =>
-    unwrap<AdminDashboard>(
-      client.GET("/api/admin/dashboard/", {
-        params: { query: { period } },
-      }),
-    ),
+    unwrap<AdminDashboard>(sdk.getAdminDashboard({ query: { period } })),
   adminDashboardServer: () =>
-    unwrap<AdminDashboardServer>(client.GET("/api/admin/dashboard/server/")),
-  adminUsers: () => unwrap<ListResponse<User>>(client.GET("/api/users/")),
+    unwrap<AdminDashboardServer>(sdk.getAdminDashboardServer()),
+  adminUsers: () => unwrap<ListResponse<User>>(sdk.listUsers()),
   createAdminUser: (payload: UserCreateRequest) =>
-    unwrap<UserCreateResponse>(
-      client.POST("/api/users/", {
-        body: payload,
-      }),
-    ),
+    unwrap<UserCreateResponse>(sdk.createUser({ body: payload })),
   updateAdminUserGroups: (userId: number, payload: UserGroupUpdateRequest) =>
-    unwrap<User>(
-      client.POST("/api/users/{userId}/groups/", {
-        params: { path: { userId } },
-        body: payload,
-      }),
-    ),
+    unwrap<User>(sdk.updateUserGroups({ path: { userId }, body: payload })),
   updateAdminUserPermissions: (
     userId: number,
     payload: UserPermissionUpdateRequest,
   ) =>
     unwrap<User>(
-      client.POST("/api/users/{userId}/permissions/", {
-        params: { path: { userId } },
-        body: payload,
-      }),
+      sdk.updateUserPermissions({ path: { userId }, body: payload }),
     ),
   updateAdminUser: (userId: number, payload: UserUpdateRequest) =>
-    unwrap<User>(
-      client.POST("/api/users/{userId}/", {
-        params: { path: { userId } },
-        body: payload,
-      }),
-    ),
+    unwrap<User>(sdk.updateUserOrDelete({ path: { userId }, body: payload })),
   resetAdminUserPassword: (userId: number) =>
     unwrap<UserPasswordResetResponse>(
-      client.POST("/api/users/{userId}/password/reset/", {
-        params: { path: { userId } },
-      }),
+      sdk.resetUserPassword({ path: { userId } }),
     ),
   deleteAdminUser: (userId: number) =>
     unwrap<{ detail: string }>(
-      client.POST("/api/users/{userId}/", {
-        params: { path: { userId } },
+      sdk.updateUserOrDelete({
+        path: { userId },
         body: { action: "delete" },
       }),
     ),
-  adminGroups: () => unwrap<GroupListResponse>(client.GET("/api/groups/")),
+  adminGroups: () => unwrap<GroupListResponse>(sdk.listGroups()),
   createAdminGroup: (payload: GroupCreateRequest) =>
-    unwrap<Group>(
-      client.POST("/api/groups/", {
-        body: payload,
-      }),
-    ),
+    unwrap<Group>(sdk.createGroup({ body: payload })),
   updateAdminGroup: (groupId: number, payload: GroupUpdateRequest) =>
     unwrap<Group>(
-      client.POST("/api/groups/{groupId}/", {
-        params: { path: { groupId } },
-        body: payload,
-      }),
+      sdk.updateOrDeleteGroup({ path: { groupId }, body: payload }),
     ),
   deleteAdminGroup: (groupId: number) =>
     unwrap<{ detail: string }>(
-      client.POST("/api/groups/{groupId}/", {
-        params: { path: { groupId } },
+      sdk.updateOrDeleteGroup({
+        path: { groupId },
         body: { action: "delete" },
       }),
     ),
-  adminSettings: () =>
-    unwrap<AdminSettings>(client.GET("/api/admin/settings/")),
+  adminSettings: () => unwrap<AdminSettings>(sdk.getAdminSettings()),
   updateAdminSettings: (payload: AdminSettingsUpdate) =>
-    unwrap<AdminSettings>(
-      client.POST("/api/admin/settings/", {
-        body: payload,
-      }),
-    ),
+    unwrap<AdminSettings>(sdk.updateAdminSettings({ body: payload })),
   adminDataResources: (filters: AdminDataResourceFilters = {}) =>
     unwrap<AdminDataResourceList>(
-      client.GET("/api/admin/data/resources/", {
-        params: { query: filters },
-      }),
+      sdk.listAdminDataResources({ query: filters }),
     ),
   updateAdminDataResource: (
     resourceId: number,
     payload: AdminDataResourceUpdate,
   ) =>
     unwrap<AdminDataResource | { detail: string }>(
-      client.POST("/api/admin/data/resources/{id}/", {
-        params: { path: { id: resourceId } },
+      sdk.updateAdminDataResource({
+        path: { id: resourceId },
         body: payload,
       }),
     ),
   exportAdminDataResources: (filters: AdminDataResourceExportFilters) =>
     unwrapBlob(
-      client.GET("/api/admin/data/resources/export/", {
-        params: { query: filters },
+      sdk.exportAdminDataResources({
+        query: filters,
         parseAs: "blob",
       }),
     ),
-  catalogs: () =>
-    unwrap<ListResponse<DataCatalog>>(client.GET("/api/catalog/directories/")),
+  catalogs: () => unwrap<ListResponse<DataCatalog>>(sdk.getDirectories()),
   resources: (filters: ResourceFilters = {}) =>
     unwrap<ListResponse<ResourceListItem>>(
-      client.GET("/api/catalog/resources/", {
-        params: { query: filters },
-      }),
+      sdk.getResources({ query: filters }),
     ),
   scanCatalogSources: () =>
     unwrap<ListResponse<ResourceListItem> & { count: number }>(
-      client.POST("/api/catalog/scan/"),
+      sdk.scanCatalogSources(),
     ),
   workspaces: (kind?: WorkspaceSceneKind) =>
     unwrap<ListResponse<WorkspaceScene>>(
-      client.GET("/api/catalog/workspaces/", {
-        params: { query: kind ? { kind } : {} },
-      }),
+      sdk.listCatalogWorkspaces({ query: kind ? { kind } : {} }),
     ),
   createWorkspace: (payload: WorkspaceSceneCreateRequest) =>
-    unwrap<WorkspaceScene>(
-      client.POST("/api/catalog/workspaces/", {
-        body: payload,
-      }),
-    ),
+    unwrap<WorkspaceScene>(sdk.createCatalogWorkspace({ body: payload })),
   workspace: (workspaceId: number) =>
-    unwrap<WorkspaceScene>(
-      client.GET("/api/catalog/workspaces/{workspaceId}/", {
-        params: { path: { workspaceId } },
-      }),
-    ),
+    unwrap<WorkspaceScene>(sdk.getCatalogWorkspace({ path: { workspaceId } })),
   updateWorkspace: (
     workspaceId: number,
     payload: WorkspaceSceneUpdateRequest,
   ) =>
     unwrap<WorkspaceScene | { detail: string }>(
-      client.POST("/api/catalog/workspaces/{workspaceId}/", {
-        params: { path: { workspaceId } },
+      sdk.updateCatalogWorkspace({
+        path: { workspaceId },
         body: payload,
       }),
     ),
   deleteWorkspace: (workspaceId: number) =>
     unwrap<{ detail: string }>(
-      client.POST("/api/catalog/workspaces/{workspaceId}/", {
-        params: { path: { workspaceId } },
+      sdk.updateCatalogWorkspace({
+        path: { workspaceId },
         body: { action: "delete" },
       }),
     ),
   importPreview: (file: File) =>
-    unwrap<ImportPreview>(
-      client.POST("/api/catalog/import/preview/", importFileBody(file)),
-    ),
+    unwrap<ImportPreview>(sdk.importPreview({ body: { file } })),
   importCommit: (file: File, payload: ImportCommitPayload) =>
     unwrap<ImportCommitResult>(
-      client.POST(
-        "/api/catalog/import/commit/",
-        importFilePayloadBody(file, payload),
-      ),
+      sdk.importCommit({ body: { file, payload: JSON.stringify(payload) } }),
     ),
   importValidate: (file: File, payload: ImportValidatePayload) =>
     unwrap<ImportValidateResult>(
-      client.POST(
-        "/api/catalog/import/validate/",
-        importFilePayloadBody(file, payload),
-      ),
+      sdk.importValidate({ body: { file, payload: JSON.stringify(payload) } }),
     ),
   resourceProfile: (resource: ResourceListItem) => {
     if (isDataResource(resource)) {
       return unwrap<DataResourceProfile>(
-        client.GET("/api/catalog/resources/{id}/profile/", {
-          params: { path: { id: resource.id } },
-        }),
+        sdk.getResourceProfile({ path: { id: resource.id } }),
       );
     }
     return unwrap<DataResourceProfile>(
-      client.GET("/api/layers/{layer_name}/profile/", {
-        params: { path: { layer_name: resource.name } },
-      }),
+      sdk.getLayerProfile({ path: { layer_name: resource.name } }),
     );
   },
   queryResource: (
@@ -463,83 +348,55 @@ export const api = {
   ) => {
     if (isDataResource(resource)) {
       return unwrap<ResourceQueryResult>(
-        client.POST("/api/catalog/resources/{id}/query/", {
-          params: { path: { id: resource.id } },
+        sdk.queryResource({
+          path: { id: resource.id },
           body: payload,
         }),
       );
     }
     return unwrap<ResourceQueryResult>(
-      client.POST("/api/layers/{layer_name}/query/", {
-        params: { path: { layer_name: resource.name } },
+      sdk.queryLayer({
+        path: { layer_name: resource.name },
         body: payload,
       }),
     );
   },
   exportLayers: (payload: ExportLayersPayload) =>
-    unwrapBlob(
-      client.POST("/api/catalog/export/", {
-        body: payload,
-        parseAs: "blob",
-      }),
-    ),
+    unwrapBlob(sdk.exportLayers({ body: payload, parseAs: "blob" })),
   exportLayersAsync: (payload: ExportLayersPayload) =>
-    unwrap<RasterJob>(
-      client.POST("/api/catalog/export/async/", {
-        body: payload,
-      }),
-    ),
+    unwrap<RasterJob>(sdk.exportLayersAsync({ body: payload })),
   downloadExport: (jobId: string) =>
     unwrapBlob(
-      client.GET("/api/catalog/export/jobs/{job_id}/download/", {
-        params: { path: { job_id: jobId } },
+      sdk.downloadExport({
+        path: { job_id: jobId },
         parseAs: "blob",
       }),
     ),
-  layers: () =>
-    unwrap<ListResponse<MapLayerListItem>>(client.GET("/api/layers/")),
-  achievements: () =>
-    unwrap<ListResponse<Achievement>>(client.GET("/api/achievements/")),
+  layers: () => unwrap<ListResponse<MapLayerListItem>>(sdk.getLayers()),
+  achievements: () => unwrap<ListResponse<Achievement>>(sdk.getAchievements()),
   search: (query: string) =>
-    unwrap<SearchResult>(
-      client.GET("/api/search/", {
-        params: { query: { q: query } },
-      }),
-    ),
+    unwrap<SearchResult>(sdk.search({ query: { q: query } })),
   renderRaster: (
     layerId: number,
     rulesMode: "default" | "custom" = "default",
     rules?: Record<string, unknown>,
   ) =>
     unwrap<RasterRenderResult>(
-      client.POST("/api/raster/render/", {
-        body: { layerId, rulesMode, rules },
-      }),
+      sdk.renderRaster({ body: { layerId, rulesMode, rules } }),
     ),
   renderRasterAsync: (payload: {
     layerId?: number | null;
     datasetId?: number | null;
     rules?: Record<string, unknown>;
     rulesMode?: "default" | "custom";
-  }) =>
-    unwrap<RasterJob>(
-      client.POST("/api/raster/render/async/", {
-        body: payload,
-      }),
-    ),
+  }) => unwrap<RasterJob>(sdk.renderRasterAsync({ body: payload })),
   rasterJob: (jobId: string) =>
-    unwrap<RasterJob>(
-      client.GET("/api/raster/jobs/{job_id}/", {
-        params: { path: { job_id: jobId } },
-      }),
-    ),
+    unwrap<RasterJob>(sdk.getJobStatus({ path: { job_id: jobId } })),
   classifyRasterUniqueValues: (datasetId: number, band: number) =>
     unwrap<RasterUniqueValuesResult>(
-      client.POST("/api/raster/unique-values/", {
-        body: { datasetId, band },
-      }),
+      sdk.getUniqueValues({ body: { datasetId, band } }),
     ),
-  scanRasterSources: () => unwrap<RasterJob>(client.POST("/api/raster/scan/")),
+  scanRasterSources: () => unwrap<RasterJob>(sdk.scanRasterSources()),
 };
 
 export { ApiError };
