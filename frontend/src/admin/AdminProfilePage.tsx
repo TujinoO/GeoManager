@@ -182,7 +182,7 @@ export default function AdminProfilePage() {
     }
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: antd Upload customRequest type
+  // oxlint-disable-next-line typescript/no-explicit-any -- antd Upload customRequest type
   const handleAvatarUpload = async (options: any) => {
     const { file, onSuccess, onError } = options;
     setAvatarUploading(true);

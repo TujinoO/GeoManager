@@ -46,7 +46,7 @@ export default defineConfig(({ mode }) => {
           entryFileNames: "assets/js/[name]-[hash].js",
           assetFileNames: (assetInfo) => {
             const info = assetInfo.name || "";
-            if (/\.css$/.test(info)) {
+            if (info.endsWith(".css")) {
               return "assets/css/[name]-[hash][extname]";
             }
             return "assets/[name]-[hash][extname]";

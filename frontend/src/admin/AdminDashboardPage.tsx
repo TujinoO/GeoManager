@@ -109,9 +109,9 @@ export default function AdminDashboardPage() {
   }, [dashboard]);
   const hasMetricCards = Boolean(
     dashboard?.cards.resources ||
-      dashboard?.cards.layers ||
-      dashboard?.cards.rasters ||
-      dashboard?.cards.dataOverview,
+    dashboard?.cards.layers ||
+    dashboard?.cards.rasters ||
+    dashboard?.cards.dataOverview,
   );
   const hasServerCards = Boolean(
     server?.cards.cpu || server?.cards.memory || server?.cards.disks,

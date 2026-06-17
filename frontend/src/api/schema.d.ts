@@ -630,7 +630,7 @@ export interface paths {
         put?: never;
         /**
          * 保存工程或专题
-         * @description 将当前工作台图层树、顺序、显隐、查询条件、范围、资源引用和可视化方案保存为当前用户私有工程或专题；不得提交原始 GeoJSON 要素集合或查询结果数据本体。
+         * @description 将当前工作台图层树、顺序、显隐、查询条件、范围、资源引用和可视化方案保存为当前用户私有工程或专题；不提交原始 GeoJSON 要素集合或查询结果数据本体。
          */
         post: operations["createCatalogWorkspace"];
         delete?: never;
