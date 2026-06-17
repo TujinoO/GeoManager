@@ -10,5 +10,10 @@
   "arrowParens": "always",
   "bracketSameLine": false,
   "bracketSpacing": true,
-  "ignorePatterns": ["dist/**", "generated/**", "src/api/schema.d.ts"]
+  "ignorePatterns": [
+    "dist/**",
+    "generated/**",
+    "src/api/generated/**",
+    "src/api/schema.d.ts"
+  ]
 }

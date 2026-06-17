@@ -335,7 +335,7 @@ flowchart TD
 
 5. 是否没有把栅格符号化、分类、重采样或 PNG 生成搬到前端。
 
-6. 是否没有手写重复后端 DTO，API 类型来自 frontend/src/api/schema.d.ts。
+6. 是否没有手写重复后端 DTO，API 类型来自 frontend/src/api/generated/。
 
 7. 如果涉及 API 变更，是否同步更新 docs/openapi.yaml、docs/developer-guide.md 和生成类型。
 

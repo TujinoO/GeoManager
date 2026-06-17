@@ -1,7 +1,12 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "unicorn", "oxc"],
-  "ignorePatterns": ["dist/**", "generated/**", "src/api/schema.d.ts"],
+  "ignorePatterns": [
+    "dist/**",
+    "generated/**",
+    "src/api/generated/**",
+    "src/api/schema.d.ts"
+  ],
   "categories": {
     "correctness": "error"
   },

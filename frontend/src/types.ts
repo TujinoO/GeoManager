@@ -1,78 +1,121 @@
-import type { components, operations } from "./api/schema";
+import type {
+  AdminDashboardResponse,
+  AdminDashboardServerResponse,
+  AdminDataResourceListResponse,
+  AdminDataResourceUpdateRequest,
+  AdminProfilePasswordRequest,
+  AdminProfilePermissionsRequest,
+  AdminProfileResponse,
+  AdminProfileUpdateRequest,
+  AdminSettingsResponse,
+  AdminSettingsUpdateRequest,
+  AsyncJobResponse,
+  BaseUserInfo,
+  BootstrapResponse,
+  CoordinateStats,
+  DataResource,
+  Directory,
+  ExportAdminDataResourcesData,
+  ExportItem,
+  ExportRequest,
+  FieldInfo,
+  AttributeFilter as GeneratedAttributeFilter,
+  GeoJsonFeatureCollection as GeneratedGeoJsonFeatureCollection,
+  SpatialFilter as GeneratedSpatialFilter,
+  WorkspaceSceneSnapshot as GeneratedWorkspaceSceneSnapshot,
+  GeoJsonGeometry,
+  ImportCommitResponse,
+  ImportPreviewResponse,
+  ImportValidateResponse,
+  LayerListResponse,
+  ListAdminDataResourcesData,
+  ListAdminOperationLogsData,
+  QueryRequest,
+  QueryResponse,
+  RasterBandInfo,
+  RasterDataset,
+  RasterRenderResult,
+  ResourceListItem,
+  ResourceProfileResponse,
+  SearchResponse,
+  UniqueValuesResponse,
+  UserInfo,
+  ValidationIssue,
+  ValidationWarning,
+  WorkspaceScene,
+} from "./api/generated";
+
+export type {
+  Achievement,
+  AdminDataResource,
+  AdminOperationLog,
+  AdminPermissionItem,
+  DataResource,
+  GeoJsonGeometry,
+  Group,
+  GroupCreateRequest,
+  GroupListResponse,
+  GroupUpdateRequest,
+  ImportDuplicateTarget,
+  RasterRenderResult,
+  ResourceListItem,
+  UserCreateRequest,
+  UserCreateResponse,
+  UserGroupUpdateRequest,
+  UserListResponse,
+  UserPasswordResetResponse,
+  UserPermissionUpdateRequest,
+  UserUpdateRequest,
+  WorkspaceScene,
+  WorkspaceSceneCreateRequest,
+  WorkspaceSceneUpdateRequest,
+} from "./api/generated";
+
 import type {
   GroupSymbolization,
   RasterSymbolization,
   VectorSymbolization,
 } from "./symbolization";
 
-type Schemas = components["schemas"];
-
-export type Bootstrap = Schemas["BootstrapResponse"];
-export type BaseUser = Schemas["BaseUserInfo"];
-export type User = Schemas["UserInfo"];
-export type UserCreateRequest = Schemas["UserCreateRequest"];
-export type UserCreateResponse = Schemas["UserCreateResponse"];
-export type UserPasswordResetResponse = Schemas["UserPasswordResetResponse"];
-export type UserListResponse = Schemas["UserListResponse"];
-export type UserGroupUpdateRequest = Schemas["UserGroupUpdateRequest"];
-export type UserPermissionUpdateRequest =
-  Schemas["UserPermissionUpdateRequest"];
-export type UserUpdateRequest = Schemas["UserUpdateRequest"];
-export type Group = Schemas["Group"];
-export type GroupListResponse = Schemas["GroupListResponse"];
-export type GroupCreateRequest = Schemas["GroupCreateRequest"];
-export type GroupUpdateRequest = Schemas["GroupUpdateRequest"];
-export type AdminProfile = Schemas["AdminProfileResponse"];
-export type AdminProfileUpdate = Schemas["AdminProfileUpdateRequest"];
-export type AdminProfilePermissionsUpdate =
-  Schemas["AdminProfilePermissionsRequest"];
-export type AdminProfilePasswordUpdate = Schemas["AdminProfilePasswordRequest"];
-export type AdminPermissionItem = Schemas["AdminPermissionItem"];
-export type AdminOperationLog = Schemas["AdminOperationLog"];
+export type Bootstrap = BootstrapResponse;
+export type BaseUser = BaseUserInfo;
+export type User = UserInfo;
+export type AdminProfile = AdminProfileResponse;
+export type AdminProfileUpdate = AdminProfileUpdateRequest;
+export type AdminProfilePermissionsUpdate = AdminProfilePermissionsRequest;
+export type AdminProfilePasswordUpdate = AdminProfilePasswordRequest;
 export type AdminOperationLogQuery = NonNullable<
-  operations["listAdminOperationLogs"]["parameters"]["query"]
+  ListAdminOperationLogsData["query"]
 >;
-export type AdminDashboard = Schemas["AdminDashboardResponse"];
-export type AdminDashboardServer = Schemas["AdminDashboardServerResponse"];
-export type AdminSettings = Schemas["AdminSettingsResponse"];
-export type AdminSettingsUpdate = Schemas["AdminSettingsUpdateRequest"];
-export type AdminDataResource = Schemas["AdminDataResource"];
-export type AdminDataResourceList = Schemas["AdminDataResourceListResponse"];
-export type AdminDataResourceUpdate = Schemas["AdminDataResourceUpdateRequest"];
+export type AdminDashboard = AdminDashboardResponse;
+export type AdminDashboardServer = AdminDashboardServerResponse;
+export type AdminSettings = AdminSettingsResponse;
+export type AdminSettingsUpdate = AdminSettingsUpdateRequest;
+export type AdminDataResourceList = AdminDataResourceListResponse;
+export type AdminDataResourceUpdate = AdminDataResourceUpdateRequest;
 export type AdminDataResourceFilters = NonNullable<
-  operations["listAdminDataResources"]["parameters"]["query"]
+  ListAdminDataResourcesData["query"]
 >;
 export type AdminDataResourceExportFilters = NonNullable<
-  operations["exportAdminDataResources"]["parameters"]["query"]
+  ExportAdminDataResourcesData["query"]
 >;
-export type DataResource = Schemas["DataResource"];
-export type ResourceListItem = Schemas["ResourceListItem"];
-export type ResourceField = Schemas["FieldInfo"];
-export type ImportCoordinateStats = Schemas["CoordinateStats"];
-export type ImportValidationIssue = Schemas["ValidationIssue"];
-export type ImportDuplicateTarget = Schemas["ImportDuplicateTarget"];
-export type ImportPreview = Schemas["ImportPreviewResponse"];
-export type ImportValidateResult = Schemas["ImportValidateResponse"];
-export type ImportCommitResult = Schemas["ImportCommitResponse"];
-export type RasterBandMetadata = Schemas["RasterBandInfo"];
-type RasterDatasetProfile = Schemas["RasterDataset"];
-export type GeoJsonGeometry = Schemas["GeoJSONGeometry"];
-export type GeoJsonValidationWarning = Schemas["ValidationWarning"];
-export type ResourceQueryResult = Schemas["QueryResponse"];
-export type ExportLayerItem = Schemas["ExportItem"];
-export type ExportLayersPayload = Schemas["ExportRequest"];
-export type DataCatalog = Schemas["Directory"];
-export type MapLayerListItem = Schemas["LayerListResponse"]["items"][number];
-export type RasterRenderResult = Schemas["RasterRenderResult"];
-export type RasterUniqueValuesResult = Schemas["UniqueValuesResponse"];
-export type RasterJob = Schemas["AsyncJobResponse"];
-export type Achievement = Schemas["Achievement"];
-export type SearchResult = Schemas["SearchResponse"];
-export type WorkspaceScene = Schemas["WorkspaceScene"];
-export type WorkspaceSceneCreateRequest =
-  Schemas["WorkspaceSceneCreateRequest"];
-export type WorkspaceSceneUpdateRequest =
-  Schemas["WorkspaceSceneUpdateRequest"];
+export type ResourceField = FieldInfo;
+export type ImportCoordinateStats = CoordinateStats;
+export type ImportValidationIssue = ValidationIssue;
+export type ImportPreview = ImportPreviewResponse;
+export type ImportValidateResult = ImportValidateResponse;
+export type ImportCommitResult = ImportCommitResponse;
+export type RasterBandMetadata = RasterBandInfo;
+type RasterDatasetProfile = RasterDataset;
+export type GeoJsonValidationWarning = ValidationWarning;
+export type ResourceQueryResult = QueryResponse;
+export type ExportLayerItem = ExportItem;
+export type ExportLayersPayload = ExportRequest;
+export type DataCatalog = Directory;
+export type MapLayerListItem = LayerListResponse["items"][number];
+export type RasterUniqueValuesResult = UniqueValuesResponse;
+export type RasterJob = AsyncJobResponse;
+export type SearchResult = SearchResponse;
 export type WorkspaceSceneKind = WorkspaceScene["kind"];
 export type SavedWorkspaceLayer = {
   id: string;
@@ -101,7 +144,7 @@ export type SavedWorkspaceLayer = {
 export type SavedWorkspaceLayerGroup = Omit<LoadedLayerGroup, "children"> & {
   children: SavedWorkspaceLayer[];
 };
-export type WorkspaceSceneSnapshot = Schemas["WorkspaceSceneSnapshot"] & {
+export type WorkspaceSceneSnapshot = GeneratedWorkspaceSceneSnapshot & {
   version?: number;
   groups?: SavedWorkspaceLayerGroup[] | LoadedLayerGroup[];
   selectedLayerId?: string | null;
@@ -109,7 +152,7 @@ export type WorkspaceSceneSnapshot = Schemas["WorkspaceSceneSnapshot"] & {
   savedAt?: string;
 };
 
-export type DataResourceProfile = Schemas["ResourceProfileResponse"];
+export type DataResourceProfile = ResourceProfileResponse;
 
 export interface ImportCommitPayload {
   name: string;
@@ -130,23 +173,23 @@ export interface ImportValidatePayload {
   latitudeColumn?: string;
 }
 
-export type AttributeFilter = Schemas["AttributeFilter"] & {
+export type AttributeFilter = GeneratedAttributeFilter & {
   id: string;
 };
 
-export type SpatialFilter = Schemas["SpatialFilter"] & {
+export type SpatialFilter = GeneratedSpatialFilter & {
   geometry: GeoJsonGeometry;
 };
 
 export type ResourceQueryPayload = Omit<
-  Schemas["QueryRequest"],
+  QueryRequest,
   "attributeFilters" | "spatialFilter"
 > & {
   attributeFilters: AttributeFilter[];
   spatialFilter: SpatialFilter | null;
 };
 
-export type GeoJsonFeatureCollection = Schemas["GeoJSONFeatureCollection"] & {
+export type GeoJsonFeatureCollection = GeneratedGeoJsonFeatureCollection & {
   warnings?: GeoJsonValidationWarning[];
 };
 
@@ -219,7 +262,7 @@ export interface LoadedLayerGroup {
 }
 
 export type ResourceFilters = NonNullable<
-  operations["getResources"]["parameters"]["query"]
+  import("./api/generated").GetResourcesData["query"]
 >;
 
 export interface LoginFormValues {
