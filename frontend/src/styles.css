@@ -2701,6 +2701,13 @@ body {
   grid-template-columns: minmax(0, 1fr) minmax(116px, 1.35fr);
 }
 
+.attribute-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
 .resource-list,
 .field-list {
   max-height: 220px;

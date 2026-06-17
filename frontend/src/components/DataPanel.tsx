@@ -23,7 +23,6 @@ import type {
   DataResourceProfile,
   ResourceFilters,
   ResourceListItem,
-  ResourceQueryResult,
   User,
 } from "../types";
 import {
@@ -38,7 +37,6 @@ interface Props {
   resources: ResourceListItem[];
   profile: DataResourceProfile | null;
   selectedResourceId: ResourceListItem["id"] | null;
-  queryResult: ResourceQueryResult | null;
   loadingProfile: boolean;
   querying: boolean;
   permissions: User["permissions"];
@@ -65,7 +63,6 @@ export default function DataPanel({
   resources,
   profile,
   selectedResourceId,
-  queryResult,
   loadingProfile,
   querying,
   permissions,
@@ -352,13 +349,25 @@ export default function DataPanel({
                 onChange={(event) => setValueTo(event.target.value)}
               />
             )}
-            <Button
-              icon={<PlusOutlined style={{ fontSize: 15 }} />}
-              disabled={!field || !value.trim()}
-              onClick={addAttributeFilter}
-            >
-              添加属性条件
-            </Button>
+            <div className="attribute-action-row">
+              <Button
+                icon={<PlusOutlined style={{ fontSize: 15 }} />}
+                disabled={!field || !value.trim()}
+                onClick={addAttributeFilter}
+              >
+                添加属性条件
+              </Button>
+              {canQueryAndLoadVector && (
+                <Button
+                  type="primary"
+                  loading={querying}
+                  disabled={!profile}
+                  onClick={() => onQueryAndLoad(attributeFilters)}
+                >
+                  查询并加载
+                </Button>
+              )}
+            </div>
           </Space>
           <Space wrap className="filter-tags">
             {attributeFilters.map((item) => (
@@ -375,35 +384,16 @@ export default function DataPanel({
         </>
       )}
 
-      <div className="query-footer">
-        {selectedIsRaster
-          ? permissions.canLoadRasterLayer && (
-              <Button
-                type="primary"
-                disabled={!profile?.raster}
-                onClick={onLoadRaster}
-              >
-                加载栅格
-              </Button>
-            )
-          : canQueryAndLoadVector && (
-              <Button
-                type="primary"
-                loading={querying}
-                disabled={!profile}
-                onClick={() => onQueryAndLoad(attributeFilters)}
-              >
-                查询并加载
-              </Button>
-            )}
-      </div>
-      {queryResult && (
-        <Alert
-          className="inline-alert"
-          type="success"
-          showIcon
-          title={`查询命中 ${queryResult.totalCount} 条，返回 ${queryResult.returnedCount} 条`}
-        />
+      {selectedIsRaster && permissions.canLoadRasterLayer && (
+        <div className="query-footer">
+          <Button
+            type="primary"
+            disabled={!profile?.raster}
+            onClick={onLoadRaster}
+          >
+            加载栅格
+          </Button>
+        </div>
       )}
     </section>
   );

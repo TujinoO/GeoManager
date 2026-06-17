@@ -61,7 +61,6 @@ import type {
   MapViewState,
   ResourceFilters,
   ResourceListItem,
-  ResourceQueryResult,
   SavedWorkspaceLayer,
   SavedWorkspaceLayerGroup,
   SpatialFilter,
@@ -126,9 +125,6 @@ export default function MapPage() {
     useState<ResourceListItem | null>(null);
   const [resourceProfile, setResourceProfile] =
     useState<DataResourceProfile | null>(null);
-  const [queryResult, setQueryResult] = useState<ResourceQueryResult | null>(
-    null,
-  );
   const [spatialFilter, setSpatialFilter] = useState<SpatialFilter | null>(
     null,
   );
@@ -305,7 +301,6 @@ export default function MapPage() {
 
   async function fetchResourceProfile(resource: ResourceListItem) {
     setSelectedResource(resource);
-    setQueryResult(null);
     setLoadingProfile(true);
     try {
       const profile = await api.resourceProfile(resource);
@@ -357,8 +352,6 @@ export default function MapPage() {
       attributeFilters,
       {
         spatialFilter,
-        successMessage: "查询并加载完成",
-        emptyMessage: "查询完成",
         errorMessage: "查询并加载失败",
       },
     );
@@ -376,8 +369,6 @@ export default function MapPage() {
     if (resource.isQueryable) {
       await loadVectorResource(resource, profile, [], {
         spatialFilter: null,
-        successMessage: "快速加载完成",
-        emptyMessage: "快速加载完成",
         errorMessage: "快速加载失败",
       });
     }
@@ -424,8 +415,6 @@ export default function MapPage() {
     attributeFilters: AttributeFilter[],
     options: {
       spatialFilter: SpatialFilter | null;
-      successMessage: string;
-      emptyMessage: string;
       errorMessage: string;
     },
   ) {
@@ -440,12 +429,10 @@ export default function MapPage() {
         spatialFilter: options.spatialFilter,
         limit: bootstrap.limits.queryResultLimit,
       });
-      setQueryResult(result);
       showGeojsonWarnings(notification, result.warnings);
+      const resultMessage = `查询命中 ${result.totalCount} 条，返回 ${result.returnedCount} 条`;
       if (result.returnedCount === 0) {
-        message.warning(
-          `${options.emptyMessage}：返回 ${result.returnedCount} 条`,
-        );
+        message.warning(resultMessage);
         return;
       }
       const group = createVectorLayerGroup(resource, profile, result, {
@@ -455,9 +442,7 @@ export default function MapPage() {
       layerGroups.addGroup(group);
       setSelectedLayerId(group.children[0]?.id ?? null);
       setDataPanelOpen(false);
-      message.success(
-        `${options.successMessage}：返回 ${result.returnedCount} 条`,
-      );
+      message.success(resultMessage);
     } catch (error) {
       message.error(
         error instanceof Error ? error.message : options.errorMessage,
@@ -1010,7 +995,6 @@ export default function MapPage() {
       resources={resources}
       profile={resourceProfile}
       selectedResourceId={selectedResource?.id ?? null}
-      queryResult={queryResult}
       loadingProfile={loadingProfile}
       querying={querying}
       permissions={permissions}
