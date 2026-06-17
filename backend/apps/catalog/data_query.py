@@ -55,14 +55,7 @@ def get_resource_profile(resource: DataResource) -> ResourceProfile:
         )
     gdf = read_vector_resource(resource)
 
-    field_metadata: dict[str, str] = {}
-    try:
-        layer_name = validate_vector_layer_name(resource.storage_path)
-        path = vector_geopackage_path()
-        if path.exists():
-            field_metadata = read_field_metadata(path, layer_name)
-    except Exception:
-        pass
+    field_metadata = field_metadata_for_layer(resource.storage_path)
 
     return ResourceProfile(
         fields=field_profiles(gdf, field_metadata),
@@ -87,13 +80,7 @@ def get_vector_resource_profile(
 
     gdf = read_vector_layer(layer_name)
 
-    field_metadata: dict[str, str] = {}
-    try:
-        path = vector_geopackage_path()
-        if path.exists():
-            field_metadata = read_field_metadata(path, layer_name)
-    except Exception:
-        pass
+    field_metadata = field_metadata_for_layer(layer_name)
 
     return ResourceProfile(
         fields=field_profiles(gdf, field_metadata),
@@ -113,15 +100,9 @@ def query_resource(resource: DataResource, payload: dict[str, Any]) -> dict[str,
     gdf = apply_spatial_filter(gdf, payload.get("spatialFilter"))
     gdf = apply_attribute_filters(gdf, payload.get("attributeFilters") or [])
 
-    field_metadata: dict[str, str] = {}
-    try:
-        if resource.storage_path:
-            layer_name = validate_vector_layer_name(resource.storage_path)
-            path = vector_geopackage_path()
-            if path.exists():
-                field_metadata = read_field_metadata(path, layer_name)
-    except Exception:
-        pass
+    field_metadata = (
+        field_metadata_for_layer(resource.storage_path) if resource.storage_path else {}
+    )
 
     limit = _limit(payload.get("limit"))
     total_count = len(gdf)
@@ -159,13 +140,7 @@ def query_vector_resource(
     gdf = apply_spatial_filter(gdf, payload.get("spatialFilter"))
     gdf = apply_attribute_filters(gdf, payload.get("attributeFilters") or [])
 
-    field_metadata: dict[str, str] = {}
-    try:
-        path = vector_geopackage_path()
-        if path.exists():
-            field_metadata = read_field_metadata(path, layer_name)
-    except Exception:
-        pass
+    field_metadata = field_metadata_for_layer(layer_name)
 
     limit = _limit(payload.get("limit"))
     total_count = len(gdf)
@@ -242,9 +217,22 @@ def read_field_metadata(path: Path, table_name: str) -> dict[str, str]:
             for column_name, description in cursor.fetchall():
                 if description:
                     metadata[column_name] = description
-    except Exception:
-        pass
+    except sqlite3.OperationalError as exc:
+        if "no such table: gpkg_data_columns" in str(exc):
+            return metadata
+        raise DataQueryError(f"读取 GeoPackage 字段元数据失败：{table_name}") from exc
     return metadata
+
+
+def field_metadata_for_layer(layer_name: str) -> dict[str, str]:
+    try:
+        validated_name = validate_vector_layer_name(layer_name)
+        path = vector_geopackage_path()
+    except StoragePathError as exc:
+        raise DataQueryError(str(exc)) from exc
+    if not path.exists():
+        return {}
+    return read_field_metadata(path, validated_name)
 
 
 def field_profiles(

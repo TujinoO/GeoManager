@@ -548,6 +548,7 @@ describe("admin routes", () => {
       id: 2,
       name: "超级管理员",
       userCount: 1,
+      lockedPermissions: ["core.manage_auth"],
     };
     const researcher = {
       ...adminApiUser,
@@ -598,7 +599,7 @@ describe("admin routes", () => {
       superadminGroupItems[superadminGroupItems.length - 1];
     expect(superadminGroupItem).toHaveAttribute("aria-disabled", "true");
     expect(
-      within(superadminGroupItem).getByTitle("不能修改超级管理员的用户组"),
+      within(superadminGroupItem).getByTitle("不能修改系统锁定用户组"),
     ).toBeInTheDocument();
   }, 30000);
 

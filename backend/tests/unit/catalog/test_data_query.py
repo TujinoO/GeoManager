@@ -1,17 +1,23 @@
+from datetime import date, datetime
+from pathlib import Path
+import sqlite3
+import tempfile
+from unittest.mock import patch
+
 from django.test import SimpleTestCase
+import numpy as np
+import pandas as pd
 
 from apps.catalog.data_query import (
+    DataQueryError,
     _coerce_value,
     _json_value,
     _limit,
     geometry_type,
     normalize_for_geojson,
+    read_field_metadata,
 )
 from apps.catalog.geojson_validation import validate_geojson_geometries
-from unittest.mock import patch
-import pandas as pd
-import numpy as np
-from datetime import datetime, date
 
 
 class GeometryTypeTests(SimpleTestCase):
@@ -56,6 +62,42 @@ class LimitTests(SimpleTestCase):
     def test_returns_valid_limit(self, mock_settings):
         mock_settings.PROJECT_CONFIG.limits.query_result_limit = 30000
         self.assertEqual(_limit(100), 100)
+
+
+class FieldMetadataTests(SimpleTestCase):
+    def test_missing_gpkg_data_columns_returns_empty_metadata(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "vector.gpkg"
+            with sqlite3.connect(path):
+                pass
+
+            self.assertEqual(read_field_metadata(path, "sample_layer"), {})
+
+    def test_invalid_gpkg_data_columns_schema_raises_query_error(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "vector.gpkg"
+            with sqlite3.connect(path) as connection:
+                connection.execute("CREATE TABLE gpkg_data_columns (broken TEXT)")
+
+            with self.assertRaises(DataQueryError):
+                read_field_metadata(path, "sample_layer")
+
+    def test_reads_field_descriptions(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "vector.gpkg"
+            with sqlite3.connect(path) as connection:
+                connection.execute(
+                    "CREATE TABLE gpkg_data_columns (table_name TEXT, column_name TEXT, description TEXT)"
+                )
+                connection.execute(
+                    "INSERT INTO gpkg_data_columns VALUES (?, ?, ?)",
+                    ("sample_layer", "height", "树高"),
+                )
+
+            self.assertEqual(
+                read_field_metadata(path, "sample_layer"),
+                {"height": "树高"},
+            )
 
 
 class CoerceValueTests(SimpleTestCase):

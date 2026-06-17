@@ -184,7 +184,7 @@ class SuperadminInitializationTests(TestCase):
         self.assertEqual(group_permissions, guest_group_permissions())
         self.assertNotIn("core.upload_data", group_permissions)
 
-    def test_ensure_superadmin_defaults_restores_guest_group_default_permissions(
+    def test_ensure_superadmin_defaults_preserves_guest_group_custom_permissions(
         self,
     ):
         ensure_superadmin_defaults(create_account=False)
@@ -204,7 +204,7 @@ class SuperadminInitializationTests(TestCase):
             f"{permission.content_type.app_label}.{permission.codename}"
             for permission in group.permissions.select_related("content_type")
         }
-        self.assertEqual(group_permissions, guest_group_permissions())
+        self.assertEqual(group_permissions, {"core.query_data"})
 
     def test_existing_superuser_is_attached_to_superadmin_group(self):
         user = get_user_model().objects.create_superuser(

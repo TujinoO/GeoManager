@@ -40,8 +40,10 @@ from apps.core.config import (
 from apps.core.initialization import (
     GUEST_GROUP_NAME,
     SUPERADMIN_GROUP_NAME,
+    DEFAULT_USER_GROUP_NAME,
     ensure_guest_user,
     ensure_superadmin_defaults,
+    is_default_user_group,
     is_guest_group,
     is_guest_user,
     is_initial_superadmin_user,
@@ -152,9 +154,9 @@ def upload_avatar(request):
     file_data = avatar_file.read()
 
     # 压缩图片至合适尺寸
-    try:
-        from PIL import Image
+    from PIL import Image, UnidentifiedImageError
 
+    try:
         image = Image.open(io.BytesIO(file_data))
         # 转换为RGB模式（如果是RGBA）
         if image.mode in ("RGBA", "LA"):
@@ -173,12 +175,8 @@ def upload_avatar(request):
         image.save(output, format="JPEG", quality=85)
         file_data = output.getvalue()
         content_type = "image/jpeg"
-    except ImportError:
-        # 如果没有PIL，直接使用原始数据
-        content_type = avatar_file.content_type
-    except Exception:
-        # 如果图片处理失败，使用原始数据
-        content_type = avatar_file.content_type
+    except (UnidentifiedImageError, OSError):
+        return JsonResponse({"detail": "头像文件不是有效图片"}, status=400)
 
     # 保存到数据库
     user = request.user
@@ -250,7 +248,7 @@ def update_admin_profile_permissions(request):
     locked_permissions = superadmin_group_locked_permissions()
     if is_superadmin_user(request.user) and disabled_set & locked_permissions:
         return JsonResponse(
-            {"detail": "超级管理员不能关闭系统锁定权限"},
+            {"detail": f"{SUPERADMIN_GROUP_NAME}不能关闭系统锁定权限"},
             status=400,
         )
 
@@ -385,7 +383,11 @@ def group_detail(request, group_id: int):
 
     # 检查是否是删除操作
     if payload.get("action") == "delete":
-        if is_superadmin_group(group) or is_guest_group(group):
+        if (
+            is_superadmin_group(group)
+            or is_default_user_group(group)
+            or is_guest_group(group)
+        ):
             return JsonResponse({"detail": "系统内置用户组不能删除"}, status=400)
         if group.user_set.exists():
             return JsonResponse({"detail": "用户组仍有关联用户，不能删除"}, status=400)
@@ -405,12 +407,17 @@ def group_detail(request, group_id: int):
             return name
         if is_superadmin_group(group) and name != SUPERADMIN_GROUP_NAME:
             return JsonResponse(
-                {"detail": "超级管理员用户组名称不能修改"},
+                {"detail": f"{SUPERADMIN_GROUP_NAME}用户组名称不能修改"},
+                status=400,
+            )
+        if is_default_user_group(group) and name != DEFAULT_USER_GROUP_NAME:
+            return JsonResponse(
+                {"detail": f"{DEFAULT_USER_GROUP_NAME}用户组名称不能修改"},
                 status=400,
             )
         if is_guest_group(group) and name != GUEST_GROUP_NAME:
             return JsonResponse(
-                {"detail": "游客用户组名称不能修改"},
+                {"detail": f"{GUEST_GROUP_NAME}用户组名称不能修改"},
                 status=400,
             )
         group.name = name
@@ -422,11 +429,11 @@ def group_detail(request, group_id: int):
             locked = superadmin_group_locked_permissions()
             if locked - set(permissions):
                 return JsonResponse(
-                    {"detail": "超级管理员用户组必须保留系统锁定权限"},
+                    {"detail": f"{SUPERADMIN_GROUP_NAME}用户组必须保留系统锁定权限"},
                     status=400,
                 )
             permissions = protected_group_permissions()
-        if is_guest_group(group):
+        if is_default_user_group(group) or is_guest_group(group):
             permissions = sorted(set(permissions))
         _set_group_feature_permissions(group, permissions)
     try:
@@ -494,7 +501,9 @@ def user_detail(request, user_id: int):
         if is_initial_superadmin_user(user):
             return JsonResponse({"detail": "初始化管理员不能删除"}, status=400)
         if is_guest_user(user):
-            return JsonResponse({"detail": "游客账号不能删除"}, status=400)
+            return JsonResponse(
+                {"detail": f"{GUEST_GROUP_NAME}账号不能删除"}, status=400
+            )
         username = user.get_username()
         user.delete()
         log_operation(
@@ -518,7 +527,7 @@ def user_detail(request, user_id: int):
     if not is_active and is_initial_superadmin_user(user):
         return JsonResponse({"detail": "初始化管理员不能停用"}, status=400)
     if not is_active and is_guest_user(user):
-        return JsonResponse({"detail": "游客账号不能停用"}, status=400)
+        return JsonResponse({"detail": f"{GUEST_GROUP_NAME}账号不能停用"}, status=400)
     user.is_active = is_active
     user.save(update_fields=["is_active"])
     log_operation(
@@ -543,7 +552,9 @@ def reset_user_password(request, user_id: int):
     if user.pk == request.user.pk:
         return JsonResponse({"detail": "不能重置当前登录用户密码"}, status=400)
     if is_guest_user(user):
-        return JsonResponse({"detail": "游客账号不能重置密码"}, status=400)
+        return JsonResponse(
+            {"detail": f"{GUEST_GROUP_NAME}账号不能重置密码"}, status=400
+        )
 
     password = generate_password()
     user.set_password(password)
@@ -579,9 +590,13 @@ def update_user_groups(request, user_id: int):
     if user.pk == request.user.pk:
         return JsonResponse({"detail": "不能修改当前登录用户的用户组"}, status=400)
     if is_superadmin_user(user):
-        return JsonResponse({"detail": "不能修改超级管理员的用户组"}, status=400)
+        return JsonResponse(
+            {"detail": f"不能修改{SUPERADMIN_GROUP_NAME}的用户组"}, status=400
+        )
     if is_guest_user(user):
-        return JsonResponse({"detail": "游客账号不能修改用户组"}, status=400)
+        return JsonResponse(
+            {"detail": f"{GUEST_GROUP_NAME}账号不能修改用户组"}, status=400
+        )
 
     try:
         normalized_group_ids = {int(group_id) for group_id in group_ids}
@@ -600,7 +615,10 @@ def update_user_groups(request, user_id: int):
         is_superadmin_group(group) for group in groups
     ):
         return JsonResponse(
-            {"detail": "不能将普通用户加入超级管理员用户组"}, status=400
+            {
+                "detail": f"不能将{DEFAULT_USER_GROUP_NAME}加入{SUPERADMIN_GROUP_NAME}用户组"
+            },
+            status=400,
         )
     user.groups.set(groups)
     log_operation(
@@ -642,7 +660,9 @@ def update_user_permissions(request, user_id: int):
     if user.pk == request.user.pk:
         return JsonResponse({"detail": "请到用户设置中修改自己的权限"}, status=400)
     if is_guest_user(user):
-        return JsonResponse({"detail": "游客账号不能设置直授权限"}, status=400)
+        return JsonResponse(
+            {"detail": f"{GUEST_GROUP_NAME}账号不能设置直授权限"}, status=400
+        )
 
     _set_user_feature_permissions(user, permissions)
     _set_operation_log_group_ids(user, operation_log_group_ids)
@@ -1805,13 +1825,14 @@ def _serialize_group(group: Group) -> dict[str, Any]:
         for permission in group.permissions.select_related("content_type").all()
     }
     is_superadmin = is_superadmin_group(group)
+    is_default_user = is_default_user_group(group)
     is_guest = is_guest_group(group)
     return {
         "id": group.id,
         "name": group.name,
         "userCount": group.user_set.count(),
         "permissions": sorted(permissions & set(FEATURE_PERMISSION_NAMES)),
-        "isProtected": is_superadmin or is_guest,
+        "isProtected": is_superadmin or is_default_user or is_guest,
         "lockedPermissions": sorted(
             superadmin_group_locked_permissions() if is_superadmin else set()
         ),
@@ -2028,7 +2049,10 @@ def _create_admin_user(User, payload: dict[str, Any]):
         return JsonResponse({"detail": "包含不存在的用户组"}, status=400)
     if any(is_superadmin_group(group) for group in groups):
         return JsonResponse(
-            {"detail": "不能将普通用户加入超级管理员用户组"}, status=400
+            {
+                "detail": f"不能将{DEFAULT_USER_GROUP_NAME}加入{SUPERADMIN_GROUP_NAME}用户组"
+            },
+            status=400,
         )
 
     try:

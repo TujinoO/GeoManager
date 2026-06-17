@@ -18,6 +18,7 @@ from apps.core.initialization import (
     ensure_guest_user,
     ensure_superadmin_defaults,
     protected_group_permissions,
+    superadmin_group_locked_permissions,
 )
 from apps.core.models import SystemSetting, UserProfile
 from apps.core.storage import (
@@ -622,11 +623,19 @@ class FeaturePermissionTests(TestCase):
         ]
         self.assertEqual(guest_items[0]["isProtected"], True)
         self.assertEqual(guest_items[0]["lockedPermissions"], [])
+        default_user_items = [
+            item for item in payload["items"] if item["name"] == DEFAULT_USER_GROUP_NAME
+        ]
+        self.assertEqual(default_user_items[0]["isProtected"], True)
+        self.assertEqual(default_user_items[0]["lockedPermissions"], [])
         protected_items = [
             item for item in payload["items"] if item["name"] == SUPERADMIN_GROUP_NAME
         ]
         self.assertEqual(protected_items[0]["isProtected"], True)
-        self.assertEqual(protected_items[0]["lockedPermissions"], [])
+        self.assertEqual(
+            protected_items[0]["lockedPermissions"],
+            sorted(superadmin_group_locked_permissions()),
+        )
 
     def test_guest_group_permissions_can_be_updated(self):
         manager = get_user_model().objects.create_user(
@@ -689,7 +698,9 @@ class FeaturePermissionTests(TestCase):
         guest.refresh_from_db()
         self.assertTrue(guest.is_active)
         self.assertFalse(guest.has_usable_password())
-        self.assertEqual(list(guest.groups.values_list("name", flat=True)), ["游客"])
+        self.assertEqual(
+            list(guest.groups.values_list("name", flat=True)), [GUEST_GROUP_NAME]
+        )
         self.assertEqual(guest.user_permissions.count(), 0)
 
     def test_superadmin_group_cannot_be_deleted_and_keeps_protected_permissions(self):
@@ -708,9 +719,22 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(delete_response.status_code, 400)
         self.assertEqual(delete_response.json()["detail"], "系统内置用户组不能删除")
 
-        patch_response = self.client.post(
+        missing_locked_response = self.client.post(
             f"/api/groups/{group.id}/",
             data=json.dumps({"permissions": ["core.browse_data"]}),
+            content_type="application/json",
+        )
+        self.assertEqual(missing_locked_response.status_code, 400)
+        self.assertEqual(
+            missing_locked_response.json()["detail"],
+            "超级管理员用户组必须保留系统锁定权限",
+        )
+
+        patch_response = self.client.post(
+            f"/api/groups/{group.id}/",
+            data=json.dumps(
+                {"permissions": sorted(superadmin_group_locked_permissions())}
+            ),
             content_type="application/json",
         )
         self.assertEqual(patch_response.status_code, 200)
@@ -718,6 +742,40 @@ class FeaturePermissionTests(TestCase):
             set(patch_response.json()["permissions"]),
             set(protected_group_permissions()),
         )
+
+    def test_default_user_group_cannot_be_deleted_or_renamed_but_permissions_can_change(
+        self,
+    ):
+        manager = get_user_model().objects.create_user(
+            username="default-group-guard-manager", password="pass12345"
+        )
+        grant(manager, ("core", "manage_auth"), ("core", "manage_feature_permissions"))
+        ensure_superadmin_defaults(create_account=False)
+        group = Group.objects.get(name=DEFAULT_USER_GROUP_NAME)
+        self.client.force_login(manager)
+
+        delete_response = self.client.post(
+            f"/api/groups/{group.id}/",
+            data=json.dumps({"action": "delete"}),
+            content_type="application/json",
+        )
+        self.assertEqual(delete_response.status_code, 400)
+        self.assertEqual(delete_response.json()["detail"], "系统内置用户组不能删除")
+
+        rename_response = self.client.post(
+            f"/api/groups/{group.id}/",
+            data=json.dumps({"name": "默认用户"}),
+            content_type="application/json",
+        )
+        self.assertEqual(rename_response.status_code, 400)
+
+        patch_response = self.client.post(
+            f"/api/groups/{group.id}/",
+            data=json.dumps({"permissions": ["core.query_data"]}),
+            content_type="application/json",
+        )
+        self.assertEqual(patch_response.status_code, 200)
+        self.assertEqual(patch_response.json()["permissions"], ["core.query_data"])
 
     def test_superadmin_user_groups_cannot_be_updated(self):
         manager = get_user_model().objects.create_user(

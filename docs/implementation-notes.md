@@ -416,6 +416,8 @@ CREATE TABLE gpkg_data_columns (
 
 后端 `read_field_metadata(path, table_name)` 函数从 GeoPackage 读取字段元数据，返回 `{column_name: description}` 字典。
 
+`gpkg_data_columns` 表不存在时按无字段说明处理并返回空字典；如果表存在但结构异常、数据库文件异常或查询失败，后端不再吞掉异常，应转为明确的数据查询错误或在扫描入口记录异常。
+
 ### API 响应
 
 `resource_profile` 和 `resource_query` 端点的 `fields` 数组包含 `description` 字段：
@@ -450,3 +452,11 @@ CREATE TABLE gpkg_data_columns (
 - 鼠标经纬度状态显示并入地图工具栏左侧，不再作为单独悬浮状态块。
 - 顶部全局搜索不再提供独立搜索按钮。输入框聚焦后立即展开搜索面板，按“数据、工程/专题、成果”展示当前可用内容，分类标签放在面板底部；数据条目提供快速加载入口。
 - 登录前界面和后台 Dashboard 卡片使用 Ant Design `BorderBeam` 组件，颜色采用 Ocean 渐变停靠点 `#1677ff 0%`、`#36cfc9 52%`、`#95de64 100%`。
+
+## 代码结构与内置配置
+
+- 项目结构维护说明见 `docs/project-structure.md`；移动前端或后端模块时必须同步更新该文档。
+- 后端内置账号和内置用户组配置集中在 `backend/apps/core/configuration/builtins.py`，包括 `超级管理员`、`普通用户`、`游客`、`guest`、初始管理员环境变量名、初始密码文件名和默认权限集合。
+- 业务逻辑不得直接散落维护内置账号/用户组字符串；需要判断内置组或内置账号时，通过 `apps.core.initialization` 暴露的 helper 和常量引用配置。
+- `超级管理员`、`普通用户`、`游客` 都属于系统内置受保护用户组，不能删除或重命名。`超级管理员` 权限由系统强制补齐；`普通用户` 和 `游客` 的默认权限只在用户组首次创建时应用，后续后台调整应被保留。
+- 前端认证授权页不得通过中文用户组名推断保护规则，应消费后端返回的 `isProtected` 与 `lockedPermissions`。

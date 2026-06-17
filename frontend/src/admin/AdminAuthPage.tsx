@@ -157,7 +157,7 @@ export default function AdminAuthPage() {
       groups.map((group) => ({
         label: group.name,
         value: group.id,
-        disabled: isSuperadminGroup(group),
+        disabled: isGroupMembershipLocked(group),
       })),
     [groups],
   );
@@ -454,7 +454,7 @@ export default function AdminAuthPage() {
   function openUserGroupDrawer(targetUser: User) {
     if (
       targetUser.id === user?.id ||
-      isSuperadminUser(targetUser, groupNameById)
+      hasLockedGroupMembership(targetUser, groups)
     ) {
       return;
     }
@@ -481,11 +481,11 @@ export default function AdminAuthPage() {
 
   function userActionItems(record: User): MenuProps["items"] {
     const cannotEditOwnGroups = record.id === user?.id;
-    const cannotEditSuperadminGroups = isSuperadminUser(record, groupNameById);
+    const cannotEditLockedGroups = hasLockedGroupMembership(record, groups);
     const groupDisabledReason = cannotEditOwnGroups
       ? "不能修改自己的用户组"
-      : cannotEditSuperadminGroups
-        ? "不能修改超级管理员的用户组"
+      : cannotEditLockedGroups
+        ? "不能修改系统锁定用户组"
         : "";
     const cannotEditOwnPermissions = record.id === user?.id;
     return [
@@ -673,7 +673,7 @@ export default function AdminAuthPage() {
       (permission) => !values.includes(permission),
     );
     if (missingLockedPermissions.length > 0) {
-      message.warning("超级管理员用户组必须保留系统锁定权限");
+      message.warning("系统锁定用户组必须保留锁定权限");
     }
     setGroupDrafts((current) => ({
       ...current,
@@ -698,7 +698,7 @@ export default function AdminAuthPage() {
       !groupUser ||
       !canManageAuth ||
       groupUser.id === user?.id ||
-      isSuperadminUser(groupUser, groupNameById)
+      hasLockedGroupMembership(groupUser, groups)
     ) {
       return;
     }
@@ -974,7 +974,7 @@ export default function AdminAuthPage() {
                 label: group.name,
                 value: group.id,
                 disabled:
-                  isSuperadminGroup(group) &&
+                  isGroupMembershipLocked(group) &&
                   !groupUser.groupIds.includes(group.id),
               }))}
               onChange={setSelectedGroupIds}
@@ -1146,7 +1146,7 @@ export default function AdminAuthPage() {
               <Alert
                 type="warning"
                 showIcon
-                title="超级管理员用户组必须保留系统锁定权限，不允许修改"
+                title="系统锁定用户组必须保留锁定权限，不允许修改"
               />
             )}
             <Checkbox.Group
@@ -1190,7 +1190,7 @@ export default function AdminAuthPage() {
                       return locked ? (
                         <Tooltip
                           key={permission.id}
-                          title="超级管理员用户组必须保留系统锁定权限，不允许修改"
+                          title="系统锁定用户组必须保留锁定权限，不允许修改"
                         >
                           {checkbox}
                         </Tooltip>
@@ -1323,14 +1323,15 @@ function isFormValidationError(error: unknown): error is FormValidationError {
   return typeof error === "object" && error !== null && "errorFields" in error;
 }
 
-function isSuperadminGroup(group: Group) {
-  return group.name === "超级管理员";
+function isGroupMembershipLocked(group: Group) {
+  return group.isProtected && group.lockedPermissions.length > 0;
 }
 
-function isSuperadminUser(user: User, groupNameById: Map<number, string>) {
-  return user.groupIds.some(
-    (groupId) => groupNameById.get(groupId) === "超级管理员",
+function hasLockedGroupMembership(user: User, groups: Group[]) {
+  const lockedGroupIds = new Set(
+    groups.filter(isGroupMembershipLocked).map((group) => group.id),
   );
+  return user.groupIds.some((groupId) => lockedGroupIds.has(groupId));
 }
 
 function UserIdentity({
@@ -1368,5 +1369,5 @@ function UserIdentity({
 }
 
 function canEditGroupPermissions(group: Group) {
-  return !isSuperadminGroup(group);
+  return group.lockedPermissions.length === 0;
 }

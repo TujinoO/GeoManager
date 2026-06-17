@@ -17,31 +17,21 @@ from apps.core.permissions import (
     ensure_feature_permissions,
     feature_permission_queryset,
 )
+from apps.core.configuration import BUILTIN_ACCOUNTS, BUILTIN_GROUPS
 
-SUPERADMIN_GROUP_NAME = "超级管理员"
-DEFAULT_USER_GROUP_NAME = "普通用户"
-GUEST_GROUP_NAME = "游客"
-GUEST_USERNAME = "guest"
-SUPERADMIN_USERNAME_ENV = "HUYANG_SUPERADMIN_USERNAME"
-SUPERADMIN_PASSWORD_ENV = "HUYANG_SUPERADMIN_PASSWORD"
-SUPERADMIN_EMAIL_ENV = "HUYANG_SUPERADMIN_EMAIL"
-DEFAULT_SUPERADMIN_USERNAME = "admin"
-DEFAULT_SUPERADMIN_EMAIL = "admin@example.local"
-INITIAL_PASSWORD_FILE = "initial_superadmin_password.txt"
-LOCKED_SUPERADMIN_PERMISSIONS: tuple[str, ...] = ()
-GUEST_GROUP_PERMISSIONS = (
-    "core.browse_data",
-    "core.query_data",
-    "core.load_vector_layer",
-    "core.load_raster_layer",
-)
-DEFAULT_USER_GROUP_PERMISSIONS = (
-    "core.browse_data",
-    "core.query_data",
-    "core.upload_data",
-    "core.load_vector_layer",
-    "core.load_raster_layer",
-)
+SUPERADMIN_GROUP_NAME = BUILTIN_GROUPS.superadmin_name
+DEFAULT_USER_GROUP_NAME = BUILTIN_GROUPS.default_user_name
+GUEST_GROUP_NAME = BUILTIN_GROUPS.guest_name
+GUEST_USERNAME = BUILTIN_ACCOUNTS.guest_username
+SUPERADMIN_USERNAME_ENV = BUILTIN_ACCOUNTS.superadmin_username_env
+SUPERADMIN_PASSWORD_ENV = BUILTIN_ACCOUNTS.superadmin_password_env
+SUPERADMIN_EMAIL_ENV = BUILTIN_ACCOUNTS.superadmin_email_env
+DEFAULT_SUPERADMIN_USERNAME = BUILTIN_ACCOUNTS.default_superadmin_username
+DEFAULT_SUPERADMIN_EMAIL = BUILTIN_ACCOUNTS.default_superadmin_email
+INITIAL_PASSWORD_FILE = BUILTIN_ACCOUNTS.initial_password_file
+LOCKED_SUPERADMIN_PERMISSIONS = BUILTIN_GROUPS.superadmin_locked_permissions
+GUEST_GROUP_PERMISSIONS = BUILTIN_GROUPS.guest_permissions
+DEFAULT_USER_GROUP_PERMISSIONS = BUILTIN_GROUPS.default_user_permissions
 
 
 def ensure_superadmin_defaults(
@@ -75,7 +65,7 @@ def print_superadmin_credentials_on_startup() -> None:
     print(
         "\n".join(
             [
-                "超级管理员账号已就绪：",
+                f"{SUPERADMIN_GROUP_NAME}账号已就绪：",
                 f"用户名: {username}",
                 f"密码: {password}",
             ]
@@ -92,12 +82,14 @@ def is_guest_group(group: Group) -> bool:
     return group.name == GUEST_GROUP_NAME
 
 
+def is_default_user_group(group: Group) -> bool:
+    return group.name == DEFAULT_USER_GROUP_NAME
+
+
 def ensure_default_user_group() -> Group:
     group, created = Group.objects.get_or_create(name=DEFAULT_USER_GROUP_NAME)
     if created:
         _set_group_permissions(group, DEFAULT_USER_GROUP_PERMISSIONS)
-    else:
-        _add_group_permissions(group, DEFAULT_USER_GROUP_PERMISSIONS)
     return group
 
 
@@ -105,8 +97,6 @@ def ensure_guest_group() -> Group:
     group, created = Group.objects.get_or_create(name=GUEST_GROUP_NAME)
     if created:
         _set_group_permissions(group, GUEST_GROUP_PERMISSIONS)
-        return group
-    _add_group_permissions(group, GUEST_GROUP_PERMISSIONS)
     return group
 
 
@@ -117,14 +107,14 @@ def ensure_guest_user():
         user, _ = User.objects.select_for_update().get_or_create(
             username=GUEST_USERNAME,
             defaults={
-                "first_name": "游客",
+                "first_name": BUILTIN_ACCOUNTS.guest_display_name,
                 "email": "",
                 "is_active": True,
                 "is_staff": False,
                 "is_superuser": False,
             },
         )
-        user.first_name = "游客"
+        user.first_name = BUILTIN_ACCOUNTS.guest_display_name
         user.last_name = ""
         user.email = ""
         user.is_active = True
@@ -145,8 +135,8 @@ def ensure_guest_user():
         user.groups.set([guest_group])
         user.user_permissions.clear()
         profile, _ = UserProfile.objects.get_or_create(user=user)
-        if profile.department != "公开访问":
-            profile.department = "公开访问"
+        if profile.department != BUILTIN_ACCOUNTS.guest_department:
+            profile.department = BUILTIN_ACCOUNTS.guest_department
             profile.save(update_fields=["department", "updated_at"])
         return user
 
@@ -241,7 +231,7 @@ def _ensure_initial_superadmin(group: Group):
         username=username,
         defaults={
             "email": email,
-            "first_name": "超级管理员",
+            "first_name": BUILTIN_ACCOUNTS.superadmin_display_name,
             "is_active": True,
             "is_staff": False,
             "is_superuser": False,
@@ -250,7 +240,7 @@ def _ensure_initial_superadmin(group: Group):
     if created:
         user.set_password(password)
     user.email = user.email or email
-    user.first_name = user.first_name or "超级管理员"
+    user.first_name = user.first_name or BUILTIN_ACCOUNTS.superadmin_display_name
     user.is_active = True
     user.is_staff = False
     user.is_superuser = False
@@ -267,7 +257,7 @@ def _ensure_initial_superadmin(group: Group):
     user.groups.add(group)
     profile, _ = UserProfile.objects.get_or_create(user=user)
     if not profile.department:
-        profile.department = "系统管理"
+        profile.department = BUILTIN_ACCOUNTS.superadmin_department
         profile.save(update_fields=["department", "updated_at"])
     return user
 

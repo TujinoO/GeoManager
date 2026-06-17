@@ -226,6 +226,8 @@ def _read_field_metadata(path, table_name: str) -> dict[str, str]:
             for column_name, description in cursor.fetchall():
                 if description:
                     metadata[column_name] = description
-    except Exception:
-        pass
+    except sqlite3.OperationalError as exc:
+        if "no such table: gpkg_data_columns" in str(exc):
+            return metadata
+        raise
     return metadata
