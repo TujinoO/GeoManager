@@ -11,6 +11,7 @@ import type {
   LoadedLayer,
   LoadedLayerGroup,
   LoadedRasterLayer,
+  WorkspaceScene,
   WorkspaceSceneKind,
 } from "../types";
 
@@ -93,9 +94,10 @@ export interface LayerContextValue {
     options: ExportOptions,
     onProgress?: ExportProgressHandler,
   ) => Promise<void>;
+  workspaceScenes: WorkspaceScene[];
   saveWorkspace: (
     kind: WorkspaceSceneKind,
-    values: { name: string; description?: string },
+    values: { name: string; description?: string; targetId?: number },
   ) => Promise<void>;
 }
 

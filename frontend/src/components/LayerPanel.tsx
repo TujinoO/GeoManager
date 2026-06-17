@@ -26,6 +26,8 @@ import {
   Modal,
   Popover,
   Progress,
+  Segmented,
+  Select,
   Space,
   Switch,
   Tooltip,
@@ -60,7 +62,7 @@ import {
 export default function LayerPanel() {
   const ctx = useLayerContext();
   const { message } = App.useApp();
-  const [saveForm] = Form.useForm<{ name: string; description?: string }>();
+  const [saveForm] = Form.useForm<SaveWorkspaceFormValues>();
   const groups = ctx.groups;
   const [query, setQuery] = useState("");
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
@@ -81,8 +83,18 @@ export default function LayerPanel() {
     placement: LayerDropPlacement;
   } | null>(null);
   const [saveKind, setSaveKind] = useState<WorkspaceSceneKind>("project");
+  const [saveMode, setSaveMode] = useState<"create" | "update">("create");
   const [saveOpen, setSaveOpen] = useState(false);
   const [savingWorkspace, setSavingWorkspace] = useState(false);
+  const selectedSaveTargetId = Form.useWatch("targetId", saveForm);
+  const saveTargetScenes = useMemo(
+    () => ctx.workspaceScenes.filter((scene) => scene.kind === saveKind),
+    [ctx.workspaceScenes, saveKind],
+  );
+  const selectedSaveTarget = useMemo(
+    () => saveTargetScenes.find((scene) => scene.id === selectedSaveTargetId),
+    [saveTargetScenes, selectedSaveTargetId],
+  );
   const filteredGroups = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     if (!keyword) {
@@ -123,7 +135,9 @@ export default function LayerPanel() {
       return;
     }
     setSaveKind(kind);
+    setSaveMode("create");
     saveForm.setFieldsValue({
+      targetId: undefined,
       name: "",
       description: "",
     });
@@ -132,9 +146,28 @@ export default function LayerPanel() {
 
   async function submitSaveWorkspace() {
     const values = await saveForm.validateFields();
+    const targetScene =
+      saveMode === "update"
+        ? saveTargetScenes.find((scene) => scene.id === values.targetId)
+        : null;
+    if (saveMode === "update" && !targetScene) {
+      message.warning(
+        `请选择要覆盖的${saveKind === "project" ? "工程" : "专题"}`,
+      );
+      return;
+    }
     setSavingWorkspace(true);
     try {
-      await ctx.saveWorkspace(saveKind, values);
+      await ctx.saveWorkspace(
+        saveKind,
+        saveMode === "update" && targetScene
+          ? {
+              targetId: targetScene.id,
+              name: targetScene.name,
+              description: targetScene.description,
+            }
+          : values,
+      );
       setSaveOpen(false);
     } finally {
       setSavingWorkspace(false);
@@ -437,20 +470,95 @@ export default function LayerPanel() {
         destroyOnHidden
       >
         <Form form={saveForm} layout="vertical">
-          <Form.Item
-            name="name"
-            label={saveKind === "project" ? "工程名称" : "专题名称"}
-            rules={[{ required: true, message: "请输入名称" }]}
-          >
-            <Input maxLength={80} />
+          <Form.Item label="保存方式">
+            <Segmented
+              block
+              value={saveMode}
+              options={[
+                { label: "新建", value: "create" },
+                {
+                  label: `覆盖已有${saveKind === "project" ? "工程" : "专题"}`,
+                  value: "update",
+                  disabled: saveTargetScenes.length === 0,
+                },
+              ]}
+              onChange={(value) => {
+                const nextMode = value as "create" | "update";
+                setSaveMode(nextMode);
+                if (nextMode === "create") {
+                  saveForm.setFieldsValue({
+                    targetId: undefined,
+                    name: "",
+                    description: "",
+                  });
+                  return;
+                }
+                const firstScene = saveTargetScenes[0];
+                saveForm.setFieldsValue({
+                  targetId: firstScene?.id,
+                  name: firstScene?.name ?? "",
+                  description: firstScene?.description ?? "",
+                });
+              }}
+            />
           </Form.Item>
-          <Form.Item name="description" label="说明">
-            <Input.TextArea rows={3} maxLength={300} />
-          </Form.Item>
+          {saveMode === "update" ? (
+            <>
+              <Form.Item
+                name="targetId"
+                label={saveKind === "project" ? "选择工程" : "选择专题"}
+                rules={[{ required: true, message: "请选择保存目标" }]}
+              >
+                <Select
+                  placeholder={`请选择要覆盖的${saveKind === "project" ? "工程" : "专题"}`}
+                  options={saveTargetScenes.map((scene) => ({
+                    value: scene.id,
+                    label: scene.name,
+                  }))}
+                  onChange={(targetId) => {
+                    const scene = saveTargetScenes.find(
+                      (item) => item.id === targetId,
+                    );
+                    saveForm.setFieldsValue({
+                      name: scene?.name ?? "",
+                      description: scene?.description ?? "",
+                    });
+                  }}
+                />
+              </Form.Item>
+              {selectedSaveTarget ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message={`将覆盖“${selectedSaveTarget.name}”`}
+                  description="当前图层树、视图状态和符号化配置会替换该保存项的快照，名称和说明保持不变。"
+                />
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Form.Item
+                name="name"
+                label={saveKind === "project" ? "工程名称" : "专题名称"}
+                rules={[{ required: true, message: "请输入名称" }]}
+              >
+                <Input maxLength={80} />
+              </Form.Item>
+              <Form.Item name="description" label="说明">
+                <Input.TextArea rows={3} maxLength={300} />
+              </Form.Item>
+            </>
+          )}
         </Form>
       </Modal>
     </section>
   );
+}
+
+interface SaveWorkspaceFormValues {
+  targetId?: number;
+  name: string;
+  description?: string;
 }
 
 interface GroupNodeProps {

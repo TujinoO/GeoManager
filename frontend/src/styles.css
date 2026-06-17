@@ -2831,15 +2831,12 @@ body {
     text-align: left;
     background: transparent;
     border: 0;
-    cursor: pointer;
+    cursor: default;
     height: auto;
     line-height: normal;
 
-    &:hover,
-    &:focus-visible {
-      color: inherit;
-      background: transparent;
-    }
+    color: inherit;
+    background: transparent;
   }
 
   & span {

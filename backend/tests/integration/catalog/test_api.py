@@ -324,6 +324,15 @@ class WorkspaceSceneApiTests(TestCase):
         self.assertEqual(created["name"], "现场判读工程")
         self.assertEqual(created["snapshot"], snapshot)
         self.assertEqual(created["owner"]["username"], self.user.username)
+        self.assertTrue(
+            OperationLog.objects.filter(
+                user=self.user,
+                module="工作台",
+                action="保存工程",
+                status=OperationLog.Status.SUCCESS,
+                message="现场判读工程",
+            ).exists()
+        )
 
         WorkspaceScene.objects.create(
             owner=self.user,
@@ -359,6 +368,15 @@ class WorkspaceSceneApiTests(TestCase):
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(update_response.json()["name"], "更新后的工程")
         self.assertEqual(update_response.json()["snapshot"], updated_snapshot)
+        self.assertTrue(
+            OperationLog.objects.filter(
+                user=self.user,
+                module="工作台",
+                action="更新工程",
+                status=OperationLog.Status.SUCCESS,
+                message="更新后的工程",
+            ).exists()
+        )
 
         delete_response = self.client.post(
             f"/api/catalog/workspaces/{created['id']}/",
@@ -368,6 +386,15 @@ class WorkspaceSceneApiTests(TestCase):
 
         self.assertEqual(delete_response.status_code, 200)
         self.assertFalse(WorkspaceScene.objects.filter(pk=created["id"]).exists())
+        self.assertTrue(
+            OperationLog.objects.filter(
+                user=self.user,
+                module="工作台",
+                action="删除工程",
+                status=OperationLog.Status.SUCCESS,
+                message="更新后的工程",
+            ).exists()
+        )
 
     def test_workspace_scene_is_private_to_owner(self):
         other = get_user_model().objects.create_user(
@@ -449,7 +476,7 @@ class WorkspaceSceneApiTests(TestCase):
                 {
                     "kind": "project",
                     "name": "超大工程",
-                    "snapshot": {"padding": "x" * (300 * 1024)},
+                    "snapshot": {"padding": "x" * (1025 * 1024)},
                 }
             ),
             content_type="application/json",
