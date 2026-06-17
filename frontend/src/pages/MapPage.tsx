@@ -1317,6 +1317,7 @@ function WorkspaceScenePanel({
                   onConfirm={() => removeScene(scene)}
                 >
                   <Button
+                    className="topic-scenario-delete-button"
                     size="small"
                     danger
                     icon={<DeleteOutlined style={{ fontSize: 14 }} />}

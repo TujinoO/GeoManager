@@ -1524,6 +1524,7 @@ body {
 }
 
 .workspace {
+  --workspace-screen-edge: 14px;
   height: 100vh;
   overflow: hidden;
   position: relative;
@@ -1541,9 +1542,9 @@ body {
   --workspace-tab-text-max: clamp(4ch, 5vw, 7ch);
   --workspace-user-name-max: clamp(5rem, 9vw, 7rem);
   position: absolute;
-  top: 14px;
-  left: 14px;
-  right: 14px;
+  top: var(--workspace-screen-edge);
+  left: var(--workspace-screen-edge);
+  right: var(--workspace-screen-edge);
   z-index: 9;
   min-height: 66px;
   display: flex;
@@ -2163,7 +2164,7 @@ body {
 }
 
 .workspace-body {
-  --workspace-edge: 18px;
+  --workspace-edge: var(--workspace-screen-edge);
   --workspace-gap: 14px;
   --side-panel-width: clamp(300px, 22vw, 360px);
   --bottom-panel-height: clamp(230px, 24vh, 270px);
@@ -2864,6 +2865,20 @@ body {
 .topic-scenario-list .topic-scenario-row:hover {
   border-color: rgba(116, 243, 221, 0.42);
   box-shadow: 0 0 18px rgba(64, 224, 208, 0.12);
+}
+
+.topic-scenario-delete-button.ant-btn {
+  color: #ff7875;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.topic-scenario-delete-button.ant-btn:not(:disabled):hover,
+.topic-scenario-delete-button.ant-btn:not(:disabled):focus-visible {
+  color: #ffccc7;
+  background: rgba(255, 120, 117, 0.12);
+  border-color: rgba(255, 120, 117, 0.28);
 }
 
 .layer-list,
@@ -3733,6 +3748,10 @@ body {
 }
 
 @media (max-width: 760px) {
+  .workspace {
+    --workspace-screen-edge: 10px;
+  }
+
   .login-shell {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -3876,9 +3895,9 @@ body {
     flex-wrap: wrap;
     align-items: flex-start;
     gap: 10px;
-    top: 10px;
-    left: 10px;
-    right: 10px;
+    top: var(--workspace-screen-edge);
+    left: var(--workspace-screen-edge);
+    right: var(--workspace-screen-edge);
     padding: 10px 12px;
   }
 
