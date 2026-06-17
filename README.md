@@ -52,7 +52,7 @@ pnpm dev
 
 ## Docker 部署
 
-镜像构建使用 `backend/pixi.lock` 安装后端运行环境，不需要配置文件；运行容器时把 TOML 配置挂载到 `/config/app.toml`。镜像内由 Gunicorn + Django 同时提供 API 和前端构建产物；业务数据和科研数据统一保存在 Docker 数据卷 `huyang-data` 中。
+镜像构建使用 `backend/pixi.lock` 安装后端运行环境，不需要配置文件；运行容器时把 TOML 配置挂载到 `/config/app.toml`。镜像内由 Waitress + Django 同时提供 API 和前端构建产物；业务数据和科研数据统一保存在 Docker 数据卷 `huyang-data` 中。
 
 ```bash
 docker build -t data-platform-django:latest .

@@ -1,9 +1,9 @@
 [project]
-name = "data-sharing-platform-backend"
+name = "geomanager"
 version = "0.1.0"
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "data_sharing_platform.settings"
+DJANGO_SETTINGS_MODULE = "geomanager.settings"
 python_files = ["test_*.py"]
 testpaths = ["tests"]
 addopts = [

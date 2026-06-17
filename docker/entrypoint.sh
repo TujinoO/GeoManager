@@ -7,7 +7,7 @@ DEFAULT_CONFIG=/config/app.toml
 
 export PATH="${BACKEND_ROOT}/.pixi/envs/default/bin:${PATH}"
 export PYTHONPATH="${BACKEND_ROOT}:${PYTHONPATH:-}"
-export DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE:-data_sharing_platform.settings}"
+export DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE:-geomanager.settings}"
 
 wait_for_config() {
   local config_path="$1"
@@ -29,9 +29,9 @@ from apps.core.config import load_project_config
 
 config = load_project_config(Path(sys.argv[1]), program_root=Path("/opt/app"))
 values = {
-    "GUNICORN_BIND": config.runtime.gunicorn_bind,
-    "GUNICORN_WORKERS": str(config.runtime.gunicorn_workers),
-    "LOG_ROOT": str(config.app_path("logs")),
+    "WAITRESS_HOST": config.runtime.waitress_host,
+    "WAITRESS_PORT": str(config.runtime.waitress_port),
+    "WAITRESS_THREADS": str(config.runtime.waitress_threads),
 }
 for key, value in values.items():
     print(f"{key}={shlex.quote(value)}")
@@ -46,11 +46,11 @@ case "${1:-serve}" in
     python manage.py migrate --config "${CONFIG_PATH}" --noinput
     python manage.py collectstatic --noinput
     eval "$(load_runtime_values "${CONFIG_PATH}")"
-    exec gunicorn data_sharing_platform.wsgi:application \
-      --bind "${GUNICORN_BIND}" \
-      --workers "${GUNICORN_WORKERS}" \
-      --access-logfile "${LOG_ROOT}/gunicorn-access.log" \
-      --error-logfile "${LOG_ROOT}/gunicorn-error.log"
+    exec waitress-serve \
+      --host="${WAITRESS_HOST}" \
+      --port="${WAITRESS_PORT}" \
+      --threads="${WAITRESS_THREADS}" \
+      geomanager.wsgi:application
     ;;
   manage)
     shift

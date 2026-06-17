@@ -1,15 +1,13 @@
 [workspace]
-name = "data-sharing-platform-backend"
-version = "0.1.0"
+name = "geomanager"
 channels = ["conda-forge"]
-platforms = ["osx-arm64", "osx-64", "linux-64"]
+platforms = ["osx-arm64", "linux-64", "win-64"]
 
 [dependencies]
 django = ">=6.0,<7.0"
 fiona = "*"
 gdal = "*"
 geopandas = ">=1.0"
-gunicorn = "*"
 libgdal-arrow-parquet = "*"
 numba = "*"
 openpyxl = ">=3.1"
@@ -23,6 +21,7 @@ python = "3.14.*"
 rasterio = ">=1.4"
 ruff = "*"
 tomlkit = ">=0.13"
+waitress = "*"
 whitenoise = ">=6.8"
 xlrd = ">=2.0"
 

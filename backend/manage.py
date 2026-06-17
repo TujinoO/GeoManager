@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def main() -> None:
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "data_sharing_platform.settings")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "geomanager.settings")
     program_root = Path(__file__).resolve().parent.parent
     from apps.core.config import persist_config_argument
 

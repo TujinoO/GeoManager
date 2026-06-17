@@ -17,7 +17,7 @@ FROM debian:bookworm-slim
 ENV DEBIAN_FRONTEND=noninteractive \
     PIXI_CACHE_DIR=/opt/pixi-cache \
     PATH=/opt/app/backend/.pixi/envs/default/bin:$PATH \
-    DJANGO_SETTINGS_MODULE=data_sharing_platform.settings
+    DJANGO_SETTINGS_MODULE=geomanager.settings
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

@@ -154,8 +154,9 @@ class RasterScanPathTests(TestCase):
 debug = true
 allowed_hosts = ["*"]
 csrf_trusted_origins = []
-gunicorn_bind = "127.0.0.1:8000"
-gunicorn_workers = 1
+waitress_host = "127.0.0.1"
+waitress_port = 8000
+waitress_threads = 1
 http_port = 8000
 disable_catalog_startup_scan = true
 disable_raster_startup_scan = true

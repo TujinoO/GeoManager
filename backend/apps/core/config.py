@@ -36,8 +36,9 @@ class RuntimeConfig:
     debug: bool
     allowed_hosts: tuple[str, ...]
     csrf_trusted_origins: tuple[str, ...]
-    gunicorn_bind: str
-    gunicorn_workers: int
+    waitress_host: str
+    waitress_port: int
+    waitress_threads: int
     http_port: int
     disable_catalog_startup_scan: bool
     disable_raster_startup_scan: bool
@@ -235,13 +236,17 @@ def _runtime_config(raw: dict[str, Any]) -> RuntimeConfig:
             raw.get("csrf_trusted_origins", []),
             "runtime.csrf_trusted_origins",
         ),
-        gunicorn_bind=_string(
-            raw.get("gunicorn_bind", "0.0.0.0:8000"),
-            "runtime.gunicorn_bind",
+        waitress_host=_string(
+            raw.get("waitress_host", "0.0.0.0"),
+            "runtime.waitress_host",
         ),
-        gunicorn_workers=_positive_int(
-            raw.get("gunicorn_workers", 1),
-            "runtime.gunicorn_workers",
+        waitress_port=_positive_int(
+            raw.get("waitress_port", 8000),
+            "runtime.waitress_port",
+        ),
+        waitress_threads=_positive_int(
+            raw.get("waitress_threads", 4),
+            "runtime.waitress_threads",
         ),
         http_port=_positive_int(raw.get("http_port", 80), "runtime.http_port"),
         disable_catalog_startup_scan=bool(

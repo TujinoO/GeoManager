@@ -308,4 +308,4 @@ def _server_startup_command() -> bool:
     if len(sys.argv) > 1 and sys.argv[1] == "runserver":
         return os.environ.get("RUN_MAIN") == "true"
     program_name = Path(sys.argv[0]).name
-    return program_name in {"gunicorn", "uvicorn", "daphne"}
+    return program_name in {"waitress-serve", "uvicorn", "daphne"}

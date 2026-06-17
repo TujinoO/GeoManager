@@ -31,10 +31,10 @@ from apps.core.storage import (
     table_data_path,
 )
 from apps.raster.models import RasterDataset
-from data_sharing_platform.settings import _default_csrf_trusted_origins
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.test import Client, SimpleTestCase, TestCase
+from geomanager.settings import _default_csrf_trusted_origins
 
 
 class BootstrapApiTests(TestCase):
@@ -1441,8 +1441,9 @@ class ConfigLoaderTests(TestCase):
 debug = true
 allowed_hosts = ["*"]
 csrf_trusted_origins = []
-gunicorn_bind = "127.0.0.1:8000"
-gunicorn_workers = 1
+waitress_host = "127.0.0.1"
+waitress_port = 8000
+waitress_threads = 1
 http_port = 8000
 disable_catalog_startup_scan = true
 disable_raster_startup_scan = true
@@ -1494,8 +1495,9 @@ symbolizer_timeout_seconds = 120
 debug = true
 allowed_hosts = ["*"]
 csrf_trusted_origins = []
-gunicorn_bind = "127.0.0.1:8000"
-gunicorn_workers = 1
+waitress_host = "127.0.0.1"
+waitress_port = 8000
+waitress_threads = 1
 http_port = 8000
 disable_catalog_startup_scan = true
 disable_raster_startup_scan = true

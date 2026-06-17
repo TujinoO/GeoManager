@@ -108,7 +108,7 @@ pnpm run build:verify
 
 ## Docker 部署
 
-Linux 部署使用单个 Docker 镜像和 TOML 配置。镜像构建使用 `backend/pixi.lock` 创建后端运行环境，不需要配置文件；配置只在容器运行时通过 `/config/app.toml` 挂载提供。镜像内由 Gunicorn 运行 Django WSGI 应用，Django 同时提供 `/api/` 接口和前端 Vite 构建产物；对公网关、HTTPS 和域名由宿主机上的反向代理自行配置。业务数据和科研数据保存在同一个 Docker 数据卷 `huyang-data` 中，并挂载到容器内 `/data`。
+Linux 部署使用单个 Docker 镜像和 TOML 配置。镜像构建使用 `backend/pixi.lock` 创建后端运行环境，不需要配置文件；配置只在容器运行时通过 `/config/app.toml` 挂载提供。镜像内由 Waitress 运行 Django WSGI 应用，Django 同时提供 `/api/` 接口和前端 Vite 构建产物；对公网关、HTTPS 和域名由宿主机上的反向代理自行配置。业务数据和科研数据保存在同一个 Docker 数据卷 `huyang-data` 中，并挂载到容器内 `/data`。
 
 容器内固定路径：
 
@@ -120,7 +120,7 @@ Linux 部署使用单个 Docker 镜像和 TOML 配置。镜像构建使用 `back
 - 默认业务数据根目录：`/data/app`
 - 默认科研数据根目录：`/data/research`
 
-Docker 容器内配置示例见 `config/app.docker.toml`。其中容器内路径、Gunicorn 绑定和默认运行参数已经固化；通常只需要按部署环境调整 `allowed_hosts`、`csrf_trusted_origins`、`http_port`、`gunicorn_workers` 和 `mapbox_access_token`。
+Docker 容器内配置示例见 `config/app.docker.toml`。其中容器内路径、Waitress 监听地址和默认运行参数已经固化；通常只需要按部署环境调整 `allowed_hosts`、`csrf_trusted_origins`、`http_port`、`waitress_threads` 和 `mapbox_access_token`。
 
 手动 `docker run` 时，挂载到 `/config/app.toml` 的配置应使用容器内数据路径 `/data/app` 和 `/data/research`。业务数据和科研数据使用同一个 Docker named volume，不需要映射宿主机目录。
 

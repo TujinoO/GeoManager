@@ -79,7 +79,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "data_sharing_platform.urls"
+ROOT_URLCONF = "geomanager.urls"
 
 TEMPLATES = [
     {
@@ -96,7 +96,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "data_sharing_platform.wsgi.application"
+WSGI_APPLICATION = "geomanager.wsgi.application"
 
 DATABASES = {
     "default": {
