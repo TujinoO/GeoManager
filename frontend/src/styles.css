@@ -26,11 +26,12 @@
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 1200px;
   min-height: 100vh;
 }
 
 #root {
+  min-width: 1200px;
   min-height: 100vh;
 }
 
@@ -774,7 +775,9 @@ body {
 }
 
 .admin-workspace-shell {
+  --workspace-screen-edge: 14px;
   min-height: 100vh;
+  min-width: 1200px;
   position: relative;
   background: #f3f6f4;
 }
@@ -3697,306 +3700,61 @@ body {
   width: 100%;
 }
 
-@media (max-width: 1100px) {
-  .login-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .login-hero-panel {
-    max-width: none;
-    min-height: auto;
-    padding-bottom: 82px;
-  }
-
-  .login-card {
-    justify-self: center;
-    max-width: 560px;
-  }
-
-  .login-stat-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .workspace-body {
-    --side-panel-width: 260px;
-    --bottom-panel-height: 218px;
-  }
-
-  .right-panel-stack {
-    grid-template-rows: 156px minmax(0, 1fr);
-    padding: 10px;
-  }
-
-  .spatial-query-grid {
-    grid-template-columns: minmax(190px, 0.4fr) minmax(0, 1fr);
-  }
-
-  .spatial-insight-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .spatial-symbol-list:not(.spatial-symbol-list-wide) {
-    display: none;
-  }
-
-  .spatial-range-actions {
-    grid-template-columns: 1fr;
-  }
-
-  .inventory-filter-grid {
-    grid-template-columns: repeat(3, minmax(140px, 1fr));
-  }
-}
-
-@media (max-width: 760px) {
-  .workspace {
-    --workspace-screen-edge: 10px;
-  }
-
-  .login-shell {
-    grid-template-columns: 1fr;
-    gap: 16px;
-    padding: 14px;
-  }
-
-  .login-hero-panel {
-    padding: 22px;
-    padding-bottom: 104px;
-  }
-
-  .login-brand-head {
-    align-items: flex-start;
-  }
-
-  .login-logo-frame {
-    width: 52px;
-    height: 52px;
-  }
-
-  .login-logo-frame img {
-    width: 100%;
-    height: 100%;
-  }
-
-  .login-identity .ant-typography {
-    font-size: 30px;
-  }
-
-  .login-identity {
-    margin-top: 42px;
-  }
-
-  .login-identity p {
-    font-size: 15px;
-  }
-
-  .login-stat-grid {
-    grid-template-columns: 1fr;
-    margin-top: 34px;
-  }
-
-  .login-ops-panel {
-    grid-template-columns: 1fr;
-  }
-
-  .login-ops-status {
-    justify-items: start;
-  }
-
-  .login-status-legend {
-    justify-content: flex-start;
-  }
-
-  .login-station-grid {
-    grid-template-columns: repeat(8, 1fr);
-  }
-
-  .login-version-bar,
-  .login-version-bar span + span {
-    display: grid;
-    padding-left: 0;
-    border-left: 0;
-  }
-
-  .login-card h2.ant-typography {
-    font-size: 26px;
-  }
-
-  .portal-header {
-    height: auto;
-    min-height: 66px;
-    align-items: flex-start;
-    flex-direction: column;
-    padding: 12px 14px;
-  }
-
-  .portal-header .header-left,
-  .portal-header .header-account-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .portal-body {
-    min-height: calc(100vh - 112px);
-    padding: 16px;
-  }
-
-  .visualization-choice-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .visualization-choice-card.ant-card {
-    min-height: 240px;
-  }
-
-  .visualization-choice-card h2.ant-typography {
-    font-size: 32px;
-  }
-
-  .admin-profile-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .admin-dashboard-section-heading {
-    display: grid;
-  }
-
-  .admin-permission-row {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .import-config-grid,
-  .import-coordinate-grid,
-  .inventory-filter-grid,
-  .inventory-filter-grid.two-columns {
-    grid-template-columns: 1fr;
-  }
-
-  .inventory-toolbar {
-    display: grid;
-  }
-
-  .inventory-search-item {
-    margin-bottom: 0;
-  }
-
-  .import-actions .ant-btn {
-    width: 100%;
-  }
-
-  .import-actions {
-    width: 100%;
-    justify-content: stretch;
-  }
-
-  .workspace-header {
-    height: auto;
-    min-height: 58px;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 10px;
-    top: var(--workspace-screen-edge);
-    left: var(--workspace-screen-edge);
-    right: var(--workspace-screen-edge);
-    padding: 10px 12px;
-  }
-
-  .workspace-header .brand-block,
-  .workspace-search-nav,
-  .workspace-global-search,
-  .header-primary-actions,
-  .header-account-actions {
-    width: 100%;
-  }
-
-  .workspace-header .brand-block {
-    min-width: 0;
-    width: 100%;
-    padding-right: 0;
-    border-right: 0;
-  }
-
-  .brand-copy h4.ant-typography {
-    max-width: none;
-    overflow: visible;
-    text-overflow: clip;
-  }
-
-  .workspace-global-search {
-    min-width: 0;
-    max-width: none;
-    flex: 1 1 auto;
-  }
-
-  .workspace-search-nav {
-    order: 2;
-    flex-wrap: wrap;
-    align-items: flex-start;
-  }
-
-  .header-primary-actions {
-    justify-content: flex-start;
-    padding-left: 0;
-    padding-right: 0;
-    border-left: 0;
-    border-right: 0;
-    overflow-x: auto;
-    padding-bottom: 2px;
-  }
-
-  .header-account-actions {
-    order: 4;
-    justify-content: flex-end;
-    margin-left: 0;
-    padding-left: 0;
-    border-left: 0;
-    overflow-x: auto;
-    padding-bottom: 2px;
-  }
-
-  .workspace-body {
-    --side-panel-width: min(280px, calc(100vw - 20px));
-    --bottom-panel-height: 210px;
-    height: 100vh;
-  }
-
-  .floating-panel {
-    top: 220px;
-    bottom: auto;
-    max-height: calc(100vh - 300px);
-  }
-
-  .floating-panel-right,
-  .floating-panel-bottom {
-    display: none;
-  }
-
-  .map-toolbar {
-    right: 12px;
-    bottom: 16px;
-  }
-
-  .workspace-header .brand-block h4.ant-typography {
-    max-width: none;
-  }
-
-  .header-primary-actions .workspace-switch-card {
-    padding: 0 8px;
-  }
-
-  .header-primary-actions .workspace-switch-card span {
-    max-width: clamp(5ch, 18vw, 8ch);
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-}
-
 .admin-workspace-shell > .workspace-header {
   position: fixed;
+  top: var(--workspace-screen-edge);
+  right: var(--workspace-screen-edge);
+  left: var(--workspace-screen-edge);
+  width: calc(
+    max(100vw, 1200px) - var(--workspace-screen-edge) -
+      var(--workspace-screen-edge)
+  );
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: center;
   z-index: 101;
 }
 
-@media (min-width: 761px) and (max-width: 1500px) {
+.admin-workspace-shell > .workspace-header .brand-block {
+  width: auto;
+  min-width: 0;
+}
+
+.admin-workspace-shell > .workspace-header .brand-copy {
+  min-width: 0;
+}
+
+.admin-workspace-shell > .workspace-header .brand-copy h4.ant-typography {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-workspace-shell > .workspace-header .workspace-search-nav {
+  order: initial;
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.admin-workspace-shell > .workspace-header .workspace-global-search {
+  width: var(--workspace-search-expanded-dynamic);
+}
+
+.admin-workspace-shell > .workspace-header .header-primary-actions {
+  width: auto;
+  overflow: visible;
+}
+
+.admin-workspace-shell > .workspace-header .header-account-actions {
+  order: initial;
+  width: auto;
+  min-width: max-content;
+  overflow: visible;
+}
+
+@media (min-width: 1200px) and (max-width: 1500px) {
   .workspace-header {
     --workspace-module-gap: clamp(0.4rem, 0.8vw, 0.9rem);
     --workspace-brand-basis: clamp(17rem, 26vw, 25rem);
@@ -4016,49 +3774,5 @@ body {
   }
   .header-account-actions {
     padding-left: clamp(4px, 0.5vw, 10px);
-  }
-}
-
-@media (min-width: 761px) and (max-width: 1220px) {
-  .workspace-header {
-    --workspace-module-gap: clamp(0.25rem, 0.55vw, 0.55rem);
-    --workspace-brand-basis: clamp(18rem, 29vw, 22rem);
-    --workspace-brand-min: clamp(17rem, 26vw, 19rem);
-    --workspace-title-max: clamp(22ch, 24vw, 30ch);
-    --workspace-search-collapsed: clamp(7.5rem, 12vw, 9.5rem);
-    --workspace-search-min: clamp(6rem, 9vw, 7.5rem);
-    --workspace-search-expanded: clamp(12rem, 30vw, 22rem);
-    --workspace-search-expanded-min: clamp(8.5rem, 14vw, 12rem);
-    --workspace-tab-text-max: clamp(2.8ch, 3.3vw, 4ch);
-    --workspace-user-name-max: clamp(4.5rem, 7vw, 5.8rem);
-  }
-
-  .header-primary-actions {
-    gap: 1px;
-    padding-left: 2px;
-    padding-right: 2px;
-  }
-
-  .header-primary-actions .workspace-switch-card {
-    gap: 0.125rem;
-    padding: 0 0.25rem;
-  }
-}
-
-@media (min-width: 761px) and (max-width: 1100px) {
-  .workspace-header {
-    --workspace-brand-basis: clamp(16.5rem, 28vw, 20.5rem);
-    --workspace-brand-min: clamp(16rem, 25vw, 18.75rem);
-    --workspace-title-max: clamp(20ch, 24vw, 28ch);
-    --workspace-search-collapsed: clamp(5.75rem, 9vw, 7.5rem);
-    --workspace-search-min: clamp(5rem, 7.5vw, 6rem);
-    --workspace-search-expanded: clamp(10rem, 27vw, 20rem);
-    --workspace-search-expanded-min: clamp(7rem, 12vw, 10rem);
-    --workspace-tab-text-max: clamp(2.4ch, 2.8vw, 3.4ch);
-  }
-
-  .header-primary-actions .workspace-switch-card {
-    gap: 0.25rem;
-    padding: 0 0.1875rem;
   }
 }

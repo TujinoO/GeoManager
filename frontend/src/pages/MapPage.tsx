@@ -1455,13 +1455,13 @@ function openWorkspaceProgressNotification(
       <Space orientation="vertical" size={6} style={{ width: "100%" }}>
         <Space size={8}>
           <Spin spinning={options.status === "active"} size="small" />
-          <Typography.Text type="secondary">
-            {options.percent}% · {options.detail}
-          </Typography.Text>
+          <Typography.Text type="secondary">{options.detail}</Typography.Text>
         </Space>
       </Space>
     ),
-    duration: options.status === "active" ? 0 : 3,
+    duration: options.status === "active" ? 0 : 5,
+    showProgress: options.status !== "active",
+    pauseOnHover: false,
   });
 }
 
