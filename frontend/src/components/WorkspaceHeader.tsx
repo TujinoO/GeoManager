@@ -24,7 +24,14 @@ import {
   Typography,
 } from "antd";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import capfedLogo from "../assets/capfed-logo.png";
@@ -84,6 +91,7 @@ export default function WorkspaceHeader({
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchCompact, setSearchCompact] = useState(false);
   const [navCompressed, setNavCompressed] = useState(false);
+  const [navMeasured, setNavMeasured] = useState(false);
   const [expandedTabId, setExpandedTabId] = useState<string | null>(null);
   const [searchPopoverWidth, setSearchPopoverWidth] = useState<
     number | undefined
@@ -93,11 +101,25 @@ export default function WorkspaceHeader({
   const primaryNavRef = useRef<HTMLElement | null>(null);
   const searchOpenTimerRef = useRef<number | null>(null);
   const tabHoverTimerRef = useRef<number | null>(null);
+  const navMeasureTimerRef = useRef<number | null>(null);
   const fullPrimaryNavWidthRef = useRef(0);
 
   useEffect(() => {
     setSearchText(searchKeyword);
   }, [searchKeyword]);
+
+  useEffect(() => {
+    navMeasureTimerRef.current = window.setTimeout(() => {
+      setNavMeasured(true);
+      navMeasureTimerRef.current = null;
+    }, 120);
+    return () => {
+      if (navMeasureTimerRef.current !== null) {
+        window.clearTimeout(navMeasureTimerRef.current);
+        navMeasureTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const syncSearchPopoverWidth = useCallback(() => {
     const width = searchContainerRef.current?.getBoundingClientRect().width;
@@ -223,7 +245,7 @@ export default function WorkspaceHeader({
     setExpandedTabId(null);
   }, [clearTabHoverTimer]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = searchContainerRef.current;
     if (!container) return;
     syncSearchPopoverWidth();
@@ -232,7 +254,7 @@ export default function WorkspaceHeader({
     return () => observer.disconnect();
   }, [syncSearchPopoverWidth]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const nav = searchNavRef.current;
     const search = searchContainerRef.current;
     const primaryNav = primaryNavRef.current;
@@ -246,7 +268,7 @@ export default function WorkspaceHeader({
     return () => observer.disconnect();
   }, [measureNavFit]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     window.requestAnimationFrame(measureNavFit);
   }, [measureNavFit]);
 
@@ -257,6 +279,9 @@ export default function WorkspaceHeader({
       }
       if (tabHoverTimerRef.current !== null) {
         window.clearTimeout(tabHoverTimerRef.current);
+      }
+      if (navMeasureTimerRef.current !== null) {
+        window.clearTimeout(navMeasureTimerRef.current);
       }
     };
   }, []);
@@ -344,12 +369,31 @@ export default function WorkspaceHeader({
     closeSearchPanel();
   }
 
+  const dismissSearchForNavigation = useCallback(() => {
+    closeSearchPanel();
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLElement &&
+      searchContainerRef.current?.contains(activeElement)
+    ) {
+      activeElement.blur();
+    }
+  }, [closeSearchPanel]);
+
+  const navigateFromHeader = useCallback(
+    (path: string) => {
+      dismissSearchForNavigation();
+      navigate(path);
+    },
+    [dismissSearchForNavigation, navigate],
+  );
+
   function handleResourceCenter() {
     if (!canBrowseData) {
       message.warning("当前账号暂无数据资源浏览权限");
       return;
     }
-    navigate("/map");
+    navigateFromHeader("/map");
     onDataPanelOpenChange?.(Boolean(dataPanel));
   }
 
@@ -527,7 +571,7 @@ export default function WorkspaceHeader({
 
   return (
     <header
-      className={`workspace-header${searchExpanded ? " workspace-header-search-active" : ""}${searchCompact ? " workspace-header-search-compact" : ""}${navCompressed ? " workspace-header-nav-compressed" : ""}`}
+      className={`workspace-header${navMeasured ? " workspace-header-nav-measured" : " workspace-header-nav-measuring"}${searchExpanded ? " workspace-header-search-active" : ""}${searchCompact ? " workspace-header-search-compact" : ""}${navCompressed ? " workspace-header-nav-compressed" : ""}`}
     >
       <div className="brand-block">
         <span className="brand-logo-frame">
@@ -578,7 +622,7 @@ export default function WorkspaceHeader({
           <button
             type="button"
             className={tabClass(activeTab === "map", expandedTabId === "map")}
-            onClick={() => navigate("/map")}
+            onClick={() => navigateFromHeader("/map")}
             onMouseEnter={() => scheduleTabHoverExpand("map")}
             onMouseLeave={collapseTabHover}
             title="地理数据"
@@ -592,7 +636,7 @@ export default function WorkspaceHeader({
               activeTab === "nongeo",
               expandedTabId === "nongeo",
             )}
-            onClick={() => navigate("/nongeo")}
+            onClick={() => navigateFromHeader("/nongeo")}
             onMouseEnter={() => scheduleTabHoverExpand("nongeo")}
             onMouseLeave={collapseTabHover}
             title="非地理数据"
@@ -646,7 +690,7 @@ export default function WorkspaceHeader({
               activeTab === "admin",
               expandedTabId === "admin",
             )}
-            onClick={() => navigate("/admin")}
+            onClick={() => navigateFromHeader("/admin")}
             onMouseEnter={() => scheduleTabHoverExpand("admin")}
             onMouseLeave={collapseTabHover}
             title="后台管理"

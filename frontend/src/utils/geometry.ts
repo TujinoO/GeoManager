@@ -187,10 +187,14 @@ export function fitGeojsonBounds(
   geojson: GeoJsonFeatureCollection,
   fallbackCenter: [number, number],
   fallbackZoom: number,
+  fitOptions?: NonNullable<Parameters<MapboxMap["fitBounds"]>[1]>,
 ) {
   const bounds = combinedFeatureBounds([geojson]);
   if (bounds) {
-    map.fitBounds(bounds, { padding: 72, duration: 900, essential: true });
+    map.fitBounds(
+      bounds,
+      fitOptions ?? { padding: 72, duration: 900, essential: true },
+    );
     return;
   }
   map.flyTo({

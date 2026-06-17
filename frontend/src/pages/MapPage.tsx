@@ -38,6 +38,7 @@ import { useLayerGroups } from "../hooks/useLayerGroups";
 import { useRasterRender } from "../hooks/useRasterRender";
 import { clearFeatureState, getMapState } from "../map/mapState";
 import type { DrawMode } from "../map/spatialDraw";
+import { fitBoundsOptionsForVisibleFrame } from "../map/visibleViewport";
 import type {
   Achievement,
   AttributeFilter,
@@ -486,11 +487,7 @@ export default function MapPage() {
       ) {
         const bounds = boundsFromImageCoordinates(targetLayer.imageCoordinates);
         if (bounds) {
-          map.fitBounds(bounds, {
-            padding: 72,
-            duration: 900,
-            essential: true,
-          });
+          map.fitBounds(bounds, fitBoundsOptionsForVisibleFrame(map));
           return;
         }
       }
@@ -503,6 +500,7 @@ export default function MapPage() {
         targetLayer.geojson,
         bootstrap.map.defaultCenter,
         bootstrap.map.defaultZoom,
+        fitBoundsOptionsForVisibleFrame(map),
       );
     },
     [
@@ -545,18 +543,14 @@ export default function MapPage() {
       }
       const firstRasterBound = rasterBounds[0];
       if (!bounds && firstRasterBound) {
-        map.fitBounds(firstRasterBound, {
-          padding: 72,
-          duration: 900,
-          essential: true,
-        });
+        map.fitBounds(firstRasterBound, fitBoundsOptionsForVisibleFrame(map));
         return;
       }
       if (!bounds) {
         message.warning("无法计算图层组范围");
         return;
       }
-      map.fitBounds(bounds, { padding: 72, duration: 900, essential: true });
+      map.fitBounds(bounds, fitBoundsOptionsForVisibleFrame(map));
     },
     [layerGroups.groups, message],
   );

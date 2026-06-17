@@ -1935,6 +1935,13 @@ body {
     gap 0.72s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.workspace-header-nav-measuring .workspace-global-search,
+.workspace-header-nav-measuring .header-primary-actions,
+.workspace-header-nav-measuring .header-primary-actions .workspace-switch-card,
+.workspace-header-nav-measuring .header-primary-actions .tab-text {
+  transition: none;
+}
+
 .workspace-header.workspace-header-search-active
   .workspace-search-nav
   .workspace-global-search {

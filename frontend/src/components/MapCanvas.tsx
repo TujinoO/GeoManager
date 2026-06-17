@@ -33,6 +33,10 @@ import {
   removeLoadedLayerGroup,
   reorderLoadedStyleLayers,
 } from "../map/vectorLayerSync";
+import {
+  fitBoundsOptionsForVisibleFrame,
+  readVisibleMapViewState,
+} from "../map/visibleViewport";
 import type {
   Bootstrap,
   FeatureInfo,
@@ -158,13 +162,18 @@ export default function MapCanvas({
     map.on("mousemove", updatePointer);
     map.on("mouseleave", clearPointer);
     const emitViewState = () => {
-      onViewStateChange?.(readMapViewState(map));
+      onViewStateChange?.(readVisibleMapViewState(map));
+    };
+    const resizeAndEmitViewState = () => {
+      map.resize();
+      emitViewState();
     };
     map.on("load", emitViewState);
     map.on("moveend", emitViewState);
     map.on("zoomend", emitViewState);
     map.on("rotateend", emitViewState);
     map.on("pitchend", emitViewState);
+    window.addEventListener("resize", resizeAndEmitViewState);
     emitViewState();
     mapRef.current = map;
     onMapReady?.(map);
@@ -175,6 +184,7 @@ export default function MapCanvas({
       map.off("zoomend", emitViewState);
       map.off("rotateend", emitViewState);
       map.off("pitchend", emitViewState);
+      window.removeEventListener("resize", resizeAndEmitViewState);
       map.off("mousemove", updatePointer);
       map.off("mouseleave", clearPointer);
       onMapDestroy?.();
@@ -254,16 +264,14 @@ export default function MapCanvas({
   }, [drawMode, onDrawComplete]);
 
   function resetView() {
-    mapRef.current?.fitBounds(
+    const map = mapRef.current;
+    if (!map) return;
+    map.fitBounds(
       [
         [50, 35],
         [100, 48],
       ],
-      {
-        padding: 72,
-        duration: 900,
-        essential: true,
-      },
+      fitBoundsOptionsForVisibleFrame(map),
     );
   }
 
@@ -318,22 +326,6 @@ export default function MapCanvas({
       </div>
     </div>
   );
-}
-
-function readMapViewState(map: MapboxMap): MapViewState {
-  const center = map.getCenter();
-  const bounds = map.getBounds();
-  const west = bounds?.getWest() ?? center.lng;
-  const south = bounds?.getSouth() ?? center.lat;
-  const east = bounds?.getEast() ?? center.lng;
-  const north = bounds?.getNorth() ?? center.lat;
-  return {
-    center: [center.lng, center.lat],
-    bounds: [west, south, east, north],
-    zoom: map.getZoom(),
-    bearing: map.getBearing(),
-    pitch: map.getPitch(),
-  };
 }
 
 function disableMapboxEventRequests() {
@@ -435,7 +427,7 @@ function syncLoadedLayers(
       (b, next) => b.extend(next),
       new LngLatBounds(firstBound.getSouthWest(), firstBound.getNorthEast()),
     );
-    map.fitBounds(combined, { padding: 80, duration: 900, essential: true });
+    map.fitBounds(combined, fitBoundsOptionsForVisibleFrame(map, 80));
   }
 
   reorderLoadedStyleLayers(map, [
