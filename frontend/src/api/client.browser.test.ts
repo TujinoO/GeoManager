@@ -9,7 +9,7 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
 }
 
 function setTestCookie(value: string) {
-  // biome-ignore lint/suspicious/noDocumentCookie: tests need to seed document.cookie for CSRF coverage.
+  // oxlint-disable-next-line unicorn/no-document-cookie -- tests need to seed document.cookie for CSRF coverage.
   document.cookie = value;
 }
 

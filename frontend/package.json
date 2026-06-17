@@ -1,7 +1,7 @@
 {
   "name": "data-sharing-platform-frontend",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -19,9 +19,11 @@
     "build": "vite build",
     "build:verify": "pnpm run check:api && pnpm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "vitest run",
-    "check": "biome check .",
-    "fix": "biome check . --write",
+    "test": "vitest --config vitest.config.ts run",
+    "test:browser": "vitest --config vitest.browser.config.ts run --browser.headless",
+    "test:browser:watch": "vitest --config vitest.browser.config.ts --browser.headless=false",
+    "check": "oxlint . --no-error-on-unmatched-pattern && oxfmt . --check --no-error-on-unmatched-pattern",
+    "fix": "oxlint . --fix --no-error-on-unmatched-pattern && oxfmt . --write --no-error-on-unmatched-pattern",
     "version:patch": "pnpm version patch",
     "version:minor": "pnpm version minor",
     "version:major": "pnpm version major"
@@ -40,7 +42,6 @@
   },
   "devDependencies": {
     "@ant-design/cli": "^6.4.3",
-    "@biomejs/biome": "^2.4.16",
     "@redocly/cli": "^2.31.6",
     "@stoplight/prism-cli": "^5.15.11",
     "@testing-library/dom": "^10.4.1",
@@ -49,12 +50,16 @@
     "@types/react": "^19.2.16",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "@vitest/browser-playwright": "^4.1.9",
     "concurrently": "^10.0.3",
-    "happy-dom": "^20.10.1",
     "openapi-typescript": "^7.13.0",
+    "oxfmt": "^0.55.0",
+    "oxlint": "^1.70.0",
+    "playwright": "^1.61.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.9",
+    "vitest-browser-react": "^2.2.0"
   },
   "packageManager": "pnpm@11.7.0"
 }

@@ -403,14 +403,14 @@ export function rasterSymbolizationFromRules(
         : defaultRasterSymbolization.alphaBand,
     nodata: {
       ...defaultRasterSymbolization.nodata,
-      ...(raw.nodata ?? {}),
+      ...raw.nodata,
     },
     stretch: {
       ...defaultRasterSymbolization.stretch,
-      ...(raw.stretch ?? {}),
+      ...raw.stretch,
       perBand: {
         ...defaultRasterSymbolization.stretch.perBand,
-        ...(raw.stretch?.perBand ?? {}),
+        ...raw.stretch?.perBand,
       },
     },
     uniqueValues: Array.isArray(raw.uniqueValues)

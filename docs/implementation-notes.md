@@ -230,6 +230,7 @@ frontend/src/
   - `geometry.test.ts` — 几何计算、边界合并、坐标提取、格式化工具
   - `layerFactory.test.ts` — 矢量/栅格图层组构建
 - 类型检查：`pnpm run typecheck`（`tsc --noEmit`）
+- 代码检查与格式化：`pnpm run check` 使用 Oxlint + Oxfmt，`pnpm run fix` 自动应用 Oxlint 可修复项并写入 Oxfmt 格式化结果。
 - API 契约检查：`pnpm run check:api`（Redocly lint + OpenAPI 类型漂移检查）
 - 快速生产构建：`pnpm run build`（仅执行 Vite 生产打包）
 - 发布/CI 构建验证：`pnpm run build:verify`（check:api + typecheck + vite build）

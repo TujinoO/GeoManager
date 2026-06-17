@@ -1,5 +1,3 @@
-/// <reference types="vitest/config" />
-
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 
@@ -46,7 +44,7 @@ export default defineConfig(({ mode }) => {
           entryFileNames: "assets/js/[name]-[hash].js",
           assetFileNames: (assetInfo) => {
             const info = assetInfo.name || "";
-            if (/\.css$/.test(info)) {
+            if (info.endsWith(".css")) {
               return "assets/css/[name]-[hash][extname]";
             }
             return "assets/[name]-[hash][extname]";
@@ -67,23 +65,6 @@ export default defineConfig(({ mode }) => {
         "@ant-design/icons",
         "@ant-design/pro-components",
       ],
-    },
-    test: {
-      environment: "happy-dom",
-      setupFiles: ["./src/test/setup.ts"],
-      testTimeout: 20000,
-      server: {
-        deps: {
-          inline: [/@ant-design\/pro-components/],
-        },
-      },
-      deps: {
-        optimizer: {
-          web: {
-            include: ["@ant-design/pro-components"],
-          },
-        },
-      },
     },
   };
 });

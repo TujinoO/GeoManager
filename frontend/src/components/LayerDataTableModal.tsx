@@ -310,8 +310,7 @@ function buildColumnFilters(
   return values.map((v) => ({ text: v, value: v }));
 }
 
-interface ResizableHeaderCellProps
-  extends React.ThHTMLAttributes<HTMLTableCellElement> {
+interface ResizableHeaderCellProps extends React.ThHTMLAttributes<HTMLTableCellElement> {
   width?: number;
   onResize?: (width: number) => void;
 }

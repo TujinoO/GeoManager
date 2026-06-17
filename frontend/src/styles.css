@@ -2242,14 +2242,10 @@ body {
 .floating-panel-bottom {
   position: absolute;
   left: calc(
-    var(--workspace-edge) +
-    var(--side-panel-width) +
-    var(--workspace-gap)
+    var(--workspace-edge) + var(--side-panel-width) + var(--workspace-gap)
   );
   right: calc(
-    var(--workspace-edge) +
-    var(--side-panel-width) +
-    var(--workspace-gap)
+    var(--workspace-edge) + var(--side-panel-width) + var(--workspace-gap)
   );
   bottom: var(--workspace-edge);
   z-index: 5;
@@ -3539,14 +3535,10 @@ body {
 .map-toolbar {
   position: absolute;
   right: calc(
-    var(--workspace-edge) +
-    var(--side-panel-width) +
-    var(--workspace-gap)
+    var(--workspace-edge) + var(--side-panel-width) + var(--workspace-gap)
   );
   bottom: calc(
-    var(--workspace-edge) +
-    var(--bottom-panel-height) +
-    var(--workspace-gap)
+    var(--workspace-edge) + var(--bottom-panel-height) + var(--workspace-gap)
   );
   z-index: 6;
   display: flex;
@@ -3593,9 +3585,7 @@ body {
 .mapboxgl-ctrl-bottom-left,
 .mapboxgl-ctrl-bottom-right {
   margin: calc(
-      var(--workspace-edge) +
-      var(--bottom-panel-height) +
-      var(--workspace-gap)
+      var(--workspace-edge) + var(--bottom-panel-height) + var(--workspace-gap)
     )
     calc(var(--workspace-edge) + var(--side-panel-width) + var(--workspace-gap));
 
