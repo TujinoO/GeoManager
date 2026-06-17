@@ -14,6 +14,9 @@ node_modules/
 dist/
 coverage/
 frontend/.vite/
+frontend/.vitest-attachments/
+frontend/src/__screenshots__/
+frontend/test-results/
 frontend/vite.config.d.ts
 frontend/vite.config.js
 frontend/.env.local

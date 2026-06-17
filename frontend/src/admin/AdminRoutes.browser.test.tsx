@@ -57,6 +57,7 @@ const mockApi = vi.hoisted(() => ({
 }));
 
 vi.mock("../api/client", () => ({
+  ApiError: class ApiError extends Error {},
   api: mockApi,
 }));
 
@@ -269,6 +270,9 @@ function AdminTestProviders({ children }: { children: React.ReactNode }) {
 
 describe("admin routes", () => {
   beforeEach(() => {
+    for (const fn of Object.values(mockApi)) {
+      fn.mockReset();
+    }
     mockApi.logout.mockResolvedValue({ detail: "已退出" });
     mockApi.adminProfile.mockResolvedValue({
       user: adminUser,
