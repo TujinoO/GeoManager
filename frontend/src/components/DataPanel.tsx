@@ -1,5 +1,4 @@
 import {
-  DatabaseOutlined,
   EnvironmentOutlined,
   FilterOutlined,
   PlusOutlined,
@@ -61,6 +60,10 @@ const operatorOptions = [
   { label: "小于等于", value: "lte" },
   { label: "介于", value: "between" },
 ];
+
+const panelSelectClassNames = {
+  popup: { root: "workspace-select-dropdown" },
+};
 
 export default function DataPanel({
   resources,
@@ -147,11 +150,6 @@ export default function DataPanel({
 
   return (
     <section className="panel-section data-panel">
-      <div className="panel-title">
-        <DatabaseOutlined style={{ fontSize: 18 }} />
-        <Typography.Title level={5}>数据管理</Typography.Title>
-      </div>
-
       <div className="subsection-title">
         <SearchOutlined style={{ fontSize: 15 }} />
         <Typography.Text strong>元数据筛选</Typography.Text>
@@ -164,26 +162,34 @@ export default function DataPanel({
           onChange={(event) => updateResourceFilter("q", event.target.value)}
           allowClear
         />
-        <Select
-          placeholder="数据类型"
-          value={resourceFilters.dataType}
-          allowClear
-          options={[
-            { value: "vector", label: "矢量空间数据" },
-            { value: "raster", label: "栅格空间数据" },
-            { value: "table", label: "表格属性数据" },
-            { value: "document", label: "文档资料" },
-            { value: "image", label: "图片资料" },
-          ]}
-          onChange={(nextValue) => updateResourceFilter("dataType", nextValue)}
-        />
-        <Select
-          placeholder="数据分类"
-          value={resourceFilters.category}
-          allowClear
-          options={categoryOptions}
-          onChange={(nextValue) => updateResourceFilter("category", nextValue)}
-        />
+        <div className="data-filter-row">
+          <Select
+            placeholder="数据分类"
+            value={resourceFilters.category}
+            allowClear
+            classNames={panelSelectClassNames}
+            options={categoryOptions}
+            onChange={(nextValue) =>
+              updateResourceFilter("category", nextValue)
+            }
+          />
+          <Select
+            placeholder="数据类型"
+            value={resourceFilters.dataType}
+            allowClear
+            classNames={panelSelectClassNames}
+            options={[
+              { value: "vector", label: "矢量空间数据" },
+              { value: "raster", label: "栅格空间数据" },
+              { value: "table", label: "表格属性数据" },
+              { value: "document", label: "文档资料" },
+              { value: "image", label: "图片资料" },
+            ]}
+            onChange={(nextValue) =>
+              updateResourceFilter("dataType", nextValue)
+            }
+          />
+        </div>
         <Input
           placeholder="数据来源"
           value={resourceFilters.source}
@@ -326,18 +332,22 @@ export default function DataPanel({
             <Typography.Text strong>属性查询</Typography.Text>
           </div>
           <Space orientation="vertical" className="full-width compact-stack">
-            <Select
-              placeholder="选择字段"
-              value={field}
-              options={fieldOptions}
-              onChange={setField}
-              disabled={!profile}
-            />
-            <Select
-              value={operator}
-              options={operatorOptions}
-              onChange={setOperator}
-            />
+            <div className="attribute-filter-row">
+              <Select
+                placeholder="选择字段"
+                value={field}
+                options={fieldOptions}
+                onChange={setField}
+                disabled={!profile}
+                classNames={panelSelectClassNames}
+              />
+              <Select
+                value={operator}
+                options={operatorOptions}
+                onChange={setOperator}
+                classNames={panelSelectClassNames}
+              />
+            </div>
             <Input
               placeholder="字段值"
               value={value}

@@ -1,6 +1,5 @@
 import {
   AimOutlined,
-  ApartmentOutlined,
   BgColorsOutlined,
   DeleteOutlined,
   DownloadOutlined,
@@ -18,7 +17,6 @@ import {
 import {
   Alert,
   App,
-  Badge,
   Button,
   Card,
   Empty,
@@ -292,14 +290,6 @@ export default function LayerPanel() {
 
   return (
     <section className="panel-section">
-      <div className="panel-title">
-        <ApartmentOutlined style={{ fontSize: 18 }} />
-        <Typography.Title level={5}>已加载图层</Typography.Title>
-        <Badge
-          count={groups.filter((group) => group.visible).length}
-          color="#2f7d62"
-        />
-      </div>
       <div className="layer-save-actions">
         <Button
           size="small"

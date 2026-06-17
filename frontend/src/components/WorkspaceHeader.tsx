@@ -72,9 +72,9 @@ export default function WorkspaceHeader({
   canBrowseData,
   dataPanel,
   dataPanelOpen,
-  resources = [],
-  workspaceScenes = [],
-  achievements = [],
+  resources,
+  workspaceScenes,
+  achievements,
   searchKeyword = "",
   onDataPanelOpenChange,
   onGlobalSearch,
@@ -88,6 +88,11 @@ export default function WorkspaceHeader({
   const navigate = useNavigate();
   const [searchText, setSearchText] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [localResources, setLocalResources] = useState<ResourceListItem[]>([]);
+  const [localWorkspaceScenes, setLocalWorkspaceScenes] = useState<
+    WorkspaceScene[]
+  >([]);
+  const [localAchievements, setLocalAchievements] = useState<Achievement[]>([]);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchCompact, setSearchCompact] = useState(false);
   const [navCompressed, setNavCompressed] = useState(false);
@@ -103,10 +108,55 @@ export default function WorkspaceHeader({
   const tabHoverTimerRef = useRef<number | null>(null);
   const navMeasureTimerRef = useRef<number | null>(null);
   const fullPrimaryNavWidthRef = useRef(0);
+  const effectiveResources = resources ?? localResources;
+  const effectiveWorkspaceScenes = workspaceScenes ?? localWorkspaceScenes;
+  const effectiveAchievements = achievements ?? localAchievements;
 
   useEffect(() => {
     setSearchText(searchKeyword);
   }, [searchKeyword]);
+
+  useEffect(() => {
+    if (
+      !canBrowseData ||
+      (resources !== undefined &&
+        workspaceScenes !== undefined &&
+        achievements !== undefined)
+    ) {
+      return;
+    }
+    let mounted = true;
+    async function loadGlobalSearchItems() {
+      try {
+        const [resourceResponse, sceneResponse, achievementResponse] =
+          await Promise.all([
+            resources === undefined ? api.resources({}) : null,
+            workspaceScenes === undefined ? api.workspaces() : null,
+            achievements === undefined ? api.achievements() : null,
+          ]);
+        if (!mounted) {
+          return;
+        }
+        if (resourceResponse) {
+          setLocalResources(resourceResponse.items);
+        }
+        if (sceneResponse) {
+          setLocalWorkspaceScenes(sceneResponse.items);
+        }
+        if (achievementResponse) {
+          setLocalAchievements(achievementResponse.items);
+        }
+      } catch (error) {
+        message.warning(
+          error instanceof Error ? error.message : "全局搜索内容加载失败",
+        );
+      }
+    }
+    void loadGlobalSearchItems();
+    return () => {
+      mounted = false;
+    };
+  }, [achievements, canBrowseData, message, resources, workspaceScenes]);
 
   useEffect(() => {
     navMeasureTimerRef.current = window.setTimeout(() => {
@@ -307,28 +357,33 @@ export default function WorkspaceHeader({
   const searchQuery = searchText.trim().toLocaleLowerCase("zh-CN");
   const filteredResources = useMemo(
     () =>
-      resources.filter((resource) =>
+      effectiveResources.filter((resource) =>
         searchQuery ? resourceMatches(resource, searchQuery) : true,
       ),
-    [resources, searchQuery],
+    [effectiveResources, searchQuery],
   );
   const filteredWorkspaceScenes = useMemo(
     () =>
-      workspaceScenes.filter((scene) =>
+      effectiveWorkspaceScenes.filter((scene) =>
         searchQuery ? sceneMatches(scene, searchQuery) : true,
       ),
-    [workspaceScenes, searchQuery],
+    [effectiveWorkspaceScenes, searchQuery],
   );
   const filteredAchievements = useMemo(
     () =>
-      achievements.filter((achievement) =>
+      effectiveAchievements.filter((achievement) =>
         searchQuery ? achievementMatches(achievement, searchQuery) : true,
       ),
-    [achievements, searchQuery],
+    [effectiveAchievements, searchQuery],
   );
   const searchCategories = useMemo(
-    () => buildSearchCategories(resources, workspaceScenes, achievements),
-    [achievements, resources, workspaceScenes],
+    () =>
+      buildSearchCategories(
+        effectiveResources,
+        effectiveWorkspaceScenes,
+        effectiveAchievements,
+      ),
+    [effectiveAchievements, effectiveResources, effectiveWorkspaceScenes],
   );
 
   async function handleLogout() {
@@ -369,6 +424,41 @@ export default function WorkspaceHeader({
     closeSearchPanel();
   }
 
+  function openResourceSearch(resource: ResourceListItem) {
+    navigate(`/map?resourceQ=${encodeURIComponent(resource.name)}`);
+    onDataPanelOpenChange?.(Boolean(dataPanel));
+    onGlobalSearch?.(resource.name);
+    closeSearchPanel();
+  }
+
+  function quickLoadResource(resource: ResourceListItem) {
+    if (onQuickLoadResource) {
+      onQuickLoadResource(resource);
+      closeSearchPanel();
+      return;
+    }
+    openResourceSearch(resource);
+  }
+
+  function openWorkspaceScene(scene: WorkspaceScene) {
+    if (onLoadWorkspaceScene) {
+      onLoadWorkspaceScene(scene);
+    } else {
+      navigate(`/map?sceneId=${scene.id}`);
+    }
+    setSearchOpen(false);
+    closeSearchPanel();
+  }
+
+  function openAchievement(achievement: Achievement) {
+    if (onOpenAchievement) {
+      onOpenAchievement(achievement);
+    } else {
+      message.info(`成果详情正在接入：${achievement.title}`);
+    }
+    closeSearchPanel();
+  }
+
   const dismissSearchForNavigation = useCallback(() => {
     closeSearchPanel();
     const activeElement = document.activeElement;
@@ -398,8 +488,8 @@ export default function WorkspaceHeader({
   }
 
   const dataButton = (
-    <button
-      type="button"
+    <Button
+      type="text"
       className={tabClass(false, expandedTabId === "resource")}
       onClick={dataPanel ? undefined : handleResourceCenter}
       onMouseEnter={() => scheduleTabHoverExpand("resource")}
@@ -408,7 +498,7 @@ export default function WorkspaceHeader({
     >
       <FolderOpenOutlined aria-hidden="true" style={{ fontSize: 16 }} />
       <span className="tab-text">资源中心</span>
-    </button>
+    </Button>
   );
 
   const wechatContent = (
@@ -469,36 +559,28 @@ export default function WorkspaceHeader({
         emptyText="暂无匹配数据"
       >
         {filteredResources.map((resource) => (
-          <button
-            type="button"
-            className="workspace-search-row"
-            key={`resource-${resource.id}`}
-            onClick={() => {
-              navigate(`/map?resourceQ=${encodeURIComponent(resource.name)}`);
-              onDataPanelOpenChange?.(Boolean(dataPanel));
-              onGlobalSearch?.(resource.name);
-            }}
-          >
-            <span className="workspace-search-row-main">
+          <div className="workspace-search-row" key={`resource-${resource.id}`}>
+            <Button
+              type="text"
+              className="workspace-search-row-main workspace-search-row-trigger"
+              onClick={() => openResourceSearch(resource)}
+            >
               <strong>{resource.name}</strong>
               <small>
                 {resourceCategoryName(resource) ?? "未分类"} ·{" "}
                 {resourceFormatLabel(resource)}
               </small>
-            </span>
+            </Button>
             <Button
               size="small"
               type="primary"
               ghost
               disabled={!resource.isQueryable && !resource.isRenderable}
-              onClick={(event) => {
-                event.stopPropagation();
-                onQuickLoadResource?.(resource);
-              }}
+              onClick={() => quickLoadResource(resource)}
             >
               快速加载
             </Button>
-          </button>
+          </div>
         ))}
       </SearchResultSection>
 
@@ -508,14 +590,11 @@ export default function WorkspaceHeader({
         emptyText="暂无匹配工程或专题"
       >
         {filteredWorkspaceScenes.map((scene) => (
-          <button
-            type="button"
+          <Button
+            type="text"
             className="workspace-search-row"
             key={`scene-${scene.id}`}
-            onClick={() => {
-              onLoadWorkspaceScene?.(scene);
-              setSearchOpen(false);
-            }}
+            onClick={() => openWorkspaceScene(scene)}
           >
             <span className="workspace-search-row-main">
               <strong>{scene.name}</strong>
@@ -524,7 +603,7 @@ export default function WorkspaceHeader({
             <Tag color={scene.kind === "project" ? "blue" : "green"}>
               {scene.kind === "project" ? "工程" : "专题"}
             </Tag>
-          </button>
+          </Button>
         ))}
       </SearchResultSection>
 
@@ -534,11 +613,11 @@ export default function WorkspaceHeader({
         emptyText="暂无匹配成果"
       >
         {filteredAchievements.map((achievement) => (
-          <button
-            type="button"
+          <Button
+            type="text"
             className="workspace-search-row"
             key={`achievement-${achievement.id}`}
-            onClick={() => onOpenAchievement?.(achievement)}
+            onClick={() => openAchievement(achievement)}
           >
             <span className="workspace-search-row-main">
               <strong>{achievement.title}</strong>
@@ -548,7 +627,7 @@ export default function WorkspaceHeader({
               </small>
             </span>
             <Tag color="purple">成果</Tag>
-          </button>
+          </Button>
         ))}
       </SearchResultSection>
 
@@ -619,8 +698,8 @@ export default function WorkspaceHeader({
           className="header-primary-actions"
           aria-label="主导航"
         >
-          <button
-            type="button"
+          <Button
+            type="text"
             className={tabClass(activeTab === "map", expandedTabId === "map")}
             onClick={() => navigateFromHeader("/map")}
             onMouseEnter={() => scheduleTabHoverExpand("map")}
@@ -629,9 +708,9 @@ export default function WorkspaceHeader({
           >
             <ApartmentOutlined aria-hidden="true" style={{ fontSize: 16 }} />
             <span className="tab-text">地理数据</span>
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            type="text"
             className={tabClass(
               activeTab === "nongeo",
               expandedTabId === "nongeo",
@@ -643,7 +722,7 @@ export default function WorkspaceHeader({
           >
             <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
             <span className="tab-text">非地理数据</span>
-          </button>
+          </Button>
           {canBrowseData &&
             (dataPanel ? (
               <Popover
@@ -673,8 +752,8 @@ export default function WorkspaceHeader({
             ) : (
               dataButton
             ))}
-          <button
-            type="button"
+          <Button
+            type="text"
             className={tabClass(false, expandedTabId === "achievements")}
             onClick={() => message.info("成果目录页面正在接入")}
             onMouseEnter={() => scheduleTabHoverExpand("achievements")}
@@ -683,9 +762,9 @@ export default function WorkspaceHeader({
           >
             <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
             <span className="tab-text">成果目录</span>
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            type="text"
             className={tabClass(
               activeTab === "admin",
               expandedTabId === "admin",
@@ -697,15 +776,15 @@ export default function WorkspaceHeader({
           >
             <SettingOutlined aria-hidden="true" style={{ fontSize: 16 }} />
             <span className="tab-text">后台管理</span>
-          </button>
+          </Button>
           <Popover
             trigger="click"
             placement="bottom"
             content={aboutContent}
             overlayClassName="workspace-info-popover"
           >
-            <button
-              type="button"
+            <Button
+              type="text"
               className={tabClass(false, expandedTabId === "about")}
               onMouseEnter={() => scheduleTabHoverExpand("about")}
               onMouseLeave={collapseTabHover}
@@ -713,7 +792,7 @@ export default function WorkspaceHeader({
             >
               <InfoCircleOutlined aria-hidden="true" style={{ fontSize: 16 }} />
               <span className="tab-text">关于我们</span>
-            </button>
+            </Button>
           </Popover>
         </nav>
       </div>

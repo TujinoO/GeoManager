@@ -360,8 +360,8 @@ function ResizableHeaderCell({
     <th {...restProps} style={{ ...restProps.style, width }}>
       <div className="resizable-table-header">
         <span className="resizable-table-title">{children}</span>
-        <button
-          type="button"
+        <Button
+          type="text"
           aria-label="调整列宽"
           className="resizable-table-handle"
           onMouseDown={handleResizeStart}

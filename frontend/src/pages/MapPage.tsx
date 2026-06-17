@@ -11,6 +11,7 @@ import {
   Empty,
   Layout,
   Popconfirm,
+  Progress,
   Space,
   Tabs,
   Tag,
@@ -144,6 +145,7 @@ export default function MapPage() {
   );
   const mapInstanceRef = useRef<MapboxMap | null>(null);
   const startupScanStartedRef = useRef(false);
+  const loadedSceneIdRef = useRef<number | null>(null);
   const permissions = user?.permissions ?? emptyPermissions;
   const userRoles = user?.roles ?? [];
 
@@ -664,45 +666,90 @@ export default function MapPage() {
       kind: WorkspaceSceneKind,
       values: { name: string; description?: string },
     ) => {
+      const label = kind === "project" ? "工程" : "专题";
+      const notificationKey = `workspace-save-${kind}-${Date.now()}`;
       try {
+        openWorkspaceProgressNotification(notification, {
+          key: notificationKey,
+          title: `正在保存${label}`,
+          percent: 15,
+          status: "active",
+          detail: "正在整理当前图层、视图和符号化配置",
+        });
+        const snapshot = workspaceSnapshot(
+          layerGroups.groups,
+          selectedLayerId,
+          currentMapView,
+        );
+        openWorkspaceProgressNotification(notification, {
+          key: notificationKey,
+          title: `正在保存${label}`,
+          percent: 55,
+          status: "active",
+          detail: "正在写入工作区快照",
+        });
         await api.createWorkspace({
           kind,
           name: values.name.trim(),
           description: values.description?.trim() ?? "",
-          snapshot: workspaceSnapshot(
-            layerGroups.groups,
-            selectedLayerId,
-            currentMapView,
-          ),
+          snapshot,
         });
-        message.success(kind === "project" ? "工程已保存" : "专题已保存");
+        openWorkspaceProgressNotification(notification, {
+          key: notificationKey,
+          title: `${label}已保存`,
+          percent: 100,
+          status: "success",
+          detail: values.name.trim(),
+        });
       } catch (error) {
-        message.error(
-          error instanceof Error
-            ? error.message
-            : kind === "project"
-              ? "工程保存失败"
-              : "专题保存失败",
-        );
+        openWorkspaceProgressNotification(notification, {
+          key: notificationKey,
+          title: `${label}保存失败`,
+          percent: 100,
+          status: "exception",
+          detail: error instanceof Error ? error.message : `${label}保存失败`,
+        });
         throw error;
       }
     },
-    [currentMapView, layerGroups.groups, message, selectedLayerId],
+    [currentMapView, layerGroups.groups, notification, selectedLayerId],
   );
 
   const restoreWorkspaceGroups = useCallback(
     async (
       savedGroups: WorkspaceSceneSnapshot["groups"],
+      onProgress?: (state: { percent: number; detail: string }) => void,
     ): Promise<LoadedLayerGroup[]> => {
       if (!Array.isArray(savedGroups)) {
         return [];
       }
+      const totalLayers = savedGroups.reduce(
+        (total, group) => total + (group.children?.length ?? 0),
+        0,
+      );
+      let processedLayers = 0;
+      const updateRestoreProgress = (detail: string) => {
+        if (!onProgress) {
+          return;
+        }
+        const layerProgress =
+          totalLayers > 0
+            ? Math.round((processedLayers / totalLayers) * 70)
+            : 70;
+        onProgress({
+          percent: Math.min(85, 10 + layerProgress),
+          detail,
+        });
+      };
       const restored: LoadedLayerGroup[] = [];
       for (const savedGroup of savedGroups) {
         const restoredChildren: LoadedLayer[] = [];
         for (const savedLayer of savedGroup.children ?? []) {
+          updateRestoreProgress(`正在恢复图层：${savedLayer.name}`);
           if (isLoadedVectorLayer(savedLayer)) {
             restoredChildren.push(savedLayer);
+            processedLayers += 1;
+            updateRestoreProgress(`已恢复图层：${savedLayer.name}`);
             continue;
           }
           if (savedLayer.layerType === "vector") {
@@ -711,6 +758,8 @@ export default function MapPage() {
               !permissions.canQueryData ||
               !permissions.canLoadVectorLayer
             ) {
+              processedLayers += 1;
+              updateRestoreProgress(`已跳过图层：${savedLayer.name}`);
               continue;
             }
             try {
@@ -753,6 +802,8 @@ export default function MapPage() {
                   : `图层“${savedLayer.name}”恢复失败`,
               );
             }
+            processedLayers += 1;
+            updateRestoreProgress(`已处理图层：${savedLayer.name}`);
             continue;
           }
           restoredChildren.push({
@@ -776,6 +827,8 @@ export default function MapPage() {
               savedLayer.symbolization as LoadedRasterLayer["symbolization"],
             fields: savedLayer.fields,
           });
+          processedLayers += 1;
+          updateRestoreProgress(`已恢复图层：${savedLayer.name}`);
         }
         if (restoredChildren.length > 0) {
           restored.push({ ...savedGroup, children: restoredChildren });
@@ -794,16 +847,50 @@ export default function MapPage() {
 
   const loadWorkspaceScene = useCallback(
     async (scene: WorkspaceScene) => {
+      const label = scene.kind === "project" ? "工程" : "专题";
+      const notificationKey = `workspace-load-${scene.id}`;
       const snapshot = scene.snapshot as WorkspaceSceneSnapshot;
       if (!Array.isArray(snapshot.groups)) {
         message.warning("该工作区快照不包含可恢复的图层");
         return;
       }
-      const restoredGroups = await restoreWorkspaceGroups(snapshot.groups);
+      openWorkspaceProgressNotification(notification, {
+        key: notificationKey,
+        title: `正在加载${label}`,
+        percent: 8,
+        status: "active",
+        detail: scene.name,
+      });
+      const restoredGroups = await restoreWorkspaceGroups(
+        snapshot.groups,
+        (state) => {
+          openWorkspaceProgressNotification(notification, {
+            key: notificationKey,
+            title: `正在加载${label}`,
+            percent: state.percent,
+            status: "active",
+            detail: state.detail,
+          });
+        },
+      );
       if (restoredGroups.length === 0) {
+        openWorkspaceProgressNotification(notification, {
+          key: notificationKey,
+          title: `${label}加载失败`,
+          percent: 100,
+          status: "exception",
+          detail: "该工作区快照没有可恢复的图层",
+        });
         message.warning("该工作区快照没有可恢复的图层");
         return;
       }
+      openWorkspaceProgressNotification(notification, {
+        key: notificationKey,
+        title: `正在加载${label}`,
+        percent: 90,
+        status: "active",
+        detail: "正在应用图层和地图视图",
+      });
       layerGroups.replaceGroups(restoredGroups);
       setSelectedLayerId(snapshot.selectedLayerId ?? null);
       setTableLayer(null);
@@ -818,12 +905,47 @@ export default function MapPage() {
           essential: true,
         });
       }
-      message.success(
-        `已加载${scene.kind === "project" ? "工程" : "专题"}：${scene.name}`,
-      );
+      openWorkspaceProgressNotification(notification, {
+        key: notificationKey,
+        title: `${label}已加载`,
+        percent: 100,
+        status: "success",
+        detail: scene.name,
+      });
     },
-    [layerGroups, message, restoreWorkspaceGroups],
+    [layerGroups, message, notification, restoreWorkspaceGroups],
   );
+
+  useEffect(() => {
+    const sceneIdText = searchParams.get("sceneId")?.trim();
+    if (!sceneIdText) {
+      loadedSceneIdRef.current = null;
+      return;
+    }
+    const sceneId = Number(sceneIdText);
+    if (!Number.isInteger(sceneId) || sceneId <= 0) {
+      message.warning("工程或专题参数无效");
+      return;
+    }
+    if (loadedSceneIdRef.current === sceneId) {
+      return;
+    }
+    loadedSceneIdRef.current = sceneId;
+    async function loadSceneFromUrl() {
+      try {
+        const scene =
+          workspaceScenes.find((item) => item.id === sceneId) ??
+          (await api.workspace(sceneId));
+        await loadWorkspaceScene(scene);
+      } catch (error) {
+        loadedSceneIdRef.current = null;
+        message.error(
+          error instanceof Error ? error.message : "工程或专题加载失败",
+        );
+      }
+    }
+    void loadSceneFromUrl();
+  }, [loadWorkspaceScene, message, searchParams, workspaceScenes]);
 
   const layerContextValue: LayerContextValue = {
     groups: layerGroups.groups,
@@ -1028,7 +1150,7 @@ function WorkspaceScenePanel({
   onLoad,
 }: {
   kind: WorkspaceSceneKind;
-  onLoad: (scene: WorkspaceScene) => void;
+  onLoad: (scene: WorkspaceScene) => void | Promise<void>;
 }) {
   const { message } = App.useApp();
   const [items, setItems] = useState<WorkspaceScene[]>([]);
@@ -1067,14 +1189,6 @@ function WorkspaceScenePanel({
 
   return (
     <section className="panel-section topic-workspace-panel">
-      <div className="panel-title">
-        {kind === "project" ? (
-          <FolderOpenOutlined style={{ fontSize: 18 }} />
-        ) : (
-          <AppstoreOutlined style={{ fontSize: 18 }} />
-        )}
-        <Typography.Title level={5}>{label}工作区</Typography.Title>
-      </div>
       <Button size="small" onClick={() => void loadItems()} loading={loading}>
         刷新
       </Button>
@@ -1088,7 +1202,11 @@ function WorkspaceScenePanel({
         <div className="topic-scenario-list">
           {items.map((scene) => (
             <div key={scene.id} className="topic-scenario-row">
-              <button type="button" onClick={() => onLoad(scene)}>
+              <Button
+                type="text"
+                className="topic-scenario-main"
+                onClick={() => void onLoad(scene)}
+              >
                 <span>
                   <strong>{scene.name}</strong>
                   <small>
@@ -1099,9 +1217,9 @@ function WorkspaceScenePanel({
                   </small>
                 </span>
                 <Tag color={kind === "project" ? "blue" : "green"}>{label}</Tag>
-              </button>
+              </Button>
               <Space size={4}>
-                <Button size="small" onClick={() => onLoad(scene)}>
+                <Button size="small" onClick={() => void onLoad(scene)}>
                   加载
                 </Button>
                 <Popconfirm
@@ -1195,6 +1313,33 @@ function isLoadedVectorLayer(
     typeof layer.geojson === "object" &&
     layer.geojson !== null
   );
+}
+
+function openWorkspaceProgressNotification(
+  notification: ReturnType<typeof App.useApp>["notification"],
+  options: {
+    key: string;
+    title: string;
+    percent: number;
+    status: "active" | "success" | "exception";
+    detail: string;
+  },
+) {
+  notification.open({
+    key: options.key,
+    message: options.title,
+    description: (
+      <Space orientation="vertical" size={6} style={{ width: "100%" }}>
+        <Progress
+          percent={options.percent}
+          size="small"
+          status={options.status}
+        />
+        <Typography.Text type="secondary">{options.detail}</Typography.Text>
+      </Space>
+    ),
+    duration: options.status === "active" ? 0 : 3,
+  });
 }
 
 function showGeojsonWarnings(

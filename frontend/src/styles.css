@@ -1728,6 +1728,8 @@ body {
   border: 1px solid rgba(23, 63, 57, 0.08);
   border-radius: 8px;
   cursor: pointer;
+  height: auto;
+  line-height: normal;
 }
 
 .workspace-search-row:hover,
@@ -1751,6 +1753,22 @@ body {
 
   & small {
     color: var(--c-text-muted);
+  }
+}
+
+.workspace-search-row-trigger {
+  height: auto;
+  justify-content: start;
+  padding: 0;
+  color: inherit;
+  line-height: normal;
+  text-align: left;
+  background: transparent;
+
+  &:hover,
+  &:focus-visible {
+    color: inherit;
+    background: transparent;
   }
 }
 
@@ -1796,7 +1814,7 @@ body {
   flex: 1 1 0;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
   justify-content: flex-start;
   gap: clamp(0.25rem, 0.5vw, 0.5rem);
   container-type: inline-size;
@@ -1903,6 +1921,7 @@ body {
 
   &:hover,
   &:focus-visible {
+    color: #ffffff;
     background: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.22);
     outline: none;
@@ -1914,6 +1933,32 @@ body {
   color: #111a1f;
   background: #ffffff;
   border-color: #ffffff;
+}
+
+.header-primary-actions
+  .ant-btn.workspace-switch-card:not(:disabled):not(.ant-btn-disabled):hover,
+.header-primary-actions
+  .ant-btn.workspace-switch-card:not(:disabled):not(
+    .ant-btn-disabled
+  ):focus-visible {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+.header-primary-actions
+  .ant-btn.workspace-switch-card-active:not(:disabled):not(
+    .ant-btn-disabled
+  ):hover,
+.header-primary-actions
+  .ant-btn.workspace-switch-card-active:not(:disabled):not(
+    .ant-btn-disabled
+  ):focus-visible {
+  color: #111a1f;
+  background: #ffffff;
+  border-color: #ffffff;
+  transform: translateY(-1px);
 }
 
 .header-primary-actions .workspace-switch-card .tab-text {
@@ -2225,6 +2270,8 @@ body {
 }
 
 .floating-panel .ant-input,
+.floating-panel .ant-input-affix-wrapper,
+.floating-panel .ant-select,
 .floating-panel .ant-select-selector,
 .floating-panel .ant-picker {
   color: #eafff8;
@@ -2234,14 +2281,129 @@ body {
 }
 
 .floating-panel .ant-input::placeholder,
+.floating-panel .ant-select-placeholder,
 .floating-panel .ant-select-selection-placeholder,
 .floating-panel .ant-picker-input > input::placeholder {
   color: rgba(223, 248, 238, 0.5);
 }
 
+.floating-panel .ant-select-content,
 .floating-panel .ant-select-selection-item,
-.floating-panel .ant-picker-input > input {
+.floating-panel .ant-picker-input > input,
+.floating-panel .ant-input-prefix,
+.floating-panel .ant-input-clear-icon,
+.floating-panel .ant-select-suffix,
+.floating-panel .ant-select-arrow,
+.floating-panel .ant-picker-suffix,
+.floating-panel .ant-picker-separator,
+.floating-panel .ant-picker-clear {
   color: #eafff8;
+}
+
+.floating-panel .ant-input-affix-wrapper .ant-input,
+.floating-panel .ant-picker .ant-picker-input > input {
+  background: transparent;
+}
+
+.floating-panel .ant-input-affix-wrapper:hover,
+.floating-panel .ant-input:hover,
+.floating-panel .ant-select:not(.ant-select-disabled):hover,
+.floating-panel
+  .ant-select:not(.ant-select-disabled):hover
+  .ant-select-selector,
+.floating-panel .ant-picker:hover {
+  border-color: rgba(116, 243, 221, 0.48);
+}
+
+.floating-panel .ant-input-affix-wrapper-focused,
+.floating-panel .ant-input:focus,
+.floating-panel .ant-select-focused,
+.floating-panel .ant-select-focused .ant-select-selector,
+.floating-panel .ant-picker-focused {
+  border-color: #74f3dd;
+  box-shadow: 0 0 0 2px rgba(116, 243, 221, 0.12);
+}
+
+.floating-panel .ant-btn-default,
+.floating-panel .ant-btn-dashed {
+  color: #dff8ee;
+  background: rgba(8, 32, 42, 0.38);
+  border-color: rgba(95, 231, 221, 0.24);
+  box-shadow: none;
+}
+
+.floating-panel .ant-btn-default:not(:disabled):not(.ant-btn-disabled):hover,
+.floating-panel .ant-btn-dashed:not(:disabled):not(.ant-btn-disabled):hover,
+.floating-panel
+  .ant-btn-default:not(:disabled):not(.ant-btn-disabled):focus-visible,
+.floating-panel
+  .ant-btn-dashed:not(:disabled):not(.ant-btn-disabled):focus-visible {
+  color: #eafff8;
+  background: rgba(34, 197, 143, 0.16);
+  border-color: rgba(116, 243, 221, 0.5);
+}
+
+.floating-panel .ant-btn-primary.ant-btn-background-ghost {
+  color: #74f3dd;
+  background: rgba(8, 32, 42, 0.28);
+  border-color: rgba(116, 243, 221, 0.5);
+}
+
+.floating-panel .ant-btn:disabled,
+.floating-panel .ant-btn.ant-btn-disabled,
+.floating-panel .ant-input-disabled,
+.floating-panel .ant-select-disabled,
+.floating-panel .ant-select-disabled .ant-select-selector {
+  color: rgba(223, 248, 238, 0.38);
+  background: rgba(8, 32, 42, 0.24);
+  border-color: rgba(95, 231, 221, 0.12);
+}
+
+.floating-panel .ant-tag,
+.floating-panel .ant-tag.ant-tag-filled,
+.floating-panel .ant-tag.ant-tag-blue.ant-tag-filled:not(.ant-tag-disabled),
+.floating-panel .ant-tag.ant-tag-green.ant-tag-filled:not(.ant-tag-disabled),
+.floating-panel .ant-tag.ant-tag-default.ant-tag-filled:not(.ant-tag-disabled) {
+  color: #dff8ee;
+  background: rgba(8, 32, 42, 0.46);
+  border-color: rgba(95, 231, 221, 0.24);
+}
+
+.workspace-select-dropdown.ant-select-dropdown {
+  color: #dff8ee;
+  background:
+    linear-gradient(145deg, rgba(7, 27, 36, 0.94), rgba(11, 42, 45, 0.86)),
+    radial-gradient(circle at 18% 0, rgba(67, 215, 255, 0.16), transparent 34%);
+  border: 1px solid rgba(95, 231, 221, 0.26);
+  border-radius: 8px;
+  box-shadow:
+    0 18px 46px rgba(0, 7, 12, 0.38),
+    0 0 22px rgba(40, 211, 223, 0.12);
+  backdrop-filter: blur(18px) saturate(1.24);
+}
+
+.workspace-select-dropdown .ant-select-item {
+  color: rgba(223, 248, 238, 0.76);
+}
+
+.workspace-select-dropdown
+  .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+  color: #eafff8;
+  background: rgba(34, 197, 143, 0.16);
+}
+
+.workspace-select-dropdown
+  .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  color: #74f3dd;
+  background: rgba(34, 197, 143, 0.22);
+}
+
+.workspace-select-dropdown .ant-select-item-option-disabled {
+  color: rgba(223, 248, 238, 0.34);
+}
+
+.workspace-select-dropdown .ant-empty-description {
+  color: rgba(223, 248, 238, 0.58);
 }
 
 .data-popover .ant-input,
@@ -2643,6 +2805,29 @@ body {
   gap: 8px;
 }
 
+.compact-stack.ant-space,
+.compact-stack.ant-space .ant-space-item,
+.compact-stack.ant-space .ant-select,
+.compact-stack.ant-space .ant-picker,
+.compact-stack.ant-space .ant-btn {
+  width: 100%;
+}
+
+.data-filter-row,
+.attribute-filter-row {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.data-filter-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.attribute-filter-row {
+  grid-template-columns: minmax(0, 1fr) minmax(116px, 1.35fr);
+}
+
 .resource-list,
 .field-list {
   max-height: 220px;
@@ -2761,7 +2946,7 @@ body {
   border-radius: 8px;
   cursor: default;
 
-  & > button {
+  & > .topic-scenario-main {
     display: flex;
     flex: 1;
     align-items: center;
@@ -2774,6 +2959,14 @@ body {
     background: transparent;
     border: 0;
     cursor: pointer;
+    height: auto;
+    line-height: normal;
+
+    &:hover,
+    &:focus-visible {
+      color: inherit;
+      background: transparent;
+    }
   }
 
   & span {
