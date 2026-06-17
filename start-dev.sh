@@ -21,7 +21,7 @@ trap cleanup SIGINT SIGTERM EXIT
 # ── Backend ─────────────────────────────────────────────
 echo "Starting backend (Django runserver)..."
 cd "$ROOT_DIR/backend"
-eval "$(mamba shell hook --shell zsh)" && mamba activate geomanager && python manage.py migrate && python manage.py runserver &
+pixi install && pixi run migrate && pixi run dev &
 BACKEND_PID=$!
 
 # ── Frontend ────────────────────────────────────────────

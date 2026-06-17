@@ -17,11 +17,16 @@ pnpm run check
 pnpm run fix
 ```
 
-后端：首先激活python环境，然后`ruff format .`
+后端：
+
+```
+cd backend
+pixi run format
+```
 
 ## 测试
 
-测试体系和 CI 稳定性要求见 [`docs/operations.md`](docs/operations.md)。提交前至少运行后端 `python -m pytest` 和前端 `pnpm test`。
+测试体系和 CI 稳定性要求见 [`docs/operations.md`](docs/operations.md)。提交前至少运行后端 `pixi run test` 和前端 `pnpm test`。
 
 ## 本地运行
 
@@ -29,9 +34,8 @@ pnpm run fix
 
 ```bash
 cd backend
-eval "$(mamba shell hook --shell zsh)"
-mamba activate geomanager
-python manage.py runserver 127.0.0.1:8000
+pixi install
+pixi run dev
 ```
 
 前端：
@@ -44,19 +48,21 @@ pnpm dev
 
 默认开发配置使用 `config/app.test.toml`。所有矢量数据统一从科研数据根目录下的 `vector/vector.gpkg` 读取，业务库中矢量资源和图层填写该 GeoPackage 内的图层名。栅格数据统一放在科研数据根目录的 `raster/` 下，后端扫描 `raster/original/`，预处理和元数据分别写入 `raster/preprocessed/` 和 `raster/metadata/`。基因和表格数据分别放在科研数据根目录的 `gene/` 和 `table/` 下。
 
-本地开发通过命令行参数提供 TOML 配置文件，例如 `python manage.py runserver --config ../config/app.test.toml`。生产部署同样通过启动参数传入配置文件路径。
+本地开发通过 Pixi task 提供 TOML 配置文件，例如 `pixi run dev` 会执行 `python manage.py runserver --config ../config/app.test.toml`。生产部署同样通过启动参数传入配置文件路径。
 
 ## Docker 部署
 
-镜像构建不需要配置文件，运行容器时把 TOML 配置挂载到 `/config/app.toml`。镜像内由 Gunicorn + Django 同时提供 API 和前端构建产物；业务数据和科研数据统一保存在 Docker 数据卷 `geomanager-data` 中。
+镜像构建使用 `backend/pixi.lock` 安装后端运行环境，不需要配置文件；运行容器时把 TOML 配置挂载到 `/config/app.toml`。镜像内由 Gunicorn + Django 同时提供 API 和前端构建产物；业务数据和科研数据统一保存在 Docker 数据卷 `huyang-data` 中。
 
 ```bash
 docker build -t data-platform-django:latest .
 
-docker run -d --name geomanager \
+docker volume create huyang-data
+
+docker run -d --name data-platform \
   -p 127.0.0.1:8000:8000 \
   -v /absolute/path/app.docker.toml:/config/app.toml \
-  -v geomanager-data:/data \
+  -v huyang-data:/data \
   data-platform-django:latest
 ```
 

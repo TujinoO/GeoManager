@@ -1,6 +1,6 @@
 # Docker 容器内运行配置示例。
 # 适用于手动 docker run 时挂载到 /config/app.toml。
-# 业务数据和科研数据通过 geomanager-data 数据卷统一挂载到 /data 下。
+# 业务数据和科研数据通过 Docker 数据卷统一挂载到 /data 下。
 
 [runtime]
 debug = false

@@ -23,13 +23,13 @@ version-major-frontend:
 
 # Version bumping for backend
 version-patch-backend:
-	cd backend && python scripts/bump_version.py patch
+	cd backend && pixi run python scripts/bump_version.py patch
 
 version-minor-backend:
-	cd backend && python scripts/bump_version.py minor
+	cd backend && pixi run python scripts/bump_version.py minor
 
 version-major-backend:
-	cd backend && python scripts/bump_version.py major
+	cd backend && pixi run python scripts/bump_version.py major
 
 # Combined version bumping (both frontend and backend)
 version-patch: version-patch-frontend version-patch-backend
@@ -51,5 +51,5 @@ changelog:
 # Tag creation
 tag:
 	@echo "Creating git tag..."
-	@cd backend && python scripts/bump_version.py patch --tag
+	@cd backend && pixi run python scripts/bump_version.py patch --tag
 	@echo "Tag created successfully"

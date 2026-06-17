@@ -63,7 +63,7 @@ backend/apps/
 - 自助注册默认由 TOML 的 `system.allow_registration` 开启；迁移会创建单例 `SystemSetting`，管理员可在后台关闭注册。首个注册用户自动成为系统管理员，后续注册用户为普通账号。
 - 本地前后端分离开发时，Vite dev server 代理 `/api` 到 Django；`[runtime].debug = true` 且未显式设置 `csrf_trusted_origins` 时，后端默认信任本地开发服务器地址，确保首次注册和登录的 CSRF Origin 校验通过。
 - 运行日志统一写入业务数据根目录的 `logs/`：Django 应用日志、Django 框架日志、安全日志、Gunicorn 访问/错误日志都落在该目录。
-- Docker 镜像使用 `backend/environment.yml` 安装 mamba 运行环境，使用 pnpm 构建 `frontend/dist`，由 Django/WhiteNoise 在 WSGI 进程内提供前端静态资源和 SPA fallback；宿主机如需公网访问，可在容器端口前自行配置反向代理。
+- Docker 镜像使用 `backend/pixi.lock` 安装 Pixi 后端运行环境，使用 pnpm 构建 `frontend/dist`，由 Django/WhiteNoise 在 WSGI 进程内提供前端静态资源和 SPA fallback；宿主机如需公网访问，可在容器端口前自行配置反向代理。
 - Docker 启动入口必须先创建固定业务/地理/非地理数据子目录，再执行 `python manage.py migrate --noinput` 和 `collectstatic`，确保空 appdata 首次启动可以直接注册首个管理员。
 - SQLite 数据库放在业务数据根目录的 `database/` 下。
 - 所有矢量数据统一从地理数据根目录下的 `vector/vector.gpkg` 读取；业务库中的矢量 `storage_path` 和图层 `source_path` 字段填写该 GeoPackage 内的图层名，后端读取并输出 GeoJSON。
@@ -214,7 +214,7 @@ frontend/src/
 
 ## 后端测试
 
-- 测试命令：`python -m pytest`
+- 测试命令：`pixi run test`
 - 纯函数模块位于 `backend/tests/unit/`，不依赖数据库：
   - `test_progress.py` — 进度文本规范化、百分比解析
   - `test_rules_engine.py` — 波段极值、规则归一化、模式校验
@@ -302,17 +302,16 @@ huyang_system/
 
 使用方式：
 ```bash
-# 激活 Python 环境
-eval "$(mamba shell hook --shell zsh)" && mamba activate geomanager
+# 使用 Pixi 后端环境
 
 # 更新补丁版本
-python scripts/bump_version.py patch
+pixi run python scripts/bump_version.py patch
 
 # 更新次版本并创建 git 标签
-python scripts/bump_version.py minor --tag
+pixi run python scripts/bump_version.py minor --tag
 
 # 预览变更（不实际修改）
-python scripts/bump_version.py patch --dry-run
+pixi run python scripts/bump_version.py patch --dry-run
 ```
 
 ### Makefile 命令

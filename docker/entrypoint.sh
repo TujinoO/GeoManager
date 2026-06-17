@@ -5,7 +5,7 @@ APP_ROOT=/opt/app
 BACKEND_ROOT="${APP_ROOT}/backend"
 DEFAULT_CONFIG=/config/app.toml
 
-export PATH="/opt/conda/bin:${PATH}"
+export PATH="${BACKEND_ROOT}/.pixi/envs/default/bin:${PATH}"
 export PYTHONPATH="${BACKEND_ROOT}:${PYTHONPATH:-}"
 export DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE:-data_sharing_platform.settings}"
 

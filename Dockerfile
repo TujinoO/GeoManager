@@ -10,14 +10,14 @@ RUN pnpm install --frozen-lockfile
 COPY frontend ./
 RUN pnpm exec vite build --base=/static/
 
-FROM mambaorg/micromamba:latest
+FROM ghcr.io/prefix-dev/pixi:latest AS pixi-bin
+
+FROM debian:bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    MAMBA_ROOT_PREFIX=/opt/conda \
-    PATH=/opt/conda/bin:$PATH \
+    PIXI_CACHE_DIR=/opt/pixi-cache \
+    PATH=/opt/app/backend/.pixi/envs/default/bin:$PATH \
     DJANGO_SETTINGS_MODULE=data_sharing_platform.settings
-
-USER root
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -25,19 +25,20 @@ RUN apt-get update \
         tini \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/environment.yml /tmp/environment.yml
-RUN micromamba env update -n base -f /tmp/environment.yml \
-    && micromamba clean -a -y
+COPY --from=pixi-bin /usr/local/bin/pixi /usr/local/bin/pixi
 
 WORKDIR /opt/app
 
+COPY backend/pixi.toml backend/pixi.lock ./backend/
+RUN cd backend \
+    && pixi install --locked \
+    && pixi clean cache -y
+
 COPY backend ./backend
 COPY --from=frontend-build /opt/app/frontend/dist ./frontend/dist
-COPY docs/design-docs.md README.md AGENTS.md ./
-COPY docker/entrypoint.sh /usr/local/bin/app-entrypoint
+COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/app-entrypoint
 
-RUN chmod +x /usr/local/bin/app-entrypoint \
-    && mkdir -p /data/app /data/research /config
+RUN mkdir -p /data/app /data/research /config
 
 EXPOSE 8000
 

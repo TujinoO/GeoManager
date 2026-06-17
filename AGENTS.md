@@ -177,10 +177,12 @@ Use this protocol when one developer owns frontend work and another developer ow
 
 - Use `pnpm` for all frontend dependency and script commands.
 - Do not use `npm`.
-- Activate the backend Python environment before backend commands:
+- Use Pixi for backend Python commands:
 
 ```bash
-eval "$(mamba shell hook --shell zsh)" && mamba activate geomanager
+cd backend
+pixi install
+pixi run dev
 ```
 
 ### Formatting and checks
@@ -199,9 +201,8 @@ Backend formatting:
 
 ```bash
 cd backend
-eval "$(mamba shell hook --shell zsh)" && mamba activate geomanager
-ruff format .
-python -m pytest
+pixi run format
+pixi run test
 ```
 
 Run the smallest reliable verification set for the changed area. For merge-ready work, prefer the full relevant set.
@@ -335,9 +336,8 @@ Use the checklist that matches the touched area.
 
 ```bash
 cd backend
-eval "$(mamba shell hook --shell zsh)" && mamba activate geomanager
-python -m pytest
-ruff format .
+pixi run test
+pixi run format
 ```
 
 ### Frontend
