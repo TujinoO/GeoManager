@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -84,6 +85,7 @@ def intersects_bounds(
     )
 
 
+@lru_cache(maxsize=1)
 def transparent_png() -> bytes:
     output = np.zeros((DEFAULT_TILE_SIZE, DEFAULT_TILE_SIZE, 4), dtype=np.uint8)
     buffer = io.BytesIO()

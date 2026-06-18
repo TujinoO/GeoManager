@@ -258,6 +258,13 @@ frontend/src/
 ## 前端性能基准与优化记录
 
 - 前端性能验收统一使用本地生产构建、Vite preview、Prism Mock API 和 Playwright Chromium 采集。命令为 `pnpm run build`、`pnpm run perf:mock -- --label <label>`、`pnpm run perf:compare -- before after`；结果写入被 git 忽略的 `frontend/perf-results/`。
+
+## 后端性能优化记录
+
+- 矢量资源查询在存在空间过滤条件时，先解析查询几何并将 bbox 下推给 GeoPackage 读取；读取后仍保留 Shapely `intersects` 精确过滤。若无法可靠确认图层 CRS，则回退整层读取，避免误裁剪。
+- 数据访问权限判断复用当前请求用户组 ID，并在对象已预取 `access_groups` 时直接使用预取缓存；栅格数据集列表改为数据库侧权限过滤，减少列表接口 N+1 查询。
+- 栅格瓦片渲染复用注册阶段已归一化的符号化规则；透明空瓦片 PNG 进程内缓存，避免无相交瓦片重复分配和编码。
+- 后续若要继续优化大数据性能，应优先用真实 30k+ GeoPackage 和大 COG 栅格采集接口级指标，重点观察矢量 profile 整层读取、GeoJSON 序列化、唯一值分类和实时 XYZ 瓦片读取耗时。
 - 性能脚本覆盖 `/login`、`/map`、`/admin/dashboard`，记录加载时间、FCP、LCP、CLS、长任务数量和耗时、JS heap、资源传输体积与构建产物体积。外部地图瓦片在脚本中以透明 PNG mock 响应，避免公网波动影响本地对比。
 - 本轮优化不修改 `docs/openapi.yaml`、后端接口、权限语义、数据路径或栅格渲染架构。API client 保留生成 SDK 类型约束，但把非首屏 SDK 和 fetch client 改为首次业务调用时动态加载；登录、bootstrap、当前用户等启动请求使用同一错误处理和 CSRF 逻辑的轻量 fetch 门面。
 - 首屏和路由代码拆分结果：原 `MapPage` 路由 chunk 约 1.89 MB，优化后 `MapPage` 入口约 80 KB，Mapbox 相关代码延后到地图画布加载；原 `AdminDashboardPage` chunk 约 1.47 MB，优化后页面入口约 13 KB，Dashboard 活跃用户图表改为轻量 React/CSS 柱状图，不再为单个图表加载 2 MB 级图表库。

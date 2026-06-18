@@ -76,7 +76,7 @@ def render_xyz_tile(dataset_id: int, style_hash: str, z: int, x: int, y: int) ->
     with rasterio.open(raster_path) as src:
         if not intersects_bounds(bounds, src.bounds):
             return transparent_png()
-        rules = normalize_rules(style["rules"], dataset.processed_gdalinfo)
+        rules = style["rules"]
         indexes = read_source_bands(rules)
         window = from_bounds(*bounds, transform=src.transform)
         data = src.read(

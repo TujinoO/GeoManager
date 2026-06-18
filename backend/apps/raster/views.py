@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
@@ -8,7 +9,7 @@ from django.views.decorators.http import require_GET, require_POST
 from apps.audit.service import log_operation
 from apps.core.api import api_login_required
 from apps.catalog.models import MapLayer
-from apps.catalog.permissions import user_can_access
+from apps.catalog.permissions import related_access_filter, user_can_access
 from apps.core.permissions import feature_denied_response, has_feature_perm
 from apps.raster.models import RasterDataset
 from apps.raster.permissions import can_manage_raster_data
@@ -270,13 +271,15 @@ def scan_sources(request):
 def datasets(request):
     if not has_feature_perm(request.user, "core.browse_data"):
         return feature_denied_response(request.user)
-    queryset = RasterDataset.objects.select_related("data_resource", "map_layer").all()
-    items = [
-        serialize_raster_dataset(dataset)
-        for dataset in queryset
-        if not dataset.data_resource
-        or user_can_access(dataset.data_resource, request.user)
-    ]
+    queryset = RasterDataset.objects.select_related(
+        "data_resource", "map_layer"
+    ).prefetch_related("data_resource__access_groups")
+    if not request.user.is_superuser:
+        queryset = queryset.filter(
+            Q(data_resource__isnull=True)
+            | related_access_filter(request.user, "data_resource")
+        ).distinct()
+    items = [serialize_raster_dataset(dataset) for dataset in queryset]
     return JsonResponse({"items": items})
 
 

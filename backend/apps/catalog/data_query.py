@@ -9,6 +9,7 @@ from typing import Any
 
 import pandas as pd
 from django.conf import settings
+from shapely.geometry import box
 from shapely.geometry import shape
 
 from apps.catalog.geojson_validation import validate_geojson_geometries
@@ -96,8 +97,10 @@ def query_resource(resource: DataResource, payload: dict[str, Any]) -> dict[str,
     if resource.data_type != DataResource.DataType.VECTOR:
         raise DataQueryError("当前只支持矢量 GeoPackage 查询")
 
-    gdf = read_vector_resource(resource)
-    gdf = apply_spatial_filter(gdf, payload.get("spatialFilter"))
+    spatial_filter = payload.get("spatialFilter")
+    query_geometry = spatial_filter_geometry(spatial_filter)
+    gdf = read_vector_resource(resource, bbox=_spatial_prefilter_bbox(query_geometry))
+    gdf = apply_spatial_filter(gdf, spatial_filter, query_geometry=query_geometry)
     gdf = apply_attribute_filters(gdf, payload.get("attributeFilters") or [])
 
     field_metadata = (
@@ -136,8 +139,10 @@ def query_vector_resource(
     if layer_name is None:
         raise DataQueryError("必须指定资源或图层名称")
 
-    gdf = read_vector_layer(layer_name)
-    gdf = apply_spatial_filter(gdf, payload.get("spatialFilter"))
+    spatial_filter = payload.get("spatialFilter")
+    query_geometry = spatial_filter_geometry(spatial_filter)
+    gdf = read_vector_layer(layer_name, bbox=_spatial_prefilter_bbox(query_geometry))
+    gdf = apply_spatial_filter(gdf, spatial_filter, query_geometry=query_geometry)
     gdf = apply_attribute_filters(gdf, payload.get("attributeFilters") or [])
 
     field_metadata = field_metadata_for_layer(layer_name)
@@ -160,7 +165,9 @@ def query_vector_resource(
     }
 
 
-def read_vector_resource(resource: DataResource):
+def read_vector_resource(
+    resource: DataResource, bbox: tuple[float, float, float, float] | None = None
+):
     if not resource.storage_path:
         raise DataQueryError("数据资源未配置 GeoPackage 图层名")
     try:
@@ -174,7 +181,7 @@ def read_vector_resource(resource: DataResource):
     try:
         import geopandas as gpd
 
-        gdf = gpd.read_file(path, layer=layer_name)
+        gdf = _read_geopackage_layer(gpd, path, layer_name, bbox=bbox)
     except Exception as exc:
         raise DataQueryError(f"读取 GeoPackage 图层失败：{layer_name}，{exc}") from exc
 
@@ -183,7 +190,9 @@ def read_vector_resource(resource: DataResource):
     return gdf
 
 
-def read_vector_layer(layer_name: str):
+def read_vector_layer(
+    layer_name: str, bbox: tuple[float, float, float, float] | None = None
+):
     try:
         validated_name = validate_vector_layer_name(layer_name)
         path = vector_geopackage_path()
@@ -195,7 +204,7 @@ def read_vector_layer(layer_name: str):
     try:
         import geopandas as gpd
 
-        gdf = gpd.read_file(path, layer=validated_name)
+        gdf = _read_geopackage_layer(gpd, path, validated_name, bbox=bbox)
     except Exception as exc:
         raise DataQueryError(
             f"读取 GeoPackage 图层失败：{validated_name}，{exc}"
@@ -204,6 +213,32 @@ def read_vector_layer(layer_name: str):
     if gdf.crs and gdf.crs.to_epsg() != 4326:
         gdf = gdf.to_crs(4326)
     return gdf
+
+
+def _read_geopackage_layer(gpd, path: Path, layer_name: str, *, bbox=None):
+    if bbox is None:
+        return gpd.read_file(path, layer=layer_name)
+
+    read_bbox = _bbox_for_layer_crs(gpd, path, layer_name, bbox)
+    if read_bbox is None:
+        return gpd.read_file(path, layer=layer_name)
+    return gpd.read_file(path, layer=layer_name, bbox=read_bbox)
+
+
+def _bbox_for_layer_crs(
+    gpd, path: Path, layer_name: str, bbox: tuple[float, float, float, float]
+):
+    try:
+        metadata = gpd.read_file(path, layer=layer_name, rows=0)
+    except Exception:
+        return None
+    crs = getattr(metadata, "crs", None)
+    if not crs:
+        return None
+    if crs.to_epsg() == 4326:
+        return bbox
+    projected = gpd.GeoSeries([box(*bbox)], crs="EPSG:4326").to_crs(crs)
+    return tuple(float(value) for value in projected.total_bounds.tolist())
 
 
 def read_field_metadata(path: Path, table_name: str) -> dict[str, str]:
@@ -271,16 +306,39 @@ def geometry_type(gdf) -> str:
     return "Mixed"
 
 
-def apply_spatial_filter(gdf, spatial_filter: dict[str, Any] | None):
+def spatial_filter_geometry(spatial_filter: dict[str, Any] | None):
     if not spatial_filter:
-        return gdf
+        return None
     geometry = spatial_filter.get("geometry")
     if not geometry:
-        return gdf
+        return None
     try:
         query_geometry = shape(geometry)
     except Exception as exc:
         raise DataQueryError(f"空间查询图形无效：{exc}") from exc
+    if query_geometry.is_empty:
+        return query_geometry
+    return query_geometry
+
+
+def _spatial_prefilter_bbox(query_geometry) -> tuple[float, float, float, float] | None:
+    if query_geometry is None:
+        return None
+    if query_geometry.is_empty:
+        return None
+    minx, miny, maxx, maxy = query_geometry.bounds
+    return float(minx), float(miny), float(maxx), float(maxy)
+
+
+def apply_spatial_filter(
+    gdf, spatial_filter: dict[str, Any] | None, *, query_geometry=None
+):
+    if not spatial_filter:
+        return gdf
+    if query_geometry is None:
+        query_geometry = spatial_filter_geometry(spatial_filter)
+    if query_geometry is None:
+        return gdf
     if query_geometry.is_empty:
         return gdf.iloc[0:0]
     return gdf[gdf.geometry.intersects(query_geometry)]
