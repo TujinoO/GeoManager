@@ -1,36 +1,1383 @@
-import { AppstoreOutlined } from "@ant-design/icons";
-import { Empty, Layout, Typography } from "antd";
+import {
+  AppstoreOutlined,
+  BarChartOutlined,
+  BranchesOutlined,
+  DatabaseOutlined,
+  DotChartOutlined,
+  ExperimentOutlined,
+  FieldTimeOutlined,
+  FileSearchOutlined,
+  LineChartOutlined,
+  NumberOutlined,
+  ProfileOutlined,
+  RadarChartOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  TableOutlined,
+  TagsOutlined,
+} from "@ant-design/icons";
+import {
+  Alert,
+  App,
+  Badge,
+  Button,
+  Empty,
+  Input,
+  Layout,
+  Progress,
+  Segmented,
+  Select,
+  Skeleton,
+  Space,
+  Table,
+  Tabs,
+  Tag,
+  Typography,
+} from "antd";
+import type { TableProps } from "antd";
+import type { ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { api } from "../api/client";
 import WorkspaceHeader from "../components/WorkspaceHeader";
 import { useAppContext } from "../contexts/AppContext";
+import type {
+  NonGeoAnalytics,
+  NonGeoTableQueryResult,
+  ResourceListItem,
+} from "../types";
+import {
+  isDataResource,
+  resourceCategoryName,
+  resourceFormatLabel,
+  resourceProvider,
+} from "../utils/resources";
+
+type ResourceTypeFilter = "all" | "table" | "gene";
+type LeftPanelKey = "data" | "views" | "workspace" | "topics";
+type CategoricalDistribution =
+  NonGeoAnalytics["categoricalDistributions"][number];
+type NumericDistribution = NonGeoAnalytics["numericDistributions"][number];
+type FieldProfile = NonGeoAnalytics["fields"][number];
+type TableRow = NonGeoTableQueryResult["rows"][number];
+
+const nonGeoTypeOptions = [
+  { label: "全部", value: "all" },
+  { label: "生态表", value: "table" },
+  { label: "遗传", value: "gene" },
+];
+
+const leftPanelOptions: Array<{
+  key: LeftPanelKey;
+  label: string;
+  icon: ReactNode;
+}> = [
+  { key: "data", label: "数据资源", icon: <DatabaseOutlined /> },
+  { key: "views", label: "分析视图", icon: <AppstoreOutlined /> },
+  { key: "workspace", label: "工作区", icon: <ProfileOutlined /> },
+  { key: "topics", label: "专题分析", icon: <ExperimentOutlined /> },
+];
+
+const analysisViewOptions = [
+  {
+    key: "overview",
+    title: "总览视图",
+    description: "记录总量、字段结构、完整率与核心分布",
+    icon: <BarChartOutlined />,
+  },
+  {
+    key: "species",
+    title: "组成分布",
+    description: "物种、生活型、样地类型等分类结构",
+    icon: <BranchesOutlined />,
+  },
+  {
+    key: "traits",
+    title: "性状关系",
+    description: "功能性状、指标相关性与二维关系",
+    icon: <RadarChartOutlined />,
+  },
+  {
+    key: "table",
+    title: "明细表格",
+    description: "字段预览、属性查询与表格核查",
+    icon: <TableOutlined />,
+  },
+];
+
+const topicPresets = [
+  {
+    key: "species",
+    title: "群落多样性专题",
+    description: "物种组成、生活型结构与群落分类对比",
+  },
+  {
+    key: "traits",
+    title: "功能性状专题",
+    description: "性状分布、指标关系与生态功能差异",
+  },
+  {
+    key: "overview",
+    title: "数据质量专题",
+    description: "字段完整率、记录规模与基础质量概览",
+  },
+  {
+    key: "table",
+    title: "原始记录专题",
+    description: "表格明细、字段说明与属性查询结果",
+  },
+];
+
+const analyticsPalette = [
+  "#28e0c2",
+  "#39c8ff",
+  "#f3b54a",
+  "#8f7cf8",
+  "#5ee07a",
+  "#ff6f91",
+  "#77e4ff",
+  "#d7f45d",
+];
+
+const roleLabels: Record<FieldProfile["role"], string> = {
+  identifier: "标识",
+  category: "分类",
+  measure: "指标",
+  date: "时间",
+  text: "文本",
+  coordinate: "坐标",
+  unknown: "未知",
+};
 
 export default function NonGeoPage() {
   const { user } = useAppContext();
+  const { message } = App.useApp();
+  const permissions = user?.permissions;
+  const canBrowseData = Boolean(permissions?.canBrowseData);
+  const canQueryData = Boolean(permissions?.canQueryData);
+  const [resources, setResources] = useState<ResourceListItem[]>([]);
+  const [resourceKeyword, setResourceKeyword] = useState("");
+  const [resourceType, setResourceType] = useState<ResourceTypeFilter>("all");
+  const [activeLeftPanel, setActiveLeftPanel] =
+    useState<LeftPanelKey>("data");
+  const [activeResourceId, setActiveResourceId] = useState<number | null>(null);
+  const [loadingResources, setLoadingResources] = useState(false);
+  const [analytics, setAnalytics] = useState<NonGeoAnalytics | null>(null);
+  const [analyticsError, setAnalyticsError] = useState("");
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [tableResult, setTableResult] = useState<NonGeoTableQueryResult | null>(
+    null,
+  );
+  const [queryingTable, setQueryingTable] = useState(false);
+  const [analysisTab, setAnalysisTab] = useState("overview");
+  const [selectedMetricField, setSelectedMetricField] = useState<
+    string | undefined
+  >();
+
+  const selectedResource = useMemo(
+    () =>
+      resources.find(
+        (resource) => isDataResource(resource) && resource.id === activeResourceId,
+      ) ?? null,
+    [activeResourceId, resources],
+  );
+
+  const filteredResources = useMemo(() => {
+    const keyword = resourceKeyword.trim().toLowerCase();
+    return resources.filter((resource) => {
+      if (!isDataResource(resource)) {
+        return false;
+      }
+      if (
+        resourceType !== "all" &&
+        resource.dataType !== resourceType
+      ) {
+        return false;
+      }
+      if (!keyword) {
+        return true;
+      }
+      const haystack = [
+        resource.name,
+        resource.code,
+        resource.source,
+        resource.provider,
+        resource.description,
+        resourceCategoryName(resource) ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(keyword);
+    });
+  }, [resourceKeyword, resourceType, resources]);
+
+  const tableData = tableResult ?? analytics?.tablePreview ?? null;
+  const primaryCategory = analytics?.categoricalDistributions[0] ?? null;
+  const secondaryCategory = analytics?.categoricalDistributions[1] ?? null;
+  const lifeFormDistribution =
+    analytics?.categoricalDistributions.find((item) =>
+      item.field.includes("生活型"),
+    ) ?? analytics?.categoricalDistributions[2] ?? null;
+  const numericDistributions = analytics?.numericDistributions ?? [];
+  const primaryNumeric =
+    numericDistributions.find((item) => item.field === selectedMetricField) ??
+    numericDistributions[0] ??
+    null;
+  const secondaryNumeric =
+    numericDistributions.find((item) => item.field !== primaryNumeric?.field) ??
+    numericDistributions[1] ??
+    null;
+  const measureFields = analytics?.fields.filter((field) => field.role === "measure") ?? [];
+  const categoryFields = analytics?.fields.filter((field) => field.role === "category") ?? [];
+
+  const loadResources = useCallback(async () => {
+    if (!canBrowseData) {
+      setResources([]);
+      return;
+    }
+    setLoadingResources(true);
+    try {
+      const [tableResponse, geneResponse] = await Promise.all([
+        api.resources({ dataType: "table" }),
+        api.resources({ dataType: "gene" }),
+      ]);
+      const nextResources = [...tableResponse.items, ...geneResponse.items];
+      setResources(nextResources);
+      setActiveResourceId((current) => {
+        if (
+          current !== null &&
+          nextResources.some(
+            (resource) => isDataResource(resource) && resource.id === current,
+          )
+        ) {
+          return current;
+        }
+        const firstResource = nextResources.find(isDataResource);
+        return firstResource?.id ?? null;
+      });
+    } catch (error) {
+      message.warning(
+        error instanceof Error ? error.message : "非地理数据资源加载失败",
+      );
+    } finally {
+      setLoadingResources(false);
+    }
+  }, [canBrowseData, message]);
+
+  const loadAnalytics = useCallback(
+    async (resourceId: number) => {
+      setLoadingAnalytics(true);
+      setAnalyticsError("");
+      setTableResult(null);
+      try {
+        const response = await api.nonGeoAnalytics(resourceId);
+        setAnalytics(response);
+      } catch (error) {
+        setAnalytics(null);
+        setAnalyticsError(
+          error instanceof Error
+            ? error.message
+            : "非地理分析接口暂不可用",
+        );
+      } finally {
+        setLoadingAnalytics(false);
+      }
+    },
+    [],
+  );
+
+  const queryTable = useCallback(async () => {
+    if (!activeResourceId) {
+      return;
+    }
+    if (!canQueryData) {
+      message.warning("当前用户组无数据查询权限");
+      return;
+    }
+    setQueryingTable(true);
+    try {
+      const result = await api.queryNonGeoTable(activeResourceId, {
+        attributeFilters: [],
+        sort: primaryNumeric
+          ? { field: primaryNumeric.field, direction: "desc" }
+          : null,
+        limit: 80,
+        offset: 0,
+      });
+      setTableResult(result);
+      setAnalysisTab("table");
+    } catch (error) {
+      message.warning(
+        error instanceof Error ? error.message : "非地理明细查询失败",
+      );
+    } finally {
+      setQueryingTable(false);
+    }
+  }, [activeResourceId, canQueryData, message, primaryNumeric]);
+
+  useEffect(() => {
+    void loadResources();
+  }, [loadResources]);
+
+  useEffect(() => {
+    if (activeResourceId !== null) {
+      void loadAnalytics(activeResourceId);
+    }
+  }, [activeResourceId, loadAnalytics]);
+
+  const tableColumns = useMemo<TableProps<TableRow>["columns"]>(() => {
+    const fields = tableData?.fields.slice(0, 8) ?? [];
+    return fields.map((field) => ({
+      title: (
+        <span className="nongeo-table-heading">
+          <span>{field.name}</span>
+          {field.description && <small>{field.description}</small>}
+        </span>
+      ),
+      dataIndex: field.name,
+      key: field.name,
+      ellipsis: true,
+      render: (value: TableRow[string]) => valueLabel(value),
+    }));
+  }, [tableData]);
+
+  const tabs = useMemo(
+    () => [
+      {
+        key: "overview",
+        label: (
+          <span>
+            <BarChartOutlined /> 总览
+          </span>
+        ),
+        children: (
+          <OverviewContent
+            analytics={analytics}
+            primaryCategory={primaryCategory}
+            secondaryCategory={secondaryCategory}
+            primaryNumeric={primaryNumeric}
+            lifeFormDistribution={lifeFormDistribution}
+          />
+        ),
+      },
+      {
+        key: "species",
+        label: (
+          <span>
+            <BranchesOutlined /> 组成
+          </span>
+        ),
+        children: (
+          <CompositionContent analytics={analytics} selected={primaryCategory} />
+        ),
+      },
+      {
+        key: "traits",
+        label: (
+          <span>
+            <RadarChartOutlined /> 性状
+          </span>
+        ),
+        children: (
+          <TraitsContent
+            analytics={analytics}
+            tableData={tableData}
+            numeric={secondaryNumeric}
+          />
+        ),
+      },
+      {
+        key: "table",
+        label: (
+          <span>
+            <TableOutlined /> 明细
+          </span>
+        ),
+        children: (
+          <TableContent
+            data={tableData}
+            columns={tableColumns}
+            querying={queryingTable}
+            onQuery={queryTable}
+          />
+        ),
+      },
+    ],
+    [
+      analytics,
+      lifeFormDistribution,
+      primaryCategory,
+      primaryNumeric,
+      queryTable,
+      queryingTable,
+      secondaryCategory,
+      secondaryNumeric,
+      tableColumns,
+      tableData,
+    ],
+  );
+
+  const activeView =
+    analysisViewOptions.find((item) => item.key === analysisTab) ??
+    analysisViewOptions[0];
+  const dataTypeLabel =
+    resourceType === "table"
+      ? "生态表格"
+      : resourceType === "gene"
+        ? "遗传数据"
+        : "全部资源";
+
+  const leftPanelContent = (
+    <>
+      {activeLeftPanel === "data" && (
+        <>
+          <PanelTitle
+            icon={<DatabaseOutlined />}
+            title="数据资源"
+            extra={
+              <Button
+                size="small"
+                type="text"
+                icon={<ReloadOutlined />}
+                loading={loadingResources}
+                onClick={() => void loadResources()}
+              />
+            }
+          />
+          <Input
+            prefix={<SearchOutlined />}
+            placeholder="搜索生态表格、遗传数据、来源"
+            allowClear
+            value={resourceKeyword}
+            onChange={(event) => setResourceKeyword(event.target.value)}
+          />
+          <Segmented
+            block
+            options={nonGeoTypeOptions}
+            value={resourceType}
+            onChange={(value) => setResourceType(value as ResourceTypeFilter)}
+          />
+          <div className="nongeo-resource-count">
+            <span>{filteredResources.length} 个资源</span>
+            <Tag color="cyan">{dataTypeLabel}</Tag>
+          </div>
+          <div className="nongeo-resource-list">
+            {loadingResources ? (
+              <Skeleton active paragraph={{ rows: 7 }} title={false} />
+            ) : filteredResources.length > 0 ? (
+              filteredResources.map((resource) => (
+                <ResourceRow
+                  key={resourceKey(resource)}
+                  resource={resource}
+                  active={
+                    isDataResource(resource) && resource.id === activeResourceId
+                  }
+                  onSelect={() => {
+                    if (isDataResource(resource)) {
+                      setActiveResourceId(resource.id);
+                    }
+                  }}
+                />
+              ))
+            ) : (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="暂无非地理数据资源"
+              />
+            )}
+          </div>
+        </>
+      )}
+
+      {activeLeftPanel === "views" && (
+        <>
+          <PanelTitle icon={<AppstoreOutlined />} title="分析视图" />
+          <div className="nongeo-view-list">
+            {analysisViewOptions.map((view) => (
+              <button
+                key={view.key}
+                type="button"
+                className={
+                  analysisTab === view.key
+                    ? "nongeo-view-row nongeo-view-row-active"
+                    : "nongeo-view-row"
+                }
+                onClick={() => setAnalysisTab(view.key)}
+              >
+                <span className="nongeo-view-icon">{view.icon}</span>
+                <span>
+                  <strong>{view.title}</strong>
+                  <small>{view.description}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+          <section className="nongeo-current-card">
+            <Typography.Text strong>当前画布</Typography.Text>
+            <span>{activeView.title}</span>
+            <small>{selectedResource?.name ?? "未选择数据资源"}</small>
+          </section>
+        </>
+      )}
+
+      {activeLeftPanel === "workspace" && (
+        <>
+          <PanelTitle icon={<ProfileOutlined />} title="工作区" />
+          <section className="nongeo-current-card nongeo-workspace-card">
+            <Typography.Text strong>
+              {selectedResource?.name ?? "未选择数据资源"}
+            </Typography.Text>
+            <div className="nongeo-state-list">
+              <span>
+                <small>当前视图</small>
+                <strong>{activeView.title}</strong>
+              </span>
+              <span>
+                <small>记录量</small>
+                <strong>
+                  {analytics ? formatCompact(analytics.summary.rowCount) : "-"}
+                </strong>
+              </span>
+              <span>
+                <small>字段数</small>
+                <strong>{analytics?.summary.fieldCount ?? "-"}</strong>
+              </span>
+              <span>
+                <small>完整率</small>
+                <strong>
+                  {analytics ? formatPercent(analytics.summary.completeness) : "-"}
+                </strong>
+              </span>
+            </div>
+          </section>
+          <section className="nongeo-mini-section">
+            <PanelTitle icon={<TagsOutlined />} title="分析资产" />
+            <div className="nongeo-chip-grid">
+              <span className="nongeo-chip">资源快照</span>
+              <span className="nongeo-chip">视图组合</span>
+              <span className="nongeo-chip">字段口径</span>
+              <span className="nongeo-chip">质量概览</span>
+            </div>
+          </section>
+        </>
+      )}
+
+      {activeLeftPanel === "topics" && (
+        <>
+          <PanelTitle icon={<ExperimentOutlined />} title="专题分析" />
+          <div className="nongeo-topic-list">
+            {topicPresets.map((topic) => (
+              <button
+                key={topic.title}
+                type="button"
+                className={
+                  analysisTab === topic.key
+                    ? "nongeo-topic-row nongeo-topic-row-active"
+                    : "nongeo-topic-row"
+                }
+                onClick={() => setAnalysisTab(topic.key)}
+              >
+                <strong>{topic.title}</strong>
+                <small>{topic.description}</small>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
 
   return (
     <Layout className="workspace">
-      <WorkspaceHeader
-        activeTab="nongeo"
-        canBrowseData={Boolean(user?.permissions.canBrowseData)}
-      />
+      <WorkspaceHeader activeTab="nongeo" canBrowseData={canBrowseData} />
       <div className="workspace-body workspace-body-nongeo">
-        <main className="nongeo-stage" aria-label="非地理数据">
-          <section className="nongeo-coming-soon">
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                <div className="nongeo-coming-soon-copy">
-                  <Typography.Title level={3}>正在开发中</Typography.Title>
-                  <Typography.Text type="secondary">
-                    非地理数据浏览与分析功能正在接入。
-                  </Typography.Text>
+        <main className="nongeo-stage" aria-label="非地理数据分析工作台">
+          <aside className="nongeo-panel nongeo-resource-panel">
+            <div className="nongeo-workbench-tabs" role="tablist">
+              {leftPanelOptions.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeLeftPanel === item.key}
+                  className={
+                    activeLeftPanel === item.key
+                      ? "nongeo-workbench-tab nongeo-workbench-tab-active"
+                      : "nongeo-workbench-tab"
+                  }
+                  onClick={() => setActiveLeftPanel(item.key)}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="nongeo-left-content">{leftPanelContent}</div>
+          </aside>
+
+          <section className="nongeo-panel nongeo-analysis-panel">
+            <div className="nongeo-analysis-head">
+              <div>
+                <Typography.Text className="nongeo-kicker">
+                  CAPFED 非地理生态数据分析
+                </Typography.Text>
+                <Typography.Title level={2}>
+                  {analytics?.resource.name ??
+                    selectedResource?.name ??
+                    "请选择非地理数据资源"}
+                </Typography.Title>
+              </div>
+              <Space className="nongeo-analysis-tools">
+                <div className="nongeo-metric-selector">
+                  <span className="nongeo-metric-selector-icon">
+                    <NumberOutlined />
+                  </span>
+                  <span className="nongeo-metric-selector-label">核心指标</span>
+                  <Select
+                    className="nongeo-field-select"
+                    placeholder="指标字段"
+                    value={primaryNumeric?.field}
+                    popupMatchSelectWidth={false}
+                    options={numericDistributions.map((field) => ({
+                      value: field.field,
+                      label: field.label || field.field,
+                    }))}
+                    onChange={setSelectedMetricField}
+                  />
                 </div>
-              }
-            >
-              <AppstoreOutlined className="nongeo-coming-soon-icon" />
-            </Empty>
+                <Button
+                  icon={<FileSearchOutlined />}
+                  loading={queryingTable}
+                  onClick={() => void queryTable()}
+                >
+                  查询明细
+                </Button>
+              </Space>
+            </div>
+
+            {!canBrowseData ? (
+              <PermissionEmpty />
+            ) : loadingAnalytics ? (
+              <div className="nongeo-loading">
+                <Skeleton active paragraph={{ rows: 12 }} />
+              </div>
+            ) : analyticsError ? (
+              <Alert
+                type="warning"
+                showIcon
+                title="非地理分析接口暂不可用"
+                description={analyticsError}
+              />
+            ) : analytics ? (
+              <Tabs
+                className="nongeo-tabs"
+                activeKey={analysisTab}
+                onChange={setAnalysisTab}
+                items={tabs}
+              />
+            ) : (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="请选择左侧非地理数据资源"
+              />
+            )}
           </section>
+
+          <aside className="nongeo-panel nongeo-insight-panel">
+            <PanelTitle icon={<ProfileOutlined />} title="字段与洞察" />
+            {analytics ? (
+              <>
+                <section className="nongeo-resource-profile">
+                  <Typography.Text strong>{analytics.resource.name}</Typography.Text>
+                  <Typography.Paragraph ellipsis={{ rows: 3 }}>
+                    {analytics.resource.description || "暂无资源描述"}
+                  </Typography.Paragraph>
+                  <div className="nongeo-profile-tags">
+                    <Tag color="cyan">{resourceFormatLabel(analytics.resource)}</Tag>
+                    <Tag>{resourceCategoryName(analytics.resource) ?? "未分类"}</Tag>
+                    <Tag>{resourceProvider(analytics.resource) || "未记录单位"}</Tag>
+                  </div>
+                </section>
+                <MetricRing value={analytics.summary.completeness} />
+                <section className="nongeo-mini-section">
+                  <PanelTitle icon={<TagsOutlined />} title="字段角色" />
+                  <div className="nongeo-role-grid">
+                    <RoleCounter label="指标" value={measureFields.length} />
+                    <RoleCounter label="分类" value={categoryFields.length} />
+                    <RoleCounter
+                      label="文本"
+                      value={analytics.summary.textFieldCount}
+                    />
+                  </div>
+                </section>
+                <section className="nongeo-mini-section">
+                  <PanelTitle icon={<ExperimentOutlined />} title="数据洞察" />
+                  <div className="nongeo-insight-list">
+                    {analytics.insights.map((insight) => (
+                      <div key={insight} className="nongeo-insight-item">
+                        <span />
+                        <Typography.Text>{insight}</Typography.Text>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+                <section className="nongeo-mini-section">
+                  <PanelTitle icon={<FieldTimeOutlined />} title="字段完整率" />
+                  <FieldCompleteness fields={analytics.fields} />
+                </section>
+              </>
+            ) : (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="选择数据后查看字段画像"
+              />
+            )}
+          </aside>
         </main>
       </div>
     </Layout>
   );
+}
+
+function OverviewContent({
+  analytics,
+  primaryCategory,
+  secondaryCategory,
+  primaryNumeric,
+  lifeFormDistribution,
+}: {
+  analytics: NonGeoAnalytics | null;
+  primaryCategory: CategoricalDistribution | null;
+  secondaryCategory: CategoricalDistribution | null;
+  primaryNumeric: NumericDistribution | null;
+  lifeFormDistribution: CategoricalDistribution | null;
+}) {
+  if (!analytics) {
+    return null;
+  }
+  return (
+    <div className="nongeo-tab-grid">
+      <div className="nongeo-metric-grid">
+        <MetricCard
+          icon={<DatabaseOutlined />}
+          label="记录总量"
+          value={formatCompact(analytics.summary.rowCount)}
+          detail={`${analytics.summary.fieldCount} 个字段`}
+        />
+        <MetricCard
+          icon={<NumberOutlined />}
+          label="数值指标"
+          value={analytics.summary.numericFieldCount}
+          detail="可用于趋势和相关分析"
+        />
+        <MetricCard
+          icon={<TagsOutlined />}
+          label="分类维度"
+          value={analytics.summary.categoricalFieldCount}
+          detail="可用于构成和排行"
+        />
+        <MetricCard
+          icon={<AppstoreOutlined />}
+          label="完整率"
+          value={formatPercent(analytics.summary.completeness)}
+          detail="全表非空单元格占比"
+        />
+      </div>
+      <div className="nongeo-chart-grid nongeo-chart-grid-2">
+        <ChartBox title={primaryCategory?.label ?? "分类分布"} icon={<BarChartOutlined />}>
+          {primaryCategory ? <HorizontalBarChart data={primaryCategory} /> : <ChartEmpty />}
+        </ChartBox>
+        <ChartBox title={lifeFormDistribution?.label ?? "构成分析"} icon={<DotChartOutlined />}>
+          {lifeFormDistribution ? <DonutChart data={lifeFormDistribution} /> : <ChartEmpty />}
+        </ChartBox>
+        <ChartBox title={primaryNumeric?.label ?? "数值分布"} icon={<LineChartOutlined />}>
+          {primaryNumeric ? <HistogramChart data={primaryNumeric} /> : <ChartEmpty />}
+        </ChartBox>
+        <ChartBox title={secondaryCategory?.label ?? "分类排行"} icon={<BranchesOutlined />}>
+          {secondaryCategory ? <RankingList data={secondaryCategory} /> : <ChartEmpty />}
+        </ChartBox>
+      </div>
+    </div>
+  );
+}
+
+function CompositionContent({
+  analytics,
+  selected,
+}: {
+  analytics: NonGeoAnalytics | null;
+  selected: CategoricalDistribution | null;
+}) {
+  if (!analytics) {
+    return null;
+  }
+  return (
+    <div className="nongeo-chart-grid nongeo-chart-grid-3">
+      {analytics.categoricalDistributions.slice(0, 6).map((distribution) => (
+        <ChartBox
+          key={distribution.field}
+          title={distribution.label}
+          icon={<BarChartOutlined />}
+        >
+          <HorizontalBarChart data={distribution} compact />
+        </ChartBox>
+      ))}
+      {selected && (
+        <ChartBox title="结构占比" icon={<DotChartOutlined />}>
+          <DonutChart data={selected} />
+        </ChartBox>
+      )}
+    </div>
+  );
+}
+
+function TraitsContent({
+  analytics,
+  tableData,
+  numeric,
+}: {
+  analytics: NonGeoAnalytics | null;
+  tableData: NonGeoTableQueryResult | null;
+  numeric: NumericDistribution | null;
+}) {
+  if (!analytics) {
+    return null;
+  }
+  return (
+    <div className="nongeo-chart-grid nongeo-chart-grid-2">
+      <ChartBox title="性状二维关系" icon={<DotChartOutlined />}>
+        <ScatterChart tableData={tableData} />
+      </ChartBox>
+      <ChartBox title="生态指标相关性" icon={<RadarChartOutlined />}>
+        {analytics.correlation ? (
+          <CorrelationHeatmap data={analytics.correlation} />
+        ) : (
+          <ChartEmpty />
+        )}
+      </ChartBox>
+      <ChartBox title={numeric?.label ?? "指标箱线概览"} icon={<LineChartOutlined />}>
+        {numeric ? <BoxSummary data={numeric} /> : <ChartEmpty />}
+      </ChartBox>
+      <ChartBox title="重点字段画像" icon={<ProfileOutlined />}>
+        <FieldSummary fields={analytics.fields} />
+      </ChartBox>
+    </div>
+  );
+}
+
+function TableContent({
+  data,
+  columns,
+  querying,
+  onQuery,
+}: {
+  data: NonGeoTableQueryResult | null;
+  columns: TableProps<TableRow>["columns"];
+  querying: boolean;
+  onQuery: () => void;
+}) {
+  return (
+    <div className="nongeo-table-panel">
+      <div className="nongeo-table-toolbar">
+        <Typography.Text>
+          {data
+            ? `展示 ${data.returnedCount} / ${data.totalCount} 条记录`
+            : "暂无表格预览"}
+        </Typography.Text>
+        <Button
+          icon={<ReloadOutlined />}
+          loading={querying}
+          onClick={onQuery}
+        >
+          刷新明细
+        </Button>
+      </div>
+      <Table<TableRow>
+        size="small"
+        className="nongeo-data-table"
+        columns={columns}
+        dataSource={data?.rows ?? []}
+        rowKey={stableRowKey}
+        pagination={{ pageSize: 8, showSizeChanger: false }}
+        scroll={{ x: 920 }}
+      />
+    </div>
+  );
+}
+
+function ResourceRow({
+  resource,
+  active,
+  onSelect,
+}: {
+  resource: ResourceListItem;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const typeLabel = resource.dataType;
+  const count = isDataResource(resource) ? resource.itemCount : resource.featureCount;
+  return (
+    <button
+      type="button"
+      className={active ? "nongeo-resource-row nongeo-resource-row-active" : "nongeo-resource-row"}
+      onClick={onSelect}
+    >
+      <span className="nongeo-resource-row-top">
+        <Typography.Text strong>{resource.name}</Typography.Text>
+        <Badge color={active ? "#28e0c2" : "#6c8790"} text={typeLabel} />
+      </span>
+      <span className="nongeo-resource-row-meta">
+        {resourceCategoryName(resource) ?? "未分类"} · {resourceFormatLabel(resource)}
+      </span>
+      <span className="nongeo-resource-row-foot">
+        <span>{formatCompact(count ?? 0)} 条</span>
+        <span>{resource.source || "未记录来源"}</span>
+      </span>
+    </button>
+  );
+}
+
+function PanelTitle({
+  icon,
+  title,
+  extra,
+}: {
+  icon: ReactNode;
+  title: string;
+  extra?: ReactNode;
+}) {
+  return (
+    <div className="nongeo-panel-title">
+      <span>
+        {icon}
+        <Typography.Text strong>{title}</Typography.Text>
+      </span>
+      {extra}
+    </div>
+  );
+}
+
+function MetricCard({
+  icon,
+  label,
+  value,
+  detail,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string | number;
+  detail: string;
+}) {
+  return (
+    <section className="nongeo-metric-card">
+      <span className="nongeo-metric-icon">{icon}</span>
+      <div>
+        <Typography.Text>{label}</Typography.Text>
+        <strong>{value}</strong>
+        <small>{detail}</small>
+      </div>
+    </section>
+  );
+}
+
+function ChartBox({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="nongeo-chart-box">
+      <div className="nongeo-chart-title">
+        <span>
+          {icon}
+          <Typography.Text strong>{title}</Typography.Text>
+        </span>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function HorizontalBarChart({
+  data,
+  compact = false,
+}: {
+  data: CategoricalDistribution;
+  compact?: boolean;
+}) {
+  const max = Math.max(...data.items.map((item) => item.count), 1);
+  return (
+    <div className={compact ? "nongeo-bars nongeo-bars-compact" : "nongeo-bars"}>
+      {data.items.slice(0, compact ? 6 : 8).map((item) => (
+        <div key={`${data.field}-${valueLabel(item.value)}`} className="nongeo-bar-row">
+          <span>{valueLabel(item.value)}</span>
+          <div>
+            <i style={{ width: `${(item.count / max) * 100}%` }} />
+          </div>
+          <em>{formatCompact(item.count)}</em>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RankingList({ data }: { data: CategoricalDistribution }) {
+  return (
+    <div className="nongeo-ranking-list">
+      {data.items.slice(0, 6).map((item) => (
+        <div key={`${data.field}-${valueLabel(item.value)}`}>
+          <span>{valueLabel(item.value)}</span>
+          <Progress
+            percent={Math.round(item.ratio * 100)}
+            showInfo={false}
+            strokeColor="#16b8a9"
+            railColor="rgba(32,91,84,0.12)"
+          />
+          <em>{formatPercent(item.ratio)}</em>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DonutChart({ data }: { data: CategoricalDistribution }) {
+  const total = Math.max(data.total, 1);
+  let cursor = 0;
+  const radius = 44;
+  const circumference = 2 * Math.PI * radius;
+  return (
+    <div className="nongeo-donut-wrap">
+      <svg viewBox="0 0 120 120" aria-label={data.label}>
+        <circle cx="60" cy="60" r={radius} className="nongeo-donut-track" />
+        {data.items.slice(0, 6).map((item, itemIndex) => {
+          const length = Math.max(item.count / total, 0.008) * circumference;
+          const offset = -cursor * circumference;
+          cursor += item.count / total;
+          return (
+            <circle
+              key={`${data.field}-${valueLabel(item.value)}`}
+              cx="60"
+              cy="60"
+              r={radius}
+              className="nongeo-donut-segment"
+              style={{
+                stroke: analyticsPalette[itemIndex % analyticsPalette.length],
+                strokeDasharray: `${length} ${circumference - length}`,
+                strokeDashoffset: offset,
+              }}
+            />
+          );
+        })}
+        <text x="60" y="56" textAnchor="middle">
+          {formatCompact(total)}
+        </text>
+        <text x="60" y="73" textAnchor="middle" className="nongeo-donut-sub">
+          records
+        </text>
+      </svg>
+      <div className="nongeo-donut-legend">
+        {data.items.slice(0, 6).map((item, itemIndex) => (
+          <span key={`${data.field}-legend-${valueLabel(item.value)}`}>
+            <i style={{ background: analyticsPalette[itemIndex % analyticsPalette.length] }} />
+            {valueLabel(item.value)}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HistogramChart({ data }: { data: NumericDistribution }) {
+  const max = Math.max(...data.bins.map((bin) => bin.count), 1);
+  return (
+    <div className="nongeo-histogram">
+      <div className="nongeo-histogram-bars">
+        {data.bins.map((bin, binIndex) => (
+          <span
+            key={`${data.field}-${bin.label}`}
+            style={{
+              height: `${Math.max((bin.count / max) * 100, 6)}%`,
+              background: analyticsPalette[binIndex % analyticsPalette.length],
+            }}
+            title={`${bin.label}: ${bin.count}`}
+          />
+        ))}
+      </div>
+      <div className="nongeo-histogram-axis">
+        <span>{formatNumber(data.min)}</span>
+        <span>{formatNumber(data.mean)}</span>
+        <span>{formatNumber(data.max)}</span>
+      </div>
+    </div>
+  );
+}
+
+function BoxSummary({ data }: { data: NumericDistribution }) {
+  const range = data.max - data.min || 1;
+  const q1 = ((data.q1 - data.min) / range) * 100;
+  const q3 = ((data.q3 - data.min) / range) * 100;
+  const median = ((data.median - data.min) / range) * 100;
+  return (
+    <div className="nongeo-box-summary">
+      <div className="nongeo-box-line">
+        <span style={{ left: `${q1}%`, width: `${Math.max(q3 - q1, 2)}%` }} />
+        <i style={{ left: `${median}%` }} />
+      </div>
+      <div className="nongeo-box-values">
+        <span>min {formatNumber(data.min)}</span>
+        <span>mean {formatNumber(data.mean)}</span>
+        <span>max {formatNumber(data.max)}</span>
+      </div>
+    </div>
+  );
+}
+
+function CorrelationHeatmap({
+  data,
+}: {
+  data: NonGeoAnalytics["correlation"];
+}) {
+  if (!data) {
+    return <ChartEmpty />;
+  }
+  return (
+    <div
+      className="nongeo-correlation"
+      style={{
+        gridTemplateColumns: `repeat(${data.fields.length}, minmax(24px, 1fr))`,
+      }}
+    >
+      {data.fields.flatMap((rowField, rowIndex) =>
+        data.fields.map((columnField, columnIndex) => {
+          const value = data.values[rowIndex]?.[columnIndex] ?? 0;
+          return (
+            <span
+              key={`${rowField}-${columnField}`}
+              title={`${rowField} × ${columnField}: ${value.toFixed(2)}`}
+              style={{ background: correlationColor(value) }}
+            >
+              {value.toFixed(1)}
+            </span>
+          );
+        }),
+      )}
+    </div>
+  );
+}
+
+function ScatterChart({
+  tableData,
+}: {
+  tableData: NonGeoTableQueryResult | null;
+}) {
+  const numericFields =
+    tableData?.fields
+      .filter((field) => /int|float|number|double/i.test(field.type))
+      .slice(0, 2) ?? [];
+  if (!tableData || numericFields.length < 2) {
+    return <ChartEmpty />;
+  }
+  const xField = numericFields[0];
+  const yField = numericFields[1];
+  if (!xField || !yField) {
+    return <ChartEmpty />;
+  }
+  const points = tableData.rows
+    .map((row) => ({
+      key: stableRowKey(row),
+      x: toNumber(row[xField.name]),
+      y: toNumber(row[yField.name]),
+      label: valueLabel(row["种"] ?? row["名称"] ?? row[xField.name]),
+    }))
+    .filter((point): point is { key: string; x: number; y: number; label: string } =>
+      point.x !== null && point.y !== null,
+    );
+  if (points.length === 0) {
+    return <ChartEmpty />;
+  }
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const rangeX = maxX - minX || 1;
+  const rangeY = maxY - minY || 1;
+  return (
+    <div className="nongeo-scatter-wrap">
+      <svg viewBox="0 0 320 190" aria-label="性状散点图">
+        <rect x="24" y="16" width="272" height="138" rx="8" />
+        {points.map((point, pointIndex) => (
+          <circle
+            key={point.key}
+            cx={24 + ((point.x - minX) / rangeX) * 272}
+            cy={154 - ((point.y - minY) / rangeY) * 138}
+            r={7}
+            style={{
+              fill: analyticsPalette[pointIndex % analyticsPalette.length],
+            }}
+          >
+            <title>{point.label}</title>
+          </circle>
+        ))}
+        <text x="24" y="178">
+          {xField.name}
+        </text>
+        <text x="24" y="12">
+          {yField.name}
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+function FieldSummary({ fields }: { fields: FieldProfile[] }) {
+  return (
+    <div className="nongeo-field-summary">
+      {fields.slice(0, 8).map((field) => (
+        <div key={field.name}>
+          <span>
+            <strong>{field.label || field.name}</strong>
+            <small>{roleLabels[field.role]}</small>
+          </span>
+          <em>{formatPercent(field.completeness)}</em>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FieldCompleteness({ fields }: { fields: FieldProfile[] }) {
+  return (
+    <div className="nongeo-field-completeness">
+      {fields.slice(0, 8).map((field) => (
+        <div key={field.name}>
+          <span>{field.label || field.name}</span>
+          <Progress
+            percent={Math.round(field.completeness * 100)}
+            size="small"
+            showInfo={false}
+            strokeColor="#16b8a9"
+            railColor="rgba(32,91,84,0.12)"
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MetricRing({ value }: { value: number }) {
+  return (
+    <section className="nongeo-ring-card">
+      <Progress
+        type="circle"
+        percent={Math.round(value * 100)}
+        size={92}
+        strokeColor="#16b8a9"
+        railColor="rgba(32,91,84,0.12)"
+      />
+      <div>
+        <Typography.Text strong>数据完整率</Typography.Text>
+        <small>用于判断字段缺失对统计图表的影响</small>
+      </div>
+    </section>
+  );
+}
+
+function RoleCounter({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="nongeo-role-counter">
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function ChartEmpty() {
+  return (
+    <Empty
+      image={Empty.PRESENTED_IMAGE_SIMPLE}
+      description="暂无可视化数据"
+      className="nongeo-chart-empty"
+    />
+  );
+}
+
+function PermissionEmpty() {
+  return (
+    <Alert
+      type="warning"
+      showIcon
+      title="当前用户暂无数据浏览权限"
+      description="请联系管理员授予 core.browse_data 后再访问非地理数据分析工作台。"
+    />
+  );
+}
+
+function resourceKey(resource: ResourceListItem) {
+  return `${resource.dataType}-${String(resource.id)}-${resource.name}`;
+}
+
+function stableRowKey(row: TableRow) {
+  const preferred = row.id ?? row.ID ?? row["采集号"] ?? row["种"] ?? row["Sample"];
+  if (preferred !== undefined && preferred !== null) {
+    return String(preferred);
+  }
+  return Object.entries(row)
+    .slice(0, 4)
+    .map(([key, value]) => `${key}:${valueLabel(value)}`)
+    .join("|");
+}
+
+function valueLabel(value: string | number | boolean | null | undefined) {
+  if (value === null || value === undefined || value === "") {
+    return "未记录";
+  }
+  if (typeof value === "number") {
+    return formatNumber(value);
+  }
+  if (typeof value === "boolean") {
+    return value ? "是" : "否";
+  }
+  return value;
+}
+
+function toNumber(value: string | number | boolean | null | undefined) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function formatCompact(value: number) {
+  return new Intl.NumberFormat("zh-CN", {
+    notation: value >= 10000 ? "compact" : "standard",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("zh-CN", {
+    maximumFractionDigits: Math.abs(value) < 10 ? 2 : 1,
+  }).format(value);
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
+
+function correlationColor(value: number) {
+  const normalized = Math.max(-1, Math.min(1, value));
+  if (normalized >= 0) {
+    const alpha = 0.18 + normalized * 0.72;
+    return `rgba(40, 224, 194, ${alpha})`;
+  }
+  return `rgba(255, 111, 145, ${0.18 + Math.abs(normalized) * 0.72})`;
 }

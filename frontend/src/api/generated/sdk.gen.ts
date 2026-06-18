@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateCatalogWorkspaceData, CreateCatalogWorkspaceErrors, CreateCatalogWorkspaceResponses, CreateGroupData, CreateGroupErrors, CreateGroupResponses, CreateUserData, CreateUserErrors, CreateUserResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, ExportAdminDataResourcesData, ExportAdminDataResourcesErrors, ExportAdminDataResourcesResponses, ExportLayersAsyncData, ExportLayersAsyncErrors, ExportLayersAsyncResponses, ExportLayersData, ExportLayersErrors, ExportLayersResponses, GetAchievementsData, GetAchievementsErrors, GetAchievementsResponses, GetAdminDashboardData, GetAdminDashboardErrors, GetAdminDashboardResponses, GetAdminDashboardServerData, GetAdminDashboardServerErrors, GetAdminDashboardServerResponses, GetAdminProfileData, GetAdminProfileErrors, GetAdminProfileResponses, GetAdminSettingsData, GetAdminSettingsErrors, GetAdminSettingsResponses, GetBootstrapData, GetBootstrapErrors, GetBootstrapResponses, GetCatalogWorkspaceData, GetCatalogWorkspaceErrors, GetCatalogWorkspaceResponses, GetCsrfCookieData, GetCsrfCookieErrors, GetCsrfCookieResponses, GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetDirectoriesData, GetDirectoriesErrors, GetDirectoriesResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetJobStatusData, GetJobStatusErrors, GetJobStatusResponses, GetLayerFeaturesData, GetLayerFeaturesErrors, GetLayerFeaturesResponses, GetLayerProfileData, GetLayerProfileErrors, GetLayerProfileResponses, GetLayersData, GetLayersErrors, GetLayersResponses, GetLoginOverviewData, GetLoginOverviewErrors, GetLoginOverviewResponses, GetRasterDatasetsData, GetRasterDatasetsErrors, GetRasterDatasetsResponses, GetResourceProfileData, GetResourceProfileErrors, GetResourceProfileResponses, GetResourcesData, GetResourcesErrors, GetResourcesResponses, GetTileData, GetTileErrors, GetTileResponses, GetUniqueValuesData, GetUniqueValuesErrors, GetUniqueValuesResponses, GuestLoginData, GuestLoginErrors, GuestLoginResponses, ImportCommitData, ImportCommitErrors, ImportCommitResponses, ImportPreviewData, ImportPreviewErrors, ImportPreviewResponses, ImportRasterData, ImportRasterErrors, ImportRasterResponses, ImportValidateData, ImportValidateErrors, ImportValidateResponses, ListAdminDataResourcesData, ListAdminDataResourcesErrors, ListAdminDataResourcesResponses, ListAdminOperationLogsData, ListAdminOperationLogsErrors, ListAdminOperationLogsResponses, ListCatalogWorkspacesData, ListCatalogWorkspacesErrors, ListCatalogWorkspacesResponses, ListGroupsData, ListGroupsErrors, ListGroupsResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, QueryLayerData, QueryLayerErrors, QueryLayerResponses, QueryResourceData, QueryResourceErrors, QueryResourceResponses, RegisterData, RegisterErrors, RegisterResponses, RenderRasterAsyncData, RenderRasterAsyncErrors, RenderRasterAsyncResponses, RenderRasterData, RenderRasterErrors, RenderRasterResponses, ResetUserPasswordData, ResetUserPasswordErrors, ResetUserPasswordResponses, ScanCatalogSourcesData, ScanCatalogSourcesErrors, ScanCatalogSourcesResponses, ScanRasterSourcesData, ScanRasterSourcesErrors, ScanRasterSourcesResponses, SearchData, SearchErrors, SearchResponses, UpdateAdminDataResourceData, UpdateAdminDataResourceErrors, UpdateAdminDataResourceResponses, UpdateAdminProfileData, UpdateAdminProfileErrors, UpdateAdminProfilePasswordData, UpdateAdminProfilePasswordErrors, UpdateAdminProfilePasswordResponses, UpdateAdminProfilePermissionsData, UpdateAdminProfilePermissionsErrors, UpdateAdminProfilePermissionsResponses, UpdateAdminProfileResponses, UpdateAdminSettingsData, UpdateAdminSettingsErrors, UpdateAdminSettingsResponses, UpdateCatalogWorkspaceData, UpdateCatalogWorkspaceErrors, UpdateCatalogWorkspaceResponses, UpdateOrDeleteGroupData, UpdateOrDeleteGroupErrors, UpdateOrDeleteGroupResponses, UpdateUserGroupsData, UpdateUserGroupsErrors, UpdateUserGroupsResponses, UpdateUserOrDeleteData, UpdateUserOrDeleteErrors, UpdateUserOrDeleteResponses, UpdateUserPermissionsData, UpdateUserPermissionsErrors, UpdateUserPermissionsResponses } from './types.gen';
+import type { CreateCatalogWorkspaceData, CreateCatalogWorkspaceErrors, CreateCatalogWorkspaceResponses, CreateGroupData, CreateGroupErrors, CreateGroupResponses, CreateUserData, CreateUserErrors, CreateUserResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, ExportAdminDataResourcesData, ExportAdminDataResourcesErrors, ExportAdminDataResourcesResponses, ExportLayersAsyncData, ExportLayersAsyncErrors, ExportLayersAsyncResponses, ExportLayersData, ExportLayersErrors, ExportLayersResponses, GetAchievementsData, GetAchievementsErrors, GetAchievementsResponses, GetAdminDashboardData, GetAdminDashboardErrors, GetAdminDashboardResponses, GetAdminDashboardServerData, GetAdminDashboardServerErrors, GetAdminDashboardServerResponses, GetAdminProfileData, GetAdminProfileErrors, GetAdminProfileResponses, GetAdminSettingsData, GetAdminSettingsErrors, GetAdminSettingsResponses, GetBootstrapData, GetBootstrapErrors, GetBootstrapResponses, GetCatalogWorkspaceData, GetCatalogWorkspaceErrors, GetCatalogWorkspaceResponses, GetCsrfCookieData, GetCsrfCookieErrors, GetCsrfCookieResponses, GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetDirectoriesData, GetDirectoriesErrors, GetDirectoriesResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetJobStatusData, GetJobStatusErrors, GetJobStatusResponses, GetLayerFeaturesData, GetLayerFeaturesErrors, GetLayerFeaturesResponses, GetLayerProfileData, GetLayerProfileErrors, GetLayerProfileResponses, GetLayersData, GetLayersErrors, GetLayersResponses, GetLoginOverviewData, GetLoginOverviewErrors, GetLoginOverviewResponses, GetNonGeoResourceAnalyticsData, GetNonGeoResourceAnalyticsErrors, GetNonGeoResourceAnalyticsResponses, GetRasterDatasetsData, GetRasterDatasetsErrors, GetRasterDatasetsResponses, GetResourceProfileData, GetResourceProfileErrors, GetResourceProfileResponses, GetResourcesData, GetResourcesErrors, GetResourcesResponses, GetTileData, GetTileErrors, GetTileResponses, GetUniqueValuesData, GetUniqueValuesErrors, GetUniqueValuesResponses, GuestLoginData, GuestLoginErrors, GuestLoginResponses, ImportCommitData, ImportCommitErrors, ImportCommitResponses, ImportPreviewData, ImportPreviewErrors, ImportPreviewResponses, ImportRasterData, ImportRasterErrors, ImportRasterResponses, ImportValidateData, ImportValidateErrors, ImportValidateResponses, ListAdminDataResourcesData, ListAdminDataResourcesErrors, ListAdminDataResourcesResponses, ListAdminOperationLogsData, ListAdminOperationLogsErrors, ListAdminOperationLogsResponses, ListCatalogWorkspacesData, ListCatalogWorkspacesErrors, ListCatalogWorkspacesResponses, ListGroupsData, ListGroupsErrors, ListGroupsResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, QueryLayerData, QueryLayerErrors, QueryLayerResponses, QueryNonGeoResourceTableData, QueryNonGeoResourceTableErrors, QueryNonGeoResourceTableResponses, QueryResourceData, QueryResourceErrors, QueryResourceResponses, RegisterData, RegisterErrors, RegisterResponses, RenderRasterAsyncData, RenderRasterAsyncErrors, RenderRasterAsyncResponses, RenderRasterData, RenderRasterErrors, RenderRasterResponses, ResetUserPasswordData, ResetUserPasswordErrors, ResetUserPasswordResponses, ScanCatalogSourcesData, ScanCatalogSourcesErrors, ScanCatalogSourcesResponses, ScanRasterSourcesData, ScanRasterSourcesErrors, ScanRasterSourcesResponses, SearchData, SearchErrors, SearchResponses, UpdateAdminDataResourceData, UpdateAdminDataResourceErrors, UpdateAdminDataResourceResponses, UpdateAdminProfileData, UpdateAdminProfileErrors, UpdateAdminProfilePasswordData, UpdateAdminProfilePasswordErrors, UpdateAdminProfilePasswordResponses, UpdateAdminProfilePermissionsData, UpdateAdminProfilePermissionsErrors, UpdateAdminProfilePermissionsResponses, UpdateAdminProfileResponses, UpdateAdminSettingsData, UpdateAdminSettingsErrors, UpdateAdminSettingsResponses, UpdateCatalogWorkspaceData, UpdateCatalogWorkspaceErrors, UpdateCatalogWorkspaceResponses, UpdateOrDeleteGroupData, UpdateOrDeleteGroupErrors, UpdateOrDeleteGroupResponses, UpdateUserGroupsData, UpdateUserGroupsErrors, UpdateUserGroupsResponses, UpdateUserOrDeleteData, UpdateUserOrDeleteErrors, UpdateUserOrDeleteResponses, UpdateUserPermissionsData, UpdateUserPermissionsErrors, UpdateUserPermissionsResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -676,6 +676,45 @@ export const queryResource = <ThrowOnError extends boolean = false>(options: Opt
             type: 'apiKey'
         }],
     url: '/api/catalog/resources/{id}/query/',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * 获取非地理数据分析摘要
+ *
+ * 返回 table/gene 等非地理数据资源的字段画像、完整率、分类分布、数值分布、
+ * 相关性矩阵、表格预览和前端可展示的数据洞察。需要 `core.browse_data`，
+ * 且只返回当前用户可访问的数据资源。
+ *
+ */
+export const getNonGeoResourceAnalytics = <ThrowOnError extends boolean = false>(options: Options<GetNonGeoResourceAnalyticsData, ThrowOnError>): RequestResult<GetNonGeoResourceAnalyticsResponses, GetNonGeoResourceAnalyticsErrors, ThrowOnError> => (options.client ?? client).get<GetNonGeoResourceAnalyticsResponses, GetNonGeoResourceAnalyticsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/catalog/resources/{id}/nongeo-analytics/',
+    ...options
+});
+
+/**
+ * 查询非地理表格数据
+ *
+ * 对 table/gene 等非地理数据资源执行属性过滤、排序、分页查询，返回结构化行数据。
+ * 不返回 GeoJSON，不进行空间过滤。需要 `core.query_data`，且只返回当前用户可访问的数据资源。
+ *
+ */
+export const queryNonGeoResourceTable = <ThrowOnError extends boolean = false>(options: Options<QueryNonGeoResourceTableData, ThrowOnError>): RequestResult<QueryNonGeoResourceTableResponses, QueryNonGeoResourceTableErrors, ThrowOnError> => (options.client ?? client).post<QueryNonGeoResourceTableResponses, QueryNonGeoResourceTableErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/catalog/resources/{id}/table-query/',
     ...options,
     headers: {
         'Content-Type': 'application/json',

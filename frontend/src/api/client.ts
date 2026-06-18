@@ -29,6 +29,9 @@ import type {
   ImportValidatePayload,
   ImportValidateResult,
   MapLayerListItem,
+  NonGeoAnalytics,
+  NonGeoTableQueryPayload,
+  NonGeoTableQueryResult,
   RasterJob,
   RasterRenderResult,
   RasterUniqueValuesResult,
@@ -361,6 +364,17 @@ export const api = {
       }),
     );
   },
+  nonGeoAnalytics: (resourceId: number) =>
+    unwrap<NonGeoAnalytics>(
+      sdk.getNonGeoResourceAnalytics({ path: { id: resourceId } }),
+    ),
+  queryNonGeoTable: (resourceId: number, payload: NonGeoTableQueryPayload) =>
+    unwrap<NonGeoTableQueryResult>(
+      sdk.queryNonGeoResourceTable({
+        path: { id: resourceId },
+        body: payload,
+      }),
+    ),
   exportLayers: (payload: ExportLayersPayload) =>
     unwrapBlob(sdk.exportLayers({ body: payload, parseAs: "blob" })),
   exportLayersAsync: (payload: ExportLayersPayload) =>

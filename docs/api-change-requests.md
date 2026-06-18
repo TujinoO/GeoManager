@@ -23,6 +23,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260616-001 | Implementing | Multiple catalog/admin/auth endpoints | new endpoints, response fields, permission behavior | Done | Updating | Implementing | Pending | Layer workspace snapshots, upload duplicate detection, data overview stats |
 | API-20260617-001 | BackendReady | POST /api/auth/guest-login/ | new endpoint, permission behavior | Done | N/A | Done | Done | Dedicated guest login account and group |
 | API-20260617-002 | BackendReady | POST /api/catalog/workspaces/; POST /api/catalog/workspaces/{workspaceId}/ | request body, status code | Done | N/A | Done | Done | Workspace snapshots store references, not raw data |
+| API-20260618-001 | ContractReady | GET /api/catalog/resources/{id}/nongeo-analytics/; POST /api/catalog/resources/{id}/table-query/ | new endpoint, response fields, permission behavior, mock data | Done | Done | Pending | Pending | Non-geographic table analytics workspace |
 
 ## Entry Template
 
@@ -104,3 +105,16 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Create or repair the `guest` account with unusable password, active state, display name “游客”, and only the `游客` group. Protect the account from delete, disable, password reset, group changes, and direct permission updates.
 - Verification: run backend auth/admin tests plus `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check`.
 - Result: Implemented in backend and ready for frontend verification.
+
+## API-20260618-001 - Non-Geographic Table Analytics
+
+- Status: ContractReady
+- Owner: Frontend / Backend
+- Endpoints: `GET /api/catalog/resources/{id}/nongeo-analytics/`, `POST /api/catalog/resources/{id}/table-query/`
+- Change type: new endpoint, response fields, permission behavior, mock data
+- OpenAPI change: Adds a non-geographic resource analytics response for table/gene resources, including resource summary, field profiles, categorical distributions, numeric distributions, correlation matrix, table preview, and short insights. Adds a table query endpoint returning rows rather than GeoJSON, with attribute filters, sorting, limit, and offset.
+- Mock examples: `mock/prism/examples/35-catalog-nongeo.json`; `mock/prism/examples/30-catalog-vector.json` now includes a representative table resource in the resource list.
+- Frontend reason: `/nongeo` needs a rich analysis workspace for ecological table data without reusing vector GeoJSON query semantics or adding backend-specific assumptions in React.
+- Backend implementation notes: Implement read-only Django endpoints under catalog. `nongeo-analytics` should support `table` and `gene` DataResource records visible to the current user, derive stats from the SQLite table or relevant non-geographic storage, cap expensive distinct/top-N/correlation work, and return `400` for unsupported spatial-only resource types. `table-query` should apply the same attribute operators as `AttributeFilter`, support deterministic pagination/sorting, and never include geometry. Enforce `core.browse_data` for analytics and `core.query_data` for row query; continue applying DataResource `access_groups`.
+- Verification: run backend catalog API tests for table/gene resources, permission denial tests, Prism mock build, and frontend API generation/type checks.
+- Result: Backend implementation pending; frontend can develop against the contract and Prism mock without modifying backend code.

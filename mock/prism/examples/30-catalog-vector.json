@@ -123,6 +123,30 @@
           "status": "active",
           "sizeBytes": 245760,
           "itemCount": 1
+        },
+        {
+          "id": 13,
+          "name": "胡杨群落生物多样性与功能性状数据表",
+          "code": "nongeo-poplar-community-traits-2024",
+          "dataType": "table",
+          "category": {
+            "code": "biodiversity",
+            "name": "生物多样性"
+          },
+          "source": "2024 塔里木盆地野外调查",
+          "provider": "中亚胡杨林生态系统保护项目组",
+          "dataDate": "2024-09-30",
+          "spatialExtent": "塔里木盆地样区",
+          "coordinateSystem": "",
+          "fileFormat": "XLSX",
+          "description": "包含胡杨群落样方多样性、环境因子、物种功能性状和字段说明的非地理表格资源。",
+          "qualityNote": "已完成字段标准化预检，部分字段来自样方统计和实验测定。",
+          "status": "active",
+          "isQueryable": true,
+          "isRenderable": false,
+          "updatedAt": "2026-06-18T12:00:00+08:00",
+          "sizeBytes": 1087239,
+          "itemCount": 2927
         }
       ]
     }

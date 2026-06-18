@@ -30,6 +30,9 @@ import type {
   LayerListResponse,
   ListAdminDataResourcesData,
   ListAdminOperationLogsData,
+  NonGeoAnalyticsResponse,
+  NonGeoTableQueryRequest,
+  NonGeoTableQueryResponse,
   QueryRequest,
   QueryResponse,
   RasterBandInfo,
@@ -117,6 +120,9 @@ export type RasterUniqueValuesResult = UniqueValuesResponse;
 export type RasterJob = AsyncJobResponse;
 export type SearchResult = SearchResponse;
 export type WorkspaceSceneKind = WorkspaceScene["kind"];
+export type NonGeoAnalytics = NonGeoAnalyticsResponse;
+export type NonGeoTableQueryPayload = NonGeoTableQueryRequest;
+export type NonGeoTableQueryResult = NonGeoTableQueryResponse;
 export type SavedWorkspaceLayer = {
   id: string;
   name: string;
