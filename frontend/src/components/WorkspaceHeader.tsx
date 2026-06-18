@@ -38,13 +38,12 @@ import capfedLogo from "../assets/capfed-logo.svg";
 import { useAppContext } from "../contexts/AppContext";
 import type { Achievement, ResourceListItem, WorkspaceScene } from "../types";
 import {
-  resourceCategory,
   resourceCategoryName,
   resourceFormatLabel,
   resourceProvider,
 } from "../utils/resources";
 
-export type WorkspaceTab = "map" | "nongeo" | "admin";
+export type WorkspaceTab = "map" | "nongeo" | "resources" | "admin";
 
 const platformChineseName = "中亚胡杨林生态系统保护数据共享平台";
 const hoverExpandDelayMs = 100;
@@ -53,13 +52,10 @@ const searchOpenDelayMs = 400;
 interface WorkspaceHeaderProps {
   activeTab: WorkspaceTab;
   canBrowseData: boolean;
-  dataPanel?: ReactNode;
-  dataPanelOpen?: boolean;
   resources?: ResourceListItem[];
   workspaceScenes?: WorkspaceScene[];
   achievements?: Achievement[];
   searchKeyword?: string;
-  onDataPanelOpenChange?: (open: boolean) => void;
   onGlobalSearch?: (keyword: string) => void;
   onQuickLoadResource?: (resource: ResourceListItem) => void;
   onLoadWorkspaceScene?: (scene: WorkspaceScene) => void;
@@ -70,13 +66,10 @@ interface WorkspaceHeaderProps {
 export default function WorkspaceHeader({
   activeTab,
   canBrowseData,
-  dataPanel,
-  dataPanelOpen,
   resources,
   workspaceScenes,
   achievements,
   searchKeyword = "",
-  onDataPanelOpenChange,
   onGlobalSearch,
   onQuickLoadResource,
   onLoadWorkspaceScene,
@@ -392,15 +385,6 @@ export default function WorkspaceHeader({
       ),
     [effectiveAchievements, searchQuery],
   );
-  const searchCategories = useMemo(
-    () =>
-      buildSearchCategories(
-        effectiveResources,
-        effectiveWorkspaceScenes,
-        effectiveAchievements,
-      ),
-    [effectiveAchievements, effectiveResources, effectiveWorkspaceScenes],
-  );
 
   async function handleLogout() {
     try {
@@ -435,15 +419,7 @@ export default function WorkspaceHeader({
     const keyword = value.trim();
     const query = keyword ? `?resourceQ=${encodeURIComponent(keyword)}` : "";
     navigate(`/map${query}`);
-    onDataPanelOpenChange?.(Boolean(dataPanel));
     onGlobalSearch?.(keyword);
-    closeSearchPanel();
-  }
-
-  function openResourceSearch(resource: ResourceListItem) {
-    navigate(`/map?resourceQ=${encodeURIComponent(resource.name)}`);
-    onDataPanelOpenChange?.(Boolean(dataPanel));
-    onGlobalSearch?.(resource.name);
     closeSearchPanel();
   }
 
@@ -453,7 +429,9 @@ export default function WorkspaceHeader({
       closeSearchPanel();
       return;
     }
-    openResourceSearch(resource);
+    navigate(`/map?resourceQ=${encodeURIComponent(resource.name)}`);
+    onGlobalSearch?.(resource.name);
+    closeSearchPanel();
   }
 
   function openWorkspaceScene(scene: WorkspaceScene) {
@@ -495,19 +473,21 @@ export default function WorkspaceHeader({
   );
 
   function handleResourceCenter() {
-    if (!canBrowseData) {
+    if (!canBrowseData && !showAdminTab) {
       message.warning("当前账号暂无数据资源浏览权限");
       return;
     }
-    navigateFromHeader("/map");
-    onDataPanelOpenChange?.(Boolean(dataPanel));
+    navigateFromHeader("/resources");
   }
 
   const dataButton = (
     <Button
       type="text"
-      className={tabClass(false, expandedTabId === "resource")}
-      onClick={dataPanel ? undefined : handleResourceCenter}
+      className={tabClass(
+        activeTab === "resources",
+        expandedTabId === "resource",
+      )}
+      onClick={handleResourceCenter}
       onMouseEnter={() => scheduleTabHoverExpand("resource")}
       onMouseLeave={collapseTabHover}
       title="资源中心"
@@ -576,17 +556,13 @@ export default function WorkspaceHeader({
       >
         {filteredResources.map((resource) => (
           <div className="workspace-search-row" key={`resource-${resource.id}`}>
-            <Button
-              type="text"
-              className="workspace-search-row-main workspace-search-row-trigger"
-              onClick={() => openResourceSearch(resource)}
-            >
+            <span className="workspace-search-row-main">
               <strong>{resource.name}</strong>
               <small>
                 {resourceCategoryName(resource) ?? "未分类"} ·{" "}
                 {resourceFormatLabel(resource)}
               </small>
-            </Button>
+            </span>
             <Button
               size="small"
               type="primary"
@@ -646,21 +622,6 @@ export default function WorkspaceHeader({
           </Button>
         ))}
       </SearchResultSection>
-
-      <div className="workspace-search-categories">
-        <Typography.Text type="secondary">分类</Typography.Text>
-        <div>
-          {searchCategories.map((category) => (
-            <Tag
-              key={`${category.kind}-${category.label}`}
-              className="workspace-search-category"
-              onClick={() => handleSearchTextChange(category.label)}
-            >
-              {category.label}
-            </Tag>
-          ))}
-        </div>
-      </div>
     </section>
   );
 
@@ -744,35 +705,6 @@ export default function WorkspaceHeader({
             <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
             <span className="tab-text">非地理数据</span>
           </Button>
-          {canBrowseData &&
-            (dataPanel ? (
-              <Popover
-                trigger="click"
-                placement="bottomLeft"
-                open={dataPanelOpen}
-                onOpenChange={onDataPanelOpenChange}
-                classNames={{ root: "data-popover" }}
-                styles={{
-                  content: {
-                    width: "min(440px, calc(100vw - 32px))",
-                    maxHeight: "calc(100vh - 110px)",
-                    padding: 0,
-                    overflow: "auto",
-                    background: "rgba(248, 250, 247, 0.92)",
-                    border: "1px solid rgba(255, 255, 255, 0.34)",
-                    borderRadius: 8,
-                    boxShadow:
-                      "0 22px 62px rgba(8, 28, 24, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.38)",
-                    backdropFilter: "blur(24px) saturate(1.28)",
-                  },
-                }}
-                content={dataPanel}
-              >
-                {dataButton}
-              </Popover>
-            ) : (
-              dataButton
-            ))}
           <Button
             type="text"
             className={tabClass(false, expandedTabId === "achievements")}
@@ -784,6 +716,7 @@ export default function WorkspaceHeader({
             <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
             <span className="tab-text">成果目录</span>
           </Button>
+          {(canBrowseData || showAdminTab) && dataButton}
           {showAdminTab && (
             <Button
               type="text"
@@ -942,37 +875,6 @@ function textMatches(value: unknown, query: string) {
   return String(value ?? "")
     .toLocaleLowerCase("zh-CN")
     .includes(query);
-}
-
-function buildSearchCategories(
-  resources: ResourceListItem[],
-  workspaceScenes: WorkspaceScene[],
-  achievements: Achievement[],
-) {
-  const categories = new Map<string, { kind: string; label: string }>();
-  for (const resource of resources) {
-    const category = resourceCategory(resource);
-    if (category) {
-      categories.set(`data-${category.name}`, {
-        kind: "data",
-        label: category.name,
-      });
-    }
-  }
-  if (workspaceScenes.some((scene) => scene.kind === "project")) {
-    categories.set("scene-project", { kind: "scene", label: "工程" });
-  }
-  if (workspaceScenes.some((scene) => scene.kind === "topic")) {
-    categories.set("scene-topic", { kind: "scene", label: "专题" });
-  }
-  for (const achievement of achievements) {
-    const label = achievement.category?.name;
-    if (label) {
-      categories.set(`achievement-${label}`, { kind: "achievement", label });
-    }
-  }
-  categories.set("achievement-default", { kind: "achievement", label: "成果" });
-  return Array.from(categories.values()).slice(0, 18);
 }
 
 function formatSceneUpdatedAt(scene: WorkspaceScene) {

@@ -250,6 +250,7 @@ export default function DataPanel({
                 size="small"
                 type="primary"
                 ghost
+                className="resource-quick-load-button"
                 disabled={!resource.isQueryable && !resource.isRenderable}
                 onClick={() => onQuickLoadResource(resource)}
               >

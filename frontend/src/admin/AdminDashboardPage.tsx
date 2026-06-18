@@ -48,7 +48,13 @@ const dataTypeLabels: Record<string, string> = {
   image: "图片",
 };
 
-export default function AdminDashboardPage() {
+interface AdminDashboardPageProps {
+  scope?: "all" | "data" | "operations";
+}
+
+export default function AdminDashboardPage({
+  scope = "all",
+}: AdminDashboardPageProps) {
   const { message } = App.useApp();
   const { user } = useAppContext();
   const [period, setPeriod] = useState<ActivePeriod>("day");
@@ -56,8 +62,10 @@ export default function AdminDashboardPage() {
   const [server, setServer] = useState<AdminDashboardServer | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [serverLoading, setServerLoading] = useState(true);
+  const showDataCards = scope === "all" || scope === "data";
+  const showOperationCards = scope === "all" || scope === "operations";
   const canViewServerCards = Boolean(
-    user?.permissions.canViewDashboardSystemCard,
+    showOperationCards && user?.permissions.canViewDashboardSystemCard,
   );
 
   const loadDashboard = useCallback(async () => {
@@ -96,9 +104,12 @@ export default function AdminDashboardPage() {
   }, [loadDashboard, loadServer]);
 
   useEffect(() => {
+    if (!canViewServerCards) {
+      return;
+    }
     const timer = window.setInterval(loadServer, serverRefreshMs);
     return () => window.clearInterval(timer);
-  }, [loadServer]);
+  }, [canViewServerCards, loadServer]);
 
   const activeChartData = useMemo(() => {
     return (dashboard?.cards.activeUsers?.series ?? []).map((item) => ({
@@ -107,18 +118,21 @@ export default function AdminDashboardPage() {
     }));
   }, [dashboard]);
   const hasMetricCards = Boolean(
-    dashboard?.cards.resources ||
-    dashboard?.cards.layers ||
-    dashboard?.cards.rasters ||
-    dashboard?.cards.dataOverview,
+    showDataCards &&
+    (dashboard?.cards.resources ||
+      dashboard?.cards.layers ||
+      dashboard?.cards.rasters ||
+      dashboard?.cards.dataOverview),
   );
   const hasServerCards = Boolean(
     server?.cards.cpu || server?.cards.memory || server?.cards.disks,
   );
   const hasDashboardCards =
     hasMetricCards ||
-    Boolean(dashboard?.cards.users) ||
-    Boolean(dashboard?.cards.activeUsers);
+    Boolean(
+      showOperationCards &&
+      (dashboard?.cards.users || dashboard?.cards.activeUsers),
+    );
   const hasAnyAuthorizedCard = hasDashboardCards || canViewServerCards;
 
   if (dashboardLoading || !dashboard) {
@@ -135,7 +149,13 @@ export default function AdminDashboardPage() {
     <div className="admin-dashboard admin-page-stack">
       {!hasAnyAuthorizedCard && (
         <ProCard className="admin-section-card">
-          <Empty description="当前账号暂无可查看的 Dashboard 卡片" />
+          <Empty
+            description={
+              scope === "data"
+                ? "当前账号暂无可查看的数据 Dashboard 卡片"
+                : "当前账号暂无可查看的 Dashboard 卡片"
+            }
+          />
         </ProCard>
       )}
 
@@ -199,7 +219,7 @@ export default function AdminDashboardPage() {
         </section>
       )}
 
-      {dashboard.cards.users && (
+      {showOperationCards && dashboard.cards.users && (
         <section className="admin-dashboard-section">
           <div className="admin-dashboard-section-heading">
             <Typography.Title level={4}>用户信息</Typography.Title>
@@ -217,7 +237,7 @@ export default function AdminDashboardPage() {
         </section>
       )}
 
-      {dashboard.cards.activeUsers && (
+      {showOperationCards && dashboard.cards.activeUsers && (
         <section className="admin-dashboard-section">
           <BorderBeam color={oceanBorderBeam}>
             <Card

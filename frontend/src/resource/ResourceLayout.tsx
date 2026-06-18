@@ -1,9 +1,7 @@
 import {
-  AuditOutlined,
   DashboardOutlined,
-  SettingOutlined,
-  TeamOutlined,
-  UserOutlined,
+  DatabaseOutlined,
+  ImportOutlined,
 } from "@ant-design/icons";
 import type { MenuDataItem } from "@ant-design/pro-components";
 import { PageContainer, ProLayout } from "@ant-design/pro-components";
@@ -13,110 +11,70 @@ import WorkspaceHeader from "../components/WorkspaceHeader";
 import { useAppContext } from "../contexts/AppContext";
 import type { User } from "../types";
 
-const baseAdminRoutes: MenuDataItem[] = [
+const baseResourceRoutes: MenuDataItem[] = [
   {
-    path: "/admin/dashboard",
+    path: "/resources/dashboard",
     name: "Dashboard",
     icon: <DashboardOutlined />,
   },
-  {
-    path: "/admin/profile",
-    name: "用户设置",
-    icon: <UserOutlined />,
-  },
 ];
 
-const authRoute: MenuDataItem = {
-  path: "/admin/auth",
-  name: "认证授权",
-  icon: <TeamOutlined />,
-  children: [
-    {
-      path: "/admin/auth/users",
-      name: "用户管理",
-    },
-    {
-      path: "/admin/auth/groups",
-      name: "用户组权限",
-    },
-  ],
-};
-
-function adminRouteFor(user: User | null) {
-  const routes = [...baseAdminRoutes];
-  if (user?.permissions.canViewOperationLogs) {
+function resourceRouteFor(user: User | null) {
+  const routes = [...baseResourceRoutes];
+  if (user?.permissions.canMaintainData) {
     routes.push({
-      path: "/admin/logs",
-      name: "操作日志",
-      icon: <AuditOutlined />,
+      path: "/resources/data/inventory",
+      name: "存量数据",
+      icon: <DatabaseOutlined />,
     });
   }
-  if (user?.permissions.canManageSystemSettings) {
+  if (user?.permissions.canUploadData || user?.permissions.canMaintainData) {
     routes.push({
-      path: "/admin/settings",
-      name: "系统设置",
-      icon: <SettingOutlined />,
+      path: "/resources/data/import",
+      name: "数据导入",
+      icon: <ImportOutlined />,
     });
-  }
-  if (user?.permissions.canManageAuth) {
-    routes.push(authRoute);
   }
   return {
-    path: "/admin",
+    path: "/resources",
     routes,
   };
 }
 
 const defaultPageMeta = {
-  title: "Dashboard",
-  subTitle: "汇总平台用户活跃、账号与系统监控",
+  title: "数据 Dashboard",
+  subTitle: "汇总数据资源、图层、栅格和数据体量",
 };
 
 const pageMeta: Record<string, { title: string; subTitle: string }> = {
-  "/admin/dashboard": defaultPageMeta,
-  "/admin/profile": {
-    title: "用户设置",
-    subTitle: "维护个人信息并查看当前权限",
+  "/resources/dashboard": defaultPageMeta,
+  "/resources/data/import": {
+    title: "数据导入",
+    subTitle: "按文件选择、导入配置、数据预览三个步骤完成入库",
   },
-  "/admin/logs": {
-    title: "操作日志",
-    subTitle: "查询、筛选并导出关键操作记录",
-  },
-  "/admin/settings": {
-    title: "系统设置",
-    subTitle: "维护基础配置与平台运行参数",
-  },
-  "/admin/auth": {
-    title: "认证授权",
-    subTitle: "管理用户、角色和功能权限",
-  },
-  "/admin/auth/users": {
-    title: "认证授权",
-    subTitle: "管理用户、角色和功能权限",
-  },
-  "/admin/auth/groups": {
-    title: "认证授权",
-    subTitle: "管理用户、角色和功能权限",
+  "/resources/data/inventory": {
+    title: "存量数据管理",
+    subTitle: "管理已导入数据的状态、默认可视化、权限、删除与导出",
   },
 };
 
-export default function AdminLayout() {
+export default function ResourceLayout() {
   const { user } = useAppContext();
   const location = useLocation();
   const navigate = useNavigate();
   const meta = pageMeta[location.pathname] ?? defaultPageMeta;
-  const adminRoute = useMemo(() => adminRouteFor(user), [user]);
+  const resourceRoute = useMemo(() => resourceRouteFor(user), [user]);
 
   return (
-    <div className="admin-workspace-shell">
+    <div className="admin-workspace-shell resource-workspace-shell">
       <WorkspaceHeader
-        activeTab="admin"
+        activeTab="resources"
         canBrowseData={Boolean(user?.permissions.canBrowseData)}
       />
       <ProLayout
         className="admin-pro-layout"
-        title="生态保护管理"
-        route={adminRoute}
+        title="资源中心"
+        route={resourceRoute}
         location={{ pathname: location.pathname }}
         layout="mix"
         headerRender={false}

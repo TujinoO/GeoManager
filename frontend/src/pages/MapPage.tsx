@@ -142,7 +142,6 @@ export default function MapPage() {
   } | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [querying, setQuerying] = useState(false);
-  const [dataPanelOpen, setDataPanelOpen] = useState(false);
   const [selectedFeature, setSelectedFeature] = useState<FeatureInfo | null>(
     null,
   );
@@ -262,7 +261,6 @@ export default function MapPage() {
       return;
     }
     if (keyword) {
-      setDataPanelOpen(true);
       void loadResources({ q: keyword });
     }
   }, [loadResources, permissions.canBrowseData, searchParams]);
@@ -406,7 +404,6 @@ export default function MapPage() {
     if (!group) return;
     layerGroups.addGroup(group);
     setSelectedLayerId(group.children[0]?.id ?? null);
-    setDataPanelOpen(false);
     const child = group.children[0] as LoadedRasterLayer;
     void startRasterRender(
       group.id,
@@ -449,7 +446,6 @@ export default function MapPage() {
       });
       layerGroups.addGroup(group);
       setSelectedLayerId(group.children[0]?.id ?? null);
-      setDataPanelOpen(false);
       message.success(resultMessage);
     } catch (error) {
       message.error(
@@ -1014,20 +1010,15 @@ export default function MapPage() {
       onLoadRaster={handleLoadRaster}
     />
   );
-  const dataPanel = renderDataPanel();
-
   return (
     <Layout className="workspace">
       <WorkspaceHeader
         activeTab="map"
         canBrowseData={permissions.canBrowseData}
-        dataPanel={dataPanel}
-        dataPanelOpen={dataPanelOpen}
         resources={resources}
         workspaceScenes={workspaceScenes}
         achievements={achievements}
         searchKeyword={resourceSearchKeyword}
-        onDataPanelOpenChange={setDataPanelOpen}
         onGlobalSearch={(keyword) => {
           setResourceSearchKeyword(keyword);
         }}

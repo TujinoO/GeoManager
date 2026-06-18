@@ -22,6 +22,7 @@ import AdminLayout from "./AdminLayout";
 import AdminOperationLogsPage from "./AdminOperationLogsPage";
 import AdminProfilePage from "./AdminProfilePage";
 import AdminSystemSettingsPage from "./AdminSystemSettingsPage";
+import ResourceLayout from "../resource/ResourceLayout";
 
 const mockApi = vi.hoisted(() => ({
   logout: vi.fn(),
@@ -219,15 +220,12 @@ function renderAdminRoute(initialEntry: string) {
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/" element={<div>业务入口</div>} />
-          <Route path="/admin" element={<AdminLayout />}>
+          <Route path="/resources" element={<ResourceLayout />}>
             <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<AdminDashboardPage />} />
-            <Route path="profile" element={<AdminProfilePage />} />
-            <Route path="logs" element={<AdminOperationLogsPage />} />
-            <Route path="settings" element={<AdminSystemSettingsPage />} />
-            <Route path="auth" element={<Navigate to="users" replace />} />
-            <Route path="auth/users" element={<AdminAuthPage />} />
-            <Route path="auth/groups" element={<AdminAuthPage />} />
+            <Route
+              path="dashboard"
+              element={<AdminDashboardPage scope="data" />}
+            />
             <Route element={<RequireDataMaintain />}>
               <Route
                 path="data/inventory"
@@ -235,6 +233,19 @@ function renderAdminRoute(initialEntry: string) {
               />
               <Route path="data/import" element={<AdminDataImportPage />} />
             </Route>
+          </Route>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route
+              path="dashboard"
+              element={<AdminDashboardPage scope="operations" />}
+            />
+            <Route path="profile" element={<AdminProfilePage />} />
+            <Route path="logs" element={<AdminOperationLogsPage />} />
+            <Route path="settings" element={<AdminSystemSettingsPage />} />
+            <Route path="auth" element={<Navigate to="users" replace />} />
+            <Route path="auth/users" element={<AdminAuthPage />} />
+            <Route path="auth/groups" element={<AdminAuthPage />} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -476,18 +487,28 @@ describe("admin routes", () => {
     });
   });
 
-  it("redirects /admin to dashboard", async () => {
+  it("redirects /admin to operational dashboard", async () => {
     renderAdminRoute("/admin");
 
     expect(await screen.findByRole("button", { name: /后台管理/ })).toHaveClass(
       "workspace-switch-card-active",
     );
-    expect(await screen.findByText("图层数")).toBeInTheDocument();
-    expect(screen.getAllByText("栅格数量").length).toBeGreaterThan(0);
-    expect(screen.getByText("用户信息")).toBeInTheDocument();
-    expect(screen.getByText("用户组数量")).toBeInTheDocument();
+    expect(await screen.findByText("用户信息")).toBeInTheDocument();
     expect(screen.getAllByText("活跃用户").length).toBeGreaterThan(0);
     expect(screen.getByText("服务器信息")).toBeInTheDocument();
+    expect(screen.queryByText("图层数")).not.toBeInTheDocument();
+  });
+
+  it("renders data Dashboard in resource center", async () => {
+    renderAdminRoute("/resources");
+
+    expect(await screen.findByRole("button", { name: /资源中心/ })).toHaveClass(
+      "workspace-switch-card-active",
+    );
+    expect(await screen.findByText("图层数")).toBeInTheDocument();
+    expect(screen.getAllByText("栅格数量").length).toBeGreaterThan(0);
+    expect(screen.queryByText("用户信息")).not.toBeInTheDocument();
+    expect(screen.queryByText("服务器信息")).not.toBeInTheDocument();
   });
 
   it("submits the password change form from user settings", async () => {
@@ -605,12 +626,12 @@ describe("admin routes", () => {
   }, 30000);
 
   it("runs the admin data import step flow through preview and validation", async () => {
-    renderAdminRoute("/admin/data/import");
+    renderAdminRoute("/resources/data/import");
 
     expect(
       await screen.findByText("选择 Excel 或 CSV 文件"),
     ).toBeInTheDocument();
-    expect(screen.getAllByText("数据管理").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("资源中心").length).toBeGreaterThan(0);
     const input = document.querySelector(
       "input[type='file']",
     ) as HTMLInputElement;
@@ -658,7 +679,7 @@ describe("admin routes", () => {
   }, 30000);
 
   it("loads the inventory data management page", async () => {
-    renderAdminRoute("/admin/data/inventory");
+    renderAdminRoute("/resources/data/inventory");
 
     expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
     expect(screen.getByText("CSV")).toBeInTheDocument();

@@ -2912,13 +2912,12 @@ body {
   background: rgba(247, 250, 248, 0.9);
   border: 1px solid rgba(23, 63, 57, 0.08);
   border-radius: 8px;
-  cursor: pointer;
+  cursor: default;
   height: auto;
   line-height: normal;
 }
 
-.workspace-search-row:hover,
-.workspace-search-row:focus-visible {
+.workspace-search-row:hover {
   background: rgba(238, 248, 244, 0.96);
   border-color: rgba(47, 125, 98, 0.22);
 }
@@ -2941,41 +2940,8 @@ body {
   }
 }
 
-.workspace-search-row-trigger {
-  height: auto;
-  justify-content: start;
-  padding: 0;
-  color: inherit;
-  line-height: normal;
-  text-align: left;
-  background: transparent;
-
-  &:hover,
-  &:focus-visible {
-    color: inherit;
-    background: transparent;
-  }
-}
-
 .workspace-search-empty {
   margin: 4px 0;
-}
-
-.workspace-search-categories {
-  display: grid;
-  gap: 8px;
-  padding-top: 4px;
-  border-top: 1px solid rgba(23, 63, 57, 0.08);
-
-  & > div {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-}
-
-.workspace-search-category {
-  cursor: pointer;
 }
 
 .header-primary-actions,
@@ -4564,6 +4530,10 @@ body {
 
 .resource-row-active {
   background: rgba(34, 197, 143, 0.12);
+}
+
+.resource-quick-load-button.ant-btn-primary.ant-btn-background-ghost {
+  color: #fff;
 }
 
 .resource-row-content {

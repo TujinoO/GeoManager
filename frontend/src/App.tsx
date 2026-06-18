@@ -37,6 +37,7 @@ const HomePage = lazy(() => import("./pages/HomePage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const MapPage = lazy(() => import("./pages/MapPage"));
 const NonGeoPage = lazy(() => import("./pages/NonGeoPage"));
+const ResourceLayout = lazy(() => import("./resource/ResourceLayout"));
 
 /** 为路由页面添加淡入过渡效果的包装组件 */
 function RouteTransition({ children }: { children: ReactNode }) {
@@ -166,9 +167,28 @@ export default function App() {
                 </RouteTransition>
               }
             />
+            <Route path="/resources" element={<ResourceLayout />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route
+                path="dashboard"
+                element={<AdminDashboardPage scope="data" />}
+              />
+              <Route element={<RequireDataMaintain />}>
+                <Route
+                  path="data/inventory"
+                  element={<AdminDataInventoryPage />}
+                />
+              </Route>
+              <Route element={<RequireDataUpload />}>
+                <Route path="data/import" element={<AdminDataImportPage />} />
+              </Route>
+            </Route>
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<AdminDashboardPage />} />
+              <Route
+                path="dashboard"
+                element={<AdminDashboardPage scope="operations" />}
+              />
               <Route path="profile" element={<AdminProfilePage />} />
               <Route element={<RequireViewOperationLogs />}>
                 <Route path="logs" element={<AdminOperationLogsPage />} />
@@ -180,15 +200,6 @@ export default function App() {
                 <Route path="auth" element={<Navigate to="users" replace />} />
                 <Route path="auth/users" element={<AdminAuthPage />} />
                 <Route path="auth/groups" element={<AdminAuthPage />} />
-              </Route>
-              <Route element={<RequireDataMaintain />}>
-                <Route
-                  path="data/inventory"
-                  element={<AdminDataInventoryPage />}
-                />
-              </Route>
-              <Route element={<RequireDataUpload />}>
-                <Route path="data/import" element={<AdminDataImportPage />} />
               </Route>
             </Route>
           </Route>
