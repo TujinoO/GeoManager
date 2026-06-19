@@ -4,7 +4,6 @@ import {
   BookOutlined,
   DatabaseOutlined,
   FolderOpenOutlined,
-  FundProjectionScreenOutlined,
   InfoCircleOutlined,
   LogoutOutlined,
   QuestionCircleOutlined,
@@ -40,7 +39,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import capfedLogo from "../assets/capfed-logo.svg";
 import { useAppContext } from "../contexts/AppContext";
-import type { Achievement, ResourceListItem, WorkspaceScene } from "../types";
+import type { ResourceListItem, WorkspaceScene } from "../types";
 import {
   resourceCategoryName,
   resourceFormatLabel,
@@ -59,12 +58,10 @@ interface WorkspaceHeaderProps {
   canBrowseData: boolean;
   resources?: ResourceListItem[];
   workspaceScenes?: WorkspaceScene[];
-  achievements?: Achievement[];
   searchKeyword?: string;
   onGlobalSearch?: (keyword: string) => void;
   onQuickLoadResource?: (resource: ResourceListItem) => void;
   onLoadWorkspaceScene?: (scene: WorkspaceScene) => void;
-  onOpenAchievement?: (achievement: Achievement) => void;
   onSearchFocus?: () => void;
 }
 
@@ -73,12 +70,10 @@ export default function WorkspaceHeader({
   canBrowseData,
   resources,
   workspaceScenes,
-  achievements,
   searchKeyword = "",
   onGlobalSearch,
   onQuickLoadResource,
   onLoadWorkspaceScene,
-  onOpenAchievement,
   onSearchFocus,
 }: WorkspaceHeaderProps) {
   const { bootstrap, user, setUser } = useAppContext();
@@ -90,7 +85,6 @@ export default function WorkspaceHeader({
   const [localWorkspaceScenes, setLocalWorkspaceScenes] = useState<
     WorkspaceScene[]
   >([]);
-  const [localAchievements, setLocalAchievements] = useState<Achievement[]>([]);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchCompact, setSearchCompact] = useState(false);
   const [navCompressed, setNavCompressed] = useState(false);
@@ -106,7 +100,6 @@ export default function WorkspaceHeader({
   const primaryNavRef = useRef<HTMLElement | null>(null);
   const mapTabRef = useRef<HTMLButtonElement | null>(null);
   const nonGeoTabRef = useRef<HTMLButtonElement | null>(null);
-  const achievementsTabRef = useRef<HTMLButtonElement | null>(null);
   const resourcesTabRef = useRef<HTMLButtonElement | null>(null);
   const adminTabRef = useRef<HTMLButtonElement | null>(null);
   const aboutTabRef = useRef<HTMLButtonElement | null>(null);
@@ -118,7 +111,6 @@ export default function WorkspaceHeader({
   const fullPrimaryNavWidthRef = useRef(0);
   const effectiveResources = resources ?? localResources;
   const effectiveWorkspaceScenes = workspaceScenes ?? localWorkspaceScenes;
-  const effectiveAchievements = achievements ?? localAchievements;
   const isGuestUser =
     user?.username === "guest" || Boolean(user?.roles.includes("游客"));
   const showAdminTab =
@@ -146,21 +138,17 @@ export default function WorkspaceHeader({
   useEffect(() => {
     if (
       !canBrowseData ||
-      (resources !== undefined &&
-        workspaceScenes !== undefined &&
-        achievements !== undefined)
+      (resources !== undefined && workspaceScenes !== undefined)
     ) {
       return;
     }
     let mounted = true;
     async function loadGlobalSearchItems() {
       try {
-        const [resourceResponse, sceneResponse, achievementResponse] =
-          await Promise.all([
-            resources === undefined ? api.resources({}) : null,
-            workspaceScenes === undefined ? api.workspaces() : null,
-            achievements === undefined ? api.achievements() : null,
-          ]);
+        const [resourceResponse, sceneResponse] = await Promise.all([
+          resources === undefined ? api.resources({}) : null,
+          workspaceScenes === undefined ? api.workspaces() : null,
+        ]);
         if (!mounted) {
           return;
         }
@@ -169,9 +157,6 @@ export default function WorkspaceHeader({
         }
         if (sceneResponse) {
           setLocalWorkspaceScenes(sceneResponse.items);
-        }
-        if (achievementResponse) {
-          setLocalAchievements(achievementResponse.items);
         }
       } catch (error) {
         message.warning(
@@ -183,7 +168,7 @@ export default function WorkspaceHeader({
     return () => {
       mounted = false;
     };
-  }, [achievements, canBrowseData, message, resources, workspaceScenes]);
+  }, [canBrowseData, message, resources, workspaceScenes]);
 
   useEffect(() => {
     navMeasureTimerRef.current = window.setTimeout(() => {
@@ -407,13 +392,6 @@ export default function WorkspaceHeader({
       ),
     [effectiveWorkspaceScenes, searchQuery],
   );
-  const filteredAchievements = useMemo(
-    () =>
-      effectiveAchievements.filter((achievement) =>
-        searchQuery ? achievementMatches(achievement, searchQuery) : true,
-      ),
-    [effectiveAchievements, searchQuery],
-  );
 
   async function handleLogout() {
     try {
@@ -470,15 +448,6 @@ export default function WorkspaceHeader({
       navigate(`/map?sceneId=${scene.id}`);
     }
     setSearchOpen(false);
-    closeSearchPanel();
-  }
-
-  function openAchievement(achievement: Achievement) {
-    if (onOpenAchievement) {
-      onOpenAchievement(achievement);
-    } else {
-      message.info(`成果详情正在接入：${achievement.title}`);
-    }
     closeSearchPanel();
   }
 
@@ -615,7 +584,7 @@ export default function WorkspaceHeader({
       {
         title: "全局搜索",
         description:
-          "检索数据资源、已保存工程和项目成果，并从结果中快速加载到当前工作台。",
+          "检索数据资源和已保存工程，并从结果中快速加载到当前工作台。",
         target: () => searchContainerRef.current ?? document.body,
         placement: "bottom",
       },
@@ -631,13 +600,6 @@ export default function WorkspaceHeader({
         description:
           "查看生态表格、基因等非空间数据，并使用图表与表格完成基础分析。",
         target: () => nonGeoTabRef.current ?? document.body,
-        placement: "bottom",
-      },
-      {
-        title: "成果目录",
-        description:
-          "集中查看项目图件、分析成果、说明材料和相关附件，后续可从成果定位到地图。",
-        target: () => achievementsTabRef.current ?? document.body,
         placement: "bottom",
       },
     ];
@@ -813,30 +775,6 @@ export default function WorkspaceHeader({
           </Button>
         ))}
       </SearchResultSection>
-
-      <SearchResultSection
-        title="成果"
-        icon={<FundProjectionScreenOutlined style={{ fontSize: 15 }} />}
-        emptyText="暂无匹配成果"
-      >
-        {filteredAchievements.map((achievement) => (
-          <Button
-            type="text"
-            className="workspace-search-row"
-            key={`achievement-${achievement.id}`}
-            onClick={() => openAchievement(achievement)}
-          >
-            <span className="workspace-search-row-main">
-              <strong>{achievement.title}</strong>
-              <small>
-                {achievement.category?.name ?? "未分类"} ·{" "}
-                {achievement.source || achievement.code}
-              </small>
-            </span>
-            <Tag color="purple">成果</Tag>
-          </Button>
-        ))}
-      </SearchResultSection>
     </section>
   );
 
@@ -881,7 +819,7 @@ export default function WorkspaceHeader({
               allowClear
               prefix={<SearchOutlined style={{ fontSize: 15 }} />}
               value={searchText}
-              placeholder="搜索数据、工程、成果"
+              placeholder="搜索数据、工程"
               onFocus={expandSearch}
               onClick={handleSearchClick}
               onChange={(event) => handleSearchTextChange(event.target.value)}
@@ -921,18 +859,6 @@ export default function WorkspaceHeader({
           >
             <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
             <span className="tab-text">非地理数据</span>
-          </Button>
-          <Button
-            ref={achievementsTabRef}
-            type="text"
-            className={tabClass(false, expandedTabId === "achievements")}
-            onClick={() => message.info("成果目录页面正在接入")}
-            onMouseEnter={() => scheduleTabHoverExpand("achievements")}
-            onMouseLeave={collapseTabHover}
-            title="成果目录"
-          >
-            <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-            <span className="tab-text">成果目录</span>
           </Button>
           {(canBrowseData || showAdminTab) && dataButton}
           {showAdminTab && (
@@ -1098,16 +1024,6 @@ function sceneMatches(scene: WorkspaceScene, query: string) {
     scene.kind === "project" ? "工程" : "专题",
     scene.owner.displayName,
     scene.owner.username,
-  ].some((value) => textMatches(value, query));
-}
-
-function achievementMatches(achievement: Achievement, query: string) {
-  return [
-    achievement.title,
-    achievement.code,
-    achievement.summary,
-    achievement.source,
-    achievement.category?.name,
   ].some((value) => textMatches(value, query));
 }
 

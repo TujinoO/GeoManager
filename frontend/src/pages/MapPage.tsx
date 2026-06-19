@@ -52,7 +52,6 @@ import { clearFeatureState, getMapState } from "../map/mapState";
 import type { DrawMode } from "../map/spatialDraw";
 import { workspacePanelTheme } from "../theme";
 import type {
-  Achievement,
   AttributeFilter,
   DataResource,
   DataResourceProfile,
@@ -127,7 +126,6 @@ export default function MapPage() {
 
   const [resources, setResources] = useState<ResourceListItem[]>([]);
   const [workspaceScenes, setWorkspaceScenes] = useState<WorkspaceScene[]>([]);
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [resourceSearchKeyword, setResourceSearchKeyword] = useState("");
   const [selectedResource, setSelectedResource] =
     useState<ResourceListItem | null>(null);
@@ -237,12 +235,8 @@ export default function MapPage() {
       return;
     }
     try {
-      const [sceneResponse, achievementResponse] = await Promise.all([
-        api.workspaces(),
-        api.achievements(),
-      ]);
+      const sceneResponse = await api.workspaces();
       setWorkspaceScenes(sceneResponse.items);
-      setAchievements(achievementResponse.items);
     } catch (error) {
       message.warning(
         error instanceof Error ? error.message : "搜索内容加载失败",
@@ -1017,7 +1011,6 @@ export default function MapPage() {
         canBrowseData={permissions.canBrowseData}
         resources={resources}
         workspaceScenes={workspaceScenes}
-        achievements={achievements}
         searchKeyword={resourceSearchKeyword}
         onGlobalSearch={(keyword) => {
           setResourceSearchKeyword(keyword);
@@ -1026,9 +1019,6 @@ export default function MapPage() {
           void handleQuickLoadResource(resource)
         }
         onLoadWorkspaceScene={loadWorkspaceScene}
-        onOpenAchievement={(achievement) => {
-          message.info(`成果详情正在接入：${achievement.title}`);
-        }}
         onSearchFocus={() => {
           if (permissions.canBrowseData) {
             void loadSearchItems();
