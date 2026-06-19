@@ -587,7 +587,7 @@ export const updateCatalogWorkspace = <ThrowOnError extends boolean = false>(opt
  * 导入数据预检
  *
  * 解析上传的 Excel/CSV 第一张表，按文本读取字段，自动推测经纬度列，
- * 并返回样例行、字段列表和建议入库目标是否重名。该接口不执行坐标数据校验，不写入数据。
+ * 并返回样例行、字段列表、建议后台存储标识和建议数据名称是否重名。该接口不执行坐标数据校验，不写入数据。
  * 需要 `core.upload_data` 或 `catalog.maintain_dataresource`。
  *
  */
@@ -609,7 +609,7 @@ export const importPreview = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * 上传数据校验
  *
- * 按当前表单选择的导入类型、入库表名和经纬度列校验上传文件，不写入数据。需要 `core.upload_data` 或 `catalog.maintain_dataresource`。
+ * 按当前表单选择的数据名称、导入类型、后台存储标识和经纬度列校验上传文件，不写入数据。重复检测按前端显示的数据名称执行。需要 `core.upload_data` 或 `catalog.maintain_dataresource`。
  */
 export const importValidate = <ThrowOnError extends boolean = false>(options: Options<ImportValidateData, ThrowOnError>): RequestResult<ImportValidateResponses, ImportValidateErrors, ThrowOnError> => (options.client ?? client).post<ImportValidateResponses, ImportValidateErrors, ThrowOnError>({
     ...formDataBodySerializer,
@@ -630,8 +630,8 @@ export const importValidate = <ThrowOnError extends boolean = false>(options: Op
  * 提交数据导入
  *
  * 将预检后的 Excel/CSV 导入统一存储。选择地理数据时写入 GeoPackage，
- * 选择非地理数据时写入 SQLite。接口会同步创建或更新 DataResource。
- * 需要 `core.upload_data` 或 `catalog.maintain_dataresource`；覆盖已有入库目标必须显式传入 overwrite=true。
+ * 选择非地理数据时写入 SQLite。接口每次导入都会生成唯一后台存储标识并创建新的 DataResource。
+ * 需要 `core.upload_data` 或 `catalog.maintain_dataresource`；前端显示名已存在时必须在数据校验阶段确认，并在提交时显式传入 duplicateConfirmed=true 才允许继续导入。继续导入会创建新的 DataResource 和唯一后台存储标识，不覆盖已有数据。
  *
  */
 export const importCommit = <ThrowOnError extends boolean = false>(options: Options<ImportCommitData, ThrowOnError>): RequestResult<ImportCommitResponses, ImportCommitErrors, ThrowOnError> => (options.client ?? client).post<ImportCommitResponses, ImportCommitErrors, ThrowOnError>({

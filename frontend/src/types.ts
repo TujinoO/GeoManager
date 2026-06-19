@@ -167,13 +167,14 @@ export interface ImportCommitPayload {
   longitudeColumn?: string;
   latitudeColumn?: string;
   ignoreCoordinateUncertainty: boolean;
-  overwrite: boolean;
+  duplicateConfirmed: boolean;
   includedColumns: string[];
   fieldMetadata: Record<string, string>;
   accessGroupIds: number[];
 }
 
 export interface ImportValidatePayload {
+  name?: string;
   importMode: "geographic" | "table";
   tableName?: string;
   longitudeColumn?: string;

@@ -68,7 +68,7 @@ backend/apps/
 - SQLite 数据库放在业务数据根目录的 `database/` 下。
 - 所有矢量数据统一从地理数据根目录下的 `vector/vector.gpkg` 读取；业务库中的矢量 `storage_path` 和图层 `source_path` 字段填写该 GeoPackage 内的图层名，后端读取并输出 GeoJSON。
 - Excel/CSV 导入分为预检与提交两步。预检只读取第一张表、按文本读取全部字段、自动推测常见经纬度列并计算坐标量化误差范围；提交时由用户选择地理/非地理导入、经纬度列、字段元数据和空坐标处理策略。
-- 导入的地理表统一写入 `vector/vector.gpkg` 的点图层，并创建或更新对应 `DataResource`，`DataResource.name` 保存用户填写的数据名称，`storage_path` 保存 GeoPackage 图层名。资源列表优先展示业务库中的数据名称，已登记图层不会再以原始表名重复暴露为临时矢量资源。
+- 导入的地理表统一写入 `vector/vector.gpkg` 的点图层，并创建对应 `DataResource`，`DataResource.name` 保存用户填写的数据名称，`storage_path` 保存 GeoPackage 图层名。资源列表优先展示业务库中的数据名称，已登记图层不会再以原始表名重复暴露为临时矢量资源。
 - 导入的地理表字段级描述写入 GeoPackage `gpkg_data_columns`，记录键为 `table_name + column_name + description`。强行导入空坐标时允许 GeoPackage 保留空几何记录，但图层要素接口和查询 GeoJSON 输出会过滤空几何，避免前端地图渲染异常。
 - 导入的非地理表统一写入 `table/data.sqlite`，业务表之外维护 `data_columns(table_name, column_name, description)` 作为 SQLite 侧字段元数据实现。非地理导入只登记 `DataResource`，不创建 `MapLayer`，资源 `storage_path` 记录 SQLite 内的表名。
 - 坐标量化误差按经纬度文本小数位数估算：每个坐标分量取最后一位小数半个单位作为最大角度误差，纬度方向按 111320 m/deg 换算，经度方向乘以 `cos(latitude)`，再合成平面最大可能误差；该值只表示坐标记录精度引入的位置不确定性，不包含测量设备误差。
@@ -178,8 +178,8 @@ frontend/src/
 - 后端资源能力边界：只有带 `storage_path` 的矢量 GeoPackage 资源可查询；元数据资源只可浏览和筛选。
 - 数据管理 `/resources/data/inventory` 是存量数据管理入口，使用 `/api/admin/data/resources/` 查询启用和禁用资源；常规业务目录 `/api/catalog/resources/`、搜索和资源 profile/query 仍只处理 `status=active` 的数据资源。
 - `DataResource.maintainer` 同时作为上传用户和维护人员的来源；后台数据资源接口暴露结构化 `uploader`。`DataResource.size_bytes` 和 `DataResource.item_count` 记录数据大小与条目数：Excel/CSV 导入使用上传文件大小和导入行数，栅格资源使用源文件与预处理文件大小，扫描到的非地理文件使用文件大小。
-- Excel/CSV 导入预检和校验会按实际入库目标检测重复：地理数据检查 GeoPackage 图层名，非地理数据检查 SQLite 表名。`overwrite=false` 的提交必须由后端阻断，前端提示不能作为安全边界。
-- `DataResource.default_visualization` 保存默认可视化方案 JSON；空间资源保存方案时会创建或更新关联 `MapLayer`，同步默认图层名称、默认显隐、默认透明度、矢量符号化和栅格规则。栅格色带和 PNG/XYZ 生成仍由后端栅格服务处理。
+- Excel/CSV 导入的后台存储标识与前端显示名分离。预检每次生成不同的 `suggestedTableName`，提交时如已有资源或真实存储已占用同一 GeoPackage 图层名或 SQLite 表名，后端会再次改写为唯一值；每次提交都创建新的 `DataResource` 记录，不按后台存储标识更新旧资源。重复检测按前端显示名 `DataResource.name` 执行：预检使用 `suggestedName`，校验和提交使用 payload 的 `name`；同名显示数据提交必须由后端阻断，除非用户已在校验阶段确认重复名称并提交 `duplicateConfirmed=true`。确认后也只会新建资源，不覆盖旧数据。
+- `DataResource.default_visualization` 保存默认可视化方案 JSON；空间资源保存方案时会创建或更新关联 `MapLayer`，同步默认图层名称、默认显隐、既有默认透明度、矢量符号化和栅格规则。前端存量数据配置不再提供单独默认透明度控件；栅格色带和 PNG/XYZ 生成仍由后端栅格服务处理。
 - 存量数据启停、默认可视化保存、访问用户组配置、删除和清单导出均写入 `OperationLog(module="数据管理")`。删除用户导入的矢量/表格资源时清理 GeoPackage 图层或 SQLite 表；栅格等可能复用的研究数据文件保留，仅删除资源登记和关联图层。
 - 用户导入数据的可见范围由 `DataResource.access_groups` 和 `DataResource.maintainer` 共同控制：上传者本人强制可见，`超级管理员` 用户组强制写入访问组，用户选择的 `accessGroupIds` 表示额外可见用户组。选择 `游客` 用户组表示无需账号即可通过游客会话访问，前端上传和存量数据管理都必须提示。历史无上传者且无访问组的数据继续作为平台公共登记资源处理。
 - 存量数据可见范围可由上传者本人或具备 `catalog.maintain_dataresource` 的用户修改；上传者只能执行 `updateAccess`，启停、默认可视化、删除仍需要维护数据资源权限。`GET /api/admin/data/resources/` 对上传用户开放时只返回其本人上传的数据。
@@ -190,7 +190,7 @@ frontend/src/
 - 每次"查询数据 -> 加载到图层"都会生成一个独立图层组，用于保留本次查询的时间、条件结果和元数据上下文。
 - 矢量数据查询结果来自统一 GeoJSON 数据源，正常情况下每个图层组下只有一个矢量子图层。
 - 栅格数据在前端状态模型中作为图层组下的栅格子图层加载，子图层持有 `tileUrl`、Mapbox 图片角点、透明度、元数据和符号化配置；栅格符号化仍由后端完成。
-- 图层组和子图层均保留独立显隐、定位、导出和符号化入口；透明度在符号化面板内配置。
+- 图层组保留显隐、定位、导出、排序和移除入口，不再提供图层组符号化入口；子图层保留独立显隐、定位、导出和符号化入口。
 - 子图层提供数据表按钮，点击后以弹窗展示整层属性表；元数据在底部导航面板中展示。
 - 已加载图层组默认按当前用户写入浏览器 IndexedDB 的 `huyang-system-map-workspace/layer-groups`，保存完整前端运行态（包含矢量 GeoJSON 查询结果、栅格 tile URL、显隐、顺序、命名、符号化方案、栅格渲染元数据和当前本地工作台状态）。地图页刷新或切换界面后由 `useLayerGroups` 自动恢复；缓存失败只影响本地恢复，不改变后端数据和权限边界。服务器端工程/专题只在用户显式保存时写入 `WorkspaceScene`，并且只保存轻量引用快照：图层结构、资源引用、查询条件、空间范围、符号化和栅格 tile/渲染引用元数据，不保存矢量 GeoJSON 要素集合、属性表行或查询结果数据本体；恢复时按资源引用和查询条件重新查询。后端会拒绝包含 `geojson` 或 `FeatureCollection.features` 的快照以及超大请求体，不做实时 server autosave。
 - 保存工程或专题时，前端保存弹窗支持新建保存项或覆盖当前用户已有的同类型保存项。新建调用 `createWorkspace`，覆盖调用 `updateWorkspace` 并只替换轻量快照，已有保存项名称和说明保持不变。
@@ -198,7 +198,7 @@ frontend/src/
 ## 矢量图层符号化与交互
 
 - 图层组和子图层均支持在图层树内直接改名；当前改名属于前端临时工作台状态，后续如需保存到业务库，应接入后端图层配置接口。
-- 透明度在符号化面板中配置：图层组透明度与子图层透明度在渲染前相乘，作为 Mapbox paint opacity 的基础值。
+- 透明度在子图层符号化面板中配置；图层组不再提供单独透明度配置入口。
 - 点要素符号化按 Mapbox Style Specification 的 `circle` 和 `symbol` 图层拆分：`circle` 参数覆盖颜色、半径、描边、模糊、位移、pitch、sort key、emissive 等；`symbol` 参数覆盖 icon/text 的 layout 与 paint 配置。
 - 线、面要素继续使用 Mapbox `line`、`fill` 图层表达，符号化面板同步暴露线色、线宽、线型、填充色、透明度、位移、sort key 等参数。
 - 每个前端加载的 GeoJSON source 使用 `generateId`，所有矢量 style layer 注册统一交互：鼠标覆盖仅改变指针并高亮要素，单击要素后选中并在右侧导航面板的"要素属性"标签中展示该单条记录属性。
@@ -465,7 +465,7 @@ CREATE TABLE gpkg_data_columns (
 
 ## 地图视角缩略图
 
-- 右侧“当前视角平面缩略图”不使用静态 SVG 占位。`MapCanvas` 从 Mapbox 当前中心点、范围、缩放、旋转和俯仰读取 `MapViewState`，传给右侧栏渲染。
+- 右侧“当前视角平面缩略图”不使用静态 SVG 占位。`MapCanvas` 从 Mapbox 当前中心点、整张地图容器范围、缩放、旋转和俯仰读取 `MapViewState`，传给右侧栏渲染；不再按悬浮面板计算无遮挡可视范围。
 - 平面缩略图使用独立的不可交互 Mapbox GL 2D 地图承载 OSM 数据的矢量底图，不再手动计算和拼接瓦片；缩略图固定使用 OSM，不跟随系统 Mapbox 卫星底图切换。
 - 缩略图 OSM 矢量底图按平台统一的 `zh-Hans` 语言模式加载；Mapbox GL 初始化和样式加载后都应用同一个中文底图语言函数，优先使用数据源内已有中文名称字段，缺失时显示数据源本地名称。
 - 缩略图地图使用 Web Mercator 投影，中心与主 3D 地球当前中心同步，缩放使用主图缩放小 3 级；初始中心和缩放必须来自主图 `MapViewState`，不使用硬编码默认视角。

@@ -2020,7 +2020,7 @@ export type ImportPreviewResponse = {
      */
     rowCount: number;
     /**
-     * 建议入库表名
+     * 建议后台存储标识；每次预检生成不同值，提交后可能因后端冲突保护再次改写
      */
     suggestedTableName: string;
     /**
@@ -2028,7 +2028,7 @@ export type ImportPreviewResponse = {
      */
     suggestedName: string;
     /**
-     * 按建议入库表名检测到的重复目标；无重复时为 null
+     * 按建议数据名称检测到的同名数据资源；无重复时为 null
      */
     duplicateTarget: ImportDuplicateTarget | null;
     detected: ImportDetectedInfo;
@@ -2071,18 +2071,18 @@ export type ImportValidateResponse = {
      */
     validationIssues: Array<ValidationIssue>;
     /**
-     * 按当前入库表名和导入类型检测到的重复目标；无重复时为 null
+     * 按当前前端显示数据名称检测到的同名数据资源；无重复时为 null
      */
     duplicateTarget: ImportDuplicateTarget | null;
 };
 
 export type ImportDuplicateTarget = {
     /**
-     * 重复目标类型
+     * 重复目标类型；data_resource_name 表示前端显示的数据名称已存在
      */
-    targetType: 'geopackage_layer' | 'sqlite_table';
+    targetType: 'data_resource_name';
     /**
-     * 重复的 GeoPackage 图层名或 SQLite 表名
+     * 重复的前端显示数据名称
      */
     targetName: string;
     /**
@@ -2127,19 +2127,19 @@ export type GeographicImportCommitResponse = {
      */
     mode: 'geographic';
     /**
-     * 创建或更新的数据资源 ID
+     * 创建的数据资源 ID
      */
     resourceId: number;
     /**
-     * 创建或更新的数据资源名称
+     * 创建的数据资源名称
      */
     resourceName: string;
     /**
-     * 写入 GeoPackage 的图层名
+     * 写入 GeoPackage 的唯一图层名
      */
     layerName: string;
     /**
-     * 写入 GeoPackage 的图层名，与 layerName 相同
+     * 写入 GeoPackage 的唯一图层名，与 layerName 相同
      */
     tableName: string;
     /**
@@ -2167,11 +2167,11 @@ export type TableImportCommitResponse = {
      */
     mode: 'table';
     /**
-     * 创建或更新的数据资源 ID
+     * 创建的数据资源 ID
      */
     resourceId: number;
     /**
-     * 创建或更新的数据资源名称
+     * 创建的数据资源名称
      */
     resourceName: string;
     /**
@@ -2179,7 +2179,7 @@ export type TableImportCommitResponse = {
      */
     layerId: number | null;
     /**
-     * SQLite 表名
+     * SQLite 唯一表名
      */
     tableName: string;
     /**
@@ -2243,9 +2243,9 @@ export type ValidationIssue = {
     /**
      * 重复目标类型，仅 duplicate_target 问题返回
      */
-    targetType?: 'geopackage_layer' | 'sqlite_table';
+    targetType?: 'data_resource_name';
     /**
-     * 重复的 GeoPackage 图层名或 SQLite 表名，仅 duplicate_target 问题返回
+     * 重复的前端显示数据名称，仅 duplicate_target 问题返回
      */
     targetName?: string;
 };
@@ -4347,7 +4347,7 @@ export type ImportValidateData = {
          */
         file: Blob | File;
         /**
-         * JSON 字符串，包含 importMode、tableName、longitudeColumn、latitudeColumn
+         * JSON 字符串，包含 name、importMode、tableName、longitudeColumn、latitudeColumn；name 是前端显示的数据名称，用于同名数据检测；tableName 是后台存储标识建议值。
          */
         payload: string;
     };
@@ -4386,7 +4386,7 @@ export type ImportCommitData = {
     body: {
         file: Blob | File;
         /**
-         * JSON 字符串，包含导入配置；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。
+         * JSON 字符串，包含导入配置；name 是前端显示的数据名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true 表示用户已在校验阶段确认重复名称；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。
          */
         payload: string;
     };

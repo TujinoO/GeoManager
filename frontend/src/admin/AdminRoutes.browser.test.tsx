@@ -675,10 +675,16 @@ describe("admin routes", () => {
 
     expect(await screen.findByText("导入配置")).toBeInTheDocument();
     expect(screen.getByLabelText("数据名称")).toHaveValue("样地调查点位");
+    expect(screen.getByText("我自己可见")).toBeInTheDocument();
+    expect(screen.getByText("超级管理员可见")).toBeInTheDocument();
+    expect(
+      screen.queryByText("不选择用户组时，仅上传者本人和超级管理员可见。"),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /数据校验并继续/ }));
 
     await waitFor(() => {
       expect(mockApi.importValidate).toHaveBeenCalledWith(file, {
+        name: "样地调查点位",
         importMode: "geographic",
         longitudeColumn: "longitude",
         latitudeColumn: "latitude",
@@ -717,5 +723,11 @@ describe("admin routes", () => {
     expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
     expect(screen.getByText("CSV")).toBeInTheDocument();
     expect(screen.getByText("本页启用")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "胡杨林样地点" }));
+
+    expect(await screen.findByText("数据访问权限")).toBeInTheDocument();
+    expect(screen.getByText("上传者本人可见")).toBeInTheDocument();
+    expect(screen.getByText("超级管理员可见")).toBeInTheDocument();
   });
 });

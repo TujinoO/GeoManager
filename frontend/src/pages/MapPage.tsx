@@ -482,7 +482,7 @@ export default function MapPage() {
       ) {
         const bounds = boundsFromImageCoordinates(targetLayer.imageCoordinates);
         if (bounds) {
-          map.fitBounds(bounds, await fitOptionsForVisibleFrame(map));
+          map.fitBounds(bounds, await mapFitBoundsOptions(map));
           return;
         }
       }
@@ -495,7 +495,7 @@ export default function MapPage() {
         targetLayer.geojson,
         bootstrap.map.defaultCenter,
         bootstrap.map.defaultZoom,
-        await fitOptionsForVisibleFrame(map),
+        await mapFitBoundsOptions(map),
       );
     },
     [
@@ -538,14 +538,14 @@ export default function MapPage() {
       }
       const firstRasterBound = rasterBounds[0];
       if (!bounds && firstRasterBound) {
-        map.fitBounds(firstRasterBound, await fitOptionsForVisibleFrame(map));
+        map.fitBounds(firstRasterBound, await mapFitBoundsOptions(map));
         return;
       }
       if (!bounds) {
         message.warning("无法计算图层组范围");
         return;
       }
-      map.fitBounds(bounds, await fitOptionsForVisibleFrame(map));
+      map.fitBounds(bounds, await mapFitBoundsOptions(map));
     },
     [layerGroups.groups, message],
   );
@@ -1364,10 +1364,9 @@ function WorkspaceScenePanel({
   );
 }
 
-async function fitOptionsForVisibleFrame(map: MapboxMap) {
-  const { fitBoundsOptionsForVisibleFrame } =
-    await import("../map/visibleViewport");
-  return fitBoundsOptionsForVisibleFrame(map);
+async function mapFitBoundsOptions(_map: MapboxMap) {
+  const { fitBoundsOptions } = await import("../map/mapViewport");
+  return fitBoundsOptions();
 }
 
 function workspaceSnapshot(

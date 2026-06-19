@@ -26,6 +26,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260618-001 | ContractReady | GET /api/catalog/resources/{id}/nongeo-analytics/; POST /api/catalog/resources/{id}/table-query/ | new endpoint, response fields, permission behavior, mock data | Done | Done | Pending | Pending | Non-geographic table analytics workspace |
 | API-20260619-001 | Implementing | POST /api/catalog/import/commit/; GET /api/admin/data/resources/; POST /api/admin/data/resources/{id}/ | request body, response fields, permission behavior, mock data | Done | Updating | Implementing | Pending | Uploaded data visibility scope |
 | API-20260619-002 | Verified | Multiple mock example endpoints | mock data consistency | N/A | Done | N/A | Done | Align representative auth, vector, raster, and non-geographic mock data |
+| API-20260619-003 | BackendReady | POST /api/catalog/import/preview/; POST /api/catalog/import/validate/; POST /api/catalog/import/commit/ | request body, response semantics, mock data | Done | Done | Done | Done | Import storage IDs unique; duplicate detection uses display name |
 
 ## Entry Template
 
@@ -78,7 +79,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - OpenAPI change: Adds private workspace scene APIs for `project` and `topic`; import preview/validate responses include duplicate target metadata; import endpoints accept `core.upload_data` or `catalog.maintain_dataresource`; user permissions include `canUploadData`, `canViewDataOverview`, and `groupPermissions`; Dashboard may include `dataOverview`; data resources include `sizeBytes`, `itemCount`, and structured `uploader`.
 - Mock examples: `mock/prism/examples/10-admin-auth.json`, `mock/prism/examples/20-admin-dashboard-data.json`, `mock/prism/examples/30-catalog-vector.json`
 - Frontend reason: Support one-step query-and-load, blocking duplicate upload warnings, local layer autosave with explicit server save as 工程/专题, Dashboard data overview, and clearer inherited-vs-direct permission display.
-- Backend implementation notes: Add `WorkspaceScene`; persist `DataResource.size_bytes` and `item_count`; treat `DataResource.maintainer` as uploader; enforce workspace ownership; reject duplicate import targets when `overwrite=false`; initialize default `普通用户` group with upload/load/query permissions.
+- Backend implementation notes: Add `WorkspaceScene`; persist `DataResource.size_bytes` and `item_count`; treat `DataResource.maintainer` as uploader; enforce workspace ownership; reject duplicate import targets when duplicate names are not confirmed; initialize default `普通用户` group with upload/load/query permissions.
 - Verification: run `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build`, plus backend workspace/import/dashboard/auth tests.
 - Result: Backend and frontend implementation in progress.
 
@@ -107,6 +108,19 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: No backend implementation required. Existing backend behavior already controls real data; this entry only documents mock fixture corrections.
 - Verification: run `cd frontend && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build && pnpm test`, plus the mock consistency test in `frontend/src/test/mockExamples.test.ts`.
 - Result: Mock examples aligned and verified by automated consistency checks.
+
+## API-20260619-003 - Import Display Name Duplicate Detection
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `POST /api/catalog/import/preview/`, `POST /api/catalog/import/validate/`, `POST /api/catalog/import/commit/`
+- Change type: request body, response semantics, mock data
+- OpenAPI change: `ImportDuplicateTarget.targetType` now reports `data_resource_name`; preview duplicate detection uses `suggestedName`; validate and commit use payload `name`; `suggestedTableName` is documented as a backend storage identifier suggestion that is unique per precheck and may be rewritten by the backend at commit time.
+- Mock examples: `mock/prism/examples/30-catalog-vector.json`
+- Frontend reason: The UI display name is what users perceive as “same data”. Backend storage IDs must not be reused across uploads, and duplicate warnings must not be based on hidden table/layer IDs.
+- Backend implementation notes: Generate a new storage table/layer identifier for every preview/commit; if a submitted storage identifier collides, rewrite it to a unique one. Always create a new `DataResource` on import. Reject same display name at commit unless the user confirmed the duplicate name during validation and submit includes `duplicateConfirmed=true`; never overwrite existing backend data.
+- Verification: run backend catalog import tests plus `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build`.
+- Result: Backend implementation and focused tests completed in this change.
 
 ## API-20260617-002 - Workspace Snapshot Raw Data Guard
 

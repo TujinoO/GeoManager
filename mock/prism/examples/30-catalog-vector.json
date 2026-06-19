@@ -310,12 +310,12 @@
         }
       ],
       "rowCount": 128,
-      "suggestedTableName": "populus_plots_2026",
+      "suggestedTableName": "populus_plots_2026_a13f9c2d4b71",
       "suggestedName": "胡杨样地调查点 2026",
       "duplicateTarget": {
-        "targetType": "geopackage_layer",
-        "targetName": "populus_plots_2026",
-        "message": "GeoPackage 图层 populus_plots_2026 已存在，关闭覆盖时不能重复导入。"
+        "targetType": "data_resource_name",
+        "targetName": "胡杨样地调查点 2026",
+        "message": "数据名称已存在：胡杨样地调查点 2026"
       },
       "detected": {
         "isGeographic": true,
@@ -358,9 +358,9 @@
         }
       ],
       "duplicateTarget": {
-        "targetType": "geopackage_layer",
-        "targetName": "populus_plots_2026",
-        "message": "GeoPackage 图层 populus_plots_2026 已存在，关闭覆盖时不能重复导入。"
+        "targetType": "data_resource_name",
+        "targetName": "胡杨样地调查点 2026",
+        "message": "数据名称已存在：胡杨样地调查点 2026"
       }
     }
   },
@@ -369,8 +369,8 @@
       "mode": "geographic",
       "resourceId": 31,
       "resourceName": "胡杨样地调查点 2026",
-      "layerName": "populus_plots_2026",
-      "tableName": "populus_plots_2026",
+      "layerName": "populus_plots_2026_a13f9c2d4b71",
+      "tableName": "populus_plots_2026_a13f9c2d4b71",
       "importedRows": 126,
       "skippedRows": 2,
       "bounds": [

@@ -736,9 +736,14 @@ class DataImportApiTests(TestCase):
         self.assertEqual(payload["coordinateStats"]["totalRows"], 1)
         self.assertEqual(payload["validationIssues"][0]["code"], "invalid_longitude")
 
-    def test_import_validate_returns_duplicate_sqlite_target(self):
-        with sqlite3.connect(self.table_path) as connection:
-            connection.execute("CREATE TABLE existing_table (name TEXT)")
+    def test_import_validate_returns_duplicate_display_name_target(self):
+        DataResource.objects.create(
+            name="已有调查表",
+            code="existing-display-name",
+            data_type=DataResource.DataType.TABLE,
+            storage_path="existing_table",
+            status=DataResource.Status.ACTIVE,
+        )
 
         response = self.client.post(
             "/api/catalog/import/validate/",
@@ -746,8 +751,9 @@ class DataImportApiTests(TestCase):
                 "file": self._csv_file("survey.csv", "name\nA\n"),
                 "payload": json.dumps(
                     {
+                        "name": "已有调查表",
                         "importMode": "table",
-                        "tableName": "existing_table",
+                        "tableName": "new_unique_table",
                     }
                 ),
             },
@@ -755,8 +761,8 @@ class DataImportApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         duplicate_target = response.json()["duplicateTarget"]
-        self.assertEqual(duplicate_target["targetType"], "sqlite_table")
-        self.assertEqual(duplicate_target["targetName"], "existing_table")
+        self.assertEqual(duplicate_target["targetType"], "data_resource_name")
+        self.assertEqual(duplicate_target["targetName"], "已有调查表")
 
     def test_import_geographic_table_writes_gpkg_metadata(self):
         self.assertFalse(self.vector_path.exists())
@@ -773,7 +779,7 @@ class DataImportApiTests(TestCase):
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
                         "latitudeColumn": "lat",
-                        "overwrite": False,
+                        "duplicateConfirmed": False,
                         "fieldMetadata": {
                             "name": "样点名称",
                             "lon": "经度",
@@ -826,7 +832,7 @@ class DataImportApiTests(TestCase):
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
                         "latitudeColumn": "lat",
-                        "overwrite": False,
+                        "duplicateConfirmed": False,
                         "fieldMetadata": {},
                     }
                 ),
@@ -856,7 +862,7 @@ class DataImportApiTests(TestCase):
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
                         "latitudeColumn": "lat",
-                        "overwrite": False,
+                        "duplicateConfirmed": False,
                         "includedColumns": ["name", "lon", "lat"],
                         "fieldMetadata": {
                             "name": "样点名称",
@@ -893,7 +899,7 @@ class DataImportApiTests(TestCase):
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
                         "latitudeColumn": "lat",
-                        "overwrite": False,
+                        "duplicateConfirmed": False,
                         "fieldMetadata": {},
                     }
                 ),
@@ -917,7 +923,7 @@ class DataImportApiTests(TestCase):
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
                         "latitudeColumn": "lat",
-                        "overwrite": False,
+                        "duplicateConfirmed": False,
                         "fieldMetadata": {},
                     }
                 ),
@@ -943,7 +949,7 @@ class DataImportApiTests(TestCase):
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
                         "latitudeColumn": "lat",
-                        "overwrite": False,
+                        "duplicateConfirmed": False,
                         "fieldMetadata": {},
                     }
                 ),
@@ -970,7 +976,7 @@ class DataImportApiTests(TestCase):
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
                         "latitudeColumn": "lat",
-                        "overwrite": False,
+                        "duplicateConfirmed": False,
                         "fieldMetadata": {},
                     }
                 ),
@@ -996,7 +1002,7 @@ class DataImportApiTests(TestCase):
                         "longitudeColumn": "lon",
                         "latitudeColumn": "lat",
                         "ignoreCoordinateUncertainty": True,
-                        "overwrite": False,
+                        "duplicateConfirmed": False,
                         "fieldMetadata": {},
                     }
                 ),
@@ -1019,7 +1025,7 @@ class DataImportApiTests(TestCase):
                         "name": "普通用户上传表",
                         "tableName": "upload_permission_table",
                         "importMode": "table",
-                        "overwrite": False,
+                        "duplicateConfirmed": False,
                         "fieldMetadata": {},
                     }
                 ),
@@ -1043,7 +1049,7 @@ class DataImportApiTests(TestCase):
                         "name": "游客共享表",
                         "tableName": "guest_visible_table",
                         "importMode": "table",
-                        "overwrite": False,
+                        "duplicateConfirmed": False,
                         "accessGroupIds": [guest_group.id],
                         "fieldMetadata": {},
                     }
@@ -1071,7 +1077,7 @@ class DataImportApiTests(TestCase):
                         "name": "调查表",
                         "tableName": "survey_table",
                         "importMode": "table",
-                        "overwrite": False,
+                        "duplicateConfirmed": False,
                         "fieldMetadata": {"name": "名称", "value": "数值"},
                     }
                 ),
@@ -1097,12 +1103,16 @@ class DataImportApiTests(TestCase):
         self.assertEqual(row, ("A", "42"))
         self.assertEqual(description, "数值")
 
-    def test_import_plain_table_rejects_duplicate_without_overwrite_and_allows_overwrite(
+    def test_import_plain_table_rejects_duplicate_name_without_duplicate_confirmation_and_allows_duplicate_confirmation(
         self,
     ):
-        with sqlite3.connect(self.table_path) as connection:
-            connection.execute("CREATE TABLE existing_table (name TEXT)")
-            connection.execute("INSERT INTO existing_table VALUES ('旧值')")
+        DataResource.objects.create(
+            name="重复表",
+            code="duplicate-display-name",
+            data_type=DataResource.DataType.TABLE,
+            storage_path="existing_table",
+            status=DataResource.Status.ACTIVE,
+        )
 
         reject_response = self.client.post(
             "/api/catalog/import/commit/",
@@ -1113,7 +1123,7 @@ class DataImportApiTests(TestCase):
                         "name": "重复表",
                         "tableName": "existing_table",
                         "importMode": "table",
-                        "overwrite": False,
+                        "duplicateConfirmed": False,
                         "fieldMetadata": {},
                     }
                 ),
@@ -1122,30 +1132,81 @@ class DataImportApiTests(TestCase):
 
         self.assertEqual(reject_response.status_code, 400)
         reject_payload = reject_response.json()
-        self.assertEqual(reject_payload["detail"], "入库目标已存在")
+        self.assertEqual(reject_payload["detail"], "数据名称已存在")
         self.assertEqual(reject_payload["issues"][0]["code"], "duplicate_target")
-        self.assertEqual(reject_payload["issues"][0]["targetType"], "sqlite_table")
+        self.assertEqual(
+            reject_payload["issues"][0]["targetType"], "data_resource_name"
+        )
 
-        overwrite_response = self.client.post(
+        confirmed_response = self.client.post(
             "/api/catalog/import/commit/",
             data={
                 "file": self._csv_file("survey.csv", "name\n新值\n"),
                 "payload": json.dumps(
                     {
-                        "name": "覆盖表",
+                        "name": "重复表",
                         "tableName": "existing_table",
                         "importMode": "table",
-                        "overwrite": True,
+                        "duplicateConfirmed": True,
                         "fieldMetadata": {},
                     }
                 ),
             },
         )
 
-        self.assertEqual(overwrite_response.status_code, 201)
+        self.assertEqual(confirmed_response.status_code, 201)
+        confirmed_payload = confirmed_response.json()
+        self.assertEqual(confirmed_payload["resourceName"], "重复表")
+        self.assertNotEqual(confirmed_payload["tableName"], "existing_table")
+        self.assertTrue(confirmed_payload["tableName"].startswith("existing_table_"))
         with sqlite3.connect(self.table_path) as connection:
-            rows = connection.execute("SELECT name FROM existing_table").fetchall()
+            rows = connection.execute(
+                f'SELECT name FROM "{confirmed_payload["tableName"]}"'
+            ).fetchall()
         self.assertEqual(rows, [("新值",)])
+
+    def test_import_plain_table_generates_unique_storage_id_for_each_upload(self):
+        first_response = self.client.post(
+            "/api/catalog/import/commit/",
+            data={
+                "file": self._csv_file("survey.csv", "name\nA\n"),
+                "payload": json.dumps(
+                    {
+                        "name": "第一次调查表",
+                        "tableName": "same_backend_id",
+                        "importMode": "table",
+                        "duplicateConfirmed": False,
+                        "fieldMetadata": {},
+                    }
+                ),
+            },
+        )
+        second_response = self.client.post(
+            "/api/catalog/import/commit/",
+            data={
+                "file": self._csv_file("survey.csv", "name\nB\n"),
+                "payload": json.dumps(
+                    {
+                        "name": "第二次调查表",
+                        "tableName": "same_backend_id",
+                        "importMode": "table",
+                        "duplicateConfirmed": False,
+                        "fieldMetadata": {},
+                    }
+                ),
+            },
+        )
+
+        self.assertEqual(first_response.status_code, 201)
+        self.assertEqual(second_response.status_code, 201)
+        first_table = first_response.json()["tableName"]
+        second_table = second_response.json()["tableName"]
+        self.assertEqual(first_table, "same_backend_id")
+        self.assertNotEqual(second_table, first_table)
+        self.assertTrue(second_table.startswith("same_backend_id_"))
+        self.assertEqual(
+            DataResource.objects.filter(name__endswith="调查表").count(), 2
+        )
 
     def test_import_plain_table_respects_included_columns(self):
         response = self.client.post(
@@ -1157,7 +1218,7 @@ class DataImportApiTests(TestCase):
                         "name": "调查表",
                         "tableName": "included_table",
                         "importMode": "table",
-                        "overwrite": False,
+                        "duplicateConfirmed": False,
                         "includedColumns": ["name", "value"],
                         "fieldMetadata": {
                             "name": "名称",

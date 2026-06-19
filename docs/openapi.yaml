@@ -1211,7 +1211,7 @@ paths:
       summary: 导入数据预检
       description: |
         解析上传的 Excel/CSV 第一张表，按文本读取字段，自动推测经纬度列，
-        并返回样例行、字段列表和建议入库目标是否重名。该接口不执行坐标数据校验，不写入数据。
+        并返回样例行、字段列表、建议后台存储标识和建议数据名称是否重名。该接口不执行坐标数据校验，不写入数据。
         需要 `core.upload_data` 或 `catalog.maintain_dataresource`。
       operationId: importPreview
       security:
@@ -1246,7 +1246,7 @@ paths:
     post:
       tags: [数据目录]
       summary: 上传数据校验
-      description: 按当前表单选择的导入类型、入库表名和经纬度列校验上传文件，不写入数据。需要 `core.upload_data` 或 `catalog.maintain_dataresource`。
+      description: 按当前表单选择的数据名称、导入类型、后台存储标识和经纬度列校验上传文件，不写入数据。重复检测按前端显示的数据名称执行。需要 `core.upload_data` 或 `catalog.maintain_dataresource`。
       operationId: importValidate
       security:
         - sessionAuth: []
@@ -1264,7 +1264,7 @@ paths:
                   description: 与预检一致的文件
                 payload:
                   type: string
-                  description: JSON 字符串，包含 importMode、tableName、longitudeColumn、latitudeColumn
+                  description: JSON 字符串，包含 name、importMode、tableName、longitudeColumn、latitudeColumn；name 是前端显示的数据名称，用于同名数据检测；tableName 是后台存储标识建议值。
       responses:
         '200':
           description: 校验成功
@@ -1285,8 +1285,8 @@ paths:
       summary: 提交数据导入
       description: |
         将预检后的 Excel/CSV 导入统一存储。选择地理数据时写入 GeoPackage，
-        选择非地理数据时写入 SQLite。接口会同步创建或更新 DataResource。
-        需要 `core.upload_data` 或 `catalog.maintain_dataresource`；覆盖已有入库目标必须显式传入 overwrite=true。
+        选择非地理数据时写入 SQLite。接口每次导入都会生成唯一后台存储标识并创建新的 DataResource。
+        需要 `core.upload_data` 或 `catalog.maintain_dataresource`；前端显示名已存在时必须在数据校验阶段确认，并在提交时显式传入 duplicateConfirmed=true 才允许继续导入。继续导入会创建新的 DataResource 和唯一后台存储标识，不覆盖已有数据。
       operationId: importCommit
       security:
         - sessionAuth: []
@@ -1303,7 +1303,7 @@ paths:
                   format: binary
                 payload:
                   type: string
-                  description: JSON 字符串，包含导入配置；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。
+                  description: JSON 字符串，包含导入配置；name 是前端显示的数据名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true 表示用户已在校验阶段确认重复名称；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。
       responses:
         '201':
           description: 导入成功
@@ -4272,7 +4272,7 @@ components:
           description: 总行数
         suggestedTableName:
           type: string
-          description: 建议入库表名
+          description: 建议后台存储标识；每次预检生成不同值，提交后可能因后端冲突保护再次改写
         suggestedName:
           type: string
           description: 建议数据名称
@@ -4280,7 +4280,7 @@ components:
           oneOf:
             - $ref: '#/components/schemas/ImportDuplicateTarget'
             - type: "null"
-          description: 按建议入库表名检测到的重复目标；无重复时为 null
+          description: 按建议数据名称检测到的同名数据资源；无重复时为 null
         detected:
           $ref: '#/components/schemas/ImportDetectedInfo'
         limitations:
@@ -4332,7 +4332,7 @@ components:
           oneOf:
             - $ref: '#/components/schemas/ImportDuplicateTarget'
             - type: "null"
-          description: 按当前入库表名和导入类型检测到的重复目标；无重复时为 null
+          description: 按当前前端显示数据名称检测到的同名数据资源；无重复时为 null
 
     ImportDuplicateTarget:
       type: object
@@ -4340,11 +4340,11 @@ components:
       properties:
         targetType:
           type: string
-          enum: [geopackage_layer, sqlite_table]
-          description: 重复目标类型
+          enum: [data_resource_name]
+          description: 重复目标类型；data_resource_name 表示前端显示的数据名称已存在
         targetName:
           type: string
-          description: 重复的 GeoPackage 图层名或 SQLite 表名
+          description: 重复的前端显示数据名称
         message:
           type: string
           description: 用户可读提示
@@ -4390,16 +4390,16 @@ components:
           description: 地理表导入模式
         resourceId:
           type: integer
-          description: 创建或更新的数据资源 ID
+          description: 创建的数据资源 ID
         resourceName:
           type: string
-          description: 创建或更新的数据资源名称
+          description: 创建的数据资源名称
         layerName:
           type: string
-          description: 写入 GeoPackage 的图层名
+          description: 写入 GeoPackage 的唯一图层名
         tableName:
           type: string
-          description: 写入 GeoPackage 的图层名，与 layerName 相同
+          description: 写入 GeoPackage 的唯一图层名，与 layerName 相同
         importedRows:
           type: integer
           description: 成功导入行数
@@ -4430,16 +4430,16 @@ components:
           description: 非地理表导入模式
         resourceId:
           type: integer
-          description: 创建或更新的数据资源 ID
+          description: 创建的数据资源 ID
         resourceName:
           type: string
-          description: 创建或更新的数据资源名称
+          description: 创建的数据资源名称
         layerId:
           type: [integer, "null"]
           description: 非地理表不创建地图图层，固定为 null
         tableName:
           type: string
-          description: SQLite 表名
+          description: SQLite 唯一表名
         importedRows:
           type: integer
           description: 成功导入行数
@@ -4497,11 +4497,11 @@ components:
           description: 坐标不确定性误差倍率
         targetType:
           type: string
-          enum: [geopackage_layer, sqlite_table]
+          enum: [data_resource_name]
           description: 重复目标类型，仅 duplicate_target 问题返回
         targetName:
           type: string
-          description: 重复的 GeoPackage 图层名或 SQLite 表名，仅 duplicate_target 问题返回
+          description: 重复的前端显示数据名称，仅 duplicate_target 问题返回
 
     ResourceProfileResponse:
       type: object

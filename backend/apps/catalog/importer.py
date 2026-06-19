@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import re
 import sqlite3
+import uuid
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
@@ -93,7 +93,9 @@ def preview_uploaded_table(uploaded_file) -> dict[str, Any]:
         "rowCount": int(len(df)),
         "suggestedTableName": suggested_table_name,
         "suggestedName": Path(uploaded_file.name).stem,
-        "duplicateTarget": duplicate_target_for(suggested_table_name, import_mode),
+        "duplicateTarget": duplicate_target_for_display_name(
+            Path(uploaded_file.name).stem
+        ),
         "detected": {
             "isGeographic": bool(longitude_column and latitude_column),
             "longitudeColumn": longitude_column,
@@ -113,15 +115,17 @@ def validate_uploaded_table(uploaded_file, payload: dict[str, Any]) -> dict[str,
     df = read_uploaded_table(uploaded_file)
     import_mode = str(payload.get("importMode") or "").strip()
     table_name = str(payload.get("tableName") or "").strip()
+    display_name = str(payload.get("name") or "").strip()
     longitude_column = str(payload.get("longitudeColumn") or "").strip()
     latitude_column = str(payload.get("latitudeColumn") or "").strip()
 
     if import_mode not in {"geographic", "table"}:
         raise ImportDataError("导入方式必须是 geographic 或 table")
-    duplicate_target = None
+    duplicate_target = (
+        duplicate_target_for_display_name(display_name) if display_name else None
+    )
     if table_name:
         table_name = validate_import_table_name(table_name)
-        duplicate_target = duplicate_target_for(table_name, import_mode)
     if import_mode == "table":
         return {
             "coordinateStats": None,
@@ -146,8 +150,8 @@ def import_uploaded_table(
 ) -> dict[str, Any]:
     df = read_uploaded_table(uploaded_file)
     name = _required_text(payload.get("name"), "数据名称")
-    table_name = validate_import_table_name(
-        _required_text(payload.get("tableName"), "入库表名")
+    requested_table_name = validate_import_table_name(
+        _required_text(payload.get("tableName"), "后台存储标识")
     )
     import_mode = str(payload.get("importMode") or "").strip()
     longitude_column = str(payload.get("longitudeColumn") or "").strip()
@@ -155,12 +159,14 @@ def import_uploaded_table(
     ignore_coordinate_uncertainty = bool(
         payload.get("ignoreCoordinateUncertainty", False)
     )
-    overwrite = bool(payload.get("overwrite", False))
+    duplicate_confirmed = bool(payload.get("duplicateConfirmed", False))
     file_size = int(getattr(uploaded_file, "size", 0) or 0)
     access_group_ids = _access_group_ids(payload.get("accessGroupIds"))
 
     if import_mode not in {"geographic", "table"}:
         raise ImportDataError("导入方式必须是 geographic 或 table")
+    _ensure_display_name_can_be_imported(name, duplicate_confirmed)
+    table_name = unique_import_table_name(requested_table_name, import_mode)
 
     if import_mode == "geographic":
         if longitude_column not in df.columns or latitude_column not in df.columns:
@@ -180,7 +186,6 @@ def import_uploaded_table(
             latitude_column=latitude_column,
             metadata=metadata,
             ignore_coordinate_uncertainty=ignore_coordinate_uncertainty,
-            overwrite=overwrite,
             source_size_bytes=file_size,
             user=user,
             access_group_ids=access_group_ids,
@@ -194,7 +199,6 @@ def import_uploaded_table(
         name=name,
         table_name=table_name,
         metadata=metadata,
-        overwrite=overwrite,
         source_size_bytes=file_size,
         user=user,
         access_group_ids=access_group_ids,
@@ -210,7 +214,6 @@ def import_geographic_table(
     latitude_column: str,
     metadata: dict[str, str],
     ignore_coordinate_uncertainty: bool,
-    overwrite: bool,
     source_size_bytes: int,
     user,
     access_group_ids: set[int],
@@ -250,8 +253,8 @@ def import_geographic_table(
     gdf = gpd.GeoDataFrame(working, geometry=geometries, crs="EPSG:4326")
     path = vector_geopackage_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    _ensure_table_can_be_written(path, table_name, overwrite, geographic=True)
-    _write_geopackage_layer(path, table_name, gdf, overwrite=overwrite)
+    _ensure_table_can_be_written(path, table_name, geographic=True)
+    _write_geopackage_layer(path, table_name, gdf)
     write_geopackage_field_metadata(path, table_name, metadata)
 
     bounds = (
@@ -292,37 +295,34 @@ def import_plain_table(
     name: str,
     table_name: str,
     metadata: dict[str, str],
-    overwrite: bool,
     source_size_bytes: int,
     user,
     access_group_ids: set[int],
 ) -> dict[str, Any]:
     path = table_data_path("data.sqlite")
     path.parent.mkdir(parents=True, exist_ok=True)
-    _ensure_table_can_be_written(path, table_name, overwrite, geographic=False)
+    _ensure_table_can_be_written(path, table_name, geographic=False)
     with sqlite3.connect(path) as connection:
-        df.to_sql(table_name, connection, if_exists="replace", index=False)
+        df.to_sql(table_name, connection, if_exists="fail", index=False)
         write_sqlite_field_metadata(connection, table_name, metadata)
 
-    code = stable_catalog_code("table", table_name)
-    resource, _ = DataResource.objects.update_or_create(
+    code = _unique_resource_code(stable_catalog_code("table", table_name))
+    resource = DataResource.objects.create(
         code=code,
-        defaults={
-            "name": name,
-            "data_type": DataResource.DataType.TABLE,
-            "source": "用户导入",
-            "provider": "",
-            "spatial_extent": "",
-            "coordinate_system": "",
-            "file_format": "SQLITE",
-            "storage_path": table_name,
-            "description": f"由 Excel/CSV 导入的非地理表：{table_name}",
-            "quality_note": "",
-            "maintainer": user if getattr(user, "is_authenticated", False) else None,
-            "size_bytes": source_size_bytes,
-            "item_count": int(len(df)),
-            "status": DataResource.Status.ACTIVE,
-        },
+        name=name,
+        data_type=DataResource.DataType.TABLE,
+        source="用户导入",
+        provider="",
+        spatial_extent="",
+        coordinate_system="",
+        file_format="SQLITE",
+        storage_path=table_name,
+        description=f"由 Excel/CSV 导入的非地理表：{table_name}",
+        quality_note="",
+        maintainer=user if getattr(user, "is_authenticated", False) else None,
+        size_bytes=source_size_bytes,
+        item_count=int(len(df)),
+        status=DataResource.Status.ACTIVE,
     )
     set_resource_access_groups(resource, access_group_ids)
     return {
@@ -508,15 +508,58 @@ def validate_import_table_name(table_name: str) -> str:
     return table_name
 
 
-def duplicate_target_for(table_name: str, import_mode: str) -> dict[str, str] | None:
-    try:
-        table_name = validate_import_table_name(table_name)
-    except ImportDataError:
+def duplicate_target_for_display_name(display_name: str) -> dict[str, str] | None:
+    display_name = str(display_name or "").strip()
+    if not display_name:
         return None
+    if not DataResource.objects.filter(name=display_name).exists():
+        return None
+    return {
+        "targetType": "data_resource_name",
+        "targetName": display_name,
+        "message": f"数据名称已存在：{display_name}",
+    }
+
+
+def _ensure_display_name_can_be_imported(
+    display_name: str, duplicate_confirmed: bool
+) -> None:
+    duplicate_target = duplicate_target_for_display_name(display_name)
+    if not duplicate_target or duplicate_confirmed:
+        return
+    raise ImportDataError(
+        "数据名称已存在",
+        [
+            {
+                "code": "duplicate_target",
+                "message": f"数据名称已存在：{display_name}。如需继续导入，请在数据校验阶段确认重复数据名称。",
+                "blocking": True,
+                "targetType": "data_resource_name",
+                "targetName": display_name,
+            }
+        ],
+    )
+
+
+def unique_import_table_name(table_name: str, import_mode: str) -> str:
+    table_name = validate_import_table_name(table_name)
+    if not _storage_target_exists(table_name, import_mode):
+        return table_name
+    for _ in range(100):
+        suffix = uuid.uuid4().hex[:8]
+        candidate = f"{table_name[: MAX_TABLE_NAME_LENGTH - 9]}_{suffix}"
+        if not _storage_target_exists(candidate, import_mode):
+            return candidate
+    raise ImportDataError("无法生成唯一后台存储标识")
+
+
+def _storage_target_exists(table_name: str, import_mode: str) -> bool:
+    if DataResource.objects.filter(storage_path=table_name).exists():
+        return True
     geographic = import_mode == "geographic"
     path = vector_geopackage_path() if geographic else table_data_path("data.sqlite")
     if not path.exists():
-        return None
+        return False
     if geographic:
         import geopandas as gpd
 
@@ -526,25 +569,13 @@ def duplicate_target_for(table_name: str, import_mode: str) -> dict[str, str] | 
             if hasattr(layers, "columns") and "name" in layers.columns
             else set()
         )
-        if table_name not in existing_names:
-            return None
-        target_type = "geopackage_layer"
-        label = "GeoPackage 图层"
-    else:
-        with sqlite3.connect(path) as connection:
-            exists = connection.execute(
-                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
-                (table_name,),
-            ).fetchone()
-        if not exists:
-            return None
-        target_type = "sqlite_table"
-        label = "SQLite 表"
-    return {
-        "targetType": target_type,
-        "targetName": table_name,
-        "message": f"{label}已存在：{table_name}",
-    }
+        return table_name in existing_names
+    with sqlite3.connect(path) as connection:
+        exists = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (table_name,),
+        ).fetchone()
+    return bool(exists)
 
 
 def suggest_table_name(source_name: str) -> str:
@@ -552,7 +583,7 @@ def suggest_table_name(source_name: str) -> str:
     stem = re.sub(r"[^A-Za-z0-9_]+", "_", stem).strip("_").lower()
     if not stem or not re.match(r"^[A-Za-z_]", stem):
         stem = "import_data"
-    digest = hashlib.sha256(source_name.encode("utf-8")).hexdigest()[:8]
+    digest = uuid.uuid4().hex[:12]
     candidate = f"{stem}_{digest}"
     return candidate[:MAX_TABLE_NAME_LENGTH]
 
@@ -860,7 +891,7 @@ def _serialize_validation_issues(
 
 
 def _ensure_table_can_be_written(
-    path: Path, table_name: str, overwrite: bool, *, geographic: bool
+    path: Path, table_name: str, *, geographic: bool
 ) -> None:
     if not path.exists():
         return
@@ -873,87 +904,23 @@ def _ensure_table_can_be_written(
             if hasattr(layers, "columns") and "name" in layers.columns
             else set()
         )
-        if table_name in existing_names and not overwrite:
-            raise ImportDataError(
-                "入库目标已存在",
-                [
-                    _serialize_duplicate_target_issue(
-                        table_name,
-                        target_type="geopackage_layer",
-                        target_label="GeoPackage 图层",
-                    )
-                ],
-            )
+        if table_name in existing_names:
+            raise ImportDataError("后台存储标识已存在，请重新预检后导入")
         return
     with sqlite3.connect(path) as connection:
         exists = connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
             (table_name,),
         ).fetchone()
-    if exists and not overwrite:
-        raise ImportDataError(
-            "入库目标已存在",
-            [
-                _serialize_duplicate_target_issue(
-                    table_name,
-                    target_type="sqlite_table",
-                    target_label="SQLite 表",
-                )
-            ],
-        )
+    if exists:
+        raise ImportDataError("后台存储标识已存在，请重新预检后导入")
 
 
-def _serialize_duplicate_target_issue(
-    table_name: str, *, target_type: str, target_label: str
-) -> dict[str, Any]:
-    return {
-        "code": "duplicate_target",
-        "message": f"{target_label}已存在：{table_name}。如需覆盖，请打开同名数据覆盖。",
-        "blocking": True,
-        "targetType": target_type,
-        "targetName": table_name,
-    }
-
-
-def _write_geopackage_layer(
-    path: Path, table_name: str, gdf, *, overwrite: bool
-) -> None:
+def _write_geopackage_layer(path: Path, table_name: str, gdf) -> None:
     if path.exists():
-        if overwrite:
-            _drop_geopackage_layer(path, table_name)
         gdf.to_file(path, layer=table_name, driver="GPKG", mode="a")
     else:
         gdf.to_file(path, layer=table_name, driver="GPKG")
-
-
-def _drop_geopackage_layer(path: Path, table_name: str) -> None:
-    import geopandas as gpd
-
-    layers = gpd.list_layers(path)
-    existing_names = (
-        set(layers["name"].astype(str).tolist())
-        if hasattr(layers, "columns") and "name" in layers.columns
-        else set()
-    )
-    if table_name not in existing_names:
-        return
-    with sqlite3.connect(path) as connection:
-        connection.execute(f'DROP TABLE IF EXISTS "{table_name}"')
-        connection.execute(
-            "DELETE FROM gpkg_contents WHERE table_name = ?", (table_name,)
-        )
-        connection.execute(
-            "DELETE FROM gpkg_geometry_columns WHERE table_name = ?",
-            (table_name,),
-        )
-        connection.execute(
-            "DELETE FROM gpkg_data_columns WHERE table_name = ?",
-            (table_name,),
-        )
-        connection.execute(
-            "DELETE FROM gpkg_extensions WHERE table_name = ?",
-            (table_name,),
-        )
 
 
 def _upsert_geographic_resource(
@@ -966,28 +933,36 @@ def _upsert_geographic_resource(
     source_size_bytes: int,
     user,
 ) -> DataResource:
-    code = stable_catalog_code("vector", table_name)
+    code = _unique_resource_code(stable_catalog_code("vector", table_name))
     spatial_extent = ",".join(f"{value:.6f}" for value in bounds) if bounds else ""
-    resource, _ = DataResource.objects.update_or_create(
+    resource = DataResource.objects.create(
         code=code,
-        defaults={
-            "name": name,
-            "data_type": DataResource.DataType.VECTOR,
-            "source": "用户导入",
-            "provider": "",
-            "spatial_extent": spatial_extent,
-            "coordinate_system": "EPSG:4326",
-            "file_format": "GPKG",
-            "storage_path": table_name,
-            "description": f"由 Excel/CSV 导入的地理表：{table_name}",
-            "quality_note": _quality_note(stats, ignore_coordinate_uncertainty),
-            "maintainer": user if getattr(user, "is_authenticated", False) else None,
-            "size_bytes": source_size_bytes,
-            "item_count": int(stats.valid_rows),
-            "status": DataResource.Status.ACTIVE,
-        },
+        name=name,
+        data_type=DataResource.DataType.VECTOR,
+        source="用户导入",
+        provider="",
+        spatial_extent=spatial_extent,
+        coordinate_system="EPSG:4326",
+        file_format="GPKG",
+        storage_path=table_name,
+        description=f"由 Excel/CSV 导入的地理表：{table_name}",
+        quality_note=_quality_note(stats, ignore_coordinate_uncertainty),
+        maintainer=user if getattr(user, "is_authenticated", False) else None,
+        size_bytes=source_size_bytes,
+        item_count=int(stats.valid_rows),
+        status=DataResource.Status.ACTIVE,
     )
     return resource
+
+
+def _unique_resource_code(base_code: str) -> str:
+    if not DataResource.objects.filter(code=base_code).exists():
+        return base_code
+    for _ in range(100):
+        candidate = f"{base_code[:67]}-{uuid.uuid4().hex[:12]}"
+        if not DataResource.objects.filter(code=candidate).exists():
+            return candidate
+    raise ImportDataError("无法生成唯一数据资源编号")
 
 
 def _quality_note(stats: CoordinateStats, ignore_coordinate_uncertainty: bool) -> str:

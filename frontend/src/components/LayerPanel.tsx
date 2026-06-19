@@ -64,11 +64,6 @@ import type {
 } from "../types";
 import { resourceExportId } from "../utils/resources";
 
-const GroupSymbolizationEditor = lazy(() =>
-  import("./SymbolizationEditor").then((module) => ({
-    default: module.GroupSymbolizationEditor,
-  })),
-);
 const RasterSymbolizationEditor = lazy(() =>
   import("./SymbolizationEditor").then((module) => ({
     default: module.RasterSymbolizationEditor,
@@ -502,7 +497,6 @@ export default function LayerPanel() {
                   }}
                   onVisibilityChange={ctx.setGroupVisibility}
                   onNameChange={ctx.setGroupName}
-                  onSymbolizationChange={ctx.setGroupSymbolization}
                   onLocate={ctx.locateGroup}
                   onRemove={ctx.removeGroup}
                   onSelect={() => {
@@ -693,7 +687,6 @@ interface GroupNodeProps {
   onDragEnd: () => void;
   onVisibilityChange: (groupId: string, visible: boolean) => void;
   onNameChange: (groupId: string, name: string) => void;
-  onSymbolizationChange: (groupId: string, value: GroupSymbolization) => void;
   onLocate: (groupId: string) => void;
   onRemove: (groupId: string) => void;
   onSelect: () => void;
@@ -708,7 +701,6 @@ function LayerGroupNode({
   onDragEnd,
   onVisibilityChange,
   onNameChange,
-  onSymbolizationChange,
   onLocate,
   onRemove,
   onSelect,
@@ -755,13 +747,11 @@ function LayerGroupNode({
             symbolization={group.symbolization}
             fields={[]}
             subjectName={group.name}
-            onSymbolizationChange={(next) =>
-              onSymbolizationChange(group.id, next as GroupSymbolization)
-            }
+            onSymbolizationChange={() => undefined}
             onLocate={() => onLocate(group.id)}
             onRemove={() => onRemove(group.id)}
             exportItems={exportItems}
-            canUseCustomSymbolization={ctx.canUseCustomSymbolization}
+            canUseCustomSymbolization={false}
             canExportData={ctx.canExportData}
           />
           <Tooltip title="排序">
@@ -1088,12 +1078,7 @@ function NodeActions({
         />
       );
     }
-    return (
-      <GroupSymbolizationEditor
-        value={symbolization}
-        onChange={onSymbolizationChange}
-      />
-    );
+    return null;
   }
 
   return (

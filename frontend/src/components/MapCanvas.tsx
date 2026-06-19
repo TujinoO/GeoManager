@@ -33,10 +33,7 @@ import {
   removeLoadedLayerGroup,
   reorderLoadedStyleLayers,
 } from "../map/vectorLayerSync";
-import {
-  fitBoundsOptionsForVisibleFrame,
-  readVisibleMapViewState,
-} from "../map/visibleViewport";
+import { fitBoundsOptions, readMapViewState } from "../map/mapViewport";
 import { getMapState } from "../map/mapState";
 import type {
   Bootstrap,
@@ -176,7 +173,7 @@ export default function MapCanvas({
     map.on("mousemove", updatePointer);
     map.on("mouseleave", clearPointer);
     const emitViewState = () => {
-      onViewStateChange?.(readVisibleMapViewState(map));
+      onViewStateChange?.(readMapViewState(map));
     };
     const resizeAndEmitViewState = () => {
       if (resizeFrameRef.current !== null) {
@@ -299,7 +296,7 @@ export default function MapCanvas({
         [50, 35],
         [100, 48],
       ],
-      fitBoundsOptionsForVisibleFrame(map),
+      fitBoundsOptions(),
     );
   }
 
@@ -452,7 +449,7 @@ function syncLoadedLayers(
       (b, next) => b.extend(next),
       new LngLatBounds(firstBound.getSouthWest(), firstBound.getNorthEast()),
     );
-    map.fitBounds(combined, fitBoundsOptionsForVisibleFrame(map, 80));
+    map.fitBounds(combined, fitBoundsOptions(80));
   }
 
   reorderLoadedStyleLayers(map, [

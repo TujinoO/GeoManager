@@ -23,7 +23,6 @@ import type {
   Anchor,
   CircleSymbolization,
   FillSymbolization,
-  GroupSymbolization,
   HeatmapSymbolization,
   LineSymbolization,
   MapViewport,
@@ -255,27 +254,6 @@ function displaySymbolizationLabel(label: string) {
 
 function displaySymbolizationOption(option: string) {
   return symbolizationOptionLabels[option] ?? option;
-}
-
-export function GroupSymbolizationEditor({
-  value,
-  onChange,
-}: {
-  value: GroupSymbolization;
-  onChange: (value: GroupSymbolization) => void;
-}) {
-  return (
-    <Card className="symbolization-card" size="small" title="图层组符号化">
-      <ControlRow label="透明度">
-        <Slider
-          value={value.opacity}
-          min={5}
-          max={100}
-          onChange={(opacity) => onChange({ ...value, opacity })}
-        />
-      </ControlRow>
-    </Card>
-  );
 }
 
 export function VectorSymbolizationEditor({

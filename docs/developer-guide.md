@@ -666,8 +666,9 @@ print(f"是否地理数据: {preview['detected']['isGeographic']}")
 const formData = new FormData();
 formData.append("file", fileInput.files[0]);
 formData.append("payload", JSON.stringify({
+  name: "样地调查点",
   importMode: "geographic",      // "geographic" 或 "table"
-  tableName: "survey_points_2026",
+  tableName: preview.suggestedTableName,
   longitudeColumn: "longitude",  // 地理数据必填
   latitudeColumn: "latitude",    // 地理数据必填
 }));
@@ -696,7 +697,8 @@ with open("survey_data.xlsx", "rb") as f:
         files={"file": f},
         data={"payload": json.dumps({
             "importMode": "geographic",
-            "tableName": "survey_points_2026",
+            "name": "样地调查点",
+            "tableName": preview["suggestedTableName"],
             "longitudeColumn": "longitude",
             "latitudeColumn": "latitude",
         })},
@@ -706,7 +708,7 @@ validation = response.json()
 
 #### Step 3: 提交导入
 
-校验通过后，提交正式导入请求。系统会将数据写入相应的存储位置，并创建或更新 `DataResource` 记录。
+校验通过后，提交正式导入请求。系统会将数据写入相应的存储位置，并创建新的 `DataResource` 记录。
 
 ```javascript
 // JavaScript
@@ -714,11 +716,11 @@ const formData = new FormData();
 formData.append("file", fileInput.files[0]);
 formData.append("payload", JSON.stringify({
   name: "样地调查点",
-  tableName: "survey_points_2026",  // 仅支持英文字母、数字和下划线
+  tableName: preview.suggestedTableName,  // 后台存储标识建议值；后端冲突时会自动改写为唯一值
   importMode: "geographic",
   longitudeColumn: "longitude",
   latitudeColumn: "latitude",
-  overwrite: false,                  // 同名表是否覆盖
+  duplicateConfirmed: false,             // 前端显示名已存在时，用户是否已在校验阶段确认继续导入
   includedColumns: ["species", "height", "longitude", "latitude"],  // 可选，省略则导入全部
   fieldMetadata: {
     species: "中文名称：物种；数据来源：野外调查",
@@ -757,11 +759,11 @@ with open("survey_data.xlsx", "rb") as f:
         files={"file": f},
         data={"payload": json.dumps({
             "name": "样地调查点",
-            "tableName": "survey_points_2026",
+            "tableName": preview["suggestedTableName"],
             "importMode": "geographic",
             "longitudeColumn": "longitude",
             "latitudeColumn": "latitude",
-            "overwrite": False,
+            "duplicateConfirmed": False,
             "fieldMetadata": {
                 "species": "中文名称：物种；数据来源：野外调查",
                 "height": "中文名称：株高；单位：m",
@@ -780,11 +782,11 @@ else:
 
 ### 数据导入模式
 
-**地理数据（Geographic）**：包含经纬度坐标的数据，系统会将其写入统一 GeoPackage 矢量文件，并创建或更新对应的 `DataResource`。提交响应返回 `mode: "geographic"`、`resourceId`、`resourceName`、`layerName`、`tableName`、`bounds`、`coordinateStats` 和 `validationIssues`。资源列表会显示 `resourceName` 对应的用户填写数据名称，`tableName/layerName` 仅作为后端存储标识。
+**地理数据（Geographic）**：包含经纬度坐标的数据，系统会将其写入统一 GeoPackage 矢量文件，并创建新的 `DataResource`。提交响应返回 `mode: "geographic"`、`resourceId`、`resourceName`、`layerName`、`tableName`、`bounds`、`coordinateStats` 和 `validationIssues`。资源列表会显示 `resourceName` 对应的用户填写数据名称，`tableName/layerName` 是后端生成的唯一存储标识。
 
-**非地理数据（Table）**：不包含坐标信息的纯表格数据，系统会将其写入 SQLite 数据库。提交响应返回 `mode: "table"`、`resourceId`、`resourceName`、`tableName`，且 `layerId` 和 `coordinateStats` 为 `null`。
+**非地理数据（Table）**：不包含坐标信息的纯表格数据，系统会将其写入 SQLite 数据库，并创建新的 `DataResource`。提交响应返回 `mode: "table"`、`resourceId`、`resourceName`、`tableName`，且 `layerId` 和 `coordinateStats` 为 `null`。
 
-重复目标检测按实际入库目标执行：地理导入检查 GeoPackage 图层名，非地理导入检查 SQLite 表名。预检和校验响应的 `duplicateTarget` 会在发现同名目标时返回 `targetType`、`targetName` 和提示文案；提交时若 `overwrite=false`，后端仍会以 `400` 和 `duplicate_target` 问题阻止导入。只有用户显式打开覆盖并传入 `overwrite=true` 时，提交才允许覆盖同名目标。
+后台存储标识每次预检都会生成不同建议值；提交时若后端发现该标识已被占用，会自动改写为唯一 GeoPackage 图层名或 SQLite 表名。重复目标检测按前端显示的数据名称执行：预检使用 `suggestedName`，校验和提交使用 payload 中的 `name`。`duplicateTarget.targetType` 固定为 `data_resource_name`。提交时若同名数据已存在且 `duplicateConfirmed=false`，后端会以 `400` 和 `duplicate_target` 问题阻止导入；用户在数据校验阶段确认重复名称并传入 `duplicateConfirmed=true` 后，后端允许继续导入并创建新的数据资源记录和唯一后台存储标识，旧数据资源不会被覆盖。
 
 ### 字段元数据规范
 
@@ -800,7 +802,7 @@ else:
 ### 最佳实践
 
 - **预检先行**：在正式导入前，务必先调用预检接口了解文件结构。
-- **表名规范**：`tableName` 仅支持英文字母、数字和下划线，且以字母或下划线开头。
+- **后台存储标识规范**：`tableName` 仅支持英文字母、数字和下划线，且以字母或下划线开头。前端应优先使用预检返回的 `suggestedTableName`，不要用显示名手写生成。
 - **字段选择**：使用 `includedColumns` 参数只导入需要的字段，减少数据冗余。
 - **元数据完善**：为字段提供详细的元数据说明，便于其他用户理解数据含义。
 
@@ -814,9 +816,9 @@ A: 确保经纬度列使用十进制小数格式，如 `87.600`、`43.800`，而
 
 A: 当坐标不确定性最大/最小差距超过 200 倍时会触发警告。可以在导入请求中设置 `ignoreCoordinateUncertainty: true` 来忽略此警告。
 
-**Q: 同名表已存在怎么办？**
+**Q: 同名数据已存在怎么办？**
 
-A: 设置 `overwrite: true` 覆盖已有数据，或使用不同的 `tableName`。
+A: 在数据校验阶段确认重复名称后，提交时设置 `duplicateConfirmed: true` 继续导入同名显示数据。后台存储标识会保持唯一，已有数据不会被覆盖。
 
 **Q: Excel 文件有多个工作表怎么办？**
 
@@ -2117,9 +2119,9 @@ A: 确保经纬度列使用十进制小数格式，如 `87.600`、`43.800`，而
 
 A: 当坐标不确定性最大/最小差距超过 200 倍时会触发警告。可以在导入请求中设置 `ignoreCoordinateUncertainty: true` 来忽略此警告。
 
-**Q: 同名表已存在怎么办？**
+**Q: 同名数据已存在怎么办？**
 
-A: 设置 `overwrite: true` 覆盖已有数据，或使用不同的 `tableName`。
+A: 在数据校验阶段确认重复名称后，提交时设置 `duplicateConfirmed: true` 继续导入同名显示数据。后台存储标识由后端保持唯一，已有数据不会被覆盖。
 
 ### 数据查询相关
 

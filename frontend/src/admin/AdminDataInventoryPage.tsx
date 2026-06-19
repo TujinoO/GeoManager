@@ -14,12 +14,10 @@ import {
   Alert,
   App as AntApp,
   Button,
-  Checkbox,
   Descriptions,
   Drawer,
   Form,
   Input,
-  InputNumber,
   Modal,
   Select,
   Space,
@@ -54,12 +52,18 @@ type InventoryFormValues = {
 type VisualizationFormValues = {
   layerName: string;
   defaultVisible: boolean;
-  defaultOpacity: number;
   pointColor?: string;
   symbolizationJson?: string;
   rasterRulesJson?: string;
-  accessGroupIds: number[];
+  accessGroupIds: AccessScopeId[];
 };
+
+const uploaderAccessScopeId = "__uploader__";
+const superadminAccessScopeId = "__superadmin__";
+type AccessScopeId =
+  | number
+  | typeof uploaderAccessScopeId
+  | typeof superadminAccessScopeId;
 
 const dataTypeLabels: Record<AdminDataResource["dataType"], string> = {
   vector: "矢量",
@@ -180,15 +184,14 @@ export default function AdminDataInventoryPage() {
       defaultVisible: Boolean(
         visualization.defaultVisible ?? layer?.defaultVisible ?? false,
       ),
-      defaultOpacity: Number(
-        visualization.defaultOpacity ?? layer?.defaultOpacity ?? 85,
-      ),
       pointColor: textValue(symbolization.pointColor) || "#2f7d62",
       symbolizationJson: JSON.stringify(symbolization, null, 2),
       rasterRulesJson: JSON.stringify(rasterRules, null, 2),
-      accessGroupIds: resource.accessGroups
-        .filter((group) => !isSuperadminGroup(group))
-        .map((group) => group.id),
+      accessGroupIds: withFixedAccessScopes(
+        resource.accessGroups
+          .filter((group) => !isSuperadminGroup(group))
+          .map((group) => group.id),
+      ),
     });
     setDrawerOpen(true);
   }
@@ -207,7 +210,7 @@ export default function AdminDataInventoryPage() {
         setSaving(true);
         const updated = await api.updateAdminDataResource(selectedResource.id, {
           action: "updateAccess",
-          accessGroupIds: values.accessGroupIds,
+          accessGroupIds: realAccessGroupIds(values.accessGroupIds),
         });
         if ("id" in updated) {
           replaceResource(updated);
@@ -229,11 +232,11 @@ export default function AdminDataInventoryPage() {
       setSaving(true);
       const updated = await api.updateAdminDataResource(selectedResource.id, {
         action: "update",
-        accessGroupIds: values.accessGroupIds,
+        accessGroupIds: realAccessGroupIds(values.accessGroupIds),
         visualization: {
           layerName: values.layerName,
           defaultVisible: values.defaultVisible,
-          defaultOpacity: values.defaultOpacity,
+          defaultOpacity: currentDefaultOpacity(selectedResource),
           symbolization,
           rasterRules,
         },
@@ -653,39 +656,48 @@ export default function AdminDataInventoryPage() {
               className="inventory-drawer-form"
             >
               <Typography.Title level={5}>数据访问权限</Typography.Title>
-              <Space orientation="vertical" size={10} style={{ width: "100%" }}>
-                <Checkbox checked disabled>
-                  上传者本人可见
-                </Checkbox>
-                <Checkbox checked disabled>
-                  超级管理员可见
-                </Checkbox>
-                {selectedResource &&
-                  hasGuestAccess(
-                    drawerAccessGroupIds,
-                    data.availableAccessGroups,
-                  ) && (
-                    <Alert
-                      type="warning"
-                      showIcon
-                      message="游客可见后，无需登录账号即可浏览和查询该数据。"
-                    />
-                  )}
-              </Space>
               <Form.Item name="accessGroupIds" label="允许访问的用户组">
                 <Select
                   mode="multiple"
-                  allowClear
                   disabled={!canMaintain && !selectedResource.canManageAccess}
                   placeholder="选择需要共享的数据用户组"
-                  options={data.availableAccessGroups
-                    .filter((group) => !isSuperadminGroup(group))
-                    .map((group) => ({
-                      value: group.id,
-                      label: group.name,
-                    }))}
+                  onChange={(nextValue) =>
+                    visualizationForm.setFieldValue(
+                      "accessGroupIds",
+                      withFixedAccessScopes(nextValue),
+                    )
+                  }
+                  options={[
+                    {
+                      value: uploaderAccessScopeId,
+                      label: "上传者本人可见",
+                      disabled: true,
+                    },
+                    {
+                      value: superadminAccessScopeId,
+                      label: "超级管理员可见",
+                      disabled: true,
+                    },
+                    ...data.availableAccessGroups
+                      .filter((group) => !isSuperadminGroup(group))
+                      .map((group) => ({
+                        value: group.id,
+                        label: group.name,
+                      })),
+                  ]}
                 />
               </Form.Item>
+              {selectedResource &&
+                hasGuestAccess(
+                  drawerAccessGroupIds,
+                  data.availableAccessGroups,
+                ) && (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    message="游客可见后，无需登录账号即可浏览和查询该数据。"
+                  />
+                )}
 
               <Typography.Title level={5}>默认可视化方案</Typography.Title>
               <Form.Item
@@ -695,31 +707,17 @@ export default function AdminDataInventoryPage() {
               >
                 <Input disabled={!canMaintain} />
               </Form.Item>
-              <div className="inventory-filter-grid two-columns">
-                <Form.Item
-                  name="defaultVisible"
-                  label="默认显示"
-                  valuePropName="checked"
-                >
-                  <Switch
-                    checkedChildren="显示"
-                    unCheckedChildren="隐藏"
-                    disabled={!canMaintain}
-                  />
-                </Form.Item>
-                <Form.Item
-                  name="defaultOpacity"
-                  label="默认透明度"
-                  rules={[{ required: true, message: "请输入默认透明度" }]}
-                >
-                  <InputNumber
-                    min={0}
-                    max={100}
-                    addonAfter="%"
-                    disabled={!canMaintain}
-                  />
-                </Form.Item>
-              </div>
+              <Form.Item
+                name="defaultVisible"
+                label="默认显示"
+                valuePropName="checked"
+              >
+                <Switch
+                  checkedChildren="显示"
+                  unCheckedChildren="隐藏"
+                  disabled={!canMaintain}
+                />
+              </Form.Item>
               {selectedResource.dataType === "vector" && (
                 <Form.Item name="pointColor" label="点位/主色">
                   <Input type="color" disabled={!canMaintain} />
@@ -793,6 +791,14 @@ function textValue(value: unknown) {
   return typeof value === "string" ? value : "";
 }
 
+function currentDefaultOpacity(resource: AdminDataResource) {
+  return Number(
+    resource.defaultVisualization.defaultOpacity ??
+      resource.defaultLayer?.defaultOpacity ??
+      85,
+  );
+}
+
 function parseJsonObject(value: string | undefined, label: string) {
   if (!value?.trim()) {
     return {};
@@ -837,7 +843,19 @@ function isSuperadminGroup(group: AccessGroup) {
   return group.isSuperadmin === true || group.name === "超级管理员";
 }
 
-function hasGuestAccess(groupIds: number[], groups: AccessGroup[]) {
-  const selected = new Set(groupIds);
+function withFixedAccessScopes(values: AccessScopeId[] = []): AccessScopeId[] {
+  const optionalValues = values.filter(
+    (value) =>
+      value !== uploaderAccessScopeId && value !== superadminAccessScopeId,
+  );
+  return [uploaderAccessScopeId, superadminAccessScopeId, ...optionalValues];
+}
+
+function realAccessGroupIds(values: AccessScopeId[] = []): number[] {
+  return values.filter((value): value is number => typeof value === "number");
+}
+
+function hasGuestAccess(groupIds: AccessScopeId[], groups: AccessGroup[]) {
+  const selected = new Set(realAccessGroupIds(groupIds));
   return groups.some((group) => selected.has(group.id) && isGuestGroup(group));
 }

@@ -20,7 +20,6 @@ import {
   Select,
   Space,
   Steps,
-  Switch,
   Table,
   Tag,
   Tooltip,
@@ -46,11 +45,16 @@ interface ImportFormValues {
   importMode: "geographic" | "table";
   longitudeColumn?: string;
   latitudeColumn?: string;
-  overwrite: boolean;
-  accessGroupIds: number[];
+  accessGroupIds: AccessScopeId[];
 }
 
 type IssueAction = "continue" | "import";
+const selfAccessScopeId = "__self__";
+const superadminAccessScopeId = "__superadmin__";
+type AccessScopeId =
+  | number
+  | typeof selfAccessScopeId
+  | typeof superadminAccessScopeId;
 
 export default function AdminDataImportPage() {
   const { message } = AntApp.useApp();
@@ -74,6 +78,8 @@ export default function AdminDataImportPage() {
   >([]);
   const [duplicateTarget, setDuplicateTarget] =
     useState<ImportDuplicateTarget | null>(null);
+  const [duplicateNameConfirmed, setDuplicateNameConfirmed] = useState(false);
+  const [duplicateConfirmOpen, setDuplicateConfirmOpen] = useState(false);
   const [validationStats, setValidationStats] =
     useState<ImportCoordinateStats | null>(null);
   const [validating, setValidating] = useState(false);
@@ -167,6 +173,8 @@ export default function AdminDataImportPage() {
     setIncludedColumns([]);
     setValidationIssues([]);
     setDuplicateTarget(null);
+    setDuplicateNameConfirmed(false);
+    setDuplicateConfirmOpen(false);
     setValidationStats(null);
     setHasValidated(false);
     setIgnoreCoordinateUncertainty(false);
@@ -199,12 +207,12 @@ export default function AdminDataImportPage() {
         importMode: data.detected.isGeographic ? "geographic" : "table",
         longitudeColumn: data.detected.longitudeColumn ?? undefined,
         latitudeColumn: data.detected.latitudeColumn ?? undefined,
-        overwrite: false,
         accessGroupIds: [],
       };
       setImportConfig(nextConfig);
       form.setFieldsValue({
         ...nextConfig,
+        accessGroupIds: withFixedAccessScopes(nextConfig.accessGroupIds),
       });
       setCurrentStep(1);
       message.success("文件预检完成，请配置导入信息");
@@ -224,6 +232,7 @@ export default function AdminDataImportPage() {
       const values = await form.validateFields();
       setImportConfig((current) => ({ ...current, ...values }));
       const payload: ImportValidatePayload = {
+        name: values.name,
         importMode: values.importMode,
         tableName: preview.suggestedTableName,
         longitudeColumn: values.longitudeColumn,
@@ -234,10 +243,11 @@ export default function AdminDataImportPage() {
       setValidationStats(validated.coordinateStats);
       setValidationIssues(validated.validationIssues);
       setDuplicateTarget(validated.duplicateTarget ?? null);
+      setDuplicateNameConfirmed(false);
       setHasValidated(true);
       setIgnoreCoordinateUncertainty(false);
-      if (validated.duplicateTarget && !values.overwrite) {
-        message.warning(validated.duplicateTarget.message);
+      if (validated.duplicateTarget) {
+        setDuplicateConfirmOpen(true);
         return;
       }
       if (validated.validationIssues.length) {
@@ -295,8 +305,8 @@ export default function AdminDataImportPage() {
         setCurrentStep(1);
         return;
       }
-      if (duplicateTarget && !values.overwrite) {
-        message.warning(duplicateTarget.message);
+      if (duplicateTarget && !duplicateNameConfirmed) {
+        message.warning("请先在数据校验阶段确认重复数据名称");
         setCurrentStep(1);
         return;
       }
@@ -310,10 +320,10 @@ export default function AdminDataImportPage() {
         latitudeColumn: values.latitudeColumn,
         tableName: preview.suggestedTableName,
         ignoreCoordinateUncertainty: ignoreUncertainty,
-        overwrite: Boolean(values.overwrite),
+        duplicateConfirmed: Boolean(duplicateTarget && duplicateNameConfirmed),
         includedColumns,
         fieldMetadata: selectedMetadata,
-        accessGroupIds: values.accessGroupIds ?? [],
+        accessGroupIds: realAccessGroupIds(values.accessGroupIds),
       };
       setImporting(true);
       const imported = await api.importCommit(file, payload);
@@ -370,15 +380,16 @@ export default function AdminDataImportPage() {
             setImportConfig((current) => ({ ...current, ...changed }));
             if (
               "importMode" in changed ||
+              "name" in changed ||
               "longitudeColumn" in changed ||
-              "latitudeColumn" in changed ||
-              "overwrite" in changed
+              "latitudeColumn" in changed
             ) {
               setValidationIssues([]);
               setValidationStats(null);
               setHasValidated(false);
               setIgnoreCoordinateUncertainty(false);
-              if ("importMode" in changed) {
+              setDuplicateNameConfirmed(false);
+              if ("importMode" in changed || "name" in changed) {
                 setDuplicateTarget(null);
               }
             }
@@ -452,13 +463,6 @@ export default function AdminDataImportPage() {
                     ]}
                   />
                 </Form.Item>
-                <Form.Item
-                  name="overwrite"
-                  label="同名数据覆盖"
-                  valuePropName="checked"
-                >
-                  <Switch checkedChildren="覆盖" unCheckedChildren="拒绝" />
-                </Form.Item>
               </div>
 
               <section className="import-section">
@@ -468,25 +472,32 @@ export default function AdminDataImportPage() {
                   size={10}
                   style={{ width: "100%" }}
                 >
-                  <Checkbox checked disabled>
-                    我自己可见
-                  </Checkbox>
-                  <Checkbox checked disabled>
-                    超级管理员可见
-                  </Checkbox>
-                  <Form.Item
-                    name="accessGroupIds"
-                    label="指定用户组可见"
-                    extra="不选择用户组时，仅上传者本人和超级管理员可见。"
-                  >
+                  <Form.Item name="accessGroupIds" label="指定用户组可见">
                     <Select
                       mode="multiple"
-                      allowClear
                       placeholder="选择需要共享的数据用户组"
-                      options={selectableAccessGroups.map((group) => ({
-                        value: group.id,
-                        label: group.name,
-                      }))}
+                      onChange={(nextValue) =>
+                        form.setFieldValue(
+                          "accessGroupIds",
+                          withFixedAccessScopes(nextValue),
+                        )
+                      }
+                      options={[
+                        {
+                          value: selfAccessScopeId,
+                          label: "我自己可见",
+                          disabled: true,
+                        },
+                        {
+                          value: superadminAccessScopeId,
+                          label: "超级管理员可见",
+                          disabled: true,
+                        },
+                        ...selectableAccessGroups.map((group) => ({
+                          value: group.id,
+                          label: group.name,
+                        })),
+                      ]}
                     />
                   </Form.Item>
                   {hasGuestVisible && (
@@ -582,7 +593,7 @@ export default function AdminDataImportPage() {
               {duplicateTarget && (
                 <DuplicateTargetAlert
                   target={duplicateTarget}
-                  overwrite={Boolean(importConfig.overwrite)}
+                  confirmed={duplicateNameConfirmed}
                 />
               )}
 
@@ -625,7 +636,7 @@ export default function AdminDataImportPage() {
                     {duplicateTarget && (
                       <DuplicateTargetAlert
                         target={duplicateTarget}
-                        overwrite={Boolean(importConfig.overwrite)}
+                        confirmed={duplicateNameConfirmed}
                       />
                     )}
                     <div className="import-preview-scroll">
@@ -795,6 +806,40 @@ export default function AdminDataImportPage() {
           </Checkbox>
         )}
       </Modal>
+      <Modal
+        title="确认重复数据名称"
+        open={duplicateConfirmOpen}
+        okText="确认继续导入"
+        cancelText="返回修改"
+        onCancel={() => setDuplicateConfirmOpen(false)}
+        onOk={() => {
+          setDuplicateNameConfirmed(true);
+          setDuplicateConfirmOpen(false);
+          if (validationIssues.length) {
+            setPendingIssueAction("continue");
+            setIssuesOpen(true);
+            return;
+          }
+          message.success("已确认重复数据名称，后端将新建数据记录");
+          setCurrentStep(2);
+        }}
+      >
+        {duplicateTarget && (
+          <Alert
+            type="warning"
+            showIcon
+            title="数据名重复"
+            description={
+              <Space orientation="vertical" size={4}>
+                <Typography.Text>{duplicateTarget.message}</Typography.Text>
+                <Typography.Text type="secondary">
+                  继续导入会创建新的后台 ID 和新的数据记录，不会覆盖已有数据。
+                </Typography.Text>
+              </Space>
+            }
+          />
+        )}
+      </Modal>
     </div>
   );
 }
@@ -812,24 +857,23 @@ function shouldBlockImport(
 
 function DuplicateTargetAlert({
   target,
-  overwrite,
+  confirmed,
 }: {
   target: ImportDuplicateTarget;
-  overwrite: boolean;
+  confirmed: boolean;
 }) {
   return (
     <Alert
-      type={overwrite ? "warning" : "error"}
+      type={confirmed ? "warning" : "error"}
       showIcon
-      title={overwrite ? "检测到重复目标，将覆盖写入" : "检测到重复目标"}
+      title={confirmed ? "已确认重复数据名称" : "数据名重复"}
       description={
         <Space orientation="vertical" size={4}>
           <Typography.Text>{target.message}</Typography.Text>
           <Typography.Text type="secondary">
-            {target.targetType === "geopackage_layer"
-              ? "GeoPackage 图层"
-              : "SQLite 表"}
-            ：{target.targetName}
+            {confirmed
+              ? "继续导入会新建后台 ID 和数据记录，不会覆盖已有数据。"
+              : `数据名称：${target.targetName}`}
           </Typography.Text>
         </Space>
       }
@@ -847,9 +891,19 @@ function normalizeImportValues(
     importMode,
     longitudeColumn: values.longitudeColumn || undefined,
     latitudeColumn: values.latitudeColumn || undefined,
-    overwrite: Boolean(values.overwrite),
     accessGroupIds: values.accessGroupIds ?? [],
   };
+}
+
+function withFixedAccessScopes(values: AccessScopeId[] = []): AccessScopeId[] {
+  const optionalValues = values.filter(
+    (value) => value !== selfAccessScopeId && value !== superadminAccessScopeId,
+  );
+  return [selfAccessScopeId, superadminAccessScopeId, ...optionalValues];
+}
+
+function realAccessGroupIds(values: AccessScopeId[] = []): number[] {
+  return values.filter((value): value is number => typeof value === "number");
 }
 
 function importIssuesFromError(error: unknown): ImportValidationIssue[] {
