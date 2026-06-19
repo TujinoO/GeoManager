@@ -24,7 +24,7 @@ import {
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import capfedLogo from "../assets/capfed-logo.svg";
+import capfedLogoWhite from "../assets/capfed-logo-white.svg";
 import { oceanBorderBeam } from "../components/oceanBorderBeam";
 import { useAppContext } from "../contexts/AppContext";
 import type { LoginFormValues, RegisterFormValues } from "../types";
@@ -173,7 +173,7 @@ export default function LoginPage() {
         <header className="login-brand-head">
           <span className="login-logo-frame">
             <img
-              src={capfedLogo}
+              src={capfedLogoWhite}
               alt={`${platformChineseName} Logo`}
               width={48}
               height={48}
@@ -251,7 +251,7 @@ export default function LoginPage() {
         <Card className="login-card" variant="borderless">
           <div className="login-card-header">
             <span className="login-card-logo">
-              <img src={capfedLogo} alt="" width={32} height={32} />
+              <img src={capfedLogoWhite} alt="" width={32} height={32} />
             </span>
             <span>
               <strong>{platformShortName}</strong>

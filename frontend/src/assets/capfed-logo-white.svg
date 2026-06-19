@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">中亚胡杨林生态保护数据共享平台图标版</title>
-  <desc id="desc">透明背景的品牌绿色盾牌、胡杨树、数据节点、地理网格与图层元素图标。</desc>
+  <title id="title">中亚胡杨林生态保护数据共享平台白色图标版</title>
+  <desc id="desc">透明背景的纯白色盾牌、胡杨树、数据节点、地理网格与图层元素图标。</desc>
   <defs>
     <style>
-      .white{fill:none;stroke:#0f6b55;stroke-width:32;stroke-linecap:round;stroke-linejoin:round}
-      .thin{fill:none;stroke:#0f6b55;stroke-width:15;stroke-linecap:round;stroke-linejoin:round}
-      .hair{fill:none;stroke:#0f6b55;stroke-width:9;stroke-linecap:round;stroke-linejoin:round}
-      .fill{fill:#0f6b55}
+      .white{fill:none;stroke:#ffffff;stroke-width:32;stroke-linecap:round;stroke-linejoin:round}
+      .thin{fill:none;stroke:#ffffff;stroke-width:15;stroke-linecap:round;stroke-linejoin:round}
+      .hair{fill:none;stroke:#ffffff;stroke-width:9;stroke-linecap:round;stroke-linejoin:round}
+      .fill{fill:#ffffff}
     </style>
   </defs>
   <g transform="translate(-88,-84)">

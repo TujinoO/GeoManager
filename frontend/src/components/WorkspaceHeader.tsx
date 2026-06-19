@@ -37,7 +37,7 @@ import {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import capfedLogo from "../assets/capfed-logo.svg";
+import capfedLogoWhite from "../assets/capfed-logo-white.svg";
 import { useAppContext } from "../contexts/AppContext";
 import type { ResourceListItem, WorkspaceScene } from "../types";
 import {
@@ -392,6 +392,14 @@ export default function WorkspaceHeader({
       ),
     [effectiveWorkspaceScenes, searchQuery],
   );
+  const filteredProjectScenes = useMemo(
+    () => filteredWorkspaceScenes.filter((scene) => scene.kind === "project"),
+    [filteredWorkspaceScenes],
+  );
+  const filteredTopicScenes = useMemo(
+    () => filteredWorkspaceScenes.filter((scene) => scene.kind === "topic"),
+    [filteredWorkspaceScenes],
+  );
 
   async function handleLogout() {
     try {
@@ -584,7 +592,7 @@ export default function WorkspaceHeader({
       {
         title: "全局搜索",
         description:
-          "检索数据资源和已保存工程，并从结果中快速加载到当前工作台。",
+          "检索数据资源、已保存工程和专题，并从结果中加载到当前工作台。",
         target: () => searchContainerRef.current ?? document.body,
         placement: "bottom",
       },
@@ -755,24 +763,47 @@ export default function WorkspaceHeader({
 
       <SearchResultSection
         title="工程"
-        icon={<AppstoreOutlined style={{ fontSize: 15 }} />}
-        emptyText="暂无匹配工程或专题"
+        icon={<FolderOpenOutlined style={{ fontSize: 15 }} />}
+        emptyText="暂无匹配工程"
       >
-        {filteredWorkspaceScenes.map((scene) => (
-          <Button
-            type="text"
-            className="workspace-search-row"
-            key={`scene-${scene.id}`}
-            onClick={() => openWorkspaceScene(scene)}
-          >
+        {filteredProjectScenes.map((scene) => (
+          <div className="workspace-search-row" key={`scene-${scene.id}`}>
             <span className="workspace-search-row-main">
               <strong>{scene.name}</strong>
               <small>{scene.description || formatSceneUpdatedAt(scene)}</small>
             </span>
-            <Tag color={scene.kind === "project" ? "blue" : "green"}>
-              {scene.kind === "project" ? "工程" : "专题"}
-            </Tag>
-          </Button>
+            <Button
+              size="small"
+              type="primary"
+              ghost
+              onClick={() => openWorkspaceScene(scene)}
+            >
+              加载
+            </Button>
+          </div>
+        ))}
+      </SearchResultSection>
+
+      <SearchResultSection
+        title="专题"
+        icon={<AppstoreOutlined style={{ fontSize: 15 }} />}
+        emptyText="暂无匹配专题"
+      >
+        {filteredTopicScenes.map((scene) => (
+          <div className="workspace-search-row" key={`scene-${scene.id}`}>
+            <span className="workspace-search-row-main">
+              <strong>{scene.name}</strong>
+              <small>{scene.description || formatSceneUpdatedAt(scene)}</small>
+            </span>
+            <Button
+              size="small"
+              type="primary"
+              ghost
+              onClick={() => openWorkspaceScene(scene)}
+            >
+              加载
+            </Button>
+          </div>
         ))}
       </SearchResultSection>
     </section>
@@ -785,7 +816,7 @@ export default function WorkspaceHeader({
       <div className="brand-block">
         <span className="brand-logo-frame">
           <img
-            src={capfedLogo}
+            src={capfedLogoWhite}
             alt={`${bootstrap.systemName} Logo`}
             width={40}
             height={40}
@@ -819,7 +850,7 @@ export default function WorkspaceHeader({
               allowClear
               prefix={<SearchOutlined style={{ fontSize: 15 }} />}
               value={searchText}
-              placeholder="搜索数据、工程"
+              placeholder="搜索数据、工程、专题"
               onFocus={expandSearch}
               onClick={handleSearchClick}
               onChange={(event) => handleSearchTextChange(event.target.value)}
