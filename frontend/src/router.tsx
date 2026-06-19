@@ -19,6 +19,19 @@ export function RequireDataMaintain() {
   return <Outlet />;
 }
 
+/** 需要存量数据查看、上传或维护权限才能访问资源清单路由 */
+export function RequireDataInventory() {
+  const { user } = useAppContext();
+  if (
+    !user?.permissions.canMaintainData &&
+    !user?.permissions.canUploadData &&
+    !user?.permissions.canExportData
+  ) {
+    return <Navigate to="/admin/profile" replace />;
+  }
+  return <Outlet />;
+}
+
 /** 需要数据上传或数据维护权限才能访问的后台导入路由 */
 export function RequireDataUpload() {
   const { user } = useAppContext();

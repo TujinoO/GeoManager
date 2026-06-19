@@ -16,7 +16,7 @@ import type { User } from "../types";
 const baseAdminRoutes: MenuDataItem[] = [
   {
     path: "/admin/dashboard",
-    name: "Dashboard",
+    name: "运行概览",
     icon: <DashboardOutlined />,
   },
   {
@@ -68,7 +68,7 @@ function adminRouteFor(user: User | null) {
 }
 
 const defaultPageMeta = {
-  title: "Dashboard",
+  title: "运行概览",
   subTitle: "汇总平台用户活跃、账号与系统监控",
 };
 

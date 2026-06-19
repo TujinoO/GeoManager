@@ -16,6 +16,7 @@ import {
   App,
   Avatar,
   Button,
+  Dropdown,
   Empty,
   Input,
   Popover,
@@ -23,6 +24,7 @@ import {
   Tag,
   Typography,
 } from "antd";
+import type { MenuProps } from "antd";
 import type { ReactNode } from "react";
 import {
   useCallback,
@@ -480,21 +482,111 @@ export default function WorkspaceHeader({
     navigateFromHeader("/resources");
   }
 
+  const dataManagementMenuItems = useMemo<MenuProps["items"]>(() => {
+    const items: NonNullable<MenuProps["items"]> = [
+      {
+        key: "resources-dashboard",
+        label: "数据概览",
+        onClick: () => navigateFromHeader("/resources/dashboard"),
+      },
+    ];
+    if (
+      user?.permissions.canMaintainData ||
+      user?.permissions.canUploadData ||
+      user?.permissions.canExportData
+    ) {
+      items.push({
+        key: "resources-inventory",
+        label: "存量数据",
+        onClick: () => navigateFromHeader("/resources/data/inventory"),
+      });
+    }
+    if (user?.permissions.canUploadData || user?.permissions.canMaintainData) {
+      items.push({
+        key: "resources-import",
+        label: "数据导入",
+        onClick: () => navigateFromHeader("/resources/data/import"),
+      });
+    }
+    return items;
+  }, [
+    navigateFromHeader,
+    user?.permissions.canExportData,
+    user?.permissions.canMaintainData,
+    user?.permissions.canUploadData,
+  ]);
+
+  const adminMenuItems = useMemo<MenuProps["items"]>(() => {
+    const items: NonNullable<MenuProps["items"]> = [
+      {
+        key: "admin-dashboard",
+        label: "运行概览",
+        onClick: () => navigateFromHeader("/admin/dashboard"),
+      },
+      {
+        key: "admin-profile",
+        label: "用户设置",
+        onClick: () => navigateFromHeader("/admin/profile"),
+      },
+    ];
+    if (user?.permissions.canViewOperationLogs) {
+      items.push({
+        key: "admin-logs",
+        label: "操作日志",
+        onClick: () => navigateFromHeader("/admin/logs"),
+      });
+    }
+    if (user?.permissions.canManageSystemSettings) {
+      items.push({
+        key: "admin-settings",
+        label: "系统设置",
+        onClick: () => navigateFromHeader("/admin/settings"),
+      });
+    }
+    if (user?.permissions.canManageAuth) {
+      items.push(
+        {
+          key: "admin-users",
+          label: "用户管理",
+          onClick: () => navigateFromHeader("/admin/auth/users"),
+        },
+        {
+          key: "admin-groups",
+          label: "用户组权限",
+          onClick: () => navigateFromHeader("/admin/auth/groups"),
+        },
+      );
+    }
+    return items;
+  }, [
+    navigateFromHeader,
+    user?.permissions.canManageAuth,
+    user?.permissions.canManageSystemSettings,
+    user?.permissions.canViewOperationLogs,
+  ]);
+
   const dataButton = (
-    <Button
-      type="text"
-      className={tabClass(
-        activeTab === "resources",
-        expandedTabId === "resource",
-      )}
-      onClick={handleResourceCenter}
-      onMouseEnter={() => scheduleTabHoverExpand("resource")}
-      onMouseLeave={collapseTabHover}
-      title="资源中心"
+    <Dropdown
+      menu={{ items: dataManagementMenuItems }}
+      trigger={["hover"]}
+      placement="bottom"
+      overlayClassName="workspace-management-dropdown"
     >
-      <FolderOpenOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-      <span className="tab-text">资源中心</span>
-    </Button>
+      <Button
+        type="text"
+        className={tabClass(
+          activeTab === "resources",
+          expandedTabId === "resource",
+        )}
+        onClick={handleResourceCenter}
+        onMouseEnter={() => scheduleTabHoverExpand("resource")}
+        onMouseLeave={collapseTabHover}
+        title="数据管理"
+      >
+        <FolderOpenOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+        <span className="tab-text">数据管理</span>
+      </Button>
+    </Dropdown>
   );
 
   const wechatContent = (
@@ -718,20 +810,27 @@ export default function WorkspaceHeader({
           </Button>
           {(canBrowseData || showAdminTab) && dataButton}
           {showAdminTab && (
-            <Button
-              type="text"
-              className={tabClass(
-                activeTab === "admin",
-                expandedTabId === "admin",
-              )}
-              onClick={() => navigateFromHeader("/admin")}
-              onMouseEnter={() => scheduleTabHoverExpand("admin")}
-              onMouseLeave={collapseTabHover}
-              title="后台管理"
+            <Dropdown
+              menu={{ items: adminMenuItems }}
+              trigger={["hover"]}
+              placement="bottom"
+              overlayClassName="workspace-management-dropdown"
             >
-              <SettingOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-              <span className="tab-text">后台管理</span>
-            </Button>
+              <Button
+                type="text"
+                className={tabClass(
+                  activeTab === "admin",
+                  expandedTabId === "admin",
+                )}
+                onClick={() => navigateFromHeader("/admin")}
+                onMouseEnter={() => scheduleTabHoverExpand("admin")}
+                onMouseLeave={collapseTabHover}
+                title="后台管理"
+              >
+                <SettingOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+                <span className="tab-text">后台管理</span>
+              </Button>
+            </Dropdown>
           )}
           <Popover
             trigger="click"

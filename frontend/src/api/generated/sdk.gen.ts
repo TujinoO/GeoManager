@@ -189,9 +189,9 @@ export const listAdminOperationLogs = <ThrowOnError extends boolean = false>(opt
 });
 
 /**
- * 获取后台 Dashboard 统计
+ * 获取后台概览统计
  *
- * 返回后台 Dashboard 首屏统计数据与指定周期活跃用户。登录用户均可进入后台 Dashboard；各展示卡片按 `core.view_dashboard_*_card` 权限独立返回，未授权卡片不会出现在响应中。活跃用户定义为周期内存在成功登录操作日志的去重用户。
+ * 返回后台概览首屏统计数据与指定周期活跃用户。登录用户均可进入后台概览；各展示卡片按 `core.view_dashboard_*_card` 权限独立返回，未授权卡片不会出现在响应中。活跃用户定义为周期内存在成功登录操作日志的去重用户。
  */
 export const getAdminDashboard = <ThrowOnError extends boolean = false>(options?: Options<GetAdminDashboardData, ThrowOnError>): RequestResult<GetAdminDashboardResponses, GetAdminDashboardErrors, ThrowOnError> => (options?.client ?? client).get<GetAdminDashboardResponses, GetAdminDashboardErrors, ThrowOnError>({
     security: [{
@@ -204,7 +204,7 @@ export const getAdminDashboard = <ThrowOnError extends boolean = false>(options?
 });
 
 /**
- * 获取后台 Dashboard 服务器监控
+ * 获取后台概览服务器监控
  *
  * 返回服务器 CPU、内存、硬盘型号、数量和使用情况等监控快照。需要 `core.view_dashboard_system_card`；没有系统信息权限时前端不展示服务器信息区域，前端每 5 秒刷新一次。
  */
@@ -424,7 +424,7 @@ export const updateAdminSettings = <ThrowOnError extends boolean = false>(option
 /**
  * 获取存量数据管理列表
  *
- * 返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组和默认可视化方案查看。需要 `catalog.maintain_dataresource` 或 `catalog.export_dataresource`。
+ * 返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组和默认可视化方案查看。具备 `catalog.maintain_dataresource` 或 `catalog.export_dataresource` 时返回符合筛选条件的全部资源；仅具备 `core.upload_data` 时只返回当前用户上传的数据资源，用于管理自己的数据可见范围。
  */
 export const listAdminDataResources = <ThrowOnError extends boolean = false>(options?: Options<ListAdminDataResourcesData, ThrowOnError>): RequestResult<ListAdminDataResourcesResponses, ListAdminDataResourcesErrors, ThrowOnError> => (options?.client ?? client).get<ListAdminDataResourcesResponses, ListAdminDataResourcesErrors, ThrowOnError>({
     security: [{
@@ -454,7 +454,7 @@ export const exportAdminDataResources = <ThrowOnError extends boolean = false>(o
 /**
  * 操作单个存量数据
  *
- * 支持更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。需要 `catalog.maintain_dataresource`，成功操作会写入审计日志。
+ * 支持更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。启停、默认可视化和删除需要 `catalog.maintain_dataresource`；数据上传者或具备 `catalog.maintain_dataresource` 的用户可以通过 `updateAccess` 修改可见范围。成功操作会写入审计日志。
  */
 export const updateAdminDataResource = <ThrowOnError extends boolean = false>(options: Options<UpdateAdminDataResourceData, ThrowOnError>): RequestResult<UpdateAdminDataResourceResponses, UpdateAdminDataResourceErrors, ThrowOnError> => (options.client ?? client).post<UpdateAdminDataResourceResponses, UpdateAdminDataResourceErrors, ThrowOnError>({
     security: [{

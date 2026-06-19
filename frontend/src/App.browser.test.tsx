@@ -207,7 +207,7 @@ describe("application critical flows", () => {
       );
     });
     expect(
-      await screen.findByText("资源中心", {}, { timeout: 10000 }),
+      await screen.findByText("数据管理", {}, { timeout: 10000 }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("map-canvas")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^地理数据$/ })).toHaveClass(
@@ -234,7 +234,7 @@ describe("application critical flows", () => {
       expect(mockApi.guestLogin).toHaveBeenCalled();
     });
     expect(
-      await screen.findByText("资源中心", {}, { timeout: 10000 }),
+      await screen.findByText("数据管理", {}, { timeout: 10000 }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("map-canvas")).toBeInTheDocument();
     expect(
@@ -258,7 +258,7 @@ describe("application critical flows", () => {
     renderApp("/");
 
     expect(
-      await screen.findByText("资源中心", {}, { timeout: 10000 }),
+      await screen.findByText("数据管理", {}, { timeout: 10000 }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("map-canvas")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^地理数据$/ })).toHaveClass(

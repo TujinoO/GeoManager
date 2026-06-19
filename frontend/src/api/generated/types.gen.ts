@@ -387,27 +387,27 @@ export type UserPermissions = {
      */
     canManageAuth: boolean;
     /**
-     * 是否可查看 Dashboard 数据资源卡片
+     * 是否可查看概览数据资源卡片
      */
     canViewDashboardResourceCard: boolean;
     /**
-     * 是否可查看 Dashboard 图层数卡片
+     * 是否可查看概览图层数卡片
      */
     canViewDashboardLayerCard: boolean;
     /**
-     * 是否可查看 Dashboard 栅格数量卡片
+     * 是否可查看概览栅格数量卡片
      */
     canViewDashboardRasterCard: boolean;
     /**
-     * 是否可查看 Dashboard 用户数量卡片
+     * 是否可查看概览用户数量卡片
      */
     canViewDashboardUserCard: boolean;
     /**
-     * 是否可查看 Dashboard 活跃用户卡片
+     * 是否可查看概览活跃用户卡片
      */
     canViewDashboardActiveUsersCard: boolean;
     /**
-     * 是否可查看 Dashboard 系统信息
+     * 是否可查看概览系统信息
      */
     canViewDashboardSystemCard: boolean;
     /**
@@ -588,14 +588,14 @@ export type AdminOperationLogListResponse = {
 
 export type AdminDashboardResponse = {
     /**
-     * Dashboard 统计生成时间
+     * 概览统计生成时间
      */
     generatedAt: string;
     cards: AdminDashboardCards;
 };
 
 /**
- * 按当前用户卡片权限返回的 Dashboard 卡片数据；未授权卡片字段会被省略。
+ * 按当前用户卡片权限返回的概览卡片数据；未授权卡片字段会被省略。
  */
 export type AdminDashboardCards = {
     resources?: AdminDashboardResourceCard;
@@ -1228,6 +1228,14 @@ export type AdminDataResourceAccessGroup = {
      * 用户组名称
      */
     name: string;
+    /**
+     * 是否为系统内置游客用户组；选择该组表示无需账号即可通过游客会话访问数据
+     */
+    isGuest: boolean;
+    /**
+     * 是否为系统内置超级管理员用户组；数据可见范围会强制包含该组
+     */
+    isSuperadmin: boolean;
 };
 
 export type AdminDataResourceLayer = {
@@ -1353,9 +1361,13 @@ export type AdminDataResource = {
      */
     status: 'active' | 'inactive';
     /**
-     * 允许访问该数据资源的用户组；空数组表示不限制用户组
+     * 允许访问该数据资源的用户组；用户导入数据会强制包含超级管理员用户组，上传者本人不依赖用户组也始终可见。历史无上传者且无访问用户组的数据视为平台公共登记资源。
      */
     accessGroups: Array<AdminDataResourceAccessGroup>;
+    /**
+     * 当前用户是否可修改该资源的可见范围；上传者本人或具备 `catalog.maintain_dataresource` 时为 true
+     */
+    canManageAccess: boolean;
     /**
      * 维护人员显示名称；兼容旧前端字段
      */
@@ -1403,7 +1415,7 @@ export type AdminDataResourceListResponse = {
      */
     total: number;
     /**
-     * 可用于配置数据访问范围的用户组列表
+     * 可用于配置数据访问范围的用户组列表；前端应隐藏或锁定超级管理员组，因为后端会强制包含
      */
     availableAccessGroups: Array<AdminDataResourceAccessGroup>;
 };
@@ -1446,7 +1458,7 @@ export type AdminDataResourceUpdateRequest = {
     status?: 'active' | 'inactive';
     visualization?: AdminDataResourceVisualization;
     /**
-     * updateAccess 或 update 时写入的访问用户组 ID 列表；空数组表示不限制用户组
+     * updateAccess 或 update 时写入的额外可见用户组 ID 列表；后端会强制补齐超级管理员用户组，上传者本人不依赖用户组也始终可见。包含游客用户组时表示未登录用户可通过游客会话访问该数据。
      */
     accessGroupIds?: Array<number>;
     /**
@@ -4374,7 +4386,7 @@ export type ImportCommitData = {
     body: {
         file: Blob | File;
         /**
-         * JSON 字符串，包含导入配置
+         * JSON 字符串，包含导入配置；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。
          */
         payload: string;
     };

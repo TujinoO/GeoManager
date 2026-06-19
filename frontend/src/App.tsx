@@ -11,7 +11,7 @@ import { AppContext } from "./contexts/AppContext";
 import {
   RedirectIfAuth,
   RequireAuth,
-  RequireDataMaintain,
+  RequireDataInventory,
   RequireDataUpload,
   RequireManageAuth,
   RequireManageSystemSettings,
@@ -173,7 +173,7 @@ export default function App() {
                 path="dashboard"
                 element={<AdminDashboardPage scope="data" />}
               />
-              <Route element={<RequireDataMaintain />}>
+              <Route element={<RequireDataInventory />}>
                 <Route
                   path="data/inventory"
                   element={<AdminDataInventoryPage />}

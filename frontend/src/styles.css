@@ -2944,6 +2944,14 @@ body {
   margin: 4px 0;
 }
 
+.workspace-management-dropdown .ant-dropdown-menu {
+  min-width: 10rem;
+}
+
+.workspace-management-dropdown .ant-dropdown-menu-title-content {
+  white-space: nowrap;
+}
+
 .header-primary-actions,
 .header-account-actions {
   gap: 8px;

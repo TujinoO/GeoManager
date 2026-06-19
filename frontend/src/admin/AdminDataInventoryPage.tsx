@@ -11,8 +11,10 @@ import {
 } from "@ant-design/icons";
 import { ProCard, StatisticCard } from "@ant-design/pro-components";
 import {
+  Alert,
   App as AntApp,
   Button,
+  Checkbox,
   Descriptions,
   Drawer,
   Form,
@@ -101,7 +103,11 @@ export default function AdminDataInventoryPage() {
   const [deleting, setDeleting] = useState(false);
 
   const canMaintain = Boolean(user?.permissions.canMaintainData);
+  const canUpload = Boolean(user?.permissions.canUploadData);
   const canExport = Boolean(user?.permissions.canExportData);
+  const canOpenInventory = canMaintain || canUpload || canExport;
+  const drawerAccessGroupIds =
+    Form.useWatch("accessGroupIds", visualizationForm) ?? [];
 
   const metrics = useMemo(() => {
     const active = data.items.filter((item) => item.status === "active").length;
@@ -132,12 +138,12 @@ export default function AdminDataInventoryPage() {
   );
 
   useEffect(() => {
-    if (canMaintain) {
+    if (canOpenInventory) {
       void loadResources(filters);
     }
-  }, [canMaintain, filters, loadResources]);
+  }, [canOpenInventory, filters, loadResources]);
 
-  if (!canMaintain) {
+  if (!canOpenInventory) {
     return <Navigate to="/admin/profile" replace />;
   }
 
@@ -180,7 +186,9 @@ export default function AdminDataInventoryPage() {
       pointColor: textValue(symbolization.pointColor) || "#2f7d62",
       symbolizationJson: JSON.stringify(symbolization, null, 2),
       rasterRulesJson: JSON.stringify(rasterRules, null, 2),
-      accessGroupIds: resource.accessGroups.map((group) => group.id),
+      accessGroupIds: resource.accessGroups
+        .filter((group) => !isSuperadminGroup(group))
+        .map((group) => group.id),
     });
     setDrawerOpen(true);
   }
@@ -190,6 +198,25 @@ export default function AdminDataInventoryPage() {
       return;
     }
     try {
+      if (!canMaintain) {
+        const values = visualizationForm.getFieldsValue(true);
+        if (!selectedResource.canManageAccess) {
+          message.warning("当前用户不能修改该数据的可见范围");
+          return;
+        }
+        setSaving(true);
+        const updated = await api.updateAdminDataResource(selectedResource.id, {
+          action: "updateAccess",
+          accessGroupIds: values.accessGroupIds,
+        });
+        if ("id" in updated) {
+          replaceResource(updated);
+          setSelectedResource(updated);
+        }
+        message.success("数据可见范围已保存");
+        setDrawerOpen(false);
+        return;
+      }
       const values = await visualizationForm.validateFields();
       const symbolization = parseJsonObject(
         values.symbolizationJson,
@@ -342,6 +369,7 @@ export default function AdminDataInventoryPage() {
             checked={record.status === "active"}
             checkedChildren="启用"
             unCheckedChildren="禁用"
+            disabled={!canMaintain}
             onChange={(checked) => toggleStatus(record, checked)}
           />
         </Space>
@@ -428,12 +456,14 @@ export default function AdminDataInventoryPage() {
             <Button
               icon={<SettingOutlined />}
               onClick={() => openResourceDrawer(record)}
+              disabled={!canMaintain && !record.canManageAccess}
             />
           </Tooltip>
-          <Tooltip title="删除">
+          <Tooltip title={canMaintain ? "删除" : "当前用户无删除权限"}>
             <Button
               danger
               icon={<DeleteOutlined />}
+              disabled={!canMaintain}
               onClick={() => setDeleteTarget(record)}
             />
           </Tooltip>
@@ -572,7 +602,7 @@ export default function AdminDataInventoryPage() {
 
       <Drawer
         size={560}
-        title="存量数据配置"
+        title={canMaintain ? "存量数据配置" : "数据可见范围"}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         extra={
@@ -580,6 +610,7 @@ export default function AdminDataInventoryPage() {
             type="primary"
             icon={<SaveOutlined />}
             loading={saving}
+            disabled={!canMaintain && !selectedResource?.canManageAccess}
             onClick={saveResourceSettings}
           >
             保存
@@ -621,13 +652,48 @@ export default function AdminDataInventoryPage() {
               layout="vertical"
               className="inventory-drawer-form"
             >
+              <Typography.Title level={5}>数据访问权限</Typography.Title>
+              <Space direction="vertical" size={10} style={{ width: "100%" }}>
+                <Checkbox checked disabled>
+                  上传者本人可见
+                </Checkbox>
+                <Checkbox checked disabled>
+                  超级管理员可见
+                </Checkbox>
+                {selectedResource &&
+                  hasGuestAccess(
+                    drawerAccessGroupIds,
+                    data.availableAccessGroups,
+                  ) && (
+                    <Alert
+                      type="warning"
+                      showIcon
+                      message="游客可见后，无需登录账号即可浏览和查询该数据。"
+                    />
+                  )}
+              </Space>
+              <Form.Item name="accessGroupIds" label="允许访问的用户组">
+                <Select
+                  mode="multiple"
+                  allowClear
+                  disabled={!canMaintain && !selectedResource.canManageAccess}
+                  placeholder="选择需要共享的数据用户组"
+                  options={data.availableAccessGroups
+                    .filter((group) => !isSuperadminGroup(group))
+                    .map((group) => ({
+                      value: group.id,
+                      label: group.name,
+                    }))}
+                />
+              </Form.Item>
+
               <Typography.Title level={5}>默认可视化方案</Typography.Title>
               <Form.Item
                 name="layerName"
                 label="默认图层名称"
                 rules={[{ required: true, message: "请输入默认图层名称" }]}
               >
-                <Input />
+                <Input disabled={!canMaintain} />
               </Form.Item>
               <div className="inventory-filter-grid two-columns">
                 <Form.Item
@@ -635,38 +701,42 @@ export default function AdminDataInventoryPage() {
                   label="默认显示"
                   valuePropName="checked"
                 >
-                  <Switch checkedChildren="显示" unCheckedChildren="隐藏" />
+                  <Switch
+                    checkedChildren="显示"
+                    unCheckedChildren="隐藏"
+                    disabled={!canMaintain}
+                  />
                 </Form.Item>
                 <Form.Item
                   name="defaultOpacity"
                   label="默认透明度"
                   rules={[{ required: true, message: "请输入默认透明度" }]}
                 >
-                  <InputNumber min={0} max={100} addonAfter="%" />
+                  <InputNumber
+                    min={0}
+                    max={100}
+                    addonAfter="%"
+                    disabled={!canMaintain}
+                  />
                 </Form.Item>
               </div>
               {selectedResource.dataType === "vector" && (
                 <Form.Item name="pointColor" label="点位/主色">
-                  <Input type="color" />
+                  <Input type="color" disabled={!canMaintain} />
                 </Form.Item>
               )}
               <Form.Item name="symbolizationJson" label="矢量符号 JSON">
-                <Input.TextArea rows={6} spellCheck={false} />
+                <Input.TextArea
+                  rows={6}
+                  spellCheck={false}
+                  disabled={!canMaintain}
+                />
               </Form.Item>
               <Form.Item name="rasterRulesJson" label="栅格规则 JSON">
-                <Input.TextArea rows={6} spellCheck={false} />
-              </Form.Item>
-
-              <Typography.Title level={5}>数据访问权限</Typography.Title>
-              <Form.Item name="accessGroupIds" label="允许访问的用户组">
-                <Select
-                  mode="multiple"
-                  allowClear
-                  placeholder="留空表示不限制用户组"
-                  options={data.availableAccessGroups.map((group) => ({
-                    value: group.id,
-                    label: group.name,
-                  }))}
+                <Input.TextArea
+                  rows={6}
+                  spellCheck={false}
+                  disabled={!canMaintain}
                 />
               </Form.Item>
             </Form>
@@ -755,4 +825,19 @@ function formatBytes(value: number) {
     unitIndex += 1;
   }
   return `${current.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+type AccessGroup = AdminDataResourceList["availableAccessGroups"][number];
+
+function isGuestGroup(group: AccessGroup) {
+  return group.isGuest === true || group.name === "游客";
+}
+
+function isSuperadminGroup(group: AccessGroup) {
+  return group.isSuperadmin === true || group.name === "超级管理员";
+}
+
+function hasGuestAccess(groupIds: number[], groups: AccessGroup[]) {
+  const selected = new Set(groupIds);
+  return groups.some((group) => selected.has(group.id) && isGuestGroup(group));
 }

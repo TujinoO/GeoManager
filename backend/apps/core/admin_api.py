@@ -27,8 +27,8 @@ from django.views.decorators.http import require_GET, require_http_methods
 from apps.audit.models import OperationLog
 from apps.audit.service import log_operation
 from apps.catalog.models import DataResource, MapLayer
+from apps.catalog.importer import ImportDataError, set_resource_access_groups
 from apps.core.api import (
-    api_any_permission_required,
     api_login_required,
     api_permission_required,
 )
@@ -60,6 +60,7 @@ from apps.core.permissions import (
     disabled_feature_permissions,
     direct_feature_permissions,
     effective_feature_permissions,
+    feature_denied_response,
     feature_permission_queryset,
     granted_feature_permissions,
     has_feature_perm,
@@ -726,16 +727,25 @@ def admin_settings(request):
 
 
 @require_GET
-@api_any_permission_required(
-    "catalog.maintain_dataresource", "catalog.export_dataresource"
-)
+@api_login_required
 def admin_data_resources(request):
+    if not (
+        has_feature_perm(request.user, "catalog.maintain_dataresource")
+        or has_feature_perm(request.user, "catalog.export_dataresource")
+        or has_feature_perm(request.user, "core.upload_data")
+    ):
+        return feature_denied_response(request.user)
     queryset = _filter_admin_data_resources(
         DataResource.objects.select_related("category", "maintainer")
         .prefetch_related("access_groups", "map_layers")
         .order_by("-updated_at", "name"),
         request.GET,
     )
+    if not (
+        has_feature_perm(request.user, "catalog.maintain_dataresource")
+        or has_feature_perm(request.user, "catalog.export_dataresource")
+    ):
+        queryset = queryset.filter(maintainer=request.user)
     total = queryset.count()
     current = _positive_query_int(request.GET.get("current"), default=1)
     page_size = _positive_query_int(request.GET.get("pageSize"), default=20)
@@ -748,12 +758,12 @@ def admin_data_resources(request):
     return JsonResponse(
         {
             "items": [
-                _serialize_admin_data_resource(resource)
+                _serialize_admin_data_resource(resource, request.user)
                 for resource in queryset[start:end]
             ],
             "total": total,
             "availableAccessGroups": [
-                {"id": group.id, "name": group.name}
+                _serialize_access_group(group)
                 for group in Group.objects.order_by("name")
             ],
         }
@@ -761,7 +771,7 @@ def admin_data_resources(request):
 
 
 @require_http_methods(["POST"])
-@api_permission_required("catalog.maintain_dataresource")
+@api_login_required
 def admin_data_resource_detail(request, resource_id: int):
     payload = _json_payload(request)
     if isinstance(payload, JsonResponse):
@@ -776,10 +786,22 @@ def admin_data_resource_detail(request, resource_id: int):
         return JsonResponse({"detail": "数据资源不存在"}, status=404)
 
     action = str(payload.get("action", "update")).strip()
+    can_maintain = has_feature_perm(request.user, "catalog.maintain_dataresource")
+    can_update_access = can_maintain or resource.maintainer_id == request.user.id
     if action == "delete":
+        if not can_maintain:
+            return feature_denied_response(request.user)
         return _delete_admin_data_resource(request, resource, payload)
     if action not in {"update", "setStatus", "saveVisualization", "updateAccess"}:
         return JsonResponse({"detail": "不支持的数据资源操作"}, status=400)
+    if action in {"setStatus", "saveVisualization"} and not can_maintain:
+        return feature_denied_response(request.user)
+    if action == "update" and not can_maintain:
+        disallowed_fields = {"status", "visualization"} & set(payload)
+        if disallowed_fields:
+            return feature_denied_response(request.user)
+    if "accessGroupIds" in payload and not can_update_access:
+        return feature_denied_response(request.user)
 
     update_fields = []
     if action in {"update", "setStatus"} and "status" in payload:
@@ -798,12 +820,10 @@ def admin_data_resource_detail(request, resource_id: int):
         group_ids = _normalize_group_ids(payload.get("accessGroupIds"))
         if isinstance(group_ids, JsonResponse):
             return group_ids
-        groups = list(Group.objects.filter(id__in=group_ids))
-        if len(groups) != len(group_ids):
-            return JsonResponse({"detail": "包含不存在的用户组"}, status=400)
-        resource.access_groups.set(groups)
-        for layer in resource.map_layers.all():
-            layer.access_groups.set(groups)
+        try:
+            set_resource_access_groups(resource, group_ids)
+        except ImportDataError as exc:
+            return JsonResponse({"detail": str(exc)}, status=400)
 
     if action in {"update", "saveVisualization"} and "visualization" in payload:
         visualization = payload.get("visualization")
@@ -830,13 +850,12 @@ def admin_data_resource_detail(request, resource_id: int):
         request,
     )
     resource.refresh_from_db()
-    return JsonResponse(
-        _serialize_admin_data_resource(
-            DataResource.objects.select_related("category", "maintainer")
-            .prefetch_related("access_groups", "map_layers")
-            .get(pk=resource.id)
-        )
+    updated_resource = (
+        DataResource.objects.select_related("category", "maintainer")
+        .prefetch_related("access_groups", "map_layers")
+        .get(pk=resource.id)
     )
+    return JsonResponse(_serialize_admin_data_resource(updated_resource, request.user))
 
 
 @require_GET
@@ -848,7 +867,9 @@ def admin_data_resources_export(request):
         .order_by("-updated_at", "name"),
         request.GET,
     )
-    rows = [_serialize_admin_data_resource(resource) for resource in queryset]
+    rows = [
+        _serialize_admin_data_resource(resource, request.user) for resource in queryset
+    ]
     export_format = str(request.GET.get("format", "csv")).strip().lower()
     if export_format == "xlsx":
         response = _data_resources_xlsx_response(rows)
@@ -1159,7 +1180,9 @@ def _filter_admin_data_resources(queryset, params):
     return queryset
 
 
-def _serialize_admin_data_resource(resource: DataResource) -> dict[str, Any]:
+def _serialize_admin_data_resource(
+    resource: DataResource, request_user
+) -> dict[str, Any]:
     layers = list(resource.map_layers.all())
     layer = layers[0] if layers else None
     uploader = _serialize_uploader(resource.maintainer)
@@ -1184,14 +1207,26 @@ def _serialize_admin_data_resource(resource: DataResource) -> dict[str, Any]:
         "itemCount": resource.item_count,
         "status": resource.status,
         "accessGroups": [
-            {"id": group.id, "name": group.name}
-            for group in resource.access_groups.all()
+            _serialize_access_group(group) for group in resource.access_groups.all()
         ],
+        "canManageAccess": bool(
+            has_feature_perm(request_user, "catalog.maintain_dataresource")
+            or resource.maintainer_id == getattr(request_user, "id", None)
+        ),
         "maintainer": maintainer,
         "uploader": uploader,
         "createdAt": timezone.localtime(resource.created_at).isoformat(),
         "updatedAt": timezone.localtime(resource.updated_at).isoformat(),
         "defaultLayer": _serialize_admin_resource_layer(layer),
+    }
+
+
+def _serialize_access_group(group: Group) -> dict[str, Any]:
+    return {
+        "id": group.id,
+        "name": group.name,
+        "isGuest": is_guest_group(group),
+        "isSuperadmin": is_superadmin_group(group),
     }
 
 
@@ -1506,7 +1541,8 @@ def _data_resource_export_rows(
 def _escape_csv_cell(value: Any) -> str:
     text = str(value)
     if re.search(r'[",\n]', text):
-        return f'"{text.replace('"', '""')}"'
+        escaped = text.replace('"', '""')
+        return f'"{escaped}"'
     return text
 
 

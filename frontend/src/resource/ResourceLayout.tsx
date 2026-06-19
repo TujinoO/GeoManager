@@ -14,14 +14,18 @@ import type { User } from "../types";
 const baseResourceRoutes: MenuDataItem[] = [
   {
     path: "/resources/dashboard",
-    name: "Dashboard",
+    name: "数据概览",
     icon: <DashboardOutlined />,
   },
 ];
 
 function resourceRouteFor(user: User | null) {
   const routes = [...baseResourceRoutes];
-  if (user?.permissions.canMaintainData) {
+  if (
+    user?.permissions.canMaintainData ||
+    user?.permissions.canUploadData ||
+    user?.permissions.canExportData
+  ) {
     routes.push({
       path: "/resources/data/inventory",
       name: "存量数据",
@@ -42,7 +46,7 @@ function resourceRouteFor(user: User | null) {
 }
 
 const defaultPageMeta = {
-  title: "数据 Dashboard",
+  title: "数据概览",
   subTitle: "汇总数据资源、图层、栅格和数据体量",
 };
 
@@ -54,7 +58,7 @@ const pageMeta: Record<string, { title: string; subTitle: string }> = {
   },
   "/resources/data/inventory": {
     title: "存量数据管理",
-    subTitle: "管理已导入数据的状态、默认可视化、权限、删除与导出",
+    subTitle: "查看已登记数据，并按权限管理状态、默认可视化、可见范围与导出",
   },
 };
 
@@ -73,7 +77,7 @@ export default function ResourceLayout() {
       />
       <ProLayout
         className="admin-pro-layout"
-        title="资源中心"
+        title="数据管理"
         route={resourceRoute}
         location={{ pathname: location.pathname }}
         layout="mix"

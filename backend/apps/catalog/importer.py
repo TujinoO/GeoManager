@@ -12,12 +12,14 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from django.contrib.auth.models import Group
 from django.db import transaction
 from django.utils.text import slugify
 from shapely.geometry import Point
 
 from apps.catalog.models import DataResource
 from apps.catalog.services import stable_catalog_code
+from apps.core.initialization import ensure_superadmin_defaults
 from apps.core.storage import table_data_path, vector_geopackage_path
 
 
@@ -155,6 +157,7 @@ def import_uploaded_table(
     )
     overwrite = bool(payload.get("overwrite", False))
     file_size = int(getattr(uploaded_file, "size", 0) or 0)
+    access_group_ids = _access_group_ids(payload.get("accessGroupIds"))
 
     if import_mode not in {"geographic", "table"}:
         raise ImportDataError("导入方式必须是 geographic 或 table")
@@ -180,6 +183,7 @@ def import_uploaded_table(
             overwrite=overwrite,
             source_size_bytes=file_size,
             user=user,
+            access_group_ids=access_group_ids,
         )
 
     included_columns = _included_columns(payload.get("includedColumns"), df.columns)
@@ -193,6 +197,7 @@ def import_uploaded_table(
         overwrite=overwrite,
         source_size_bytes=file_size,
         user=user,
+        access_group_ids=access_group_ids,
     )
 
 
@@ -208,6 +213,7 @@ def import_geographic_table(
     overwrite: bool,
     source_size_bytes: int,
     user,
+    access_group_ids: set[int],
 ) -> dict[str, Any]:
     stats = coordinate_stats_for(df, longitude_column, latitude_column)
     validation_issues = validate_coordinate_columns(
@@ -265,6 +271,7 @@ def import_geographic_table(
         source_size_bytes=source_size_bytes,
         user=user,
     )
+    set_resource_access_groups(resource, access_group_ids)
     return {
         "mode": "geographic",
         "resourceId": resource.id,
@@ -288,6 +295,7 @@ def import_plain_table(
     overwrite: bool,
     source_size_bytes: int,
     user,
+    access_group_ids: set[int],
 ) -> dict[str, Any]:
     path = table_data_path("data.sqlite")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -316,6 +324,7 @@ def import_plain_table(
             "status": DataResource.Status.ACTIVE,
         },
     )
+    set_resource_access_groups(resource, access_group_ids)
     return {
         "mode": "table",
         "resourceId": resource.id,
@@ -657,6 +666,32 @@ def _metadata_map(raw: Any, columns: set[str]) -> dict[str, str]:
         raise ImportDataError("字段元数据必须是对象")
     metadata = {column: str(raw.get(column) or "").strip() for column in columns}
     return metadata
+
+
+def set_resource_access_groups(resource: DataResource, group_ids: set[int]) -> None:
+    normalized_group_ids = normalized_access_group_ids(group_ids)
+    groups = list(Group.objects.filter(id__in=normalized_group_ids))
+    if len(groups) != len(normalized_group_ids):
+        raise ImportDataError("包含不存在的用户组")
+    resource.access_groups.set(groups)
+    for layer in resource.map_layers.all():
+        layer.access_groups.set(groups)
+
+
+def normalized_access_group_ids(group_ids: set[int]) -> set[int]:
+    _, superadmin_group = ensure_superadmin_defaults(create_account=False)
+    return set(group_ids) | {superadmin_group.id}
+
+
+def _access_group_ids(raw: Any) -> set[int]:
+    if raw in (None, ""):
+        return set()
+    if not isinstance(raw, list):
+        raise ImportDataError("accessGroupIds 必须是数组")
+    try:
+        return {int(group_id) for group_id in raw}
+    except (TypeError, ValueError) as exc:
+        raise ImportDataError("accessGroupIds 必须是整数数组") from exc
 
 
 def _included_columns(

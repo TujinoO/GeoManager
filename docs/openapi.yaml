@@ -11,7 +11,7 @@ info:
     3. 后续请求携带 `sessionid` Cookie 和 `X-CSRFToken` 请求头
 
     ## 权限体系
-    - **功能权限**：26 项细粒度功能权限，通过用户组分配，按后台权限、日志权限、Dashboard 权限、数据权限、人员权限分组管理
+    - **功能权限**：26 项细粒度功能权限，通过用户组分配，按后台权限、日志权限、概览权限、数据权限、人员权限分组管理
     - **数据访问权限**：基于 `access_groups` 的数据隔离
 
     ## 错误处理
@@ -409,8 +409,8 @@ paths:
   /api/admin/dashboard/:
     get:
       tags: [管理后台]
-      summary: 获取后台 Dashboard 统计
-      description: 返回后台 Dashboard 首屏统计数据与指定周期活跃用户。登录用户均可进入后台 Dashboard；各展示卡片按 `core.view_dashboard_*_card` 权限独立返回，未授权卡片不会出现在响应中。活跃用户定义为周期内存在成功登录操作日志的去重用户。
+      summary: 获取后台概览统计
+      description: 返回后台概览首屏统计数据与指定周期活跃用户。登录用户均可进入后台概览；各展示卡片按 `core.view_dashboard_*_card` 权限独立返回，未授权卡片不会出现在响应中。活跃用户定义为周期内存在成功登录操作日志的去重用户。
       operationId: getAdminDashboard
       security:
         - sessionAuth: []
@@ -439,7 +439,7 @@ paths:
   /api/admin/dashboard/server/:
     get:
       tags: [管理后台]
-      summary: 获取后台 Dashboard 服务器监控
+      summary: 获取后台概览服务器监控
       description: 返回服务器 CPU、内存、硬盘型号、数量和使用情况等监控快照。需要 `core.view_dashboard_system_card`；没有系统信息权限时前端不展示服务器信息区域，前端每 5 秒刷新一次。
       operationId: getAdminDashboardServer
       security:
@@ -807,7 +807,7 @@ paths:
     get:
       tags: [管理后台]
       summary: 获取存量数据管理列表
-      description: 返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组和默认可视化方案查看。需要 `catalog.maintain_dataresource` 或 `catalog.export_dataresource`。
+      description: 返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组和默认可视化方案查看。具备 `catalog.maintain_dataresource` 或 `catalog.export_dataresource` 时返回符合筛选条件的全部资源；仅具备 `core.upload_data` 时只返回当前用户上传的数据资源，用于管理自己的数据可见范围。
       operationId: listAdminDataResources
       security:
         - sessionAuth: []
@@ -963,7 +963,7 @@ paths:
     post:
       tags: [管理后台]
       summary: 操作单个存量数据
-      description: 支持更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。需要 `catalog.maintain_dataresource`，成功操作会写入审计日志。
+      description: 支持更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。启停、默认可视化和删除需要 `catalog.maintain_dataresource`；数据上传者或具备 `catalog.maintain_dataresource` 的用户可以通过 `updateAccess` 修改可见范围。成功操作会写入审计日志。
       operationId: updateAdminDataResource
       security:
         - sessionAuth: []
@@ -1303,7 +1303,7 @@ paths:
                   format: binary
                 payload:
                   type: string
-                  description: JSON 字符串，包含导入配置
+                  description: JSON 字符串，包含导入配置；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。
       responses:
         '201':
           description: 导入成功
@@ -2484,22 +2484,22 @@ components:
           description: 是否可修改认证授权
         canViewDashboardResourceCard:
           type: boolean
-          description: 是否可查看 Dashboard 数据资源卡片
+          description: 是否可查看概览数据资源卡片
         canViewDashboardLayerCard:
           type: boolean
-          description: 是否可查看 Dashboard 图层数卡片
+          description: 是否可查看概览图层数卡片
         canViewDashboardRasterCard:
           type: boolean
-          description: 是否可查看 Dashboard 栅格数量卡片
+          description: 是否可查看概览栅格数量卡片
         canViewDashboardUserCard:
           type: boolean
-          description: 是否可查看 Dashboard 用户数量卡片
+          description: 是否可查看概览用户数量卡片
         canViewDashboardActiveUsersCard:
           type: boolean
-          description: 是否可查看 Dashboard 活跃用户卡片
+          description: 是否可查看概览活跃用户卡片
         canViewDashboardSystemCard:
           type: boolean
-          description: 是否可查看 Dashboard 系统信息
+          description: 是否可查看概览系统信息
         canViewDataOverview:
           type: boolean
           description: 是否可查看总数据情况，包括数据大小、条目数和上传用户统计
@@ -2689,7 +2689,7 @@ components:
         generatedAt:
           type: string
           format: date-time
-          description: Dashboard 统计生成时间
+          description: 概览统计生成时间
         cards:
           $ref: '#/components/schemas/AdminDashboardCards'
 
@@ -2708,7 +2708,7 @@ components:
           $ref: '#/components/schemas/AdminDashboardUserCard'
         activeUsers:
           $ref: '#/components/schemas/AdminDashboardActiveUsers'
-      description: 按当前用户卡片权限返回的 Dashboard 卡片数据；未授权卡片字段会被省略。
+      description: 按当前用户卡片权限返回的概览卡片数据；未授权卡片字段会被省略。
 
     AdminDashboardResourceCard:
       type: object
@@ -3390,7 +3390,7 @@ components:
 
     AdminDataResourceAccessGroup:
       type: object
-      required: [id, name]
+      required: [id, name, isGuest, isSuperadmin]
       properties:
         id:
           type: integer
@@ -3398,6 +3398,12 @@ components:
         name:
           type: string
           description: 用户组名称
+        isGuest:
+          type: boolean
+          description: 是否为系统内置游客用户组；选择该组表示无需账号即可通过游客会话访问数据
+        isSuperadmin:
+          type: boolean
+          description: 是否为系统内置超级管理员用户组；数据可见范围会强制包含该组
 
     AdminDataResourceLayer:
       type: object
@@ -3472,6 +3478,7 @@ components:
         - itemCount
         - status
         - accessGroups
+        - canManageAccess
         - maintainer
         - uploader
         - createdAt
@@ -3540,9 +3547,12 @@ components:
           description: 数据资源状态
         accessGroups:
           type: array
-          description: 允许访问该数据资源的用户组；空数组表示不限制用户组
+          description: 允许访问该数据资源的用户组；用户导入数据会强制包含超级管理员用户组，上传者本人不依赖用户组也始终可见。历史无上传者且无访问用户组的数据视为平台公共登记资源。
           items:
             $ref: '#/components/schemas/AdminDataResourceAccessGroup'
+        canManageAccess:
+          type: boolean
+          description: 当前用户是否可修改该资源的可见范围；上传者本人或具备 `catalog.maintain_dataresource` 时为 true
         maintainer:
           type: string
           description: 维护人员显示名称；兼容旧前端字段
@@ -3593,7 +3603,7 @@ components:
           description: 符合筛选条件的数据资源总数
         availableAccessGroups:
           type: array
-          description: 可用于配置数据访问范围的用户组列表
+          description: 可用于配置数据访问范围的用户组列表；前端应隐藏或锁定超级管理员组，因为后端会强制包含
           items:
             $ref: '#/components/schemas/AdminDataResourceAccessGroup'
 
@@ -3636,7 +3646,7 @@ components:
           $ref: '#/components/schemas/AdminDataResourceVisualization'
         accessGroupIds:
           type: array
-          description: updateAccess 或 update 时写入的访问用户组 ID 列表；空数组表示不限制用户组
+          description: updateAccess 或 update 时写入的额外可见用户组 ID 列表；后端会强制补齐超级管理员用户组，上传者本人不依赖用户组也始终可见。包含游客用户组时表示未登录用户可通过游客会话访问该数据。
           items:
             type: integer
         confirmationName:

@@ -27,7 +27,7 @@ import {
   Typography,
   Upload,
 } from "antd";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { ApiError, api } from "../api/client";
 import { useAppContext } from "../contexts/AppContext";
@@ -47,6 +47,7 @@ interface ImportFormValues {
   longitudeColumn?: string;
   latitudeColumn?: string;
   overwrite: boolean;
+  accessGroupIds: number[];
 }
 
 type IssueAction = "continue" | "import";
@@ -82,6 +83,9 @@ export default function AdminDataImportPage() {
     useState<IssueAction | null>(null);
   const [ignoreCoordinateUncertainty, setIgnoreCoordinateUncertainty] =
     useState(false);
+  const [availableAccessGroups, setAvailableAccessGroups] = useState<
+    ImportAccessGroup[]
+  >([]);
 
   const columnOptions = useMemo(
     () =>
@@ -118,6 +122,39 @@ export default function AdminDataImportPage() {
   const hasIgnorableUncertainty = validationIssues.some(
     (issue) => issue.code === "coordinate_uncertainty",
   );
+  const selectedAccessGroupIds = Form.useWatch("accessGroupIds", form) ?? [];
+  const selectedGroups = availableAccessGroups.filter((group) =>
+    selectedAccessGroupIds.includes(group.id),
+  );
+  const hasGuestVisible = selectedGroups.some(isGuestGroup);
+  const selectableAccessGroups = availableAccessGroups.filter(
+    (group) => !isSuperadminGroup(group),
+  );
+
+  useEffect(() => {
+    if (
+      !user?.permissions.canMaintainData &&
+      !user?.permissions.canUploadData
+    ) {
+      return;
+    }
+    let ignore = false;
+    api
+      .adminDataResources({ current: 1, pageSize: 1 })
+      .then((result) => {
+        if (!ignore) {
+          setAvailableAccessGroups(result.availableAccessGroups);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setAvailableAccessGroups([]);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [user?.permissions.canMaintainData, user?.permissions.canUploadData]);
 
   if (!user?.permissions.canMaintainData && !user?.permissions.canUploadData) {
     return <Navigate to="/admin/profile" replace />;
@@ -163,6 +200,7 @@ export default function AdminDataImportPage() {
         longitudeColumn: data.detected.longitudeColumn ?? undefined,
         latitudeColumn: data.detected.latitudeColumn ?? undefined,
         overwrite: false,
+        accessGroupIds: [],
       };
       setImportConfig(nextConfig);
       form.setFieldsValue({
@@ -275,6 +313,7 @@ export default function AdminDataImportPage() {
         overwrite: Boolean(values.overwrite),
         includedColumns,
         fieldMetadata: selectedMetadata,
+        accessGroupIds: values.accessGroupIds ?? [],
       };
       setImporting(true);
       const imported = await api.importCommit(file, payload);
@@ -421,6 +460,40 @@ export default function AdminDataImportPage() {
                   <Switch checkedChildren="覆盖" unCheckedChildren="拒绝" />
                 </Form.Item>
               </div>
+
+              <section className="import-section">
+                <Typography.Title level={5}>数据可见权限</Typography.Title>
+                <Space direction="vertical" size={10} style={{ width: "100%" }}>
+                  <Checkbox checked disabled>
+                    我自己可见
+                  </Checkbox>
+                  <Checkbox checked disabled>
+                    超级管理员可见
+                  </Checkbox>
+                  <Form.Item
+                    name="accessGroupIds"
+                    label="指定用户组可见"
+                    extra="不选择用户组时，仅上传者本人和超级管理员可见。"
+                  >
+                    <Select
+                      mode="multiple"
+                      allowClear
+                      placeholder="选择需要共享的数据用户组"
+                      options={selectableAccessGroups.map((group) => ({
+                        value: group.id,
+                        label: group.name,
+                      }))}
+                    />
+                  </Form.Item>
+                  {hasGuestVisible && (
+                    <Alert
+                      type="warning"
+                      showIcon
+                      message="游客可见后，无需登录账号即可浏览和查询该数据。"
+                    />
+                  )}
+                </Space>
+              </section>
 
               <Form.Item
                 noStyle
@@ -771,6 +844,7 @@ function normalizeImportValues(
     longitudeColumn: values.longitudeColumn || undefined,
     latitudeColumn: values.latitudeColumn || undefined,
     overwrite: Boolean(values.overwrite),
+    accessGroupIds: values.accessGroupIds ?? [],
   };
 }
 
@@ -780,4 +854,19 @@ function importIssuesFromError(error: unknown): ImportValidationIssue[] {
   }
   const data = error.data as { issues?: ImportValidationIssue[] } | null;
   return Array.isArray(data?.issues) ? data.issues : [];
+}
+
+type ImportAccessGroup = {
+  id: number;
+  name: string;
+  isGuest?: boolean;
+  isSuperadmin?: boolean;
+};
+
+function isGuestGroup(group: ImportAccessGroup) {
+  return group.isGuest === true || group.name === "游客";
+}
+
+function isSuperadminGroup(group: ImportAccessGroup) {
+  return group.isSuperadmin === true || group.name === "超级管理员";
 }

@@ -12,6 +12,12 @@ from shapely.geometry import Point
 from apps.audit.models import OperationLog
 from apps.catalog.models import DataResource, MapLayer, WorkspaceScene
 from apps.catalog.services import scan_catalog_sources, scan_vector_geopackage
+from apps.core.initialization import (
+    GUEST_GROUP_NAME,
+    SUPERADMIN_GROUP_NAME,
+    ensure_guest_user,
+    ensure_superadmin_defaults,
+)
 from apps.core.storage import gene_data_path, table_data_path, vector_geopackage_path
 
 
@@ -849,6 +855,34 @@ class DataImportApiTests(TestCase):
         resource = DataResource.objects.get(storage_path="upload_permission_table")
         self.assertEqual(resource.maintainer, self.user)
 
+    def test_import_commit_sets_visibility_scope(self):
+        ensure_guest_user()
+        guest_group = Group.objects.get(name=GUEST_GROUP_NAME)
+
+        response = self.client.post(
+            "/api/catalog/import/commit/",
+            data={
+                "file": self._csv_file("survey.csv", "name,value\nA,42\n"),
+                "payload": json.dumps(
+                    {
+                        "name": "游客共享表",
+                        "tableName": "guest_visible_table",
+                        "importMode": "table",
+                        "overwrite": False,
+                        "accessGroupIds": [guest_group.id],
+                        "fieldMetadata": {},
+                    }
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        resource = DataResource.objects.get(storage_path="guest_visible_table")
+        group_names = set(resource.access_groups.values_list("name", flat=True))
+        self.assertEqual(resource.maintainer, self.user)
+        self.assertIn(SUPERADMIN_GROUP_NAME, group_names)
+        self.assertIn(GUEST_GROUP_NAME, group_names)
+
     def test_import_plain_table_writes_sqlite_data_and_metadata(self):
         self.assertFalse(self.table_path.exists())
         uploaded_file = self._csv_file("survey.csv", "name,value\nA,42\n")
@@ -1122,13 +1156,19 @@ class AdminDataResourceApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.access_groups.first(), self.group)
+        self.assertEqual(
+            set(self.resource.access_groups.values_list("name", flat=True)),
+            {SUPERADMIN_GROUP_NAME, self.group.name},
+        )
         self.assertEqual(self.resource.default_visualization["defaultOpacity"], 72)
         layer = MapLayer.objects.get(data_resource=self.resource)
         self.assertEqual(layer.name, "默认样地点")
         self.assertEqual(layer.default_opacity, 72)
         self.assertEqual(layer.symbolization["pointColor"], "#2f7d62")
-        self.assertEqual(layer.access_groups.first(), self.group)
+        self.assertEqual(
+            set(layer.access_groups.values_list("name", flat=True)),
+            {SUPERADMIN_GROUP_NAME, self.group.name},
+        )
 
     def test_delete_requires_matching_confirmation_name(self):
         response = self.client.post(
@@ -1166,6 +1206,68 @@ class AdminDataResourceApiTests(TestCase):
         self.assertIn("存量样地数据", csv_response.content.decode("utf-8-sig"))
         self.assertEqual(xlsx_response.status_code, 200)
         self.assertIn("spreadsheetml", xlsx_response["Content-Type"])
+
+    def test_uploader_can_list_own_resources_and_update_access_only(self):
+        uploader = get_user_model().objects.create_user(
+            username="resource-uploader", password="pass12345"
+        )
+        other = get_user_model().objects.create_user(
+            username="other-uploader", password="pass12345"
+        )
+        grant(uploader, ("core", "upload_data"))
+        ensure_guest_user()
+        _, superadmin_group = ensure_superadmin_defaults(create_account=False)
+        guest_group = Group.objects.get(name=GUEST_GROUP_NAME)
+        own_resource = DataResource.objects.create(
+            name="上传者自己的数据",
+            code="uploader-own-resource",
+            data_type=DataResource.DataType.TABLE,
+            storage_path="uploader_table",
+            maintainer=uploader,
+        )
+        DataResource.objects.create(
+            name="他人上传数据",
+            code="other-uploaded-resource",
+            data_type=DataResource.DataType.TABLE,
+            storage_path="other_table",
+            maintainer=other,
+        )
+        self.client.force_login(uploader)
+
+        list_response = self.client.get("/api/admin/data/resources/")
+
+        self.assertEqual(list_response.status_code, 200)
+        payload = list_response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(payload["items"][0]["id"], own_resource.id)
+        self.assertTrue(payload["items"][0]["canManageAccess"])
+        superadmin_options = [
+            item
+            for item in payload["availableAccessGroups"]
+            if item["name"] == SUPERADMIN_GROUP_NAME
+        ]
+        self.assertEqual(superadmin_options[0]["isSuperadmin"], True)
+
+        access_response = self.client.post(
+            f"/api/admin/data/resources/{own_resource.id}/",
+            data=json.dumps(
+                {"action": "updateAccess", "accessGroupIds": [guest_group.id]}
+            ),
+            content_type="application/json",
+        )
+        status_response = self.client.post(
+            f"/api/admin/data/resources/{own_resource.id}/",
+            data=json.dumps({"action": "setStatus", "status": "inactive"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(access_response.status_code, 200)
+        own_resource.refresh_from_db()
+        self.assertEqual(
+            set(own_resource.access_groups.values_list("id", flat=True)),
+            {guest_group.id, superadmin_group.id},
+        )
+        self.assertEqual(status_response.status_code, 403)
 
 
 def grant(user, *specs):

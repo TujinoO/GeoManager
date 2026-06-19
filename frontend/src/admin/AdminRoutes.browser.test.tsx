@@ -10,7 +10,7 @@ import zhCN from "antd/locale/zh_CN";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppContext } from "../contexts/AppContext";
-import { RequireDataMaintain } from "../router";
+import { RequireDataInventory, RequireDataUpload } from "../router";
 import { appTheme } from "../theme";
 import type { Bootstrap, User } from "../types";
 
@@ -144,33 +144,33 @@ const availablePermissions = [
   { id: "core.manage_auth", label: "修改认证授权", group: "人员权限" },
   {
     id: "core.view_dashboard_resource_card",
-    label: "查看 Dashboard 数据资源卡片",
-    group: "Dashboard 权限",
+    label: "查看概览数据资源卡片",
+    group: "概览权限",
   },
   {
     id: "core.view_dashboard_layer_card",
-    label: "查看 Dashboard 图层数卡片",
-    group: "Dashboard 权限",
+    label: "查看概览图层数卡片",
+    group: "概览权限",
   },
   {
     id: "core.view_dashboard_raster_card",
-    label: "查看 Dashboard 栅格数量卡片",
-    group: "Dashboard 权限",
+    label: "查看概览栅格数量卡片",
+    group: "概览权限",
   },
   {
     id: "core.view_dashboard_user_card",
-    label: "查看 Dashboard 用户数量卡片",
-    group: "Dashboard 权限",
+    label: "查看概览用户数量卡片",
+    group: "概览权限",
   },
   {
     id: "core.view_dashboard_active_users_card",
-    label: "查看 Dashboard 活跃用户卡片",
-    group: "Dashboard 权限",
+    label: "查看概览活跃用户卡片",
+    group: "概览权限",
   },
   {
     id: "core.view_dashboard_system_card",
-    label: "查看 Dashboard 系统信息",
-    group: "Dashboard 权限",
+    label: "查看概览系统信息",
+    group: "概览权限",
   },
   { id: "core.browse_data", label: "浏览数据目录", group: "数据权限" },
   { id: "core.query_data", label: "查询数据", group: "数据权限" },
@@ -226,11 +226,13 @@ function renderAdminRoute(initialEntry: string) {
               path="dashboard"
               element={<AdminDashboardPage scope="data" />}
             />
-            <Route element={<RequireDataMaintain />}>
+            <Route element={<RequireDataInventory />}>
               <Route
                 path="data/inventory"
                 element={<AdminDataInventoryPage />}
               />
+            </Route>
+            <Route element={<RequireDataUpload />}>
               <Route path="data/import" element={<AdminDataImportPage />} />
             </Route>
           </Route>
@@ -446,7 +448,10 @@ describe("admin routes", () => {
           qualityNote: "",
           defaultVisualization: {},
           status: "active",
-          accessGroups: [{ id: 1, name: "系统管理员" }],
+          accessGroups: [
+            { id: 1, name: "超级管理员", isGuest: false, isSuperadmin: true },
+          ],
+          canManageAccess: true,
           maintainer: "系统管理员",
           createdAt: "2026-06-01T10:00:00+08:00",
           updatedAt: "2026-06-01T10:00:00+08:00",
@@ -454,7 +459,11 @@ describe("admin routes", () => {
         },
       ],
       total: 1,
-      availableAccessGroups: [{ id: 1, name: "系统管理员" }],
+      availableAccessGroups: [
+        { id: 1, name: "超级管理员", isGuest: false, isSuperadmin: true },
+        { id: 2, name: "科研用户", isGuest: false, isSuperadmin: false },
+        { id: 3, name: "游客", isGuest: true, isSuperadmin: false },
+      ],
     });
     mockApi.updateAdminDataResource.mockImplementation((resourceId, payload) =>
       Promise.resolve({
@@ -474,7 +483,10 @@ describe("admin routes", () => {
         qualityNote: "",
         defaultVisualization: payload.visualization ?? {},
         status: payload.status ?? "active",
-        accessGroups: [{ id: 1, name: "系统管理员" }],
+        accessGroups: [
+          { id: 1, name: "超级管理员", isGuest: false, isSuperadmin: true },
+        ],
+        canManageAccess: true,
         maintainer: "系统管理员",
         createdAt: "2026-06-01T10:00:00+08:00",
         updatedAt: "2026-06-01T10:00:00+08:00",
@@ -499,16 +511,36 @@ describe("admin routes", () => {
     expect(screen.queryByText("图层数")).not.toBeInTheDocument();
   });
 
-  it("renders data Dashboard in resource center", async () => {
+  it("renders data overview in data management", async () => {
     renderAdminRoute("/resources");
 
-    expect(await screen.findByRole("button", { name: /资源中心/ })).toHaveClass(
+    expect(await screen.findByRole("button", { name: /数据管理/ })).toHaveClass(
       "workspace-switch-card-active",
     );
     expect(await screen.findByText("图层数")).toBeInTheDocument();
     expect(screen.getAllByText("栅格数量").length).toBeGreaterThan(0);
     expect(screen.queryByText("用户信息")).not.toBeInTheDocument();
     expect(screen.queryByText("服务器信息")).not.toBeInTheDocument();
+  });
+
+  it("navigates directly from management header dropdowns", async () => {
+    renderAdminRoute("/admin");
+
+    const dataManagementButton = await screen.findByRole("button", {
+      name: /数据管理/,
+    });
+    fireEvent.mouseEnter(dataManagementButton);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "存量数据" }));
+
+    expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
+
+    const adminButton = await screen.findByRole("button", {
+      name: /后台管理/,
+    });
+    fireEvent.mouseEnter(adminButton);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "系统设置" }));
+
+    expect(await screen.findAllByText("基础配置")).not.toHaveLength(0);
   });
 
   it("submits the password change form from user settings", async () => {
@@ -631,7 +663,7 @@ describe("admin routes", () => {
     expect(
       await screen.findByText("选择 Excel 或 CSV 文件"),
     ).toBeInTheDocument();
-    expect(screen.getAllByText("资源中心").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("数据管理").length).toBeGreaterThan(0);
     const input = document.querySelector(
       "input[type='file']",
     ) as HTMLInputElement;
@@ -673,6 +705,7 @@ describe("admin routes", () => {
           longitudeColumn: "longitude",
           latitudeColumn: "latitude",
           tableName: "sample_points",
+          accessGroupIds: [],
         }),
       );
     });

@@ -170,6 +170,7 @@ export interface ImportCommitPayload {
   overwrite: boolean;
   includedColumns: string[];
   fieldMetadata: Record<string, string>;
+  accessGroupIds: number[];
 }
 
 export interface ImportValidatePayload {

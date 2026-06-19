@@ -24,6 +24,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260617-001 | BackendReady | POST /api/auth/guest-login/ | new endpoint, permission behavior | Done | N/A | Done | Done | Dedicated guest login account and group |
 | API-20260617-002 | BackendReady | POST /api/catalog/workspaces/; POST /api/catalog/workspaces/{workspaceId}/ | request body, status code | Done | N/A | Done | Done | Workspace snapshots store references, not raw data |
 | API-20260618-001 | ContractReady | GET /api/catalog/resources/{id}/nongeo-analytics/; POST /api/catalog/resources/{id}/table-query/ | new endpoint, response fields, permission behavior, mock data | Done | Done | Pending | Pending | Non-geographic table analytics workspace |
+| API-20260619-001 | Implementing | POST /api/catalog/import/commit/; GET /api/admin/data/resources/; POST /api/admin/data/resources/{id}/ | request body, response fields, permission behavior, mock data | Done | Updating | Implementing | Pending | Uploaded data visibility scope |
 
 ## Entry Template
 
@@ -79,6 +80,19 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Add `WorkspaceScene`; persist `DataResource.size_bytes` and `item_count`; treat `DataResource.maintainer` as uploader; enforce workspace ownership; reject duplicate import targets when `overwrite=false`; initialize default `普通用户` group with upload/load/query permissions.
 - Verification: run `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build`, plus backend workspace/import/dashboard/auth tests.
 - Result: Backend and frontend implementation in progress.
+
+## API-20260619-001 - Uploaded Data Visibility Scope
+
+- Status: Implementing
+- Owner: Frontend / Backend
+- Endpoints: `POST /api/catalog/import/commit/`, `GET /api/admin/data/resources/`, `POST /api/admin/data/resources/{id}/`
+- Change type: request body, response fields, permission behavior, mock data
+- OpenAPI change: Import commit payload may include `accessGroupIds`; admin data resources return access group metadata with `isGuest`/`isSuperadmin` and per-resource `canManageAccess`; admin resource update allows uploaders to execute `updateAccess` for their own resources while other maintenance actions still require `catalog.maintain_dataresource`.
+- Mock examples: `mock/prism/examples/20-admin-dashboard-data.json`
+- Frontend reason: Upload and inventory flows must let users choose data visibility: uploader always visible, superadmin always visible, optional user groups, with an explicit warning when the guest group is selected.
+- Backend implementation notes: Store visibility in `DataResource.access_groups`, force-add the `超级管理员` group, treat `DataResource.maintainer` as uploader ownership, and keep historical resources with no maintainer and no access groups public.
+- Verification: run `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build`, plus backend catalog/admin permission tests.
+- Result: Implementation in progress.
 
 ## API-20260617-002 - Workspace Snapshot Raw Data Guard
 

@@ -96,7 +96,7 @@
         {
           "id": "core.view_data_overview",
           "label": "查看总数据情况",
-          "group": "Dashboard 权限"
+          "group": "概览权限"
         },
         {
           "id": "core.upload_data",
@@ -198,7 +198,7 @@
         {
           "id": "core.view_data_overview",
           "label": "查看总数据情况",
-          "group": "Dashboard 权限"
+          "group": "概览权限"
         },
         {
           "id": "core.upload_data",
@@ -299,7 +299,7 @@
         {
           "id": "core.view_data_overview",
           "label": "查看总数据情况",
-          "group": "Dashboard 权限"
+          "group": "概览权限"
         },
         {
           "id": "core.upload_data",
@@ -1051,17 +1051,17 @@
         {
           "id": "core.view_dashboard_resource_card",
           "label": "资源总览卡片",
-          "group": "Dashboard 权限"
+          "group": "概览权限"
         },
         {
           "id": "core.view_dashboard_layer_card",
           "label": "图层总览卡片",
-          "group": "Dashboard 权限"
+          "group": "概览权限"
         },
         {
           "id": "core.view_dashboard_raster_card",
           "label": "栅格总览卡片",
-          "group": "Dashboard 权限"
+          "group": "概览权限"
         },
         {
           "id": "core.browse_data",
@@ -1106,7 +1106,7 @@
         {
           "id": "core.view_data_overview",
           "label": "查看总数据情况",
-          "group": "Dashboard 权限"
+          "group": "概览权限"
         },
         {
           "id": "core.upload_data",

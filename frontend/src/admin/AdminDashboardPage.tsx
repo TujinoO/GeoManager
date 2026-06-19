@@ -73,9 +73,7 @@ export default function AdminDashboardPage({
     try {
       setDashboard(await api.adminDashboard(period));
     } catch (error) {
-      message.error(
-        error instanceof Error ? error.message : "Dashboard 加载失败",
-      );
+      message.error(error instanceof Error ? error.message : "概览加载失败");
     } finally {
       setDashboardLoading(false);
     }
@@ -152,8 +150,8 @@ export default function AdminDashboardPage({
           <Empty
             description={
               scope === "data"
-                ? "当前账号暂无可查看的数据 Dashboard 卡片"
-                : "当前账号暂无可查看的 Dashboard 卡片"
+                ? "当前账号暂无可查看的数据概览卡片"
+                : "当前账号暂无可查看的概览卡片"
             }
           />
         </ProCard>
