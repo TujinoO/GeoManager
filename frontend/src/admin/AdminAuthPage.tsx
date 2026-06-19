@@ -17,7 +17,6 @@ import {
   App,
   Avatar,
   Button,
-  Checkbox,
   Drawer,
   Dropdown,
   Empty,
@@ -45,6 +44,7 @@ import type {
   Group,
   User,
 } from "../types";
+import { PermissionPanel } from "./PermissionPanel";
 import { UserSummaryCards } from "./UserSummaryCards";
 
 const operationResultText: Record<string, string> = {
@@ -168,18 +168,6 @@ export default function AdminAuthPage() {
       ...users.filter((item) => item.id !== user.id),
     ];
   }, [user, users]);
-  const availablePermissionGroups = useMemo(() => {
-    const permissionGroups = new Map<string, AdminPermissionItem[]>();
-    for (const permission of availablePermissions) {
-      const current = permissionGroups.get(permission.group) ?? [];
-      current.push(permission);
-      permissionGroups.set(permission.group, current);
-    }
-    return [...permissionGroups.entries()].map(([group, items]) => ({
-      group,
-      items,
-    }));
-  }, [availablePermissions]);
   const permissionLabelById = useMemo(
     () =>
       new Map(
@@ -985,7 +973,7 @@ export default function AdminAuthPage() {
       </Drawer>
 
       <Drawer
-        title="设置用户权限"
+        title={"设置用户权限"}
         open={Boolean(permissionUser)}
         onClose={() => setPermissionUser(null)}
         size="large"
@@ -1004,12 +992,14 @@ export default function AdminAuthPage() {
                   {permissionUser.displayName || permissionUser.username}
                 </Typography.Text>
               }
-              description="仅配置单独授予该用户的权限，用户组权限保持不变。"
+              description={
+                "开关控制单独授予权限；来自用户组的权限标记为「组继承」且不可关闭。"
+              }
             />
             <div className="admin-permission-effective">
               <Typography.Text strong>可查看日志用户组</Typography.Text>
               <Typography.Text type="secondary">
-                仅在该用户具备“查看指定用户组日志”权限时生效。
+                {"仅在该用户具备「查看指定用户组日志」权限时生效。"}
               </Typography.Text>
               <Select
                 mode="multiple"
@@ -1028,77 +1018,26 @@ export default function AdminAuthPage() {
                     [permissionUser.id]: values.map(Number),
                   }));
                 }}
-                placeholder="选择允许查看日志的用户组"
+                placeholder={"选择允许查看日志的用户组"}
                 style={{ width: "100%" }}
               />
             </div>
-            <Checkbox.Group
-              className="admin-permission-list"
-              value={
+            <PermissionPanel
+              mode="user"
+              availablePermissions={availablePermissions}
+              directPermissions={
                 userPermissionDrafts[permissionUser.id] ??
                 permissionUser.directPermissions ??
                 []
               }
+              groupPermissions={permissionUser.groupPermissions ?? []}
               onChange={(values) => {
                 setUserPermissionDrafts((current) => ({
                   ...current,
-                  [permissionUser.id]: values.map(String),
+                  [permissionUser.id]: values,
                 }));
               }}
-            >
-              {availablePermissionGroups.map((permissionGroupItem) => (
-                <div
-                  className="admin-permission-group"
-                  key={permissionGroupItem.group}
-                >
-                  <Typography.Text strong>
-                    {permissionGroupItem.group}
-                  </Typography.Text>
-                  <div className="admin-permission-group-options">
-                    {permissionGroupItem.items.map((permission) => (
-                      <Checkbox key={permission.id} value={permission.id}>
-                        <span className="admin-permission-option">
-                          <Typography.Text strong>
-                            {permission.label}
-                          </Typography.Text>
-                          <Typography.Text type="secondary">
-                            {permission.id}
-                          </Typography.Text>
-                        </span>
-                      </Checkbox>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </Checkbox.Group>
-            <div className="admin-permission-effective">
-              <Typography.Text strong>用户组继承权限</Typography.Text>
-              {(permissionUser.groupPermissions ?? []).length > 0 ? (
-                <PermissionTags
-                  permissionIds={permissionUser.groupPermissions ?? []}
-                  permissionLabelById={permissionLabelById}
-                  maxVisible={14}
-                />
-              ) : (
-                <Typography.Text type="secondary">
-                  暂无用户组继承权限
-                </Typography.Text>
-              )}
-            </div>
-            <div className="admin-permission-effective">
-              <Typography.Text strong>当前实际生效权限</Typography.Text>
-              {(permissionUser.effectivePermissions ?? []).length > 0 ? (
-                <PermissionTags
-                  permissionIds={permissionUser.effectivePermissions ?? []}
-                  permissionLabelById={permissionLabelById}
-                  maxVisible={14}
-                />
-              ) : (
-                <Typography.Text type="secondary">
-                  暂无实际生效功能权限
-                </Typography.Text>
-              )}
-            </div>
+            />
           </div>
         ) : null}
       </Drawer>
@@ -1149,59 +1088,17 @@ export default function AdminAuthPage() {
                 title="系统锁定用户组必须保留锁定权限，不允许修改"
               />
             )}
-            <Checkbox.Group
-              className="admin-permission-list"
-              value={
+            <PermissionPanel
+              mode="group"
+              availablePermissions={availablePermissions}
+              selected={
                 groupDrafts[permissionGroup.id] ?? permissionGroup.permissions
               }
+              lockedPermissions={permissionGroup.lockedPermissions}
               onChange={(values) =>
-                handleGroupPermissionChange(permissionGroup, values.map(String))
+                handleGroupPermissionChange(permissionGroup, values)
               }
-            >
-              {availablePermissionGroups.map((permissionGroupItem) => (
-                <div
-                  className="admin-permission-group"
-                  key={permissionGroupItem.group}
-                >
-                  <Typography.Text strong>
-                    {permissionGroupItem.group}
-                  </Typography.Text>
-                  <div className="admin-permission-group-options">
-                    {permissionGroupItem.items.map((permission) => {
-                      const locked = permissionGroup.lockedPermissions.includes(
-                        permission.id,
-                      );
-                      const checkbox = (
-                        <Checkbox
-                          key={permission.id}
-                          value={permission.id}
-                          disabled={locked}
-                        >
-                          <span className="admin-permission-option">
-                            <Typography.Text strong>
-                              {permission.label}
-                            </Typography.Text>
-                            <Typography.Text type="secondary">
-                              {permission.id}
-                            </Typography.Text>
-                          </span>
-                        </Checkbox>
-                      );
-                      return locked ? (
-                        <Tooltip
-                          key={permission.id}
-                          title="系统锁定用户组必须保留锁定权限，不允许修改"
-                        >
-                          {checkbox}
-                        </Tooltip>
-                      ) : (
-                        checkbox
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </Checkbox.Group>
+            />
           </div>
         ) : null}
         {availablePermissions.length === 0 ? (

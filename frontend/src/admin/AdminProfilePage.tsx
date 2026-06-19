@@ -1,6 +1,5 @@
 import {
   LockOutlined,
-  StopOutlined,
   UploadOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -10,17 +9,17 @@ import {
   App,
   Avatar,
   Button,
+  Drawer,
   Form,
   Input,
   Skeleton,
   Space,
-  Switch,
   Tag,
   Typography,
   Upload,
 } from "antd";
 import type { Key } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useAppContext } from "../contexts/AppContext";
 import type {
@@ -28,6 +27,7 @@ import type {
   AdminProfilePasswordUpdate,
   AdminProfileUpdate,
 } from "../types";
+import { PermissionPanel } from "./PermissionPanel";
 
 interface ProfileDescriptionItem {
   username: string;
@@ -37,8 +37,10 @@ interface ProfileDescriptionItem {
   email: string;
 }
 
-const profileDescriptionColumns: ProDescriptionsItemProps<ProfileDescriptionItem>[] =
-  [
+function createProfileDescriptionColumns(
+  onManagePermissions: () => void,
+): ProDescriptionsItemProps<ProfileDescriptionItem>[] {
+  return [
     {
       title: "用户名",
       dataIndex: "username",
@@ -67,6 +69,14 @@ const profileDescriptionColumns: ProDescriptionsItemProps<ProfileDescriptionItem
         ),
     },
     {
+      title: "我的权限",
+      key: "permissions",
+      editable: false,
+      render: () => (
+        <Typography.Link onClick={onManagePermissions}>管理权限</Typography.Link>
+      ),
+    },
+    {
       title: "部门",
       dataIndex: "department",
     },
@@ -79,6 +89,7 @@ const profileDescriptionColumns: ProDescriptionsItemProps<ProfileDescriptionItem
       },
     },
   ];
+}
 
 function getCookie(name: string): string | null {
   const match = document.cookie
@@ -95,6 +106,7 @@ export default function AdminProfilePage() {
   const [loading, setLoading] = useState(true);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarVersion, setAvatarVersion] = useState(0);
+  const [permDrawerOpen, setPermDrawerOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -118,16 +130,6 @@ export default function AdminProfilePage() {
       mounted = false;
     };
   }, [message]);
-
-  const permissionGroups = useMemo(() => {
-    const groups = new Map<string, AdminProfile["availablePermissions"]>();
-    for (const permission of profile?.availablePermissions ?? []) {
-      const current = groups.get(permission.group) ?? [];
-      current.push(permission);
-      groups.set(permission.group, current);
-    }
-    return [...groups.entries()].map(([group, items]) => ({ group, items }));
-  }, [profile]);
 
   async function handleProfileSave(values: AdminProfileUpdate) {
     const updated = await api.updateAdminProfile(values);
@@ -227,8 +229,8 @@ export default function AdminProfilePage() {
     );
   }
 
-  const grantedPermissions = new Set(profile?.grantedPermissions ?? []);
-  const disabledPermissions = new Set(profile?.disabledPermissions ?? []);
+  const grantedPermissions = profile?.grantedPermissions ?? [];
+  const disabledPermissions = profile?.disabledPermissions ?? [];
   const profileDescriptionData: ProfileDescriptionItem = {
     username: profile?.user.username ?? "",
     displayName: profile?.user.displayName ?? "",
@@ -236,6 +238,9 @@ export default function AdminProfilePage() {
     email: profile?.user.email ?? "",
     department: profile?.department ?? "",
   };
+  const profileDescriptionColumns = createProfileDescriptionColumns(() =>
+    setPermDrawerOpen(true),
+  );
 
   return (
     <div className="admin-page-stack">
@@ -281,51 +286,6 @@ export default function AdminProfilePage() {
             }}
             emptyText="未填写"
           />
-        </div>
-      </ProCard>
-
-      <ProCard title="我的权限" className="admin-section-card">
-        <div className="admin-permission-groups">
-          {permissionGroups.map(({ group, items }) => (
-            <section key={group} className="admin-permission-group">
-              <Typography.Title level={5}>{group}</Typography.Title>
-              <div className="admin-permission-switch-list">
-                {items.map((permission) => {
-                  const granted = grantedPermissions.has(permission.id);
-                  const enabled =
-                    granted && !disabledPermissions.has(permission.id);
-                  return (
-                    <div key={permission.id} className="admin-permission-row">
-                      <Space orientation="vertical" size={2}>
-                        <Typography.Text strong>
-                          {permission.label}
-                        </Typography.Text>
-                        <Typography.Text type="secondary">
-                          {permission.id}
-                        </Typography.Text>
-                      </Space>
-                      <Space>
-                        {granted ? (
-                          <Tag color={enabled ? "green" : "orange"}>
-                            {enabled ? "已开启" : "已关闭"}
-                          </Tag>
-                        ) : (
-                          <Tag icon={<StopOutlined />}>未授予</Tag>
-                        )}
-                        <Switch
-                          checked={enabled}
-                          disabled={!granted}
-                          onChange={(checked) =>
-                            handlePermissionChange(permission.id, checked)
-                          }
-                        />
-                      </Space>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
         </div>
       </ProCard>
 
@@ -391,6 +351,21 @@ export default function AdminProfilePage() {
           </Button>
         </Form>
       </ProCard>
+
+      <Drawer
+        title="我的权限"
+        open={permDrawerOpen}
+        onClose={() => setPermDrawerOpen(false)}
+        size="large"
+      >
+        <PermissionPanel
+          mode="profile"
+          availablePermissions={profile?.availablePermissions ?? []}
+          grantedPermissions={grantedPermissions}
+          disabledPermissions={disabledPermissions}
+          onChange={handlePermissionChange}
+        />
+      </Drawer>
     </div>
   );
 }

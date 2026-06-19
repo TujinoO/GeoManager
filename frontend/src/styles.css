@@ -1278,6 +1278,108 @@ body {
   border-radius: 6px;
 }
 
+/* PermissionPanel — shared card-based permission editor */
+.perm-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.perm-section {
+  border: 1px solid rgb(var(--c-primary-dark-rgb) / 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.perm-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgb(var(--c-primary-dark-rgb) / 0.04);
+  border-bottom: 1px solid rgb(var(--c-primary-dark-rgb) / 0.08);
+}
+
+.perm-section-title {
+  font-size: 13px;
+}
+
+.perm-section-count.ant-tag {
+  margin: 0;
+  font-size: 11px;
+  line-height: 18px;
+  border-radius: 9px;
+  padding-inline: 8px;
+}
+
+.perm-section-body {
+  display: grid;
+  gap: 0;
+}
+
+.perm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgb(var(--c-primary-dark-rgb) / 0.06);
+  transition: background 0.15s;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: rgb(var(--c-primary-dark-rgb) / 0.02);
+  }
+}
+
+.perm-row--active {
+  background: rgb(82 196 26 / 0.04);
+
+  &:hover {
+    background: rgb(82 196 26 / 0.07);
+  }
+}
+
+.perm-row--locked {
+  opacity: 0.7;
+}
+
+.perm-row--inherited {
+  background: rgb(22 119 255 / 0.04);
+
+  &:hover {
+    background: rgb(22 119 255 / 0.07);
+  }
+}
+
+.perm-row--unavailable {
+  opacity: 0.55;
+}
+
+.perm-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.perm-row-label {
+  font-size: 13px;
+}
+
+.perm-row-id {
+  font-size: 11px;
+}
+
+.perm-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .admin-table {
   min-width: 0;
   max-width: 100%;
