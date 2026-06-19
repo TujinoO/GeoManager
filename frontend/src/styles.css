@@ -4995,6 +4995,24 @@ body {
 
 .visibility-switch {
   flex-shrink: 0;
+  background: rgba(84, 104, 104, 0.48);
+
+  &.ant-switch:hover:not(.ant-switch-disabled) {
+    background: rgba(101, 122, 122, 0.56);
+  }
+
+  &.ant-switch-checked {
+    background: rgba(29, 112, 87, 0.72);
+  }
+
+  &.ant-switch-checked:hover:not(.ant-switch-disabled) {
+    background: rgba(38, 128, 101, 0.78);
+  }
+
+  &.ant-switch-disabled {
+    background: rgba(70, 84, 84, 0.34);
+    opacity: 0.72;
+  }
 
   & .ant-switch-inner .ant-switch-inner-checked,
   & .ant-switch-inner .ant-switch-inner-unchecked {
@@ -5006,6 +5024,7 @@ body {
 
   & .ant-switch-inner svg {
     display: block;
+    color: rgba(235, 251, 246, 0.78);
   }
 }
 
