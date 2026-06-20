@@ -42,6 +42,8 @@ const { MockApiError, mockApi } = vi.hoisted(() => {
       scanCatalogSources: vi.fn(),
       scanRasterSources: vi.fn(),
       rasterJob: vi.fn(),
+      adminOperationLogs: vi.fn(),
+      adminSystemLogs: vi.fn(),
       adminDashboard: vi.fn(),
       adminDashboardServer: vi.fn(),
     },
@@ -265,6 +267,17 @@ describe("application critical flows", () => {
       progressPercent: 100,
       messages: [],
     });
+    mockApi.adminOperationLogs.mockResolvedValue({
+      items: [],
+      total: 0,
+    });
+    mockApi.adminSystemLogs.mockResolvedValue({
+      files: [],
+      selectedFile: "",
+      lines: 500,
+      content: "",
+      generatedAt: "2026-06-20T09:45:10+08:00",
+    });
   });
 
   it("redirects unauthenticated users to login and enters the geographic workspace after login", async () => {
@@ -353,10 +366,105 @@ describe("application critical flows", () => {
       });
     });
     fireEvent.click(screen.getByRole("tab", { name: /图层/ }));
-    expect(
-      await screen.findByText("塔里木河胡杨样地监测点 查询组"),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      const layerItems = screen.getAllByRole("treeitem");
+      expect(
+        layerItems.some((item) =>
+          item.textContent?.includes("塔里木河胡杨样地监测点"),
+        ),
+      ).toBe(true);
+    });
   });
+
+  it("runs a long research user journey without privileged data exposure", async () => {
+    const researchUser: User = {
+      ...normalUser,
+      id: 31,
+      username: "secure_researcher",
+      displayName: "安全科研用户",
+      roles: ["科研用户"],
+      permissions: {
+        ...basePermissions,
+        canViewOwnOperationLogs: true,
+        canViewOperationLogs: false,
+        canViewSystemLogs: false,
+        canManageSystemSettings: false,
+        canManageAuth: false,
+      },
+    };
+    mockApi.me.mockResolvedValue({ authenticated: true, user: researchUser });
+    mockApi.resources.mockResolvedValue({ items: [tarimVectorResource] });
+    mockApi.adminOperationLogs.mockResolvedValue({
+      items: [
+        {
+          id: 42,
+          occurredAt: "2026-06-20 10:30:00",
+          operator: "安全科研用户",
+          module: "数据查询",
+          action: "查询数据资源",
+          result: "success",
+          targetType: "data_resource",
+          targetId: tarimVectorResource.id,
+          targetCode: tarimVectorResource.code,
+          targetName: tarimVectorResource.name,
+          ipAddress: "203.0.113.31",
+          summary: "本人查询塔里木河样地数据",
+        },
+      ],
+      total: 1,
+    });
+
+    renderApp("/map");
+
+    expect(
+      await screen.findByText("塔里木河胡杨样地监测点", {}, { timeout: 10000 }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("超级管理员")).not.toBeInTheDocument();
+    expect(screen.queryByText("superadmin")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /选\s*择/ }));
+    expect(await screen.findByText("sample_id")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "查询并加载" }));
+
+    await waitFor(() => {
+      expect(mockApi.queryResource).toHaveBeenCalledWith(tarimVectorResource, {
+        attributeFilters: [],
+        spatialFilter: null,
+        limit: 30000,
+      });
+    });
+    fireEvent.click(screen.getByRole("tab", { name: /图层/ }));
+    await waitFor(() => {
+      const rangeSwitches = screen
+        .getAllByRole("switch")
+        .filter((item) => item.getAttribute("aria-label")?.includes("范围"));
+      expect(rangeSwitches.length).toBeGreaterThan(0);
+    });
+
+    const adminButton = screen.getByRole("button", { name: /后台管理/ });
+    fireEvent.mouseEnter(adminButton);
+    const logMenuItem = await screen.findByRole("menuitem", {
+      name: "日志管理",
+    });
+    expect(logMenuItem).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "用户管理" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "角色权限" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "系统设置" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(logMenuItem);
+
+    expect(
+      await screen.findByText("本人查询塔里木河样地数据"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("系统日志")).not.toBeInTheDocument();
+    expect(screen.queryByText("超级管理员")).not.toBeInTheDocument();
+    expect(screen.queryByText("superadmin")).not.toBeInTheDocument();
+    expect(mockApi.adminSystemLogs).not.toHaveBeenCalled();
+  }, 30000);
 
   it("keeps guest login from showing a spinner during account login", async () => {
     let resolveLogin: ((value: { user: User }) => void) | undefined;
