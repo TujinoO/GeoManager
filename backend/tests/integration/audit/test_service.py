@@ -88,6 +88,20 @@ class LogOperationTests(TestCase):
         log = OperationLog.objects.first()
         self.assertEqual(log.ip_address, "10.0.0.1")
 
+    def test_extracts_public_ip_from_proxy_headers(self):
+        user = get_user_model().objects.create_user(
+            username="real-ip-test", password="pass12345"
+        )
+        factory = RequestFactory()
+        request = factory.get("/api/test/")
+        request.META["REMOTE_ADDR"] = "172.19.0.3"
+        request.META["HTTP_X_REAL_IP"] = "8.8.8.8"
+
+        log_operation(user, "数据查询", "查询数据", "success", request=request)
+
+        log = OperationLog.objects.first()
+        self.assertEqual(log.ip_address, "8.8.8.8")
+
     def test_handles_none_request(self):
         user = get_user_model().objects.create_user(
             username="no-request-test", password="pass12345"
@@ -111,6 +125,46 @@ class ClientIpTests(TestCase):
     def test_returns_first_x_forwarded_for(self):
         request = MagicMock()
         request.META = {"HTTP_X_FORWARDED_FOR": "10.0.0.1, 10.0.0.2, 10.0.0.3"}
+        self.assertEqual(_client_ip(request), "10.0.0.1")
+
+    def test_prefers_public_ip_from_forwarded_chain(self):
+        request = MagicMock()
+        request.META = {
+            "REMOTE_ADDR": "172.19.0.3",
+            "HTTP_X_FORWARDED_FOR": "172.19.0.3, 8.8.8.8, 10.0.0.2",
+        }
+        self.assertEqual(_client_ip(request), "8.8.8.8")
+
+    def test_returns_x_real_ip(self):
+        request = MagicMock()
+        request.META = {
+            "REMOTE_ADDR": "172.19.0.3",
+            "HTTP_X_REAL_IP": "8.8.4.4",
+        }
+        self.assertEqual(_client_ip(request), "8.8.4.4")
+
+    def test_returns_cf_connecting_ip(self):
+        request = MagicMock()
+        request.META = {
+            "REMOTE_ADDR": "172.19.0.3",
+            "HTTP_CF_CONNECTING_IP": "1.1.1.1",
+        }
+        self.assertEqual(_client_ip(request), "1.1.1.1")
+
+    def test_returns_forwarded_for_ip(self):
+        request = MagicMock()
+        request.META = {
+            "REMOTE_ADDR": "172.19.0.3",
+            "HTTP_FORWARDED": 'for="[2001:4860:4860::8888]";proto=https',
+        }
+        self.assertEqual(_client_ip(request), "2001:4860:4860::8888")
+
+    def test_falls_back_to_first_private_ip_when_no_public_ip(self):
+        request = MagicMock()
+        request.META = {
+            "REMOTE_ADDR": "172.19.0.3",
+            "HTTP_X_FORWARDED_FOR": "10.0.0.1, 172.19.0.3",
+        }
         self.assertEqual(_client_ip(request), "10.0.0.1")
 
     def test_returns_none_when_no_ip_info(self):

@@ -192,6 +192,7 @@ frontend/src/
 - 用户导入数据的可见范围由 `DataResource.access_groups` 和 `DataResource.maintainer` 共同控制：上传者本人强制可见，`超级管理员` 用户组强制写入访问组，用户选择的 `accessGroupIds` 表示额外可见用户组。选择 `游客` 用户组表示无需账号即可通过游客会话访问，前端上传和存量数据管理都必须提示。历史无上传者且无访问组的数据继续作为平台公共登记资源处理。
 - 存量数据可见范围可由上传者本人或具备 `catalog.maintain_dataresource` 的用户修改；上传者只能执行 `updateAccess`，启停、默认可视化、删除仍需要维护数据资源权限。`GET /api/admin/data/resources/` 对上传用户开放时只返回其本人上传的数据。
 - 操作日志中的模块、动作和说明统一使用中文。除认证、用户组、用户、系统配置和存量数据管理外，目录扫描、导入预览/校验/提交、数据查询、已加载图层导出、异步导出发起/下载、个人资料更新、个人权限开关更新、栅格渲染样式注册、栅格渲染任务发起、栅格唯一值统计、栅格导入和栅格扫描发起也写入 `OperationLog`。异步任务内部的执行进度仍保留在任务消息或 `RasterDataset.progress_log`，操作日志记录用户可归属的发起和下载动作。
+- 操作日志 IP 记录优先识别反向代理传入的 `CF-Connecting-IP`、`True-Client-IP`、`X-Real-IP`、`X-Forwarded-For` 和 `Forwarded` 头，并在候选链路中优先选择公网 IP；没有有效公网 IP 时才回退到首个可识别地址或 `REMOTE_ADDR`。公网部署必须由前置代理传递真实客户端 IP，否则容器内只能看到 Docker 网桥地址。
 
 ## 当前图层树约定
 
