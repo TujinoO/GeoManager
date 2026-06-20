@@ -20,7 +20,7 @@ from shapely.geometry import Point
 from apps.catalog.models import DataResource
 from apps.catalog.services import stable_catalog_code
 from apps.core.initialization import ensure_superadmin_defaults
-from apps.core.principal_visibility import visible_groups_for
+from apps.core.principal_visibility import selectable_access_groups_for
 from apps.core.storage import table_data_path, vector_geopackage_path
 
 
@@ -707,7 +707,7 @@ def set_resource_access_groups(
         raise ImportDataError("包含不存在或不可选择的角色")
     if viewer is not None:
         visible_requested_ids = set(
-            visible_groups_for(
+            selectable_access_groups_for(
                 Group.objects.filter(id__in=group_ids).only("id", "name"), viewer
             ).values_list("id", flat=True)
         )

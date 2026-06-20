@@ -39,6 +39,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260620-010 | BackendReady | Auth/admin principal endpoints and operation logs | response fields, permission behavior | Done | N/A | Done | Done | Hide superadmin principals from non-superadmin users and always allow own operation logs |
 | API-20260621-001 | Verified | Auth/admin dashboard mock endpoints | mock data | N/A | Done | N/A | Done | Align Prism examples with existing OpenAPI-required fields |
 | API-20260621-002 | Verified | GET /api/users/; GET /api/groups/; GET /api/admin/data/resources/ | mock data | N/A | Done | N/A | Done | Exercise non-superadmin admin responses without superadmin principals |
+| API-20260621-003 | BackendReady | GET /api/admin/data/resources/; POST /api/admin/data/resources/{id}/; POST /api/catalog/import/commit/ | permission behavior | Done | N/A | Done | Done | Hide superadmin from configurable access-role choices for every user |
 
 ## Entry Template
 
@@ -121,6 +122,19 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: No backend implementation required; real backend filtering is implemented by principal visibility helpers.
 - Verification: run `cd frontend && pnpm run mock:build && pnpm run api:changes:check`.
 - Result: Mock fixtures demonstrate non-superadmin responses with superadmin principals omitted before frontend rendering.
+
+## API-20260621-003 - Configurable Access Role Options Exclude Superadmin
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `GET /api/admin/data/resources/`, `POST /api/admin/data/resources/{id}/`, `POST /api/catalog/import/commit/`
+- Change type: permission behavior
+- OpenAPI change: `availableAccessGroups` and `accessGroupIds` descriptions now state that the superadmin role is never a manually selectable access role. The backend still force-adds the superadmin role internally.
+- Mock examples: N/A
+- Frontend reason: The data import page already shows “我自己可见”; showing “超级管理员” to a superadmin user duplicates their own visibility and makes the forced internal rule look user-configurable.
+- Backend implementation notes: Use a dedicated selectable-access-role helper for access-scope option lists and request validation. Do not change auth role management visibility.
+- Verification: run focused catalog import/admin data resource tests plus frontend API generation/checks.
+- Result: Backend behavior and generated frontend API descriptions included in this change.
 
 ## API-20260615-001 - Initial Mock Separation Contract
 

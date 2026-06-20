@@ -474,7 +474,7 @@ export const updateAdminSettings = <ThrowOnError extends boolean = false>(option
 /**
  * 获取存量数据管理列表
  *
- * 返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组和默认可视化方案查看。具备 `catalog.view_dataresource`、`catalog.change_dataresource`、`catalog.delete_dataresource` 或 `catalog.export_dataresource` 时，仅返回当前用户可见或本人上传且符合筛选条件的资源；超级管理员可查看全部资源；仅具备 `catalog.add_dataresource` 时只返回当前用户上传的数据资源，用于管理自己的数据可见范围。非超级管理员主体的响应不会返回超级管理员访问角色。
+ * 返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组和默认可视化方案查看。具备 `catalog.view_dataresource`、`catalog.change_dataresource`、`catalog.delete_dataresource` 或 `catalog.export_dataresource` 时，仅返回当前用户可见或本人上传且符合筛选条件的资源；超级管理员可查看全部资源；仅具备 `catalog.add_dataresource` 时只返回当前用户上传的数据资源，用于管理自己的数据可见范围。可手动配置的数据访问角色列表不会返回超级管理员角色，后端仍会强制保留超级管理员访问范围。
  */
 export const listAdminDataResources = <ThrowOnError extends boolean = false>(options?: Options<ListAdminDataResourcesData, ThrowOnError>): RequestResult<ListAdminDataResourcesResponses, ListAdminDataResourcesErrors, ThrowOnError> => (options?.client ?? client).get<ListAdminDataResourcesResponses, ListAdminDataResourcesErrors, ThrowOnError>({
     security: [{
@@ -504,7 +504,7 @@ export const exportAdminDataResources = <ThrowOnError extends boolean = false>(o
 /**
  * 操作单个存量数据
  *
- * 支持更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。目标数据必须对当前用户可见或由当前用户上传；不可见数据按不存在处理；超级管理员不受对象可见范围限制。启停、默认可视化和普通编辑需要 `catalog.change_dataresource`；删除需要 `catalog.delete_dataresource`；数据上传者本人或具备 `catalog.change_dataresource` 的用户可以通过 `updateAccess` 修改可见范围。非超级管理员主体的响应不会返回超级管理员访问角色。成功操作会写入审计日志。
+ * 支持更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。目标数据必须对当前用户可见或由当前用户上传；不可见数据按不存在处理；超级管理员不受对象可见范围限制。启停、默认可视化和普通编辑需要 `catalog.change_dataresource`；删除需要 `catalog.delete_dataresource`；数据上传者本人或具备 `catalog.change_dataresource` 的用户可以通过 `updateAccess` 修改可见范围。可手动配置的数据访问角色列表不会返回超级管理员角色，后端仍会强制保留超级管理员访问范围。成功操作会写入审计日志。
  */
 export const updateAdminDataResource = <ThrowOnError extends boolean = false>(options: Options<UpdateAdminDataResourceData, ThrowOnError>): RequestResult<UpdateAdminDataResourceResponses, UpdateAdminDataResourceErrors, ThrowOnError> => (options.client ?? client).post<UpdateAdminDataResourceResponses, UpdateAdminDataResourceErrors, ThrowOnError>({
     security: [{

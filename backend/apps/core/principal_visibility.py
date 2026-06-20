@@ -24,6 +24,10 @@ def visible_groups_for(queryset: QuerySet[Group], viewer) -> QuerySet[Group]:
     return queryset.exclude(name=SUPERADMIN_GROUP_NAME)
 
 
+def selectable_access_groups_for(queryset: QuerySet[Group], viewer) -> QuerySet[Group]:
+    return queryset.exclude(name=SUPERADMIN_GROUP_NAME)
+
+
 def visible_users_for(queryset: QuerySet, viewer) -> QuerySet:
     if can_view_superadmin_principals(viewer):
         return queryset

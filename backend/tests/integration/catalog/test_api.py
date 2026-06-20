@@ -1304,6 +1304,36 @@ class DataImportApiTests(TestCase):
             DataResource.objects.filter(storage_path="hidden_group_table").exists()
         )
 
+    def test_import_commit_rejects_superadmin_access_group_from_superadmin_user(self):
+        superadmin_user, superadmin_group = ensure_superadmin_defaults()
+        grant(superadmin_user, ("catalog", "add_dataresource"))
+        self.client.force_login(superadmin_user)
+
+        response = self.client.post(
+            "/api/catalog/import/commit/",
+            data={
+                "file": self._csv_file("survey.csv", "name,value\nA,42\n"),
+                "payload": json.dumps(
+                    {
+                        "name": "超级管理员手动角色表",
+                        "tableName": "superadmin_selected_group_table",
+                        "importMode": "table",
+                        "duplicateConfirmed": False,
+                        "accessGroupIds": [superadmin_group.id],
+                        "fieldMetadata": {},
+                    }
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "包含不存在或不可选择的角色")
+        self.assertFalse(
+            DataResource.objects.filter(
+                storage_path="superadmin_selected_group_table"
+            ).exists()
+        )
+
     def test_import_plain_table_writes_sqlite_data_and_metadata(self):
         self.assertFalse(self.table_path.exists())
         uploaded_file = self._csv_file("survey.csv", "name,value\nA,42\n")
@@ -1763,6 +1793,47 @@ class AdminDataResourceApiTests(TestCase):
         self.assertNotIn(
             SUPERADMIN_GROUP_NAME,
             {group["name"] for group in payload["availableAccessGroups"]},
+        )
+
+    def test_import_access_group_options_hide_superadmin_from_django_superuser(self):
+        _, superadmin_group = ensure_superadmin_defaults(create_account=False)
+        django_superuser = get_user_model().objects.create_superuser(
+            username="import-options-django-superuser",
+            password="pass12345",
+        )
+        visible_group = Group.objects.create(name="导入可选角色")
+        self.client.force_login(django_superuser)
+
+        response = self.client.get("/api/admin/data/resources/?current=1&pageSize=1")
+
+        self.assertEqual(response.status_code, 200)
+        option_names = {
+            item["name"] for item in response.json()["availableAccessGroups"]
+        }
+        self.assertIn(visible_group.name, option_names)
+        self.assertNotIn(SUPERADMIN_GROUP_NAME, option_names)
+        self.assertNotIn(
+            superadmin_group.id,
+            {item["id"] for item in response.json()["availableAccessGroups"]},
+        )
+
+    def test_import_access_group_options_hide_superadmin_from_superadmin_user(self):
+        superadmin_user, superadmin_group = ensure_superadmin_defaults()
+        grant(superadmin_user, ("catalog", "view_dataresource"))
+        visible_group = Group.objects.create(name="超级管理员导入可选角色")
+        self.client.force_login(superadmin_user)
+
+        response = self.client.get("/api/admin/data/resources/?current=1&pageSize=1")
+
+        self.assertEqual(response.status_code, 200)
+        option_names = {
+            item["name"] for item in response.json()["availableAccessGroups"]
+        }
+        self.assertIn(visible_group.name, option_names)
+        self.assertNotIn(SUPERADMIN_GROUP_NAME, option_names)
+        self.assertNotIn(
+            superadmin_group.id,
+            {item["id"] for item in response.json()["availableAccessGroups"]},
         )
 
     def test_admin_data_export_hides_inaccessible_resources(self):

@@ -68,6 +68,7 @@ from apps.core.permissions import (
 )
 from apps.core.principal_visibility import (
     group_is_visible_to,
+    selectable_access_groups_for,
     user_is_visible_to,
     visible_group_ids_for,
     visible_groups_for,
@@ -804,7 +805,7 @@ def admin_data_resources(request):
             "total": total,
             "availableAccessGroups": [
                 _serialize_access_group(group)
-                for group in visible_groups_for(
+                for group in selectable_access_groups_for(
                     Group.objects.order_by("name"), request.user
                 )
             ],

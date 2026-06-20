@@ -1554,7 +1554,7 @@ export type AdminDataResourceListResponse = {
      */
     total: number;
     /**
-     * 可用于配置数据访问范围且对当前主体可见的用户组列表；非超级管理员主体不会收到超级管理员用户组，后端仍会强制保留超级管理员访问范围
+     * 可用于配置数据访问范围的额外用户组列表；该列表不会返回超级管理员用户组，后端仍会强制保留超级管理员访问范围
      */
     availableAccessGroups: Array<AdminDataResourceAccessGroup>;
 };
@@ -1597,7 +1597,7 @@ export type AdminDataResourceUpdateRequest = {
     status?: 'active' | 'inactive';
     visualization?: AdminDataResourceVisualization;
     /**
-     * updateAccess 或 update 时写入的额外可见用户组 ID 列表；非超级管理员主体不能选择超级管理员用户组，后端会强制补齐超级管理员用户组，上传者本人不依赖用户组也始终可见。包含游客用户组时表示未登录用户可通过游客会话访问该数据。
+     * updateAccess 或 update 时写入的额外可见用户组 ID 列表；调用方不能选择超级管理员用户组，后端会强制补齐超级管理员用户组，上传者本人不依赖用户组也始终可见。包含游客用户组时表示未登录用户可通过游客会话访问该数据。
      */
     accessGroupIds?: Array<number>;
     /**
