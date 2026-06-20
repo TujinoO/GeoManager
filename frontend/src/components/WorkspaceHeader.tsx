@@ -504,6 +504,23 @@ export default function WorkspaceHeader({
         label: "存量数据",
         onClick: () => navigateFromHeader("/resources/data/inventory"),
       });
+      items.push({
+        key: "resources-projects",
+        label: "工程管理",
+        onClick: () => navigateFromHeader("/resources/manage/projects"),
+      });
+      items.push({
+        key: "resources-topics",
+        label: "专题管理",
+        onClick: () => navigateFromHeader("/resources/manage/topics"),
+      });
+    }
+    if (user?.permissions.canMaintainData) {
+      items.push({
+        key: "resources-achievements",
+        label: "成果管理",
+        onClick: () => navigateFromHeader("/resources/manage/achievements"),
+      });
     }
     if (user?.permissions.canUploadData || user?.permissions.canMaintainData) {
       items.push({

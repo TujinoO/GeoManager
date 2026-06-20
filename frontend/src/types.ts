@@ -1,6 +1,8 @@
 import type {
   AdminDashboardResponse,
   AdminDashboardServerResponse,
+  AdminAchievementListResponse,
+  AdminAchievementUpdateRequest,
   AdminDataResourceListResponse,
   AdminDataResourceUpdateRequest,
   AdminProfilePasswordRequest,
@@ -29,9 +31,11 @@ import type {
   ImportPreviewResponse,
   ImportValidateResponse,
   LayerListResponse,
+  ListAdminAchievementsData,
   ListAdminDataResourcesData,
   ListAdminOperationLogsData,
   ListAdminSystemLogsData,
+  ListAdminWorkspacesData,
   NonGeoAnalyticsResponse,
   NonGeoTableQueryRequest,
   NonGeoTableQueryResponse,
@@ -47,15 +51,23 @@ import type {
   UserInfo,
   ValidationIssue,
   ValidationWarning,
+  AdminWorkspaceSceneListResponse,
+  AdminWorkspaceSceneUpdateRequest,
   WorkspaceScene,
 } from "./api/generated";
 
 export type {
   Achievement,
+  AdminAchievement,
+  AdminAchievementListResponse,
+  AdminAchievementUpdateRequest,
   AdminDataResource,
   AdminOperationLog,
   AdminPermissionItem,
   AdminSystemLogFile,
+  AdminWorkspaceScene,
+  AdminWorkspaceSceneListResponse,
+  AdminWorkspaceSceneUpdateRequest,
   DataResource,
   GeoJsonGeometry,
   Group,
@@ -106,6 +118,16 @@ export type AdminDataResourceFilters = NonNullable<
 >;
 export type AdminDataResourceExportFilters = NonNullable<
   ExportAdminDataResourcesData["query"]
+>;
+export type AdminWorkspaceList = AdminWorkspaceSceneListResponse;
+export type AdminWorkspaceUpdate = AdminWorkspaceSceneUpdateRequest;
+export type AdminWorkspaceFilters = NonNullable<
+  ListAdminWorkspacesData["query"]
+>;
+export type AdminAchievementList = AdminAchievementListResponse;
+export type AdminAchievementUpdate = AdminAchievementUpdateRequest;
+export type AdminAchievementFilters = NonNullable<
+  ListAdminAchievementsData["query"]
 >;
 export type ResourceField = FieldInfo;
 export type ImportCoordinateStats = CoordinateStats;

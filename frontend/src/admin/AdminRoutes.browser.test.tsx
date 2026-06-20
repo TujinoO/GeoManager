@@ -10,11 +10,16 @@ import zhCN from "antd/locale/zh_CN";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppContext } from "../contexts/AppContext";
-import { RequireDataInventory, RequireDataUpload } from "../router";
+import {
+  RequireDataInventory,
+  RequireDataMaintain,
+  RequireDataUpload,
+} from "../router";
 import { appTheme } from "../theme";
 import type { Bootstrap, User } from "../types";
 
 import AdminAuthPage from "./AdminAuthPage";
+import AdminAchievementManagementPage from "./AdminAchievementManagementPage";
 import AdminDashboardPage from "./AdminDashboardPage";
 import AdminDataImportPage from "./AdminDataImportPage";
 import AdminDataInventoryPage from "./AdminDataInventoryPage";
@@ -22,6 +27,7 @@ import AdminLayout from "./AdminLayout";
 import AdminOperationLogsPage from "./AdminOperationLogsPage";
 import AdminProfilePage from "./AdminProfilePage";
 import AdminSystemSettingsPage from "./AdminSystemSettingsPage";
+import AdminWorkspaceManagementPage from "./AdminWorkspaceManagementPage";
 import ResourceLayout from "../resource/ResourceLayout";
 
 const mockApi = vi.hoisted(() => ({
@@ -50,6 +56,10 @@ const mockApi = vi.hoisted(() => ({
   adminDataResources: vi.fn(),
   updateAdminDataResource: vi.fn(),
   exportAdminDataResources: vi.fn(),
+  adminWorkspaces: vi.fn(),
+  updateAdminWorkspace: vi.fn(),
+  adminAchievements: vi.fn(),
+  updateAdminAchievement: vi.fn(),
   adminDashboard: vi.fn(),
   adminDashboardServer: vi.fn(),
 }));
@@ -231,6 +241,20 @@ function renderAdminRoute(initialEntry: string) {
               <Route
                 path="data/inventory"
                 element={<AdminDataInventoryPage />}
+              />
+              <Route
+                path="manage/projects"
+                element={<AdminWorkspaceManagementPage kind="project" />}
+              />
+              <Route
+                path="manage/topics"
+                element={<AdminWorkspaceManagementPage kind="topic" />}
+              />
+            </Route>
+            <Route element={<RequireDataMaintain />}>
+              <Route
+                path="manage/achievements"
+                element={<AdminAchievementManagementPage />}
               />
             </Route>
             <Route element={<RequireDataUpload />}>
@@ -505,6 +529,121 @@ describe("admin routes", () => {
       blob: new Blob(["数据名称\n胡杨林样地点"], { type: "text/csv" }),
       filename: "data-inventory.csv",
     });
+    mockApi.adminWorkspaces.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          kind: "project",
+          name: "塔里木河样地工程",
+          description: "样地点和遥感底图组合",
+          snapshot: { version: 1, groups: [] },
+          owner: {
+            id: 1,
+            username: "admin",
+            displayName: "系统管理员",
+          },
+          createdAt: "2026-06-01T10:00:00+08:00",
+          updatedAt: "2026-06-01T10:00:00+08:00",
+          status: "active",
+          accessGroups: [
+            { id: 1, name: "超级管理员", isGuest: false, isSuperadmin: true },
+          ],
+          canManageAccess: true,
+        },
+      ],
+      total: 1,
+      availableAccessGroups: [
+        { id: 1, name: "超级管理员", isGuest: false, isSuperadmin: true },
+        { id: 2, name: "科研用户", isGuest: false, isSuperadmin: false },
+      ],
+    });
+    mockApi.updateAdminWorkspace.mockImplementation((workspaceId, payload) =>
+      Promise.resolve({
+        id: workspaceId,
+        kind: payload.kind ?? "project",
+        name: payload.name ?? "塔里木河样地工程",
+        description: payload.description ?? "样地点和遥感底图组合",
+        snapshot: { version: 1, groups: [] },
+        owner: {
+          id: 1,
+          username: "admin",
+          displayName: "系统管理员",
+        },
+        createdAt: "2026-06-01T10:00:00+08:00",
+        updatedAt: "2026-06-01T10:00:00+08:00",
+        status: payload.status ?? "active",
+        accessGroups: [
+          { id: 1, name: "超级管理员", isGuest: false, isSuperadmin: true },
+        ],
+        canManageAccess: true,
+      }),
+    );
+    mockApi.adminAchievements.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          title: "胡杨林冠层覆盖度年度评估图集",
+          code: "achievement-canopy-2026",
+          category: {
+            id: 31,
+            type: "achievement_category",
+            code: "atlas",
+            name: "图件成果",
+          },
+          summary: "冠层覆盖度变化评估成果",
+          source: "项目组",
+          relatedLayerId: 12,
+          displayOrder: 10,
+          status: "published",
+          updatedAt: "2026-06-01T10:00:00+08:00",
+          accessGroups: [
+            { id: 1, name: "超级管理员", isGuest: false, isSuperadmin: true },
+          ],
+          canManageAccess: true,
+          owner: {
+            id: 1,
+            username: "admin",
+            displayName: "系统管理员",
+          },
+          createdAt: "2026-06-01T10:00:00+08:00",
+        },
+      ],
+      total: 1,
+      availableAccessGroups: [
+        { id: 1, name: "超级管理员", isGuest: false, isSuperadmin: true },
+        { id: 2, name: "科研用户", isGuest: false, isSuperadmin: false },
+      ],
+    });
+    mockApi.updateAdminAchievement.mockImplementation(
+      (achievementId, payload) =>
+        Promise.resolve({
+          id: achievementId,
+          title: payload.title ?? "胡杨林冠层覆盖度年度评估图集",
+          code: "achievement-canopy-2026",
+          category: {
+            id: 31,
+            type: "achievement_category",
+            code: "atlas",
+            name: "图件成果",
+          },
+          summary: payload.summary ?? "冠层覆盖度变化评估成果",
+          source: payload.source ?? "项目组",
+          relatedLayerId: payload.relatedLayerId ?? 12,
+          displayOrder: payload.displayOrder ?? 10,
+          status: payload.status ?? "published",
+          updatedAt: "2026-06-01T10:00:00+08:00",
+          accessGroups: [
+            { id: 1, name: "超级管理员", isGuest: false, isSuperadmin: true },
+          ],
+          canManageAccess: true,
+          owner: {
+            id: 1,
+            username: "admin",
+            displayName: "系统管理员",
+          },
+          createdAt: "2026-06-01T10:00:00+08:00",
+        }),
+    );
   });
 
   it("redirects /admin to operational dashboard", async () => {
@@ -734,8 +873,22 @@ describe("admin routes", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "胡杨林样地点" }));
 
-    expect(await screen.findByText("数据访问权限")).toBeInTheDocument();
+    expect(await screen.findByText("访问权限")).toBeInTheDocument();
     expect(screen.getByText("上传者本人可见")).toBeInTheDocument();
     expect(screen.getByText("超级管理员可见")).toBeInTheDocument();
+  });
+
+  it("loads the project and achievement management pages", async () => {
+    renderAdminRoute("/resources/manage/projects");
+
+    expect(await screen.findByText("塔里木河样地工程")).toBeInTheDocument();
+    expect(screen.getByText("当前工程")).toBeInTheDocument();
+
+    renderAdminRoute("/resources/manage/achievements");
+
+    expect(
+      await screen.findByText("胡杨林冠层覆盖度年度评估图集"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("当前成果")).toBeInTheDocument();
   });
 });

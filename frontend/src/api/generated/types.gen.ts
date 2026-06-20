@@ -1505,6 +1505,67 @@ export type AdminDataResourceUpdateRequest = {
     confirmationName?: string;
 };
 
+export type AdminWorkspaceScene = WorkspaceScene & {
+    /**
+     * 工程专题状态；禁用后不在普通工作台检索和加载入口展示
+     */
+    status: 'active' | 'inactive';
+    /**
+     * 允许访问该工程专题的用户组；所属用户本人和超级管理员始终可见
+     */
+    accessGroups: Array<AdminDataResourceAccessGroup>;
+    /**
+     * 当前用户是否可修改该工程专题的可见范围；拥有者本人或具备 `catalog.maintain_dataresource` 时为 true
+     */
+    canManageAccess: boolean;
+};
+
+export type AdminWorkspaceSceneListResponse = {
+    /**
+     * 工程专题管理列表
+     */
+    items: Array<AdminWorkspaceScene>;
+    /**
+     * 符合筛选条件的工程专题总数
+     */
+    total: number;
+    /**
+     * 可用于配置工程专题访问范围的用户组列表
+     */
+    availableAccessGroups: Array<AdminDataResourceAccessGroup>;
+};
+
+export type AdminWorkspaceSceneUpdateRequest = {
+    /**
+     * 操作类型
+     */
+    action: 'update' | 'setStatus' | 'updateAccess' | 'delete';
+    /**
+     * setStatus 或 update 时写入的工程专题状态
+     */
+    status?: 'active' | 'inactive';
+    /**
+     * update 时写入的工程专题类型
+     */
+    kind?: 'project' | 'topic';
+    /**
+     * update 时写入的工程专题名称
+     */
+    name?: string;
+    /**
+     * update 时写入的工程专题说明
+     */
+    description?: string;
+    /**
+     * updateAccess 或 update 时写入的额外可见用户组 ID 列表；后端会强制补齐超级管理员用户组，所属用户本人始终可见。包含游客用户组时表示未登录用户可通过游客会话访问该工程专题。
+     */
+    accessGroupIds?: Array<number>;
+    /**
+     * delete 操作要求传入与工程专题名称完全一致的确认文本
+     */
+    confirmationName?: string;
+};
+
 export type WorkspaceSceneOwner = {
     /**
      * 所属用户 ID
@@ -1778,6 +1839,76 @@ export type Achievement = {
      * 最后更新时间
      */
     updatedAt: string;
+};
+
+export type AdminAchievement = Achievement & {
+    /**
+     * 允许访问该成果的用户组；成果维护人员和超级管理员始终可见
+     */
+    accessGroups: Array<AdminDataResourceAccessGroup>;
+    /**
+     * 当前用户是否可修改该成果的可见范围；当前版本由 `catalog.maintain_dataresource` 控制
+     */
+    canManageAccess: boolean;
+    owner: UserReference;
+    /**
+     * 创建时间
+     */
+    createdAt: string;
+};
+
+export type AdminAchievementListResponse = {
+    /**
+     * 成果管理列表
+     */
+    items: Array<AdminAchievement>;
+    /**
+     * 符合筛选条件的成果总数
+     */
+    total: number;
+    /**
+     * 可用于配置成果访问范围的用户组列表
+     */
+    availableAccessGroups: Array<AdminDataResourceAccessGroup>;
+};
+
+export type AdminAchievementUpdateRequest = {
+    /**
+     * 操作类型
+     */
+    action: 'update' | 'setStatus' | 'updateAccess' | 'delete';
+    /**
+     * setStatus 或 update 时写入的成果发布状态
+     */
+    status?: 'draft' | 'published' | 'archived';
+    /**
+     * update 时写入的成果标题
+     */
+    title?: string;
+    /**
+     * update 时写入的成果摘要
+     */
+    summary?: string;
+    /**
+     * update 时写入的成果来源
+     */
+    source?: string;
+    /**
+     * update 时写入的展示排序值
+     */
+    displayOrder?: number;
+    /**
+     * update 时写入的关联图层 ID
+     */
+    relatedLayerId?: number | null;
+    /**
+     * updateAccess 或 update 时写入的额外可见用户组 ID 列表；后端会强制补齐超级管理员用户组。包含游客用户组时表示未登录用户可通过游客会话访问该成果。
+     */
+    accessGroupIds?: Array<number>;
+    /**
+     * delete 操作要求传入与成果标题完全一致的确认文本
+     */
+    confirmationName?: string;
 };
 
 export type RasterDataset = {
@@ -4134,6 +4265,194 @@ export type UpdateAdminDataResourceResponses = {
 };
 
 export type UpdateAdminDataResourceResponse = UpdateAdminDataResourceResponses[keyof UpdateAdminDataResourceResponses];
+
+export type ListAdminWorkspacesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * 按工程专题名称、说明或所属用户进行快速检索
+         */
+        q?: string;
+        /**
+         * 工程专题类型筛选
+         */
+        kind?: 'project' | 'topic';
+        /**
+         * 工程专题状态筛选
+         */
+        status?: 'active' | 'inactive';
+        /**
+         * 当前页码
+         */
+        current?: number;
+        /**
+         * 每页条数
+         */
+        pageSize?: number;
+    };
+    url: '/api/admin/workspaces/';
+};
+
+export type ListAdminWorkspacesErrors = {
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type ListAdminWorkspacesError = ListAdminWorkspacesErrors[keyof ListAdminWorkspacesErrors];
+
+export type ListAdminWorkspacesResponses = {
+    /**
+     * 成功
+     */
+    200: AdminWorkspaceSceneListResponse;
+};
+
+export type ListAdminWorkspacesResponse = ListAdminWorkspacesResponses[keyof ListAdminWorkspacesResponses];
+
+export type UpdateAdminWorkspaceData = {
+    body: AdminWorkspaceSceneUpdateRequest;
+    path: {
+        /**
+         * 工程专题 ID
+         */
+        workspaceId: number;
+    };
+    query?: never;
+    url: '/api/admin/workspaces/{workspaceId}/';
+};
+
+export type UpdateAdminWorkspaceErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateAdminWorkspaceError = UpdateAdminWorkspaceErrors[keyof UpdateAdminWorkspaceErrors];
+
+export type UpdateAdminWorkspaceResponses = {
+    /**
+     * 操作成功
+     */
+    200: AdminWorkspaceScene | DetailResponse;
+};
+
+export type UpdateAdminWorkspaceResponse = UpdateAdminWorkspaceResponses[keyof UpdateAdminWorkspaceResponses];
+
+export type ListAdminAchievementsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * 按成果标题、编号、摘要或来源进行快速检索
+         */
+        q?: string;
+        /**
+         * 成果发布状态筛选
+         */
+        status?: 'draft' | 'published' | 'archived';
+        /**
+         * 成果分类编码筛选
+         */
+        category?: string;
+        /**
+         * 成果来源模糊匹配
+         */
+        source?: string;
+        /**
+         * 当前页码
+         */
+        current?: number;
+        /**
+         * 每页条数
+         */
+        pageSize?: number;
+    };
+    url: '/api/admin/achievements/';
+};
+
+export type ListAdminAchievementsErrors = {
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type ListAdminAchievementsError = ListAdminAchievementsErrors[keyof ListAdminAchievementsErrors];
+
+export type ListAdminAchievementsResponses = {
+    /**
+     * 成功
+     */
+    200: AdminAchievementListResponse;
+};
+
+export type ListAdminAchievementsResponse = ListAdminAchievementsResponses[keyof ListAdminAchievementsResponses];
+
+export type UpdateAdminAchievementData = {
+    body: AdminAchievementUpdateRequest;
+    path: {
+        /**
+         * 成果 ID
+         */
+        achievementId: number;
+    };
+    query?: never;
+    url: '/api/admin/achievements/{achievementId}/';
+};
+
+export type UpdateAdminAchievementErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateAdminAchievementError = UpdateAdminAchievementErrors[keyof UpdateAdminAchievementErrors];
+
+export type UpdateAdminAchievementResponses = {
+    /**
+     * 操作成功
+     */
+    200: AdminAchievement | DetailResponse;
+};
+
+export type UpdateAdminAchievementResponse = UpdateAdminAchievementResponses[keyof UpdateAdminAchievementResponses];
 
 export type GetDirectoriesData = {
     body?: never;

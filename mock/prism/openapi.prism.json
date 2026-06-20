@@ -3660,6 +3660,595 @@
         }
       }
     },
+    "/api/admin/workspaces/": {
+      "get": {
+        "tags": [
+          "管理后台"
+        ],
+        "summary": "获取工程专题管理列表",
+        "description": "返回工程和专题管理列表，支持按类型、状态和关键词筛选。具备 `catalog.maintain_dataresource` 时可查看全部工程专题；仅普通上传用户时只返回当前用户拥有的工程专题，用于修改信息和访问范围。",
+        "operationId": "listAdminWorkspaces",
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "按工程专题名称、说明或所属用户进行快速检索"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "project",
+                "topic"
+              ]
+            },
+            "description": "工程专题类型筛选"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "inactive"
+              ]
+            },
+            "description": "工程专题状态筛选"
+          },
+          {
+            "name": "current",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "当前页码"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "每页条数"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminWorkspaceSceneListResponse"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "id": 1,
+                      "kind": "project",
+                      "name": "塔里木河样地工程",
+                      "description": "样地监测点和遥感底图组合",
+                      "snapshot": {
+                        "version": 1,
+                        "groups": [],
+                        "selectedLayerId": null,
+                        "mapView": {
+                          "center": [
+                            87.62,
+                            43.8
+                          ],
+                          "bounds": [
+                            87.4,
+                            43.6,
+                            87.8,
+                            44
+                          ],
+                          "zoom": 8.4,
+                          "bearing": 0,
+                          "pitch": 18
+                        },
+                        "savedAt": "2026-06-16T10:20:00+08:00"
+                      },
+                      "owner": {
+                        "id": 1,
+                        "username": "admin",
+                        "displayName": "系统管理员"
+                      },
+                      "createdAt": "2026-06-16T10:20:00+08:00",
+                      "updatedAt": "2026-06-18T09:15:00+08:00",
+                      "status": "active",
+                      "accessGroups": [
+                        {
+                          "id": 1,
+                          "name": "超级管理员",
+                          "isGuest": false,
+                          "isSuperadmin": true
+                        },
+                        {
+                          "id": 2,
+                          "name": "普通用户",
+                          "isGuest": false,
+                          "isSuperadmin": false
+                        }
+                      ],
+                      "canManageAccess": true
+                    },
+                    {
+                      "id": 2,
+                      "kind": "topic",
+                      "name": "胡杨林密度专题",
+                      "description": "点密度热力图专题",
+                      "snapshot": {
+                        "version": 1,
+                        "groups": [],
+                        "selectedLayerId": null,
+                        "mapView": null,
+                        "savedAt": "2026-06-17T14:35:00+08:00"
+                      },
+                      "owner": {
+                        "id": 8,
+                        "username": "researcher_chen",
+                        "displayName": "陈研究员"
+                      },
+                      "createdAt": "2026-06-17T14:35:00+08:00",
+                      "updatedAt": "2026-06-17T14:35:00+08:00",
+                      "status": "inactive",
+                      "accessGroups": [
+                        {
+                          "id": 1,
+                          "name": "超级管理员",
+                          "isGuest": false,
+                          "isSuperadmin": true
+                        }
+                      ],
+                      "canManageAccess": true
+                    }
+                  ],
+                  "total": 2,
+                  "availableAccessGroups": [
+                    {
+                      "id": 1,
+                      "name": "超级管理员",
+                      "isGuest": false,
+                      "isSuperadmin": true
+                    },
+                    {
+                      "id": 2,
+                      "name": "普通用户",
+                      "isGuest": false,
+                      "isSuperadmin": false
+                    },
+                    {
+                      "id": 3,
+                      "name": "游客",
+                      "isGuest": true,
+                      "isSuperadmin": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/workspaces/{workspaceId}/": {
+      "post": {
+        "tags": [
+          "管理后台"
+        ],
+        "summary": "操作单个工程专题",
+        "description": "支持更新工程专题状态、基础信息、访问用户组和删除确认。启停、信息修改和删除需要 `catalog.maintain_dataresource`；拥有者或具备 `catalog.maintain_dataresource` 的用户可以通过 `updateAccess` 修改可见范围。成功操作会写入审计日志。",
+        "operationId": "updateAdminWorkspace",
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "工程专题 ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminWorkspaceSceneUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AdminWorkspaceScene"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DetailResponse"
+                    }
+                  ]
+                },
+                "example": {
+                  "id": 1,
+                  "kind": "project",
+                  "name": "塔里木河样地工程",
+                  "description": "样地监测点和遥感底图组合",
+                  "snapshot": {
+                    "version": 1,
+                    "groups": [],
+                    "selectedLayerId": null,
+                    "mapView": null,
+                    "savedAt": "2026-06-16T10:20:00+08:00"
+                  },
+                  "owner": {
+                    "id": 1,
+                    "username": "admin",
+                    "displayName": "系统管理员"
+                  },
+                  "createdAt": "2026-06-16T10:20:00+08:00",
+                  "updatedAt": "2026-06-20T10:00:00+08:00",
+                  "status": "active",
+                  "accessGroups": [
+                    {
+                      "id": 1,
+                      "name": "超级管理员",
+                      "isGuest": false,
+                      "isSuperadmin": true
+                    },
+                    {
+                      "id": 2,
+                      "name": "普通用户",
+                      "isGuest": false,
+                      "isSuperadmin": false
+                    }
+                  ],
+                  "canManageAccess": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/admin/achievements/": {
+      "get": {
+        "tags": [
+          "管理后台"
+        ],
+        "summary": "获取成果管理列表",
+        "description": "返回研究成果管理列表，支持状态、分类、来源和关键词筛选。需要 `catalog.maintain_dataresource`，接口返回可配置访问用户组。",
+        "operationId": "listAdminAchievements",
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "按成果标题、编号、摘要或来源进行快速检索"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "published",
+                "archived"
+              ]
+            },
+            "description": "成果发布状态筛选"
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "成果分类编码筛选"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "成果来源模糊匹配"
+          },
+          {
+            "name": "current",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "当前页码"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "每页条数"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAchievementListResponse"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "id": 1,
+                      "title": "胡杨林冠层覆盖度年度评估图集",
+                      "code": "achievement-canopy-2026",
+                      "category": {
+                        "id": 31,
+                        "type": "achievement_category",
+                        "code": "atlas",
+                        "name": "图件成果"
+                      },
+                      "summary": "基于多期遥感影像生成的胡杨林冠层覆盖度变化评估成果。",
+                      "source": "中亚胡杨林生态系统保护项目组",
+                      "relatedLayerId": 12,
+                      "displayOrder": 10,
+                      "status": "published",
+                      "updatedAt": "2026-06-18T16:40:00+08:00",
+                      "accessGroups": [
+                        {
+                          "id": 1,
+                          "name": "超级管理员",
+                          "isGuest": false,
+                          "isSuperadmin": true
+                        },
+                        {
+                          "id": 2,
+                          "name": "普通用户",
+                          "isGuest": false,
+                          "isSuperadmin": false
+                        },
+                        {
+                          "id": 3,
+                          "name": "游客",
+                          "isGuest": true,
+                          "isSuperadmin": false
+                        }
+                      ],
+                      "canManageAccess": true,
+                      "owner": {
+                        "id": 1,
+                        "username": "admin",
+                        "displayName": "系统管理员"
+                      },
+                      "createdAt": "2026-06-12T11:20:00+08:00"
+                    },
+                    {
+                      "id": 2,
+                      "title": "样地长期监测阶段报告",
+                      "code": "achievement-monitoring-report-2026",
+                      "category": {
+                        "id": 32,
+                        "type": "achievement_category",
+                        "code": "report",
+                        "name": "报告材料"
+                      },
+                      "summary": "汇总 2024-2026 年样地长期监测、群落结构和水盐环境观测结论。",
+                      "source": "塔里木河样地监测团队",
+                      "relatedLayerId": null,
+                      "displayOrder": 20,
+                      "status": "draft",
+                      "updatedAt": "2026-06-19T09:10:00+08:00",
+                      "accessGroups": [
+                        {
+                          "id": 1,
+                          "name": "超级管理员",
+                          "isGuest": false,
+                          "isSuperadmin": true
+                        }
+                      ],
+                      "canManageAccess": true,
+                      "owner": {
+                        "id": 8,
+                        "username": "researcher_chen",
+                        "displayName": "陈研究员"
+                      },
+                      "createdAt": "2026-06-19T09:10:00+08:00"
+                    }
+                  ],
+                  "total": 2,
+                  "availableAccessGroups": [
+                    {
+                      "id": 1,
+                      "name": "超级管理员",
+                      "isGuest": false,
+                      "isSuperadmin": true
+                    },
+                    {
+                      "id": 2,
+                      "name": "普通用户",
+                      "isGuest": false,
+                      "isSuperadmin": false
+                    },
+                    {
+                      "id": 3,
+                      "name": "游客",
+                      "isGuest": true,
+                      "isSuperadmin": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/achievements/{achievementId}/": {
+      "post": {
+        "tags": [
+          "管理后台"
+        ],
+        "summary": "操作单个成果",
+        "description": "支持更新成果发布状态、基础信息、访问用户组和删除确认。需要 `catalog.maintain_dataresource`。成功操作会写入审计日志。",
+        "operationId": "updateAdminAchievement",
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "achievementId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "成果 ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminAchievementUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AdminAchievement"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DetailResponse"
+                    }
+                  ]
+                },
+                "example": {
+                  "id": 1,
+                  "title": "胡杨林冠层覆盖度年度评估图集",
+                  "code": "achievement-canopy-2026",
+                  "category": {
+                    "id": 31,
+                    "type": "achievement_category",
+                    "code": "atlas",
+                    "name": "图件成果"
+                  },
+                  "summary": "基于多期遥感影像生成的胡杨林冠层覆盖度变化评估成果。",
+                  "source": "中亚胡杨林生态系统保护项目组",
+                  "relatedLayerId": 12,
+                  "displayOrder": 10,
+                  "status": "published",
+                  "updatedAt": "2026-06-20T10:00:00+08:00",
+                  "accessGroups": [
+                    {
+                      "id": 1,
+                      "name": "超级管理员",
+                      "isGuest": false,
+                      "isSuperadmin": true
+                    },
+                    {
+                      "id": 2,
+                      "name": "普通用户",
+                      "isGuest": false,
+                      "isSuperadmin": false
+                    }
+                  ],
+                  "canManageAccess": true,
+                  "owner": {
+                    "id": 1,
+                    "username": "admin",
+                    "displayName": "系统管理员"
+                  },
+                  "createdAt": "2026-06-12T11:20:00+08:00"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/api/catalog/directories/": {
       "get": {
         "tags": [
@@ -10194,6 +10783,123 @@
           }
         }
       },
+      "AdminWorkspaceScene": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/WorkspaceScene"
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "accessGroups",
+              "canManageAccess"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "inactive"
+                ],
+                "description": "工程专题状态；禁用后不在普通工作台检索和加载入口展示"
+              },
+              "accessGroups": {
+                "type": "array",
+                "description": "允许访问该工程专题的用户组；所属用户本人和超级管理员始终可见",
+                "items": {
+                  "$ref": "#/components/schemas/AdminDataResourceAccessGroup"
+                }
+              },
+              "canManageAccess": {
+                "type": "boolean",
+                "description": "当前用户是否可修改该工程专题的可见范围；拥有者本人或具备 `catalog.maintain_dataresource` 时为 true"
+              }
+            }
+          }
+        ]
+      },
+      "AdminWorkspaceSceneListResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "availableAccessGroups"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "description": "工程专题管理列表",
+            "items": {
+              "$ref": "#/components/schemas/AdminWorkspaceScene"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "符合筛选条件的工程专题总数"
+          },
+          "availableAccessGroups": {
+            "type": "array",
+            "description": "可用于配置工程专题访问范围的用户组列表",
+            "items": {
+              "$ref": "#/components/schemas/AdminDataResourceAccessGroup"
+            }
+          }
+        }
+      },
+      "AdminWorkspaceSceneUpdateRequest": {
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "update",
+              "setStatus",
+              "updateAccess",
+              "delete"
+            ],
+            "description": "操作类型"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "description": "setStatus 或 update 时写入的工程专题状态"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "project",
+              "topic"
+            ],
+            "description": "update 时写入的工程专题类型"
+          },
+          "name": {
+            "type": "string",
+            "description": "update 时写入的工程专题名称"
+          },
+          "description": {
+            "type": "string",
+            "description": "update 时写入的工程专题说明"
+          },
+          "accessGroupIds": {
+            "type": "array",
+            "description": "updateAccess 或 update 时写入的额外可见用户组 ID 列表；后端会强制补齐超级管理员用户组，所属用户本人始终可见。包含游客用户组时表示未登录用户可通过游客会话访问该工程专题。",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "confirmationName": {
+            "type": "string",
+            "description": "delete 操作要求传入与工程专题名称完全一致的确认文本"
+          }
+        }
+      },
       "WorkspaceSceneOwner": {
         "type": "object",
         "required": [
@@ -10664,6 +11370,132 @@
             "type": "string",
             "format": "date-time",
             "description": "最后更新时间"
+          }
+        }
+      },
+      "AdminAchievement": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Achievement"
+          },
+          {
+            "type": "object",
+            "required": [
+              "accessGroups",
+              "canManageAccess",
+              "owner",
+              "createdAt"
+            ],
+            "properties": {
+              "accessGroups": {
+                "type": "array",
+                "description": "允许访问该成果的用户组；成果维护人员和超级管理员始终可见",
+                "items": {
+                  "$ref": "#/components/schemas/AdminDataResourceAccessGroup"
+                }
+              },
+              "canManageAccess": {
+                "type": "boolean",
+                "description": "当前用户是否可修改该成果的可见范围；当前版本由 `catalog.maintain_dataresource` 控制"
+              },
+              "owner": {
+                "$ref": "#/components/schemas/UserReference"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "创建时间"
+              }
+            }
+          }
+        ]
+      },
+      "AdminAchievementListResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "availableAccessGroups"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "description": "成果管理列表",
+            "items": {
+              "$ref": "#/components/schemas/AdminAchievement"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "符合筛选条件的成果总数"
+          },
+          "availableAccessGroups": {
+            "type": "array",
+            "description": "可用于配置成果访问范围的用户组列表",
+            "items": {
+              "$ref": "#/components/schemas/AdminDataResourceAccessGroup"
+            }
+          }
+        }
+      },
+      "AdminAchievementUpdateRequest": {
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "update",
+              "setStatus",
+              "updateAccess",
+              "delete"
+            ],
+            "description": "操作类型"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "archived"
+            ],
+            "description": "setStatus 或 update 时写入的成果发布状态"
+          },
+          "title": {
+            "type": "string",
+            "description": "update 时写入的成果标题"
+          },
+          "summary": {
+            "type": "string",
+            "description": "update 时写入的成果摘要"
+          },
+          "source": {
+            "type": "string",
+            "description": "update 时写入的成果来源"
+          },
+          "displayOrder": {
+            "type": "integer",
+            "description": "update 时写入的展示排序值"
+          },
+          "relatedLayerId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "update 时写入的关联图层 ID"
+          },
+          "accessGroupIds": {
+            "type": "array",
+            "description": "updateAccess 或 update 时写入的额外可见用户组 ID 列表；后端会强制补齐超级管理员用户组。包含游客用户组时表示未登录用户可通过游客会话访问该成果。",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "confirmationName": {
+            "type": "string",
+            "description": "delete 操作要求传入与成果标题完全一致的确认文本"
           }
         }
       },

@@ -1,5 +1,9 @@
 import type {
   Achievement,
+  AdminAchievement,
+  AdminAchievementFilters,
+  AdminAchievementList,
+  AdminAchievementUpdate,
   AdminDashboard,
   AdminDashboardServer,
   AdminDataResource,
@@ -17,6 +21,10 @@ import type {
   AdminSettingsUpdate,
   AdminSystemLog,
   AdminSystemLogQuery,
+  AdminWorkspaceFilters,
+  AdminWorkspaceList,
+  AdminWorkspaceScene,
+  AdminWorkspaceUpdate,
   Bootstrap,
   DataCatalog,
   DataResourceProfile,
@@ -360,6 +368,27 @@ export const api = {
       sdk.exportAdminDataResources({
         query: filters,
         parseAs: "blob",
+      }),
+    ),
+  adminWorkspaces: (filters: AdminWorkspaceFilters = {}) =>
+    unwrap<AdminWorkspaceList>(sdk.listAdminWorkspaces({ query: filters })),
+  updateAdminWorkspace: (workspaceId: number, payload: AdminWorkspaceUpdate) =>
+    unwrap<AdminWorkspaceScene | { detail: string }>(
+      sdk.updateAdminWorkspace({
+        path: { workspaceId },
+        body: payload,
+      }),
+    ),
+  adminAchievements: (filters: AdminAchievementFilters = {}) =>
+    unwrap<AdminAchievementList>(sdk.listAdminAchievements({ query: filters })),
+  updateAdminAchievement: (
+    achievementId: number,
+    payload: AdminAchievementUpdate,
+  ) =>
+    unwrap<AdminAchievement | { detail: string }>(
+      sdk.updateAdminAchievement({
+        path: { achievementId },
+        body: payload,
       }),
     ),
   catalogs: () => unwrap<ListResponse<DataCatalog>>(sdk.getDirectories()),

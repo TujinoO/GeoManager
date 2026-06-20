@@ -185,6 +185,7 @@ frontend/src/
 - 属性查询基于后端读取到的字段列表构建过滤条件，后端在 GeoPackage 读取结果上执行过滤。
 - 后端资源能力边界：只有带 `storage_path` 的矢量 GeoPackage 资源可查询；元数据资源只可浏览和筛选。
 - 数据管理 `/resources/data/inventory` 是存量数据管理入口，使用 `/api/admin/data/resources/` 查询启用和禁用资源；常规业务目录 `/api/catalog/resources/`、搜索和资源 profile/query 仍只处理 `status=active` 的数据资源。
+- 工程、专题和成果管理归入数据管理区，前端入口为 `/resources/manage/projects`、`/resources/manage/topics` 和 `/resources/manage/achievements`。三者与存量数据管理复用同一管理组件结构：列表筛选、状态控制、信息抽屉、访问用户组配置和删除确认；后端契约分别为 `/api/admin/workspaces/` 与 `/api/admin/achievements/`。
 - `DataResource.maintainer` 同时作为上传用户和维护人员的来源；后台数据资源接口暴露结构化 `uploader`。`DataResource.size_bytes` 和 `DataResource.item_count` 记录数据大小与条目数：Excel/CSV 导入使用上传文件大小和导入行数，栅格资源使用源文件与预处理文件大小，扫描到的非地理文件使用文件大小。
 - Excel/CSV 导入的后台存储标识与前端显示名分离。预检每次生成不同的 `suggestedTableName`，提交时如已有资源或真实存储已占用同一 GeoPackage 图层名或 SQLite 表名，后端会再次改写为唯一值；每次提交都创建新的 `DataResource` 记录，不按后台存储标识更新旧资源。重复检测按前端显示名 `DataResource.name` 执行：预检使用 `suggestedName`，校验和提交使用 payload 的 `name`；同名显示数据提交必须由后端阻断，除非用户已在校验阶段确认重复名称并提交 `duplicateConfirmed=true`。确认后也只会新建资源，不覆盖旧数据。
 - `DataResource.default_visualization` 保存默认可视化方案 JSON；空间资源保存方案时会创建或更新关联 `MapLayer`，同步默认图层名称、默认显隐、既有默认透明度、矢量符号化和栅格规则。前端存量数据配置不再提供单独默认透明度控件；栅格色带和 PNG/XYZ 生成仍由后端栅格服务处理。
