@@ -50,11 +50,7 @@ interface ImportFormValues {
 
 type IssueAction = "continue" | "import";
 const selfAccessScopeId = "__self__";
-const superadminAccessScopeId = "__superadmin__";
-type AccessScopeId =
-  | number
-  | typeof selfAccessScopeId
-  | typeof superadminAccessScopeId;
+type AccessScopeId = number | typeof selfAccessScopeId;
 
 export default function AdminDataImportPage() {
   const { message } = AntApp.useApp();
@@ -485,11 +481,6 @@ export default function AdminDataImportPage() {
                           label: "我自己可见",
                           disabled: true,
                         },
-                        {
-                          value: superadminAccessScopeId,
-                          label: "超级管理员可见",
-                          disabled: true,
-                        },
                         ...selectableAccessGroups.map((group) => ({
                           value: group.id,
                           label: group.name,
@@ -893,10 +884,8 @@ function normalizeImportValues(
 }
 
 function withFixedAccessScopes(values: AccessScopeId[] = []): AccessScopeId[] {
-  const optionalValues = values.filter(
-    (value) => value !== selfAccessScopeId && value !== superadminAccessScopeId,
-  );
-  return [selfAccessScopeId, superadminAccessScopeId, ...optionalValues];
+  const optionalValues = values.filter((value) => value !== selfAccessScopeId);
+  return [selfAccessScopeId, ...optionalValues];
 }
 
 function realAccessGroupIds(values: AccessScopeId[] = []): number[] {

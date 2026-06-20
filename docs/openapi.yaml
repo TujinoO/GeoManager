@@ -2863,30 +2863,66 @@ components:
     AdminDashboardDataOverviewCard:
       type: object
       required:
-        [totalResources, activeResources, totalSizeBytes, totalItemCount, typeBreakdown]
+        [
+          totalResources,
+          activeResources,
+          totalSizeBytes,
+          totalItemCount,
+          typeBreakdown,
+          ownUploads,
+          visibleResources,
+        ]
       properties:
         totalResources:
           type: integer
-          description: 数据资源总数
+          description: 系统数据资源总数，用于兼容旧版概览卡片；新版界面优先展示分组统计
         activeResources:
           type: integer
-          description: 启用状态数据资源数量
+          description: 系统启用状态数据资源数量，用于兼容旧版概览卡片；新版界面优先展示分组统计
         totalSizeBytes:
           type: integer
-          description: 数据总大小，单位字节
+          description: 系统数据总大小，单位字节，用于兼容旧版概览卡片；新版界面优先展示分组统计
         totalItemCount:
           type: integer
-          description: 数据条目总数
+          description: 系统数据条目总数，用于兼容旧版概览卡片；新版界面优先展示分组统计
         typeBreakdown:
           type: array
-          description: 按数据类型聚合的数据情况
+          description: 系统按数据类型聚合的数据情况，用于兼容旧版概览卡片；新版界面优先展示分组统计
           items:
             $ref: '#/components/schemas/AdminDashboardDataTypeOverview'
+        ownUploads:
+          $ref: '#/components/schemas/AdminDashboardDataOverviewScope'
+          description: 当前用户上传的数据资源聚合统计
+        visibleResources:
+          $ref: '#/components/schemas/AdminDashboardDataOverviewScope'
+          description: 当前用户可见的数据资源聚合统计；后端按数据可见范围和上传者本人规则裁剪
         uploaders:
           type: array
           description: 超级管理员可见的上传用户统计；普通用户无该字段
           items:
             $ref: '#/components/schemas/AdminDashboardUploaderOverview'
+
+    AdminDashboardDataOverviewScope:
+      type: object
+      required: [totalResources, activeResources, totalSizeBytes, totalItemCount, typeBreakdown]
+      properties:
+        totalResources:
+          type: integer
+          description: 该统计范围内的数据资源总数
+        activeResources:
+          type: integer
+          description: 该统计范围内启用状态的数据资源数量
+        totalSizeBytes:
+          type: integer
+          description: 该统计范围内数据总大小，单位字节
+        totalItemCount:
+          type: integer
+          description: 该统计范围内数据条目总数
+        typeBreakdown:
+          type: array
+          description: 该统计范围内按数据类型聚合的数据情况
+          items:
+            $ref: '#/components/schemas/AdminDashboardDataTypeOverview'
 
     AdminDashboardDataTypeOverview:
       type: object

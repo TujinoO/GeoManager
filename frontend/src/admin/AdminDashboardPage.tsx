@@ -1,6 +1,7 @@
 import {
   BarChartOutlined,
   ClusterOutlined,
+  CloudUploadOutlined,
   DatabaseOutlined,
   HddOutlined,
 } from "@ant-design/icons";
@@ -38,6 +39,7 @@ const periodLabels: Record<ActivePeriod, string> = {
 };
 
 type DataOverviewCard = NonNullable<AdminDashboard["cards"]["dataOverview"]>;
+type DataOverviewScope = DataOverviewCard["ownUploads"];
 
 const dataTypeLabels: Record<string, string> = {
   vector: "矢量",
@@ -193,20 +195,39 @@ export default function AdminDashboardPage({
             {dashboard.cards.dataOverview && (
               <>
                 <MetricCard
-                  title="数据总大小"
+                  title="我上传的数据大小"
                   value={formatBytes(
-                    dashboard.cards.dataOverview.totalSizeBytes,
+                    dashboard.cards.dataOverview.ownUploads.totalSizeBytes,
                   )}
                   suffix=""
-                  icon={<HddOutlined />}
-                  description={`启用 ${dashboard.cards.dataOverview.activeResources} / ${dashboard.cards.dataOverview.totalResources} 项`}
+                  icon={<CloudUploadOutlined />}
+                  description={`启用 ${dashboard.cards.dataOverview.ownUploads.activeResources} / ${dashboard.cards.dataOverview.ownUploads.totalResources} 项`}
                 />
                 <MetricCard
-                  title="数据条目数"
-                  value={dashboard.cards.dataOverview.totalItemCount}
+                  title="我上传的数据条目"
+                  value={dashboard.cards.dataOverview.ownUploads.totalItemCount}
                   suffix="条"
                   icon={<DatabaseOutlined />}
                   description="按导入行数、栅格数据集和扫描文件统计"
+                />
+                <MetricCard
+                  title="我可见的数据大小"
+                  value={formatBytes(
+                    dashboard.cards.dataOverview.visibleResources
+                      .totalSizeBytes,
+                  )}
+                  suffix=""
+                  icon={<HddOutlined />}
+                  description={`启用 ${dashboard.cards.dataOverview.visibleResources.activeResources} / ${dashboard.cards.dataOverview.visibleResources.totalResources} 项`}
+                />
+                <MetricCard
+                  title="我可见的数据条目"
+                  value={
+                    dashboard.cards.dataOverview.visibleResources.totalItemCount
+                  }
+                  suffix="条"
+                  icon={<DatabaseOutlined />}
+                  description="按当前账号可访问数据统计"
                 />
               </>
             )}
@@ -466,24 +487,20 @@ function DataOverviewDetail({ overview }: { overview: DataOverviewCard }) {
         variant="borderless"
       >
         <Row gutter={[16, 16]}>
-          <Col xs={24} xl={overview.uploaders?.length ? 12 : 24}>
-            <Typography.Title level={5}>数据类型分布</Typography.Title>
-            <div className="admin-data-overview-list">
-              {overview.typeBreakdown.map((item) => (
-                <div key={item.dataType} className="admin-data-overview-row">
-                  <Space>
-                    <Tag>{dataTypeLabels[item.dataType] ?? item.dataType}</Tag>
-                    <Typography.Text>{item.count} 项</Typography.Text>
-                  </Space>
-                  <Typography.Text type="secondary">
-                    {formatBytes(item.sizeBytes)} / {item.itemCount} 条
-                  </Typography.Text>
-                </div>
-              ))}
-            </div>
+          <Col xs={24} xl={12}>
+            <DataOverviewScopeList
+              title="我上传的"
+              scope={overview.ownUploads}
+            />
+          </Col>
+          <Col xs={24} xl={12}>
+            <DataOverviewScopeList
+              title="我可见的"
+              scope={overview.visibleResources}
+            />
           </Col>
           {overview.uploaders && overview.uploaders.length > 0 && (
-            <Col xs={24} xl={12}>
+            <Col xs={24}>
               <Typography.Title level={5}>上传用户统计</Typography.Title>
               <div className="admin-data-overview-list">
                 {overview.uploaders.map((item) => (
@@ -511,6 +528,40 @@ function DataOverviewDetail({ overview }: { overview: DataOverviewCard }) {
         </Row>
       </Card>
     </BorderBeam>
+  );
+}
+
+function DataOverviewScopeList({
+  title,
+  scope,
+}: {
+  title: string;
+  scope: DataOverviewScope;
+}) {
+  return (
+    <>
+      <Typography.Title level={5}>{title}</Typography.Title>
+      <Typography.Text type="secondary">
+        共 {scope.totalResources} 项，启用 {scope.activeResources} 项，
+        {formatBytes(scope.totalSizeBytes)} / {scope.totalItemCount} 条
+      </Typography.Text>
+      <div className="admin-data-overview-list">
+        {scope.typeBreakdown.map((item) => (
+          <div key={item.dataType} className="admin-data-overview-row">
+            <Space>
+              <Tag>{dataTypeLabels[item.dataType] ?? item.dataType}</Tag>
+              <Typography.Text>{item.count} 项</Typography.Text>
+            </Space>
+            <Typography.Text type="secondary">
+              {formatBytes(item.sizeBytes)} / {item.itemCount} 条
+            </Typography.Text>
+          </div>
+        ))}
+        {scope.typeBreakdown.length === 0 && (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据" />
+        )}
+      </div>
+    </>
   );
 }
 

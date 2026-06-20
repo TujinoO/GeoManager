@@ -1353,6 +1353,8 @@ class FeaturePermissionTests(TestCase):
         manager = get_user_model().objects.create_user(
             username="overview-manager", password="pass12345"
         )
+        visible_group = Group.objects.create(name="概览可见组")
+        manager.groups.add(visible_group)
         uploader = get_user_model().objects.create_user(
             username="overview-uploader",
             first_name="上传人",
@@ -1360,6 +1362,14 @@ class FeaturePermissionTests(TestCase):
         )
         grant(manager, ("core", "view_data_overview"))
         DataResource.objects.create(
+            name="本人上传",
+            code="overview-own",
+            data_type=DataResource.DataType.RASTER,
+            size_bytes=30,
+            item_count=3,
+            maintainer=manager,
+        )
+        visible_resource = DataResource.objects.create(
             name="点位",
             code="overview-vector",
             data_type=DataResource.DataType.VECTOR,
@@ -1367,6 +1377,7 @@ class FeaturePermissionTests(TestCase):
             item_count=5,
             maintainer=uploader,
         )
+        visible_resource.access_groups.add(visible_group)
         DataResource.objects.create(
             name="表格",
             code="overview-table",
@@ -1381,10 +1392,20 @@ class FeaturePermissionTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         overview = response.json()["cards"]["dataOverview"]
-        self.assertEqual(overview["totalResources"], 2)
-        self.assertEqual(overview["activeResources"], 1)
-        self.assertEqual(overview["totalSizeBytes"], 150)
-        self.assertEqual(overview["totalItemCount"], 7)
+        self.assertEqual(overview["totalResources"], 3)
+        self.assertEqual(overview["activeResources"], 2)
+        self.assertEqual(overview["totalSizeBytes"], 180)
+        self.assertEqual(overview["totalItemCount"], 10)
+        self.assertEqual(overview["ownUploads"]["totalResources"], 1)
+        self.assertEqual(overview["ownUploads"]["totalSizeBytes"], 30)
+        self.assertEqual(overview["ownUploads"]["totalItemCount"], 3)
+        self.assertEqual(
+            overview["ownUploads"]["typeBreakdown"][0]["dataType"],
+            DataResource.DataType.RASTER,
+        )
+        self.assertEqual(overview["visibleResources"]["totalResources"], 2)
+        self.assertEqual(overview["visibleResources"]["totalSizeBytes"], 130)
+        self.assertEqual(overview["visibleResources"]["totalItemCount"], 8)
         self.assertNotIn("uploaders", overview)
 
         super_group, _ = Group.objects.get_or_create(name=SUPERADMIN_GROUP_NAME)
@@ -1403,6 +1424,12 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(uploader_rows["上传人"]["resourceCount"], 1)
         self.assertEqual(uploader_rows["上传人"]["sizeBytes"], 100)
         self.assertEqual(uploader_rows["未记录"]["itemCount"], 2)
+        self.assertEqual(
+            response.json()["cards"]["dataOverview"]["visibleResources"][
+                "totalResources"
+            ],
+            3,
+        )
 
     def test_admin_dashboard_omits_unauthorized_cards(self):
         manager = get_user_model().objects.create_user(

@@ -362,6 +362,35 @@ describe("admin routes", () => {
         resources: { total: 2, active: 2 },
         layers: { total: 1, active: 1 },
         rasters: { resources: 1, datasets: 1, layers: 1 },
+        dataOverview: {
+          totalResources: 2,
+          activeResources: 2,
+          totalSizeBytes: 3072,
+          totalItemCount: 12,
+          typeBreakdown: [
+            { dataType: "vector", count: 1, sizeBytes: 1024, itemCount: 8 },
+            { dataType: "raster", count: 1, sizeBytes: 2048, itemCount: 4 },
+          ],
+          ownUploads: {
+            totalResources: 1,
+            activeResources: 1,
+            totalSizeBytes: 1024,
+            totalItemCount: 8,
+            typeBreakdown: [
+              { dataType: "vector", count: 1, sizeBytes: 1024, itemCount: 8 },
+            ],
+          },
+          visibleResources: {
+            totalResources: 2,
+            activeResources: 2,
+            totalSizeBytes: 3072,
+            totalItemCount: 12,
+            typeBreakdown: [
+              { dataType: "vector", count: 1, sizeBytes: 1024, itemCount: 8 },
+              { dataType: "raster", count: 1, sizeBytes: 2048, itemCount: 4 },
+            ],
+          },
+        },
         users: {
           total: 2,
           active: 2,
@@ -600,6 +629,8 @@ describe("admin routes", () => {
     );
     expect(await screen.findByText("图层数")).toBeInTheDocument();
     expect(screen.getAllByText("栅格数量").length).toBeGreaterThan(0);
+    expect(screen.getByText("我上传的数据大小")).toBeInTheDocument();
+    expect(screen.getByText("我可见的数据大小")).toBeInTheDocument();
     expect(screen.queryByText("用户信息")).not.toBeInTheDocument();
     expect(screen.queryByText("服务器信息")).not.toBeInTheDocument();
   });
@@ -627,7 +658,7 @@ describe("admin routes", () => {
   it("submits the password change form from user settings", async () => {
     renderWithProviders(<AdminProfilePage />);
 
-    expect(await screen.findByText("修改密码")).toBeInTheDocument();
+    fireEvent.click(await screen.findByText("修改密码"));
     fireEvent.change(screen.getByLabelText("当前密码"), {
       target: { value: "OldPass123" },
     });
@@ -757,7 +788,7 @@ describe("admin routes", () => {
     expect(await screen.findByText("导入配置")).toBeInTheDocument();
     expect(screen.getByLabelText("数据名称")).toHaveValue("样地调查点位");
     expect(screen.getByText("我自己可见")).toBeInTheDocument();
-    expect(screen.getByText("超级管理员可见")).toBeInTheDocument();
+    expect(screen.queryByText("超级管理员可见")).not.toBeInTheDocument();
     expect(
       screen.queryByText("不选择角色时，仅上传者本人和超级管理员可见。"),
     ).not.toBeInTheDocument();
@@ -805,11 +836,11 @@ describe("admin routes", () => {
     expect(screen.getByText("CSV")).toBeInTheDocument();
     expect(screen.getByText("本页启用")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "胡杨林样地点" }));
+    fireEvent.click(screen.getByRole("button", { name: "配置胡杨林样地点" }));
 
     expect(await screen.findByText("访问权限")).toBeInTheDocument();
-    expect(screen.getByText("上传者本人可见")).toBeInTheDocument();
-    expect(screen.getByText("超级管理员可见")).toBeInTheDocument();
+    expect(screen.getAllByText("上传者本人可见").length).toBeGreaterThan(0);
+    expect(screen.queryByText("超级管理员可见")).not.toBeInTheDocument();
   });
 
   it("loads the project and topic management pages", async () => {

@@ -34,6 +34,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260620-005 | BackendReady | POST /api/admin/profile/avatar/; GET /api/users/{userId}/avatar/ | contract coverage | Done | N/A | Done | Pending | Existing avatar endpoints added to OpenAPI and generated SDK |
 | API-20260620-006 | BackendReady | Multiple catalog/auth endpoints | removed endpoints, response fields, permission behavior | Done | Done | Done | Pending | Remove previous temporary GeoPackage resources and broad maintenance flag |
 | API-20260620-007 | BackendReady | POST /api/users/{userId}/permissions/; POST /api/catalog/export/; POST /api/catalog/export/async/ | request body, response fields, permission behavior | Done | Done | Done | Pending | User permission close overrides and vector export format selection |
+| API-20260620-008 | BackendReady | GET /api/admin/dashboard/ | response fields | Done | N/A | Done | Pending | Split data overview into own uploads and visible resources |
 
 ## Entry Template
 
@@ -180,6 +181,19 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Store structured target fields on `OperationLog`; write `data_resource`, `workspace_scene`, targets from the relevant backend views, preserving target ID/name before delete.
 - Verification: run backend audit, catalog, and core operation-log tests plus `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check`.
 - Result: Backend implementation and focused tests completed in this change.
+
+## API-20260620-008 - Dashboard Data Overview Scopes
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `GET /api/admin/dashboard/`
+- Change type: response fields
+- OpenAPI change: Adds `dataOverview.ownUploads` and `dataOverview.visibleResources`, each with resource totals, active counts, total size, item counts, and type breakdown. Existing top-level `dataOverview` totals remain for compatibility.
+- Mock examples: N/A; dashboard examples are not currently split into Prism fixtures.
+- Frontend reason: The data overview page must present “我上传的” and “我可见的” separately instead of a single total.
+- Backend implementation notes: Use `DataResource.maintainer=current_user` for `ownUploads`; use the existing catalog access filter for `visibleResources` so the backend keeps enforcing visibility rules. Do not expose or require the forced superadmin access group in frontend permission selectors.
+- Verification: run `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check`, focused backend dashboard tests, and frontend checks/tests.
+- Result: Implemented in this change.
 
 ## API-20260620-004 - Managed Workspaces
 

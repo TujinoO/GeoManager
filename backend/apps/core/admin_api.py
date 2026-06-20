@@ -28,6 +28,7 @@ from apps.audit.models import OperationLog
 from apps.audit.service import log_operation
 from apps.catalog.models import DataResource, MapLayer
 from apps.catalog.importer import ImportDataError, set_resource_access_groups
+from apps.catalog.permissions import filter_accessible
 from apps.core.api import (
     api_login_required,
     api_permission_required,
@@ -1019,7 +1020,7 @@ def admin_dashboard(request):
         }
     if has_feature_perm(request.user, "core.view_data_overview"):
         cards["dataOverview"] = _data_overview_card(
-            include_uploaders=is_superadmin_user(request.user)
+            request.user, include_uploaders=is_superadmin_user(request.user)
         )
 
     return JsonResponse(
@@ -1103,28 +1104,38 @@ def _active_user_ranking(login_logs) -> list[dict[str, Any]]:
     ]
 
 
-def _data_overview_card(*, include_uploaders: bool) -> dict[str, Any]:
-    aggregate = DataResource.objects.aggregate(
-        total_size=Sum("size_bytes"),
-        total_items=Sum("item_count"),
-    )
+def _data_overview_card(user, *, include_uploaders: bool) -> dict[str, Any]:
+    all_resources = DataResource.objects.all()
+    own_uploads = DataResource.objects.filter(maintainer=user)
+    visible_resources = filter_accessible(DataResource.objects.all(), user)
+    aggregate = _data_overview_scope(all_resources)
     card: dict[str, Any] = {
-        "totalResources": DataResource.objects.count(),
-        "activeResources": DataResource.objects.filter(
-            status=DataResource.Status.ACTIVE
-        ).count(),
-        "totalSizeBytes": int(aggregate["total_size"] or 0),
-        "totalItemCount": int(aggregate["total_items"] or 0),
-        "typeBreakdown": _data_type_breakdown(),
+        **aggregate,
+        "ownUploads": _data_overview_scope(own_uploads),
+        "visibleResources": _data_overview_scope(visible_resources),
     }
     if include_uploaders:
         card["uploaders"] = _uploader_stats()
     return card
 
 
-def _data_type_breakdown() -> list[dict[str, Any]]:
+def _data_overview_scope(queryset) -> dict[str, Any]:
+    aggregate = queryset.aggregate(
+        total_size=Sum("size_bytes"),
+        total_items=Sum("item_count"),
+    )
+    return {
+        "totalResources": queryset.count(),
+        "activeResources": queryset.filter(status=DataResource.Status.ACTIVE).count(),
+        "totalSizeBytes": int(aggregate["total_size"] or 0),
+        "totalItemCount": int(aggregate["total_items"] or 0),
+        "typeBreakdown": _data_type_breakdown(queryset),
+    }
+
+
+def _data_type_breakdown(queryset) -> list[dict[str, Any]]:
     rows = (
-        DataResource.objects.values("data_type")
+        queryset.values("data_type")
         .annotate(
             count=Count("id"),
             size_bytes=Sum("size_bytes"),

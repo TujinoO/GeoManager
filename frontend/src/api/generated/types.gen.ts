@@ -734,29 +734,60 @@ export type AdminDashboardRasterCard = {
 
 export type AdminDashboardDataOverviewCard = {
     /**
-     * 数据资源总数
+     * 系统数据资源总数，用于兼容旧版概览卡片；新版界面优先展示分组统计
      */
     totalResources: number;
     /**
-     * 启用状态数据资源数量
+     * 系统启用状态数据资源数量，用于兼容旧版概览卡片；新版界面优先展示分组统计
      */
     activeResources: number;
     /**
-     * 数据总大小，单位字节
+     * 系统数据总大小，单位字节，用于兼容旧版概览卡片；新版界面优先展示分组统计
      */
     totalSizeBytes: number;
     /**
-     * 数据条目总数
+     * 系统数据条目总数，用于兼容旧版概览卡片；新版界面优先展示分组统计
      */
     totalItemCount: number;
     /**
-     * 按数据类型聚合的数据情况
+     * 系统按数据类型聚合的数据情况，用于兼容旧版概览卡片；新版界面优先展示分组统计
      */
     typeBreakdown: Array<AdminDashboardDataTypeOverview>;
+    /**
+     * 当前用户上传的数据资源聚合统计
+     */
+    ownUploads: AdminDashboardDataOverviewScope;
+    /**
+     * 当前用户可见的数据资源聚合统计；后端按数据可见范围和上传者本人规则裁剪
+     */
+    visibleResources: AdminDashboardDataOverviewScope;
     /**
      * 超级管理员可见的上传用户统计；普通用户无该字段
      */
     uploaders?: Array<AdminDashboardUploaderOverview>;
+};
+
+export type AdminDashboardDataOverviewScope = {
+    /**
+     * 该统计范围内的数据资源总数
+     */
+    totalResources: number;
+    /**
+     * 该统计范围内启用状态的数据资源数量
+     */
+    activeResources: number;
+    /**
+     * 该统计范围内数据总大小，单位字节
+     */
+    totalSizeBytes: number;
+    /**
+     * 该统计范围内数据条目总数
+     */
+    totalItemCount: number;
+    /**
+     * 该统计范围内按数据类型聚合的数据情况
+     */
+    typeBreakdown: Array<AdminDashboardDataTypeOverview>;
 };
 
 export type AdminDashboardDataTypeOverview = {

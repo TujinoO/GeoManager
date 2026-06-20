@@ -28,12 +28,8 @@ import { useMemo, useState } from "react";
 import type { AdminDataResourceList } from "../types";
 
 export const ownerAccessScopeId = "__owner__";
-export const superadminAccessScopeId = "__superadmin__";
 
-export type AccessScopeId =
-  | number
-  | typeof ownerAccessScopeId
-  | typeof superadminAccessScopeId;
+export type AccessScopeId = number | typeof ownerAccessScopeId;
 
 export type AccessGroup =
   AdminDataResourceList["availableAccessGroups"][number];
@@ -137,18 +133,24 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
         title: "访问范围",
         key: "accessGroups",
         width: 180,
-        render: (_, record) =>
-          record.accessGroups.length ? (
+        render: (_, record) => {
+          const visibleAccessGroups = record.accessGroups.filter(
+            (group) => !isSuperadminGroup(group),
+          );
+          return visibleAccessGroups.length ? (
             <Space size={[4, 4]} wrap>
-              {record.accessGroups.map((group) => (
+              {visibleAccessGroups.map((group) => (
                 <Tag key={group.id} color="blue">
                   {group.name}
                 </Tag>
               ))}
             </Space>
-          ) : (
+          ) : record.accessGroups.length === 0 ? (
             <Tag>全部可见</Tag>
-          ),
+          ) : (
+            <Tag>{ownerScopeLabel}</Tag>
+          );
+        },
       },
       {
         title: "更新时间",
@@ -165,6 +167,7 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
           <Space>
             <Tooltip title="配置">
               <Button
+                aria-label={`配置${rowName(record)}`}
                 icon={<SettingOutlined />}
                 onClick={() => openDrawer(record)}
                 disabled={!canMaintain && !record.canManageAccess}
@@ -172,6 +175,7 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
             </Tooltip>
             <Tooltip title={canDelete ? "删除" : "当前用户无删除权限"}>
               <Button
+                aria-label={`删除${rowName(record)}`}
                 danger
                 icon={<DeleteOutlined />}
                 disabled={!canDelete}
@@ -182,7 +186,7 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
         ),
       },
     ],
-    [canMaintain, columns],
+    [canDelete, canMaintain, columns, rowName],
   );
 
   function submitFilters(values: Record<string, unknown>) {
@@ -369,11 +373,6 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
                       label: ownerScopeLabel,
                       disabled: true,
                     },
-                    {
-                      value: superadminAccessScopeId,
-                      label: "超级管理员可见",
-                      disabled: true,
-                    },
                     ...accessGroups
                       .filter((group) => !isSuperadminGroup(group))
                       .map((group) => ({
@@ -429,11 +428,8 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
 export function withFixedAccessScopes(
   values: AccessScopeId[] = [],
 ): AccessScopeId[] {
-  const optionalValues = values.filter(
-    (value) =>
-      value !== ownerAccessScopeId && value !== superadminAccessScopeId,
-  );
-  return [ownerAccessScopeId, superadminAccessScopeId, ...optionalValues];
+  const optionalValues = values.filter((value) => value !== ownerAccessScopeId);
+  return [ownerAccessScopeId, ...optionalValues];
 }
 
 export function realAccessGroupIds(values: AccessScopeId[] = []): number[] {
