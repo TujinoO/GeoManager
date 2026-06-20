@@ -52,7 +52,6 @@ import {
   sourceIdFor,
 } from "../utils/geometry";
 
-const globeOverviewZoom = 2.4;
 const spatialFilterSourceId = "query-spatial-filter";
 const spatialFilterFillId = "query-spatial-filter-fill";
 const spatialFilterLineId = "query-spatial-filter-line";
@@ -118,7 +117,7 @@ export default function MapCanvas({
       container: containerRef.current,
       style: createBasemapStyle(mapConfig),
       center: mapConfig.defaultCenter,
-      zoom: Math.min(mapConfig.defaultZoom, globeOverviewZoom),
+      zoom: mapConfig.defaultZoom,
       pitch: 18,
       bearing: -12,
       projection: "globe",
