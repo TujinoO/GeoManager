@@ -1,8 +1,4 @@
-import {
-  LockOutlined,
-  UploadOutlined,
-  UserOutlined,
-} from "@ant-design/icons";
+import { LockOutlined, UploadOutlined, UserOutlined } from "@ant-design/icons";
 import type { ProDescriptionsItemProps } from "@ant-design/pro-components";
 import { ProCard, ProDescriptions } from "@ant-design/pro-components";
 import {
@@ -87,7 +83,9 @@ function createProfileDescriptionColumns(
       key: "permissions",
       editable: false,
       render: () => (
-        <Typography.Link onClick={onManagePermissions}>管理权限</Typography.Link>
+        <Typography.Link onClick={onManagePermissions}>
+          管理权限
+        </Typography.Link>
       ),
     },
     {
@@ -250,8 +248,8 @@ export default function AdminProfilePage() {
     email: profile?.user.email ?? "",
     department: profile?.department ?? "",
   };
-  const profileDescriptionColumns = createProfileDescriptionColumns(() =>
-    setPermDrawerOpen(true),
+  const profileDescriptionColumns = createProfileDescriptionColumns(
+    () => setPermDrawerOpen(true),
     () => setPasswordModalOpen(true),
   );
 

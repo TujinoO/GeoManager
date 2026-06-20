@@ -425,15 +425,20 @@ export function VectorSymbolizationEditor({
     (option) => option.value === value.symbol.iconImage,
   )
     ? iconOptions
-    : [{ value: value.symbol.iconImage, label: value.symbol.iconImage }, ...iconOptions];
+    : [
+        { value: value.symbol.iconImage, label: value.symbol.iconImage },
+        ...iconOptions,
+      ];
   const currentHeatmapColor = JSON.stringify(value.heatmap.heatmapColor);
   const heatmapPaletteOptions: Array<{ label: string; value: string }> =
     heatmapPalettes.map((palette) => ({
-    label: palette.label,
-    value: JSON.stringify(palette.value),
-  }));
+      label: palette.label,
+      value: JSON.stringify(palette.value),
+    }));
   if (
-    !heatmapPaletteOptions.some((option) => option.value === currentHeatmapColor)
+    !heatmapPaletteOptions.some(
+      (option) => option.value === currentHeatmapColor,
+    )
   ) {
     heatmapPaletteOptions.unshift({
       label: "当前自定义色带",
@@ -496,7 +501,10 @@ export function VectorSymbolizationEditor({
                   { value: "heatmap", label: "密度热力" },
                 ]}
                 onChange={(mode) =>
-                  updateRoot("pointMode", mode as VectorSymbolization["pointMode"])
+                  updateRoot(
+                    "pointMode",
+                    mode as VectorSymbolization["pointMode"],
+                  )
                 }
               />
             </ControlRow>
@@ -600,7 +608,10 @@ export function VectorSymbolizationEditor({
               </Typography.Text>
             </div>
           </div>
-          <Space orientation="vertical" className="full-width symbolization-stack">
+          <Space
+            orientation="vertical"
+            className="full-width symbolization-stack"
+          >
             <ControlRow label="图层透明度">
               <Slider
                 value={value.opacity}
@@ -779,7 +790,10 @@ export function VectorSymbolizationEditor({
                 </Typography.Text>
               </div>
             </div>
-            <Space orientation="vertical" className="full-width symbolization-stack">
+            <Space
+              orientation="vertical"
+              className="full-width symbolization-stack"
+            >
               <ControlRow label="显示标注">
                 <Switch
                   checked={labelEnabled}
@@ -835,7 +849,10 @@ export function VectorSymbolizationEditor({
           <summary>
             <span>高级设置</span>
           </summary>
-          <Space orientation="vertical" className="full-width symbolization-stack">
+          <Space
+            orientation="vertical"
+            className="full-width symbolization-stack"
+          >
             <Button size="small" onClick={copyJson}>
               复制符号化 JSON
             </Button>
@@ -1065,7 +1082,6 @@ export function VectorSymbolizationEditor({
       </Space>
     </Card>
   );
-
 }
 
 export function RasterSymbolizationEditor({

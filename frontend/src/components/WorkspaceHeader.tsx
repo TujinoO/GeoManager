@@ -590,6 +590,12 @@ export default function WorkspaceHeader({
   const tourSteps = useMemo<TourProps["steps"]>(() => {
     const steps: NonNullable<TourProps["steps"]> = [
       {
+        title: "🎉欢迎 🎉",
+        description:
+          "欢迎使用中亚胡杨林生态系统保护数据共享平台，下面快速熟悉工作台入口。",
+        target: null,
+      },
+      {
         title: "全局搜索",
         description:
           "检索数据资源、已保存工程和专题，并从结果中加载到当前工作台。",

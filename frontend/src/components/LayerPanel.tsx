@@ -1157,7 +1157,9 @@ function NodeActions({
           placement="leftTop"
           align={{ offset: [0, -180] }}
           autoAdjustOverflow
-          classNames={{ root: "symbolization-popover layer-symbolization-popover" }}
+          classNames={{
+            root: "symbolization-popover layer-symbolization-popover",
+          }}
           open={symbolizationOpen}
           onOpenChange={handleSymbolizationOpenChange}
           content={

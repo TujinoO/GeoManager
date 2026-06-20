@@ -23,13 +23,45 @@ const thumbnailMinZoom = 0;
 const thumbnailMaxZoom = 17;
 const thumbnailExtentSourceId = "thumbnail-current-view-extent";
 const thumbnailExtentLayerId = "thumbnail-current-view-extent-line";
-const trendMonths = ["7", "8", "9", "10", "11", "12", "1", "2", "3", "4", "5", "6"];
-const ndviTrend = [0.48, 0.54, 0.52, 0.61, 0.64, 0.67, 0.65, 0.71, 0.68, 0.7, 0.69, 0.69];
-const moistureTrend = [0.42, 0.47, 0.45, 0.51, 0.56, 0.57, 0.55, 0.6, 0.59, 0.61, 0.6, 0.6];
+const trendMonths = [
+  "7",
+  "8",
+  "9",
+  "10",
+  "11",
+  "12",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+];
+const ndviTrend = [
+  0.48, 0.54, 0.52, 0.61, 0.64, 0.67, 0.65, 0.71, 0.68, 0.7, 0.69, 0.69,
+];
+const moistureTrend = [
+  0.42, 0.47, 0.45, 0.51, 0.56, 0.57, 0.55, 0.6, 0.59, 0.61, 0.6, 0.6,
+];
 const overviewMetrics = [
-  { label: "NDVI", value: "0.61", trend: [42, 48, 46, 54, 60, 62, 61], tone: "green" },
-  { label: "风险面积", value: "14%", trend: [22, 20, 18, 19, 16, 15, 14], tone: "amber" },
-  { label: "站点在线", value: "89%", trend: [82, 86, 84, 88, 91, 89, 89], tone: "cyan" },
+  {
+    label: "NDVI",
+    value: "0.61",
+    trend: [42, 48, 46, 54, 60, 62, 61],
+    tone: "green",
+  },
+  {
+    label: "风险面积",
+    value: "14%",
+    trend: [22, 20, 18, 19, 16, 15, 14],
+    tone: "amber",
+  },
+  {
+    label: "站点在线",
+    value: "89%",
+    trend: [82, 86, 84, 88, 91, 89, 89],
+    tone: "cyan",
+  },
 ] as const;
 const ecologyBands = [
   { label: "优", value: 44, tone: "green" },
@@ -78,7 +110,10 @@ export default function RightSidePanel({
         <FlatMapThumbnail currentView={currentView} />
       </section>
 
-      <section className="right-eco-panel" aria-label="生态数据展示窗口（示意）">
+      <section
+        className="right-eco-panel"
+        aria-label="生态数据展示窗口（示意）"
+      >
         <div className="right-panel-heading right-panel-heading-main">
           <span>
             <RadarChartOutlined style={{ fontSize: 15 }} />
@@ -286,7 +321,10 @@ function EcologyOverviewPanel() {
         </div>
         <div className="eco-metrics">
           {overviewMetrics.map((metric) => (
-            <span className={`eco-metric-card eco-tone-${metric.tone}`} key={metric.label}>
+            <span
+              className={`eco-metric-card eco-tone-${metric.tone}`}
+              key={metric.label}
+            >
               <strong>{metric.value}</strong>
               {metric.label}
               <Sparkline values={metric.trend} />
@@ -435,7 +473,12 @@ function TrendChart() {
   const moisturePoints = formatPoints(moistureTrend, 300, 110, 0.36, 0.74);
   const areaPoints = `0,110 ${ndviPoints} 300,110`;
   return (
-    <svg className="eco-trend-svg" viewBox="0 0 300 132" role="img" aria-label="NDVI 与水分指数趋势示意图">
+    <svg
+      className="eco-trend-svg"
+      viewBox="0 0 300 132"
+      role="img"
+      aria-label="NDVI 与水分指数趋势示意图"
+    >
       <defs>
         <linearGradient id="ecoTrendFill" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" stopColor="#20d6b0" stopOpacity=".36" />
@@ -448,15 +491,41 @@ function TrendChart() {
         <path d="M0 86 H300" />
       </g>
       <polygon className="eco-trend-area" points={areaPoints} />
-      <polyline className="eco-trend-line eco-trend-line-ndvi" points={ndviPoints} />
-      <polyline className="eco-trend-line eco-trend-line-water" points={moisturePoints} />
+      <polyline
+        className="eco-trend-line eco-trend-line-ndvi"
+        points={ndviPoints}
+      />
+      <polyline
+        className="eco-trend-line eco-trend-line-water"
+        points={moisturePoints}
+      />
       {ndviTrend.map((value, index) => {
-        const point = formatPoint(value, index, ndviTrend.length, 300, 110, 0.36, 0.74);
-        return <circle className="eco-trend-dot" cx={point.x} cy={point.y} key={index} r={index === 7 ? 4 : 2.5} />;
+        const point = formatPoint(
+          value,
+          index,
+          ndviTrend.length,
+          300,
+          110,
+          0.36,
+          0.74,
+        );
+        return (
+          <circle
+            className="eco-trend-dot"
+            cx={point.x}
+            cy={point.y}
+            key={index}
+            r={index === 7 ? 4 : 2.5}
+          />
+        );
       })}
       <g className="eco-chart-months">
         {trendMonths.map((month, index) => (
-          <text key={month} x={(index / (trendMonths.length - 1)) * 300} y="128">
+          <text
+            key={month}
+            x={(index / (trendMonths.length - 1)) * 300}
+            y="128"
+          >
             {month}
           </text>
         ))}
@@ -476,15 +545,36 @@ function RadarProfile() {
     return `${70 + Math.cos(angle) * 52},${62 + Math.sin(angle) * 52}`;
   });
   return (
-    <svg className="eco-radar-svg" viewBox="0 0 140 124" role="img" aria-label="生态要素雷达图">
+    <svg
+      className="eco-radar-svg"
+      viewBox="0 0 140 124"
+      role="img"
+      aria-label="生态要素雷达图"
+    >
       <polygon className="eco-radar-grid" points={outer.join(" ")} />
-      <polygon className="eco-radar-grid eco-radar-grid-inner" points={scalePolygon(outer, 70, 62, 0.58)} />
+      <polygon
+        className="eco-radar-grid eco-radar-grid-inner"
+        points={scalePolygon(outer, 70, 62, 0.58)}
+      />
       {outer.map((point) => (
-        <line className="eco-radar-axis" key={point} x1="70" y1="62" x2={point.split(",")[0]} y2={point.split(",")[1]} />
+        <line
+          className="eco-radar-axis"
+          key={point}
+          x1="70"
+          y1="62"
+          x2={point.split(",")[0]}
+          y2={point.split(",")[1]}
+        />
       ))}
       <polygon className="eco-radar-shape" points={points.join(" ")} />
       {points.map((point) => (
-        <circle className="eco-radar-dot" key={point} cx={point.split(",")[0]} cy={point.split(",")[1]} r="3" />
+        <circle
+          className="eco-radar-dot"
+          key={point}
+          cx={point.split(",")[0]}
+          cy={point.split(",")[1]}
+          r="3"
+        />
       ))}
     </svg>
   );
@@ -499,7 +589,15 @@ function formatPoints(
 ) {
   return values
     .map((value, index) => {
-      const point = formatPoint(value, index, values.length, width, height, fixedMin, fixedMax);
+      const point = formatPoint(
+        value,
+        index,
+        values.length,
+        width,
+        height,
+        fixedMin,
+        fixedMax,
+      );
       return `${point.x},${point.y}`;
     })
     .join(" ");
@@ -523,10 +621,25 @@ function formatPoint(
   };
 }
 
-function scalePolygon(points: string[], centerX: number, centerY: number, scale: number) {
+function scalePolygon(
+  points: string[],
+  centerX: number,
+  centerY: number,
+  scale: number,
+) {
   return points
     .map((point) => {
-      const [x, y] = point.split(",").map(Number);
+      const coordinates = point.split(",").map(Number);
+      const x = coordinates[0];
+      const y = coordinates[1];
+      if (
+        x === undefined ||
+        y === undefined ||
+        Number.isNaN(x) ||
+        Number.isNaN(y)
+      ) {
+        return `${centerX},${centerY}`;
+      }
       return `${centerX + (x - centerX) * scale},${centerY + (y - centerY) * scale}`;
     })
     .join(" ");
