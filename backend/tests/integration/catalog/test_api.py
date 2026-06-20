@@ -1735,6 +1735,36 @@ class AdminDataResourceApiTests(TestCase):
         self.assertIn(self.resource.id, item_ids)
         self.assertNotIn(restricted_resource.id, item_ids)
 
+    def test_admin_data_resource_list_hides_superadmin_uploader_identity(self):
+        superadmin_user, superadmin_group = ensure_superadmin_defaults()
+        self.user.groups.add(self.group)
+        protected_resource = DataResource.objects.create(
+            name="超级管理员维护数据",
+            code="superadmin-maintained-resource",
+            data_type=DataResource.DataType.TABLE,
+            storage_path="superadmin_table",
+            maintainer=superadmin_user,
+        )
+        protected_resource.access_groups.add(self.group, superadmin_group)
+
+        response = self.client.get("/api/admin/data/resources/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        resource_item = next(
+            item for item in payload["items"] if item["id"] == protected_resource.id
+        )
+        self.assertEqual(resource_item["maintainer"], "")
+        self.assertIsNone(resource_item["uploader"])
+        self.assertNotIn(
+            SUPERADMIN_GROUP_NAME,
+            {group["name"] for group in resource_item["accessGroups"]},
+        )
+        self.assertNotIn(
+            SUPERADMIN_GROUP_NAME,
+            {group["name"] for group in payload["availableAccessGroups"]},
+        )
+
     def test_admin_data_export_hides_inaccessible_resources(self):
         restricted_group = Group.objects.create(name="导出保密数据组")
         other_user = get_user_model().objects.create_user(

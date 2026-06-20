@@ -221,6 +221,8 @@ def get_avatar(request, user_id: int):
         user = User.objects.get(pk=user_id)
     except User.DoesNotExist:
         return JsonResponse({"detail": "用户不存在"}, status=404)
+    if not user_is_visible_to(request.user, user):
+        return JsonResponse({"detail": "用户不存在"}, status=404)
 
     try:
         profile = user.profile
@@ -1279,7 +1281,7 @@ def _serialize_admin_data_resource(
 ) -> dict[str, Any]:
     layers = list(resource.map_layers.all())
     layer = layers[0] if layers else None
-    uploader = _serialize_uploader(resource.maintainer)
+    uploader = _serialize_uploader(resource.maintainer, request_user)
     maintainer = uploader["displayName"] if uploader else ""
     return {
         "id": resource.id,
@@ -1325,8 +1327,10 @@ def _serialize_access_group(group: Group) -> dict[str, Any]:
     }
 
 
-def _serialize_uploader(user) -> dict[str, Any] | None:
+def _serialize_uploader(user, viewer) -> dict[str, Any] | None:
     if user is None:
+        return None
+    if not user_is_visible_to(viewer, user):
         return None
     return {
         "id": user.id,

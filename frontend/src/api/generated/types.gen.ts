@@ -1508,11 +1508,11 @@ export type AdminDataResource = {
      */
     canManageAccess: boolean;
     /**
-     * 维护人员显示名称
+     * 维护人员显示名称；维护人是当前主体不可见的超级管理员用户时返回空字符串
      */
     maintainer: string;
     /**
-     * 上传或维护该资源的用户；无法归属时为 null
+     * 上传或维护该资源的用户；无法归属或维护人是当前主体不可见的超级管理员用户时为 null
      */
     uploader: AdminDataResourceUploader | null;
     /**

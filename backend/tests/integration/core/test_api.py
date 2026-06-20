@@ -830,6 +830,25 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json()["detail"], "用户不存在")
 
+    def test_superadmin_avatar_is_hidden_from_regular_user(self):
+        manager = get_user_model().objects.create_user(
+            username="superadmin-avatar-manager", password="pass12345"
+        )
+        protected_user, _ = ensure_superadmin_defaults()
+        UserProfile.objects.update_or_create(
+            user=protected_user,
+            defaults={
+                "avatar_data": b"avatar-bytes",
+                "avatar_content_type": "image/jpeg",
+            },
+        )
+        self.client.force_login(manager)
+
+        response = self.client.get(f"/api/users/{protected_user.id}/avatar/")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["detail"], "用户不存在")
+
     def test_regular_user_cannot_be_left_without_group(self):
         manager = get_user_model().objects.create_user(
             username="empty-group-manager", password="pass12345"

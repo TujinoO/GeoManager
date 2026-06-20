@@ -3730,12 +3730,12 @@ components:
           description: 当前用户是否可修改该资源的可见范围；上传者本人或具备 `catalog.change_dataresource` 时为 true
         maintainer:
           type: string
-          description: 维护人员显示名称
+          description: 维护人员显示名称；维护人是当前主体不可见的超级管理员用户时返回空字符串
         uploader:
           oneOf:
             - $ref: '#/components/schemas/AdminDataResourceUploader'
             - type: "null"
-          description: 上传或维护该资源的用户；无法归属时为 null
+          description: 上传或维护该资源的用户；无法归属或维护人是当前主体不可见的超级管理员用户时为 null
         createdAt:
           type: string
           format: date-time
