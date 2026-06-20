@@ -271,7 +271,7 @@ export function moveLayerBetweenGroups(
       children.splice(insertIndex, 0, sourceLayer);
       return { ...group, children };
     })
-    .filter((group) => group.children.length > 0);
+    .filter((group) => group.children.length > 0 || group.isManual);
 }
 
 export function clamp(value: number, min: number, max: number): number {

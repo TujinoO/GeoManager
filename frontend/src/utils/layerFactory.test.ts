@@ -4,7 +4,11 @@ import type {
   DataResourceProfile,
   ResourceQueryResult,
 } from "../types";
-import { createRasterLayerGroup, createVectorLayerGroup } from "./layerFactory";
+import {
+  createEmptyLayerGroup,
+  createRasterLayerGroup,
+  createVectorLayerGroup,
+} from "./layerFactory";
 
 function makeResource(overrides: Partial<DataResource> = {}): DataResource {
   return {
@@ -83,6 +87,15 @@ describe("createVectorLayerGroup", () => {
     expect(group.name).toContain("测试数据");
   });
 
+  it("does not append a default group suffix to loaded vector data", () => {
+    const group = createVectorLayerGroup(
+      makeResource({ name: "测试数据" }),
+      makeProfile(),
+      makeQueryResult(),
+    );
+    expect(group.name).toBe("测试数据");
+  });
+
   it("uses default vector symbolization", () => {
     const group = createVectorLayerGroup(
       makeResource(),
@@ -156,5 +169,14 @@ describe("createRasterLayerGroup", () => {
     expect(group).not.toBeNull();
     expect(group?.children).toHaveLength(1);
     expect(group?.children[0].layerType).toBe("raster");
+  });
+});
+
+describe("createEmptyLayerGroup", () => {
+  it("creates a manual group without children", () => {
+    const group = createEmptyLayerGroup("图层组 1");
+    expect(group.isManual).toBe(true);
+    expect(group.name).toBe("图层组 1");
+    expect(group.children).toEqual([]);
   });
 });

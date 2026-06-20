@@ -194,7 +194,7 @@ export async function restoreWorkspaceGroups({
       processedLayers += 1;
       updateRestoreProgress(`已恢复图层：${savedLayer.name}`);
     }
-    if (restoredChildren.length > 0) {
+    if (restoredChildren.length > 0 || savedGroup.isManual) {
       restored.push({ ...savedGroup, children: restoredChildren });
     }
   }

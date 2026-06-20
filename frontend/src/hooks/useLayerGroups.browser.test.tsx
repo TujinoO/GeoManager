@@ -133,6 +133,24 @@ describe("useLayerGroups", () => {
     expect(result.current.groups).toEqual([]);
   });
 
+  it("keeps manually created groups when their last layer is removed", () => {
+    const { result } = renderHook(() => useLayerGroups());
+
+    act(() => {
+      result.current.addGroup({
+        ...makeGroup("manual", [makeVectorLayer("only-layer")]),
+        isManual: true,
+      });
+    });
+    act(() => {
+      result.current.removeLayer("manual", "only-layer");
+    });
+
+    expect(result.current.groups).toHaveLength(1);
+    expect(result.current.groups[0].isManual).toBe(true);
+    expect(result.current.groups[0].children).toEqual([]);
+  });
+
   it("reorders groups around a target group", () => {
     const { result } = renderHook(() => useLayerGroups());
 
@@ -200,6 +218,25 @@ describe("useLayerGroups", () => {
     expect(result.current.groups[0].children.map((layer) => layer.id)).toEqual([
       "moving",
       "target-layer",
+    ]);
+  });
+
+  it("moves layers into manually created empty groups", () => {
+    const { result } = renderHook(() => useLayerGroups());
+
+    act(() => {
+      result.current.setGroups([
+        makeGroup("source", [makeVectorLayer("moving")]),
+        { ...makeGroup("manual", []), isManual: true },
+      ]);
+    });
+    act(() => {
+      result.current.moveLayer("source", "moving", "manual", null, "inside");
+    });
+
+    expect(result.current.groups.map((group) => group.id)).toEqual(["manual"]);
+    expect(result.current.groups[0].children.map((layer) => layer.id)).toEqual([
+      "moving",
     ]);
   });
 });

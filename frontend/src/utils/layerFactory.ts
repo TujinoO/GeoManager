@@ -50,7 +50,7 @@ export function createVectorLayerGroup(
   };
   return {
     id: groupId,
-    name: `${resource.name} 查询组`,
+    name: resource.name,
     sourceResource: resource,
     visible: true,
     summary,
@@ -106,7 +106,7 @@ export function createRasterLayerGroup(
   };
   return {
     id: groupId,
-    name: `${resource.name} 栅格组`,
+    name: resource.name,
     sourceResource: resource,
     visible: true,
     summary,
@@ -134,5 +134,47 @@ export function createRasterLayerGroup(
         renderMessages: [],
       } satisfies LoadedRasterLayer,
     ],
+  };
+}
+
+export function createEmptyLayerGroup(name: string): LoadedLayerGroup {
+  const now = new Date();
+  const timestamp = now.getTime();
+  const groupId = `manual-${timestamp}-${Math.random().toString(36).slice(2, 8)}`;
+  const sourceResource: ResourceListItem = {
+    id: -timestamp,
+    name,
+    code: groupId,
+    dataType: "vector",
+    category: null,
+    source: "手动创建",
+    provider: "当前用户",
+    dataDate: null,
+    spatialExtent: "",
+    coordinateSystem: "",
+    fileFormat: "",
+    description: "手动创建的图层组",
+    qualityNote: "",
+    sizeBytes: 0,
+    itemCount: 0,
+    status: "active",
+    isQueryable: false,
+    isRenderable: false,
+    updatedAt: now.toISOString(),
+  };
+  return {
+    id: groupId,
+    name,
+    sourceResource,
+    isManual: true,
+    visible: true,
+    summary: "手动图层组",
+    createdAt: now.toISOString(),
+    metadata: {
+      图层组类型: "手动创建",
+      创建时间: now.toLocaleString("zh-CN", { hour12: false }),
+    },
+    symbolization: cloneDefaultGroupSymbolization(),
+    children: [],
   };
 }

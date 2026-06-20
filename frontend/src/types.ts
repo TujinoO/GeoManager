@@ -270,6 +270,7 @@ export interface LoadedLayerGroup {
   id: string;
   name: string;
   sourceResource: ResourceListItem;
+  isManual?: boolean;
   visible: boolean;
   summary: string;
   createdAt: string;

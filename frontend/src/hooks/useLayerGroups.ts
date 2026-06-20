@@ -170,7 +170,7 @@ export function useLayerGroups(cacheKey = "default") {
                 }
               : group,
           )
-          .filter((group) => group.children.length > 0),
+          .filter((group) => group.children.length > 0 || group.isManual),
       );
     },
     [setGroups],

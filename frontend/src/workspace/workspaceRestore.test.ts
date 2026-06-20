@@ -177,4 +177,19 @@ describe("restoreWorkspaceGroups", () => {
       }),
     ]);
   });
+
+  it("restores manually created empty groups", async () => {
+    const result = await restoreWorkspaceGroups({
+      savedGroups: [{ ...makeGroup([]), isManual: true }],
+      canQueryData: true,
+      canLoadVectorLayer: true,
+      queryResultLimit: 30000,
+      notification,
+    });
+
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].isManual).toBe(true);
+    expect(result.groups[0].children).toEqual([]);
+    expect(result.issues).toEqual([]);
+  });
 });

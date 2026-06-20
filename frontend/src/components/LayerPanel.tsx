@@ -9,6 +9,7 @@ import {
   FileOutlined,
   FolderOpenOutlined,
   HolderOutlined,
+  PlusOutlined,
   RightOutlined,
   SaveOutlined,
   SearchOutlined,
@@ -63,6 +64,7 @@ import type {
   ResourceField,
   WorkspaceSceneKind,
 } from "../types";
+import { createEmptyLayerGroup } from "../utils/layerFactory";
 import { resourceExportId } from "../utils/resources";
 
 const RasterSymbolizationEditor = lazy(() =>
@@ -142,7 +144,7 @@ export default function LayerPanel() {
         );
         return groupMatched ? group : { ...group, children };
       })
-      .filter((group) => group.children.length > 0);
+      .filter((group) => group.children.length > 0 || group.isManual);
   }, [groups, query]);
 
   const setDragTargetIfChanged = useCallback(
@@ -441,6 +443,12 @@ export default function LayerPanel() {
     }
   }
 
+  function createManualLayerGroup() {
+    const group = createEmptyLayerGroup(`图层组 ${groups.length + 1}`);
+    ctx.addGroup(group);
+    message.success("已新建图层组");
+  }
+
   return (
     <section className="panel-section">
       <div className="layer-save-actions">
@@ -459,6 +467,13 @@ export default function LayerPanel() {
           onClick={() => openSaveWorkspace("topic")}
         >
           保存为专题
+        </Button>
+        <Button
+          size="small"
+          icon={<PlusOutlined style={{ fontSize: 14 }} />}
+          onClick={createManualLayerGroup}
+        >
+          新建图层组
         </Button>
       </div>
       <Input
@@ -566,6 +581,9 @@ export default function LayerPanel() {
                         exportItems={exportItemsForLayer(layer)}
                       />
                     ))}
+                    {group.children.length === 0 ? (
+                      <div className="layer-children-empty">拖动图层到此组</div>
+                    ) : null}
                   </fieldset>
                 )}
               </div>
@@ -994,14 +1012,14 @@ function NodeActions({
     }
   }, [symbolization, symbolizationOpen]);
 
-  function handleSymbolizationOpenChange(open: boolean) {
-    if (open && !canUseCustomSymbolization) {
-      return;
-    }
-    setSymbolizationOpen(open);
-    if (open) {
-      setDraftSymbolization(symbolization);
-    }
+  function openSymbolizationModal() {
+    if (!canUseCustomSymbolization) return;
+    setDraftSymbolization(symbolization);
+    setSymbolizationOpen(true);
+  }
+
+  function closeSymbolizationModal() {
+    setSymbolizationOpen(false);
   }
 
   function handleExportOpenChange(open: boolean) {
@@ -1089,90 +1107,75 @@ function NodeActions({
   }
 
   return (
-    <div
-      className="icon-cluster"
-      role="toolbar"
-      aria-label={`${subjectName}图层操作`}
-      onClick={(event) => event.stopPropagation()}
-      onKeyDown={(event) => event.stopPropagation()}
-    >
-      {onOpenTable && (
-        <Tooltip title="数据表">
-          <Button
-            className="action-btn"
-            type="text"
-            size="small"
-            aria-label={`${subjectName}数据表`}
-            icon={<TableOutlined style={{ fontSize: 14 }} />}
-            onClick={onOpenTable}
-          />
-        </Tooltip>
-      )}
-      <Tooltip title="定位">
-        <Button
-          className="action-btn"
-          type="text"
-          size="small"
-          aria-label={`定位${subjectName}`}
-          icon={<AimOutlined style={{ fontSize: 14 }} />}
-          onClick={onLocate}
-        />
-      </Tooltip>
-      {canExportData && (
-        <Popover
-          trigger="click"
-          placement="leftTop"
-          classNames={{ root: "symbolization-popover" }}
-          open={exportOpen}
-          onOpenChange={handleExportOpenChange}
-          content={
-            <ExportOptionsCard
-              title={`导出 ${subjectName}`}
-              epsg={exportEpsg}
-              format={exportFormat}
-              reproject={exportReproject}
-              clip={exportClip}
-              clipReady={Boolean(ctx.exportClipGeometry)}
-              running={exportRunning}
-              progress={exportProgress}
-              messages={exportMessages}
-              onEpsgChange={setExportEpsg}
-              onFormatChange={setExportFormat}
-              onReprojectChange={setExportReproject}
-              onClipChange={setExportClip}
-              onClearClip={ctx.clearExportClipGeometry}
-              onExport={confirmExport}
-            />
-          }
-        >
-          <Tooltip title="导出">
+    <>
+      <div
+        className="icon-cluster"
+        role="toolbar"
+        aria-label={`${subjectName}图层操作`}
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        {onOpenTable && (
+          <Tooltip title="数据表">
             <Button
               className="action-btn"
               type="text"
               size="small"
-              aria-label={`导出${subjectName}`}
-              icon={<DownloadOutlined style={{ fontSize: 14 }} />}
+              aria-label={`${subjectName}数据表`}
+              icon={<TableOutlined style={{ fontSize: 14 }} />}
+              onClick={onOpenTable}
             />
           </Tooltip>
-        </Popover>
-      )}
-      {canUseCustomSymbolization && (
-        <Popover
-          trigger="click"
-          placement="leftTop"
-          align={{ offset: [0, -180] }}
-          autoAdjustOverflow
-          classNames={{
-            root: "symbolization-popover layer-symbolization-popover",
-          }}
-          open={symbolizationOpen}
-          onOpenChange={handleSymbolizationOpenChange}
-          content={
-            <Suspense fallback={<Spin size="small" />}>
-              {renderSymbolizationEditor()}
-            </Suspense>
-          }
-        >
+        )}
+        <Tooltip title="定位">
+          <Button
+            className="action-btn"
+            type="text"
+            size="small"
+            aria-label={`定位${subjectName}`}
+            icon={<AimOutlined style={{ fontSize: 14 }} />}
+            onClick={onLocate}
+          />
+        </Tooltip>
+        {canExportData && (
+          <Popover
+            trigger="click"
+            placement="leftTop"
+            classNames={{ root: "symbolization-popover" }}
+            open={exportOpen}
+            onOpenChange={handleExportOpenChange}
+            content={
+              <ExportOptionsCard
+                title={`导出 ${subjectName}`}
+                epsg={exportEpsg}
+                format={exportFormat}
+                reproject={exportReproject}
+                clip={exportClip}
+                clipReady={Boolean(ctx.exportClipGeometry)}
+                running={exportRunning}
+                progress={exportProgress}
+                messages={exportMessages}
+                onEpsgChange={setExportEpsg}
+                onFormatChange={setExportFormat}
+                onReprojectChange={setExportReproject}
+                onClipChange={setExportClip}
+                onClearClip={ctx.clearExportClipGeometry}
+                onExport={confirmExport}
+              />
+            }
+          >
+            <Tooltip title="导出">
+              <Button
+                className="action-btn"
+                type="text"
+                size="small"
+                aria-label={`导出${subjectName}`}
+                icon={<DownloadOutlined style={{ fontSize: 14 }} />}
+              />
+            </Tooltip>
+          </Popover>
+        )}
+        {canUseCustomSymbolization && (
           <Tooltip title="符号化">
             <Button
               className="action-btn"
@@ -1180,21 +1183,35 @@ function NodeActions({
               size="small"
               aria-label={`${subjectName}符号化`}
               icon={<BgColorsOutlined style={{ fontSize: 14 }} />}
+              onClick={openSymbolizationModal}
             />
           </Tooltip>
-        </Popover>
+        )}
+        <Tooltip title="移除">
+          <Button
+            className="action-btn"
+            type="text"
+            size="small"
+            aria-label={`移除${subjectName}`}
+            icon={<DeleteOutlined style={{ fontSize: 14 }} />}
+            onClick={onRemove}
+          />
+        </Tooltip>
+      </div>
+      {canUseCustomSymbolization && (
+        <Modal
+          title={`${subjectName}符号化`}
+          open={symbolizationOpen}
+          footer={null}
+          width="min(760px, calc(100vw - 32px))"
+          wrapClassName="layer-symbolization-modal"
+          onCancel={closeSymbolizationModal}
+          destroyOnHidden
+        >
+          <Suspense fallback={<Spin />}>{renderSymbolizationEditor()}</Suspense>
+        </Modal>
       )}
-      <Tooltip title="移除">
-        <Button
-          className="action-btn"
-          type="text"
-          size="small"
-          aria-label={`移除${subjectName}`}
-          icon={<DeleteOutlined style={{ fontSize: 14 }} />}
-          onClick={onRemove}
-        />
-      </Tooltip>
-    </div>
+    </>
   );
 }
 

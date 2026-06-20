@@ -5369,8 +5369,14 @@ body {
 
 .layer-save-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 10px;
+}
+
+.layer-save-actions .ant-btn {
+  flex: 1 1 104px;
+  min-width: 0;
 }
 
 .layer-row.ant-list-item {
@@ -5483,6 +5489,14 @@ body {
 .layer-children-drop-inside {
   border-left-color: var(--c-workspace-accent-mid);
   box-shadow: inset 3px 0 0 rgba(98, 236, 217, 0.34);
+}
+
+.layer-children-empty {
+  padding: 8px 10px;
+  color: var(--c-workspace-text-muted);
+  font-size: 12px;
+  border: 1px dashed rgb(var(--c-workspace-border-rgb) / 0.28);
+  border-radius: 6px;
 }
 
 .layer-row-main {
@@ -5636,6 +5650,36 @@ body {
   max-height: calc(100vh - 40px);
   overflow: auto;
   padding: 0;
+}
+
+.layer-symbolization-modal .ant-modal {
+  top: 24px;
+  max-width: calc(100vw - 32px);
+  padding-bottom: 24px;
+}
+
+.layer-symbolization-modal .ant-modal-content {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+}
+
+.layer-symbolization-modal .ant-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.layer-symbolization-modal .symbolization-card {
+  border: 0;
+  border-radius: 0;
+}
+
+.layer-symbolization-modal .symbolization-card .ant-card-body {
+  max-height: none;
+  overflow: visible;
 }
 
 .symbolization-card {
