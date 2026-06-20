@@ -9,6 +9,7 @@ import type {
   AdminProfileUpdateRequest,
   AdminSettingsResponse,
   AdminSettingsUpdateRequest,
+  AdminSystemLogResponse,
   AsyncJobResponse,
   BaseUserInfo,
   BootstrapResponse,
@@ -30,6 +31,7 @@ import type {
   LayerListResponse,
   ListAdminDataResourcesData,
   ListAdminOperationLogsData,
+  ListAdminSystemLogsData,
   NonGeoAnalyticsResponse,
   NonGeoTableQueryRequest,
   NonGeoTableQueryResponse,
@@ -53,6 +55,7 @@ export type {
   AdminDataResource,
   AdminOperationLog,
   AdminPermissionItem,
+  AdminSystemLogFile,
   DataResource,
   GeoJsonGeometry,
   Group,
@@ -90,6 +93,8 @@ export type AdminProfilePasswordUpdate = AdminProfilePasswordRequest;
 export type AdminOperationLogQuery = NonNullable<
   ListAdminOperationLogsData["query"]
 >;
+export type AdminSystemLog = AdminSystemLogResponse;
+export type AdminSystemLogQuery = NonNullable<ListAdminSystemLogsData["query"]>;
 export type AdminDashboard = AdminDashboardResponse;
 export type AdminDashboardServer = AdminDashboardServerResponse;
 export type AdminSettings = AdminSettingsResponse;

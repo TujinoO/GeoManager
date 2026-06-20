@@ -536,7 +536,7 @@ export default function WorkspaceHeader({
     if (user?.permissions.canViewOperationLogs) {
       items.push({
         key: "admin-logs",
-        label: "操作日志",
+        label: "日志管理",
         onClick: () => navigateFromHeader("/admin/logs"),
       });
     }

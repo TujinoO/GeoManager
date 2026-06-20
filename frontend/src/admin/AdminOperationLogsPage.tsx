@@ -5,10 +5,26 @@ import type {
   ProFormInstance,
 } from "@ant-design/pro-components";
 import { ProTable } from "@ant-design/pro-components";
-import { App, AutoComplete, Button, Space, Tag } from "antd";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  App,
+  AutoComplete,
+  Button,
+  Card,
+  Empty,
+  Select,
+  Space,
+  Spin,
+  Tabs,
+  Tag,
+  Typography,
+} from "antd";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
-import type { AdminOperationLog, AdminOperationLogQuery } from "../types";
+import type {
+  AdminOperationLog,
+  AdminOperationLogQuery,
+  AdminSystemLog,
+} from "../types";
 import { downloadTextFile } from "../utils/download";
 import { operationLogsToCsv } from "./data";
 
@@ -94,7 +110,7 @@ export default function AdminOperationLogsPage() {
     }
   }
 
-  return (
+  const operationLogTable = (
     <ProTable<AdminOperationLog, OperationLogTableQuery>
       className="admin-table"
       actionRef={actionRef}
@@ -146,6 +162,112 @@ export default function AdminOperationLogsPage() {
       )}
       rowSelection={{}}
     />
+  );
+
+  return (
+    <Tabs
+      className="admin-logs-tabs"
+      items={[
+        {
+          key: "operations",
+          label: "操作日志",
+          children: operationLogTable,
+        },
+        {
+          key: "system",
+          label: "系统日志",
+          children: <AdminSystemLogsPanel />,
+        },
+      ]}
+    />
+  );
+}
+
+function AdminSystemLogsPanel() {
+  const { message } = App.useApp();
+  const [log, setLog] = useState<AdminSystemLog | null>(null);
+  const [selectedFile, setSelectedFile] = useState("");
+  const [lineCount, setLineCount] = useState(500);
+  const [loading, setLoading] = useState(false);
+
+  const loadSystemLogs = useCallback(
+    async (file: string, lines: number) => {
+      setLoading(true);
+      try {
+        const result = await api.adminSystemLogs({
+          file: file || undefined,
+          lines,
+        });
+        setLog(result);
+        setSelectedFile(result.selectedFile);
+      } catch (error) {
+        message.error(
+          error instanceof Error ? error.message : "系统日志加载失败",
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [message],
+  );
+
+  useEffect(() => {
+    void loadSystemLogs(selectedFile, lineCount);
+  }, [lineCount, loadSystemLogs, selectedFile]);
+
+  const fileOptions = (log?.files ?? []).map((file) => ({
+    label: `${file.name}（${formatBytes(file.sizeBytes)}）`,
+    value: file.name,
+  }));
+
+  return (
+    <Card
+      className="system-log-card"
+      title="后台运行日志"
+      extra={
+        <Space wrap>
+          <Select
+            value={selectedFile || undefined}
+            options={fileOptions}
+            placeholder="选择日志文件"
+            style={{ width: 260 }}
+            disabled={!fileOptions.length}
+            onChange={setSelectedFile}
+          />
+          <Select
+            value={lineCount}
+            style={{ width: 120 }}
+            options={[
+              { label: "200 行", value: 200 },
+              { label: "500 行", value: 500 },
+              { label: "1000 行", value: 1000 },
+              { label: "2000 行", value: 2000 },
+            ]}
+            onChange={setLineCount}
+          />
+          <Button
+            icon={<ReloadOutlined />}
+            loading={loading}
+            onClick={() => loadSystemLogs(selectedFile, lineCount)}
+          >
+            刷新
+          </Button>
+        </Space>
+      }
+    >
+      <Spin spinning={loading}>
+        {!log?.files.length ? (
+          <Empty description="暂无系统日志文件" />
+        ) : (
+          <div className="system-log-viewer">
+            <Typography.Text type="secondary">
+              当前文件：{log.selectedFile || "未选择"}，最近 {log.lines} 行
+            </Typography.Text>
+            <pre>{log.content || "当前日志文件没有可显示内容"}</pre>
+          </div>
+        )}
+      </Spin>
+    </Card>
   );
 }
 
@@ -275,4 +397,10 @@ function toOptions(values: string[]) {
 
 function filterOption(inputValue: string, option?: { value?: string }) {
   return (option?.value ?? "").toLowerCase().includes(inputValue.toLowerCase());
+}
+
+function formatBytes(value: number) {
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }

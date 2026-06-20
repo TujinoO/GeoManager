@@ -17,6 +17,11 @@ urlpatterns = [
         admin_api.admin_operation_logs,
         name="admin-operation-logs",
     ),
+    path(
+        "admin/system-logs/",
+        admin_api.admin_system_logs,
+        name="admin-system-logs",
+    ),
     path("admin/dashboard/", admin_api.admin_dashboard, name="admin-dashboard"),
     path(
         "admin/dashboard/server/",

@@ -15,6 +15,8 @@ import type {
   AdminProfileUpdate,
   AdminSettings,
   AdminSettingsUpdate,
+  AdminSystemLog,
+  AdminSystemLogQuery,
   Bootstrap,
   DataCatalog,
   DataResourceProfile,
@@ -291,6 +293,8 @@ export const api = {
     unwrap<PaginatedListResponse<AdminOperationLog>>(
       sdk.listAdminOperationLogs({ query: filters }),
     ),
+  adminSystemLogs: (filters: AdminSystemLogQuery = {}) =>
+    unwrap<AdminSystemLog>(sdk.listAdminSystemLogs({ query: filters })),
   adminDashboard: (period: "day" | "week" | "month" = "day") =>
     unwrap<AdminDashboard>(sdk.getAdminDashboard({ query: { period } })),
   adminDashboardServer: () =>

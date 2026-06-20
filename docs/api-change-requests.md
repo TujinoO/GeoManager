@@ -27,6 +27,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260619-001 | Implementing | POST /api/catalog/import/commit/; GET /api/admin/data/resources/; POST /api/admin/data/resources/{id}/ | request body, response fields, permission behavior, mock data | Done | Updating | Implementing | Pending | Uploaded data visibility scope |
 | API-20260619-002 | Verified | Multiple mock example endpoints | mock data consistency | N/A | Done | N/A | Done | Align representative auth, vector, raster, and non-geographic mock data |
 | API-20260619-003 | BackendReady | POST /api/catalog/import/preview/; POST /api/catalog/import/validate/; POST /api/catalog/import/commit/ | request body, response semantics, mock data | Done | Done | Done | Done | Import storage IDs unique; duplicate detection uses display name |
+| API-20260620-001 | BackendReady | GET /api/admin/system-logs/ | new endpoint, response fields, permission behavior, mock data | Done | Done | Done | Pending | System log file selector for admin logs page |
 
 ## Entry Template
 
@@ -121,6 +122,19 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Generate a new storage table/layer identifier for every preview/commit; if a submitted storage identifier collides, rewrite it to a unique one. Always create a new `DataResource` on import. Reject same display name at commit unless the user confirmed the duplicate name during validation and submit includes `duplicateConfirmed=true`; never overwrite existing backend data.
 - Verification: run backend catalog import tests plus `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build`.
 - Result: Backend implementation and focused tests completed in this change.
+
+## API-20260620-001 - Admin System Log Viewer
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `GET /api/admin/system-logs/`
+- Change type: new endpoint, response fields, permission behavior, mock data
+- OpenAPI change: Adds a read-only admin system log endpoint that returns available backend log files and tail content for a selected file. The endpoint requires `core.view_operation_logs`, accepts `file` and `lines`, and restricts file access to configured appdata `logs/` entries.
+- Mock examples: `mock/prism/examples/20-admin-dashboard-data.json`
+- Frontend reason: The existing backend logs page only shows operation audit records; system administrators need to inspect backend application, Django, and security logs from the same logs area.
+- Backend implementation notes: Read only `.log` and rotated `.log.N` files from `app_path("logs")`, never return absolute paths, cap returned tail lines, and reject unknown file names.
+- Verification: run backend core API tests plus `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build`.
+- Result: Contract and implementation completed; full verification pending current change validation.
 
 ## API-20260617-002 - Workspace Snapshot Raw Data Guard
 

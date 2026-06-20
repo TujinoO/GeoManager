@@ -67,6 +67,7 @@ from apps.core.permissions import (
 )
 from apps.core.storage import (
     StoragePathError,
+    app_path,
     research_path,
     table_data_path,
     validate_vector_layer_name,
@@ -908,6 +909,33 @@ def admin_operation_logs(request):
         {
             "items": [_serialize_operation_log(log) for log in logs[start:end]],
             "total": total,
+        }
+    )
+
+
+@require_GET
+@api_permission_required("core.view_operation_logs")
+def admin_system_logs(request):
+    lines = _positive_query_int(request.GET.get("lines"), default=500)
+    if isinstance(lines, JsonResponse):
+        return lines
+    lines = min(lines, 2000)
+
+    files = _available_system_log_files()
+    requested_file = str(request.GET.get("file", "")).strip()
+    selected_file = requested_file or (files[0]["name"] if files else "")
+    if selected_file and not any(item["name"] == selected_file for item in files):
+        return JsonResponse({"detail": "日志文件不存在"}, status=404)
+
+    return JsonResponse(
+        {
+            "files": files,
+            "selectedFile": selected_file,
+            "lines": lines,
+            "content": _tail_system_log_file(selected_file, lines)
+            if selected_file
+            else "",
+            "generatedAt": timezone.localtime().isoformat(),
         }
     )
 
@@ -1926,6 +1954,48 @@ def _serialize_operation_log(log: OperationLog) -> dict[str, Any]:
         "ipAddress": log.ip_address or "",
         "summary": log.message,
     }
+
+
+def _serialize_system_log_file(path: Path, root: Path) -> dict[str, Any]:
+    stat = path.stat()
+    modified_at = datetime.fromtimestamp(
+        stat.st_mtime, tz=timezone.get_current_timezone()
+    )
+    return {
+        "name": path.relative_to(root).as_posix(),
+        "sizeBytes": stat.st_size,
+        "modifiedAt": timezone.localtime(modified_at).isoformat(),
+    }
+
+
+def _available_system_log_files() -> list[dict[str, Any]]:
+    root = app_path("logs")
+    if not root.exists():
+        return []
+    files = [
+        path
+        for path in root.iterdir()
+        if path.is_file() and (path.suffix == ".log" or ".log." in path.name)
+    ]
+    files.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    return [_serialize_system_log_file(path, root) for path in files[:50]]
+
+
+def _tail_system_log_file(file_name: str, lines: int) -> str:
+    safe_name = Path(file_name)
+    if safe_name.is_absolute() or len(safe_name.parts) != 1 or ".." in safe_name.parts:
+        raise StoragePathError("非法日志文件名")
+    path = app_path("logs", safe_name.name)
+    if not path.is_file():
+        return ""
+    max_bytes = 512 * 1024
+    with path.open("rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        size = handle.tell()
+        handle.seek(max(size - max_bytes, 0), os.SEEK_SET)
+        data = handle.read()
+    text = data.decode("utf-8", errors="replace")
+    return "\n".join(text.splitlines()[-lines:])
 
 
 def _filter_operation_logs(queryset, params):

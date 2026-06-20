@@ -1439,6 +1439,40 @@ body {
   }
 }
 
+.admin-logs-tabs {
+  min-width: 0;
+}
+
+.system-log-card.ant-card {
+  border-radius: 8px;
+
+  & .ant-card-extra {
+    min-width: 0;
+  }
+}
+
+.system-log-viewer {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.system-log-viewer pre {
+  min-height: 420px;
+  max-height: 60vh;
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  color: #edf7f4;
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #10201d;
+  border: 1px solid rgba(38, 128, 101, 0.28);
+  border-radius: 8px;
+}
+
 .inventory-table-card.ant-pro-card {
   min-width: 0;
   max-width: 100%;
@@ -5517,6 +5551,26 @@ body {
   width: 24px;
   height: 24px;
   padding: 0;
+}
+
+.layer-tree
+  .action-btn.ant-btn-text:not(:disabled):not(.ant-btn-disabled):hover,
+.layer-tree
+  .action-btn.ant-btn-text:not(:disabled):not(.ant-btn-disabled):focus-visible,
+.layer-tree
+  .layer-icon-button.ant-btn-text:not(:disabled):not(.ant-btn-disabled):hover,
+.layer-tree
+  .layer-icon-button.ant-btn-text:not(:disabled):not(
+    .ant-btn-disabled
+  ):focus-visible,
+.layer-tree
+  .layer-drag-handle.ant-btn-text:not(:disabled):not(.ant-btn-disabled):hover,
+.layer-tree
+  .layer-drag-handle.ant-btn-text:not(:disabled):not(
+    .ant-btn-disabled
+  ):focus-visible {
+  color: #ffffff;
+  background: rgba(24, 55, 48, 0.9);
 }
 
 .layer-drag-handle {

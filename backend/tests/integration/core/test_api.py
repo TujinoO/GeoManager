@@ -23,6 +23,7 @@ from apps.core.initialization import (
 from apps.core.models import SystemSetting, UserProfile
 from apps.core.storage import (
     StoragePathError,
+    app_path,
     gene_data_path,
     raster_metadata_path,
     raster_processed_path,
@@ -1168,6 +1169,53 @@ class FeaturePermissionTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["total"], 1)
         self.assertEqual(payload["items"][0]["summary"], "目标组日志")
+
+    def test_admin_system_logs_lists_files_and_returns_tail_content(self):
+        manager = get_user_model().objects.create_user(
+            username="system-log-manager", password="pass12345"
+        )
+        grant(manager, ("core", "view_operation_logs"))
+        log_dir = app_path("logs")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        (log_dir / "application.log").write_text(
+            "第一行\n第二行\n第三行\n第四行\n", encoding="utf-8"
+        )
+        (log_dir / "django.log").write_text("Django 日志\n", encoding="utf-8")
+        self.client.force_login(manager)
+
+        response = self.client.get(
+            "/api/admin/system-logs/",
+            {"file": "application.log", "lines": 2},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["selectedFile"], "application.log")
+        self.assertEqual(payload["lines"], 2)
+        self.assertIn("第三行", payload["content"])
+        self.assertIn("第四行", payload["content"])
+        self.assertNotIn("第一行", payload["content"])
+        file_names = [item["name"] for item in payload["files"]]
+        self.assertIn("application.log", file_names)
+        self.assertIn("django.log", file_names)
+        self.assertTrue(all(not Path(name).is_absolute() for name in file_names))
+
+    def test_admin_system_logs_rejects_unknown_or_traversal_file(self):
+        manager = get_user_model().objects.create_user(
+            username="system-log-traversal-manager", password="pass12345"
+        )
+        grant(manager, ("core", "view_operation_logs"))
+        log_dir = app_path("logs")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        (log_dir / "application.log").write_text("可读日志\n", encoding="utf-8")
+        self.client.force_login(manager)
+
+        response = self.client.get(
+            "/api/admin/system-logs/",
+            {"file": "../application.log"},
+        )
+
+        self.assertEqual(response.status_code, 404)
 
     def test_update_user_permissions_saves_operation_log_groups(self):
         manager = get_user_model().objects.create_user(

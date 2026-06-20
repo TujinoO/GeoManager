@@ -586,6 +586,44 @@ export type AdminOperationLogListResponse = {
     total: number;
 };
 
+export type AdminSystemLogFile = {
+    /**
+     * 日志文件名，不包含服务器绝对路径
+     */
+    name: string;
+    /**
+     * 日志文件大小，单位字节
+     */
+    sizeBytes: number;
+    /**
+     * 日志文件最近修改时间
+     */
+    modifiedAt: string;
+};
+
+export type AdminSystemLogResponse = {
+    /**
+     * 可选择的后台日志文件列表，按最近修改时间倒序排列
+     */
+    files: Array<AdminSystemLogFile>;
+    /**
+     * 当前读取的日志文件名；当没有日志文件时为空字符串
+     */
+    selectedFile: string;
+    /**
+     * 本次返回的尾部日志行数上限
+     */
+    lines: number;
+    /**
+     * 当前日志文件尾部文本内容，按 UTF-8 解码，无法解码的字符会被替换
+     */
+    content: string;
+    /**
+     * 本次日志读取时间
+     */
+    generatedAt: string;
+};
+
 export type AdminDashboardResponse = {
     /**
      * 概览统计生成时间
@@ -3395,6 +3433,52 @@ export type ListAdminOperationLogsResponses = {
 };
 
 export type ListAdminOperationLogsResponse = ListAdminOperationLogsResponses[keyof ListAdminOperationLogsResponses];
+
+export type ListAdminSystemLogsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * 要读取的日志文件名；为空时默认读取最近修改的日志文件
+         */
+        file?: string;
+        /**
+         * 返回的尾部日志行数，后端最大限制为 2000 行
+         */
+        lines?: number;
+    };
+    url: '/api/admin/system-logs/';
+};
+
+export type ListAdminSystemLogsErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type ListAdminSystemLogsError = ListAdminSystemLogsErrors[keyof ListAdminSystemLogsErrors];
+
+export type ListAdminSystemLogsResponses = {
+    /**
+     * 成功
+     */
+    200: AdminSystemLogResponse;
+};
+
+export type ListAdminSystemLogsResponse = ListAdminSystemLogsResponses[keyof ListAdminSystemLogsResponses];
 
 export type GetAdminDashboardData = {
     body?: never;

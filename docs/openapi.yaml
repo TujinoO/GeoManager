@@ -406,6 +406,44 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /api/admin/system-logs/:
+    get:
+      tags: [管理后台]
+      summary: 查询系统日志
+      description: 返回业务数据根目录 `logs/` 下的后台运行日志文件列表，并读取指定日志文件的尾部内容。需要 `core.view_operation_logs` 权限。接口只接受文件名选择，不暴露服务器绝对路径，也不允许访问日志目录之外的文件。
+      operationId: listAdminSystemLogs
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: file
+          in: query
+          schema:
+            type: string
+          description: 要读取的日志文件名；为空时默认读取最近修改的日志文件
+        - name: lines
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2000
+            default: 500
+          description: 返回的尾部日志行数，后端最大限制为 2000 行
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSystemLogResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/admin/dashboard/:
     get:
       tags: [管理后台]
@@ -2681,6 +2719,45 @@ components:
         total:
           type: integer
           description: 符合筛选条件的总记录数
+
+    AdminSystemLogFile:
+      type: object
+      required: [name, sizeBytes, modifiedAt]
+      properties:
+        name:
+          type: string
+          description: 日志文件名，不包含服务器绝对路径
+          example: application.log
+        sizeBytes:
+          type: integer
+          description: 日志文件大小，单位字节
+        modifiedAt:
+          type: string
+          format: date-time
+          description: 日志文件最近修改时间
+
+    AdminSystemLogResponse:
+      type: object
+      required: [files, selectedFile, lines, content, generatedAt]
+      properties:
+        files:
+          type: array
+          description: 可选择的后台日志文件列表，按最近修改时间倒序排列
+          items:
+            $ref: '#/components/schemas/AdminSystemLogFile'
+        selectedFile:
+          type: string
+          description: 当前读取的日志文件名；当没有日志文件时为空字符串
+        lines:
+          type: integer
+          description: 本次返回的尾部日志行数上限
+        content:
+          type: string
+          description: 当前日志文件尾部文本内容，按 UTF-8 解码，无法解码的字符会被替换
+        generatedAt:
+          type: string
+          format: date-time
+          description: 本次日志读取时间
 
     AdminDashboardResponse:
       type: object

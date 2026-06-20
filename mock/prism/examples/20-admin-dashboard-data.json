@@ -56,6 +56,31 @@
       "total": 5
     }
   },
+  "GET /api/admin/system-logs/": {
+    "200": {
+      "files": [
+        {
+          "name": "application.log",
+          "sizeBytes": 4096,
+          "modifiedAt": "2026-06-20T09:45:00+08:00"
+        },
+        {
+          "name": "django.log",
+          "sizeBytes": 2048,
+          "modifiedAt": "2026-06-20T09:43:00+08:00"
+        },
+        {
+          "name": "security.log",
+          "sizeBytes": 1024,
+          "modifiedAt": "2026-06-20T09:40:00+08:00"
+        }
+      ],
+      "selectedFile": "application.log",
+      "lines": 500,
+      "content": "2026-06-20 09:41:12 [INFO] apps.core.initialization:88 完成默认用户组初始化\n2026-06-20 09:42:03 [INFO] apps.catalog.services:214 完成数据目录扫描\n2026-06-20 09:45:00 [INFO] apps.raster.services.jobs:57 栅格任务队列空闲",
+      "generatedAt": "2026-06-20T09:45:10+08:00"
+    }
+  },
   "GET /api/admin/dashboard/": {
     "200": {
       "generatedAt": "2026-06-14T09:35:00+08:00",

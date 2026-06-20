@@ -31,6 +31,7 @@ const mockApi = vi.hoisted(() => ({
   updateAdminProfilePermissions: vi.fn(),
   updateAdminProfilePassword: vi.fn(),
   adminOperationLogs: vi.fn(),
+  adminSystemLogs: vi.fn(),
   adminUsers: vi.fn(),
   createAdminUser: vi.fn(),
   updateAdminUserGroups: vi.fn(),
@@ -322,6 +323,13 @@ describe("admin routes", () => {
     });
     mockApi.deleteAdminUser.mockResolvedValue({ detail: "用户已删除" });
     mockApi.adminOperationLogs.mockResolvedValue({ items: [], total: 0 });
+    mockApi.adminSystemLogs.mockResolvedValue({
+      files: [],
+      selectedFile: "",
+      lines: 500,
+      content: "",
+      generatedAt: "2026-06-20T09:45:10+08:00",
+    });
     mockApi.adminGroups.mockResolvedValue({
       items: [adminGroup],
       availablePermissions,

@@ -47,7 +47,7 @@ function adminRouteFor(user: User | null) {
   if (user?.permissions.canViewOperationLogs) {
     routes.push({
       path: "/admin/logs",
-      name: "操作日志",
+      name: "日志管理",
       icon: <AuditOutlined />,
     });
   }
@@ -79,8 +79,8 @@ const pageMeta: Record<string, { title: string; subTitle: string }> = {
     subTitle: "维护个人信息并查看当前权限",
   },
   "/admin/logs": {
-    title: "操作日志",
-    subTitle: "查询、筛选并导出关键操作记录",
+    title: "日志管理",
+    subTitle: "查询操作记录并查看后台运行日志",
   },
   "/admin/settings": {
     title: "系统设置",
