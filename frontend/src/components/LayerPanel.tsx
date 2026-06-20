@@ -37,6 +37,7 @@ import {
 } from "antd";
 import {
   type DragEvent,
+  type ReactNode,
   lazy,
   Suspense,
   useCallback,
@@ -795,6 +796,24 @@ export default function LayerPanel() {
   );
 }
 
+function LayerTooltip({
+  title,
+  children,
+}: {
+  title: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip
+      title={title}
+      color="rgba(6, 24, 32, 0.96)"
+      rootClassName="layer-action-tooltip"
+    >
+      {children}
+    </Tooltip>
+  );
+}
+
 interface SaveWorkspaceFormValues {
   targetId?: number;
   name: string;
@@ -840,7 +859,7 @@ function LayerGroupNode({
     <div className="layer-tree-node layer-tree-node-group">
       <div className="layer-row-main">
         <div className="layer-heading">
-          <Tooltip title={expanded ? "折叠" : "展开"}>
+          <LayerTooltip title={expanded ? "折叠" : "展开"}>
             <Button
               className="layer-icon-button"
               type="text"
@@ -858,7 +877,7 @@ function LayerGroupNode({
                 onToggleExpand();
               }}
             />
-          </Tooltip>
+          </LayerTooltip>
           <Switch
             className="visibility-switch"
             checked={group.visible}
@@ -883,7 +902,7 @@ function LayerGroupNode({
             canUseCustomSymbolization={false}
             canExportData={ctx.canExportData}
           />
-          <Tooltip title="排序">
+          <LayerTooltip title="排序">
             <Button
               className="layer-drag-handle action-btn"
               type="text"
@@ -895,7 +914,7 @@ function LayerGroupNode({
               onDragEnd={onDragEnd}
               onClick={(event) => event.stopPropagation()}
             />
-          </Tooltip>
+          </LayerTooltip>
         </div>
       </div>
       <div className="layer-name-row">
@@ -1015,7 +1034,7 @@ function LayerItemNode({
             canExportData={ctx.canExportData}
             onOpenTable={() => ctx.openLayerTable(groupId, layer.id)}
           />
-          <Tooltip title="拖动排序">
+          <LayerTooltip title="拖动排序">
             <Button
               className="layer-drag-handle action-btn"
               type="text"
@@ -1027,7 +1046,7 @@ function LayerItemNode({
               onDragEnd={onDragEnd}
               onClick={(event) => event.stopPropagation()}
             />
-          </Tooltip>
+          </LayerTooltip>
         </div>
       </div>
       <div className="layer-name-row">
@@ -1226,7 +1245,7 @@ function NodeActions({
         onKeyDown={(event) => event.stopPropagation()}
       >
         {onOpenTable && (
-          <Tooltip title="数据表">
+          <LayerTooltip title="数据表">
             <Button
               className="action-btn"
               type="text"
@@ -1235,9 +1254,9 @@ function NodeActions({
               icon={<TableOutlined style={{ fontSize: 14 }} />}
               onClick={onOpenTable}
             />
-          </Tooltip>
+          </LayerTooltip>
         )}
-        <Tooltip title="定位">
+        <LayerTooltip title="定位">
           <Button
             className="action-btn"
             type="text"
@@ -1246,7 +1265,7 @@ function NodeActions({
             icon={<AimOutlined style={{ fontSize: 14 }} />}
             onClick={onLocate}
           />
-        </Tooltip>
+        </LayerTooltip>
         {canExportData && (
           <Popover
             trigger="click"
@@ -1274,7 +1293,7 @@ function NodeActions({
               />
             }
           >
-            <Tooltip title="导出">
+            <LayerTooltip title="导出">
               <Button
                 className="action-btn"
                 type="text"
@@ -1282,11 +1301,11 @@ function NodeActions({
                 aria-label={`导出${subjectName}`}
                 icon={<DownloadOutlined style={{ fontSize: 14 }} />}
               />
-            </Tooltip>
+            </LayerTooltip>
           </Popover>
         )}
         {canUseCustomSymbolization && (
-          <Tooltip title="符号化">
+          <LayerTooltip title="符号化">
             <Button
               className="action-btn"
               type="text"
@@ -1295,9 +1314,9 @@ function NodeActions({
               icon={<BgColorsOutlined style={{ fontSize: 14 }} />}
               onClick={openSymbolizationModal}
             />
-          </Tooltip>
+          </LayerTooltip>
         )}
-        <Tooltip title="移除">
+        <LayerTooltip title="移除">
           <Button
             className="action-btn"
             type="text"
@@ -1306,7 +1325,7 @@ function NodeActions({
             icon={<DeleteOutlined style={{ fontSize: 14 }} />}
             onClick={onRemove}
           />
-        </Tooltip>
+        </LayerTooltip>
       </div>
       {canUseCustomSymbolization && (
         <Modal
