@@ -6,12 +6,13 @@ import {
   FolderOpenOutlined,
   InfoCircleOutlined,
   LogoutOutlined,
-  QuestionCircleOutlined,
   QrcodeOutlined,
+  QuestionCircleOutlined,
   SearchOutlined,
   SettingOutlined,
   UserOutlined,
 } from "@ant-design/icons";
+import type { MenuProps, TourProps } from "antd";
 import {
   App,
   Avatar,
@@ -25,7 +26,6 @@ import {
   Tour,
   Typography,
 } from "antd";
-import type { MenuProps, TourProps } from "antd";
 import type { ReactNode } from "react";
 import {
   useCallback,
@@ -590,7 +590,7 @@ export default function WorkspaceHeader({
   const tourSteps = useMemo<TourProps["steps"]>(() => {
     const steps: NonNullable<TourProps["steps"]> = [
       {
-        title: "🎉欢迎 🎉",
+        title: "🎉 欢迎 🎉",
         description:
           "欢迎使用中亚胡杨林生态系统保护数据共享平台，下面快速熟悉工作台入口。",
         target: null,

@@ -428,7 +428,7 @@ describe("application critical flows", () => {
     const { unmount } = renderApp("/map");
 
     expect(
-      await screen.findByText("🎉欢迎 🎉", {}, { timeout: 10000 }),
+      await screen.findByText("🎉 欢迎 🎉", {}, { timeout: 10000 }),
     ).toBeInTheDocument();
 
     const closeButton =
@@ -437,7 +437,7 @@ describe("application critical flows", () => {
     fireEvent.click(closeButton!);
 
     await waitFor(() => {
-      expect(screen.queryByText("🎉欢迎 🎉")).not.toBeInTheDocument();
+      expect(screen.queryByText("🎉 欢迎 🎉")).not.toBeInTheDocument();
     });
     expect(
       window.localStorage.getItem(
@@ -455,7 +455,7 @@ describe("application critical flows", () => {
     fireEvent.click(await screen.findByRole("button", { name: /显示引导/ }));
 
     expect(
-      await screen.findByText("🎉欢迎 🎉", {}, { timeout: 10000 }),
+      await screen.findByText("🎉 欢迎 🎉", {}, { timeout: 10000 }),
     ).toBeInTheDocument();
   });
 });
