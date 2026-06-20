@@ -86,7 +86,9 @@ def upsert_nongeographic_catalog_record(
             "status": DataResource.Status.ACTIVE,
         },
     )
-    _, superadmin_group = ensure_superadmin_defaults(create_account=False)
+    _, superadmin_group = ensure_superadmin_defaults(
+        create_account=False, attach_existing_superusers=False
+    )
     resource.access_groups.set([superadmin_group])
     return resource
 

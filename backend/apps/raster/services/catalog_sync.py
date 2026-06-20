@@ -55,7 +55,9 @@ def upsert_catalog_records(
             "is_active": True,
         },
     )
-    _, superadmin_group = ensure_superadmin_defaults(create_account=False)
+    _, superadmin_group = ensure_superadmin_defaults(
+        create_account=False, attach_existing_superusers=False
+    )
     data_resource.access_groups.set([superadmin_group])
     map_layer.access_groups.set([superadmin_group])
     return data_resource, map_layer

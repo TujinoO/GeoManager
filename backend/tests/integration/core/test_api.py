@@ -655,6 +655,26 @@ class FeaturePermissionTests(TestCase):
         usernames = {item["username"] for item in response.json()["items"]}
         self.assertNotIn("django-superuser", usernames)
 
+    def test_django_superuser_without_superadmin_role_cannot_view_superadmin_principals(
+        self,
+    ):
+        protected_user, _ = ensure_superadmin_defaults()
+        manager = get_user_model().objects.create_superuser(
+            username="plain-django-superuser",
+            password="StrongPass12345",
+        )
+        self.client.force_login(manager)
+
+        users_response = self.client.get("/api/users/")
+        groups_response = self.client.get("/api/groups/")
+
+        self.assertEqual(users_response.status_code, 200)
+        self.assertEqual(groups_response.status_code, 200)
+        usernames = {item["username"] for item in users_response.json()["items"]}
+        group_names = {item["name"] for item in groups_response.json()["items"]}
+        self.assertNotIn(protected_user.username, usernames)
+        self.assertNotIn(SUPERADMIN_GROUP_NAME, group_names)
+
     def test_group_list_counts_only_visible_users(self):
         manager = get_user_model().objects.create_user(
             username="visible-count-manager", password="pass12345"

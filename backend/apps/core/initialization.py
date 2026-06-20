@@ -35,7 +35,7 @@ DEFAULT_USER_GROUP_PERMISSIONS = BUILTIN_GROUPS.default_user_permissions
 
 
 def ensure_superadmin_defaults(
-    *, create_account: bool = True
+    *, create_account: bool = True, attach_existing_superusers: bool = True
 ) -> tuple[Any | None, Group]:
     with transaction.atomic():
         ensure_feature_permissions()
@@ -45,7 +45,8 @@ def ensure_superadmin_defaults(
         group, _ = Group.objects.get_or_create(name=SUPERADMIN_GROUP_NAME)
         _grant_all_feature_permissions(group)
         user = _ensure_initial_superadmin(group) if create_account else None
-        _attach_existing_superusers(group)
+        if attach_existing_superusers:
+            _attach_existing_superusers(group)
         return user, group
 
 

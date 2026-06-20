@@ -62,7 +62,7 @@ def login_view(request):
 
 @require_POST
 def guest_login_view(request):
-    ensure_superadmin_defaults(create_account=False)
+    ensure_superadmin_defaults(create_account=False, attach_existing_superusers=False)
     user = ensure_guest_user()
     login(request, user)
     request.session.set_expiry(0)
@@ -92,7 +92,7 @@ def register_view(request):
     if password_errors:
         return JsonResponse({"detail": "；".join(password_errors)}, status=400)
 
-    ensure_superadmin_defaults()
+    ensure_superadmin_defaults(attach_existing_superusers=False)
     default_user_group = ensure_default_user_group()
     User = get_user_model()
     user = User(username=username, email=email)

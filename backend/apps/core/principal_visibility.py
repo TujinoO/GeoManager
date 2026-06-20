@@ -12,10 +12,7 @@ from apps.core.initialization import (
 
 
 def can_view_superadmin_principals(user) -> bool:
-    return bool(
-        getattr(user, "is_authenticated", False)
-        and (getattr(user, "is_superuser", False) or is_superadmin_user(user))
-    )
+    return bool(getattr(user, "is_authenticated", False) and is_superadmin_user(user))
 
 
 def visible_groups_for(queryset: QuerySet[Group], viewer) -> QuerySet[Group]:

@@ -724,7 +724,9 @@ def set_resource_access_groups(
 
 
 def normalized_access_group_ids(group_ids: set[int]) -> set[int]:
-    _, superadmin_group = ensure_superadmin_defaults(create_account=False)
+    _, superadmin_group = ensure_superadmin_defaults(
+        create_account=False, attach_existing_superusers=False
+    )
     return set(group_ids) | {superadmin_group.id}
 
 

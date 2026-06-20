@@ -721,7 +721,9 @@ def _set_access_groups_with_superadmin(obj, group_ids: list[int], viewer):
     )
     if visible_requested_ids != set(group_ids):
         return JsonResponse({"detail": "包含不存在或不可选择的角色"}, status=400)
-    _, superadmin_group = ensure_superadmin_defaults(create_account=False)
+    _, superadmin_group = ensure_superadmin_defaults(
+        create_account=False, attach_existing_superusers=False
+    )
     obj.access_groups.set(sorted({*group_ids, superadmin_group.id}))
     return None
 

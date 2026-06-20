@@ -350,7 +350,9 @@ def update_admin_profile_password(request):
 @api_permission_required("core.manage_auth")
 def group_list(request):
     if request.method == "GET":
-        ensure_superadmin_defaults(create_account=False)
+        ensure_superadmin_defaults(
+            create_account=False, attach_existing_superusers=False
+        )
         ensure_guest_user()
         return JsonResponse(
             {
@@ -629,7 +631,9 @@ def update_user_groups(request, user_id: int):
     except (TypeError, ValueError):
         return JsonResponse({"detail": "groupIds 必须是整数数组"}, status=400)
     if is_initial_superadmin_user(user):
-        _, protected_group = ensure_superadmin_defaults(create_account=False)
+        _, protected_group = ensure_superadmin_defaults(
+            create_account=False, attach_existing_superusers=False
+        )
         normalized_group_ids.add(protected_group.id)
     elif not normalized_group_ids:
         return JsonResponse({"detail": "角色为必选项"}, status=400)
