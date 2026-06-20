@@ -438,6 +438,11 @@ class CatalogScanTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["count"], 1)
         self.assertEqual(payload["items"][0]["name"], self.layer_name)
+        self.assertFalse(
+            OperationLog.objects.filter(
+                module="数据管理", action="扫描数据目录"
+            ).exists()
+        )
 
     def test_resources_endpoint_ignores_unreadable_realtime_geopackage(self):
         self.path.write_text("not a geopackage", encoding="utf-8")

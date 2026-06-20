@@ -1,11 +1,13 @@
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.test import TestCase, override_settings
 
+from apps.audit.models import OperationLog
 from apps.catalog.models import DataResource
 from apps.core.config import load_project_config
 from apps.raster.models import RasterDataset
@@ -102,6 +104,33 @@ class RasterPermissionApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         names = [item["name"] for item in response.json()["items"]]
         self.assertEqual(names, ["public-dataset"])
+
+    def test_scan_endpoint_does_not_write_operation_log(self):
+        grant(self.user, ("core", "browse_data"))
+        job = SimpleNamespace(
+            as_dict=lambda: {
+                "id": "scan-job-1",
+                "type": "scan",
+                "status": "pending",
+                "progress": 0,
+                "messages": [],
+                "result": None,
+                "error": "",
+            }
+        )
+
+        with patch("apps.raster.views.start_scan_job", return_value=job):
+            response = self.client.post(
+                "/api/raster/scan/", data={}, content_type="application/json"
+            )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json()["id"], "scan-job-1")
+        self.assertFalse(
+            OperationLog.objects.filter(
+                module="栅格管理", action="发起栅格目录扫描"
+            ).exists()
+        )
 
     def _dataset(self, code: str, resource: DataResource) -> RasterDataset:
         return RasterDataset.objects.create(

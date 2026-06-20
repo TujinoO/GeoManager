@@ -255,14 +255,6 @@ def scan_sources(request):
     if not has_feature_perm(request.user, "core.browse_data"):
         return feature_denied_response(request.user)
     job = start_scan_job()
-    log_operation(
-        request.user,
-        "栅格管理",
-        "发起栅格目录扫描",
-        "success",
-        f"任务 {job.id}",
-        request,
-    )
     return JsonResponse(job.as_dict(), status=202)
 
 

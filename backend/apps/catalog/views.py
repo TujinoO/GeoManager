@@ -125,18 +125,7 @@ def resources(request):
 def scan_sources(request):
     if not has_feature_perm(request.user, "core.browse_data"):
         return feature_denied_response(request.user)
-    try:
-        vector_layers, nongeographic_resources = scan_catalog_sources()
-    except Exception as exc:
-        log_operation(
-            request.user,
-            "数据管理",
-            "扫描数据目录",
-            "failed",
-            f"扫描失败：{exc}",
-            request,
-        )
-        raise
+    vector_layers, nongeographic_resources = scan_catalog_sources()
     registered_layers = _registered_vector_layer_names()
     items = [
         serialize_vector_layer(layer)
@@ -144,14 +133,6 @@ def scan_sources(request):
         if layer["name"] not in registered_layers
     ]
     items.extend(serialize_resource(item) for item in nongeographic_resources)
-    log_operation(
-        request.user,
-        "数据管理",
-        "扫描数据目录",
-        "success",
-        f"发现 {len(items)} 项可用数据",
-        request,
-    )
     return JsonResponse({"items": items, "count": len(items)})
 
 
