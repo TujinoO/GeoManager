@@ -201,7 +201,10 @@ describe("useLayerGroups", () => {
     act(() => {
       result.current.setGroups([
         makeGroup("source", [makeVectorLayer("moving")]),
-        makeGroup("target", [makeVectorLayer("target-layer")]),
+        {
+          ...makeGroup("target", [makeVectorLayer("target-layer")]),
+          isManual: true,
+        },
       ]);
     });
     act(() => {
