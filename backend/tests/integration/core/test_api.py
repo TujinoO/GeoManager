@@ -850,6 +850,82 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json()["detail"], "用户不存在")
 
+    def test_regular_admin_security_surfaces_do_not_serialize_superadmin_principals(
+        self,
+    ):
+        manager = get_user_model().objects.create_user(
+            username="security-surface-manager", password="pass12345"
+        )
+        visible_group = Group.objects.create(name="安全可见角色")
+        visible_user = get_user_model().objects.create_user(
+            username="visible-security-user",
+            first_name="可见用户",
+            password="pass12345",
+        )
+        visible_user.groups.add(visible_group)
+        _, superadmin_group = ensure_superadmin_defaults(create_account=False)
+        hidden_superadmin = get_user_model().objects.create_user(
+            username="hidden-super-principal",
+            first_name=SUPERADMIN_GROUP_NAME,
+            password="pass12345",
+        )
+        hidden_superadmin.groups.add(superadmin_group)
+        hidden_django_superuser = get_user_model().objects.create_superuser(
+            username="hidden-django-superuser",
+            password="StrongPass12345",
+        )
+        grant(
+            manager,
+            ("core", "manage_auth"),
+            ("core", "view_operation_logs"),
+            ("core", "view_all_operation_logs"),
+            ("core", "view_dashboard_user_card"),
+            ("core", "view_dashboard_active_users_card"),
+        )
+        OperationLog.objects.create(
+            user=visible_user,
+            module="认证授权",
+            action="用户登录",
+            status="success",
+            message="可见用户登录",
+        )
+        OperationLog.objects.create(
+            user=hidden_superadmin,
+            module="认证授权",
+            action="用户登录",
+            status="success",
+            message="隐藏超级管理员登录",
+        )
+        OperationLog.objects.create(
+            user=hidden_django_superuser,
+            module="认证授权",
+            action="用户登录",
+            status="success",
+            message="隐藏 Django 超级用户登录",
+        )
+        self.client.force_login(manager)
+
+        responses = [
+            self.client.get("/api/users/"),
+            self.client.get("/api/groups/"),
+            self.client.get("/api/admin/operation-logs/"),
+            self.client.get("/api/admin/dashboard/", {"period": "day"}),
+        ]
+
+        for response in responses:
+            self.assertEqual(response.status_code, 200)
+        encoded_payload = json.dumps(
+            [response.json() for response in responses], ensure_ascii=False
+        )
+        self.assertIn("visible-security-user", encoded_payload)
+        self.assertIn("安全可见角色", encoded_payload)
+        self.assertIn("可见用户登录", encoded_payload)
+        self.assertNotIn("hidden-super-principal", encoded_payload)
+        self.assertNotIn("hidden-django-superuser", encoded_payload)
+        self.assertNotIn(SUPERADMIN_GROUP_NAME, encoded_payload)
+        self.assertNotIn("隐藏超级管理员登录", encoded_payload)
+        self.assertNotIn("隐藏 Django 超级用户登录", encoded_payload)
+
     def test_superadmin_avatar_is_hidden_from_regular_user(self):
         manager = get_user_model().objects.create_user(
             username="superadmin-avatar-manager", password="pass12345"
