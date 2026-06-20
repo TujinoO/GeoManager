@@ -637,6 +637,23 @@ class FeaturePermissionTests(TestCase):
         ]
         self.assertEqual(protected_items, [])
 
+    def test_user_list_hides_django_superusers_from_regular_admin(self):
+        manager = get_user_model().objects.create_user(
+            username="regular-auth-manager", password="pass12345"
+        )
+        get_user_model().objects.create_superuser(
+            username="django-superuser",
+            password="StrongPass12345",
+        )
+        grant(manager, ("core", "manage_auth"))
+        self.client.force_login(manager)
+
+        response = self.client.get("/api/users/")
+
+        self.assertEqual(response.status_code, 200)
+        usernames = {item["username"] for item in response.json()["items"]}
+        self.assertNotIn("django-superuser", usernames)
+
     def test_superadmin_group_list_includes_superadmin_role(self):
         manager, _ = ensure_superadmin_defaults()
         self.client.force_login(manager)
@@ -1128,6 +1145,42 @@ class FeaturePermissionTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["total"], 1)
         self.assertEqual(payload["items"][0]["summary"], "目标用户日志")
+
+    def test_admin_operation_logs_hide_django_superuser_logs(self):
+        manager = get_user_model().objects.create_user(
+            username="log-superuser-manager", password="pass12345"
+        )
+        superuser = get_user_model().objects.create_superuser(
+            username="log-django-superuser",
+            password="StrongPass12345",
+        )
+        grant(
+            manager,
+            ("core", "view_operation_logs"),
+            ("core", "view_all_operation_logs"),
+        )
+        OperationLog.objects.create(
+            user=manager,
+            module="系统设置",
+            action="保存配置",
+            status="success",
+            message="普通管理员日志",
+        )
+        OperationLog.objects.create(
+            user=superuser,
+            module="系统设置",
+            action="保存配置",
+            status="success",
+            message="Django 超级用户日志",
+        )
+        self.client.force_login(manager)
+
+        response = self.client.get("/api/admin/operation-logs/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(payload["items"][0]["summary"], "普通管理员日志")
 
     def test_admin_operation_logs_own_scope_only_returns_current_user_logs(self):
         manager = get_user_model().objects.create_user(

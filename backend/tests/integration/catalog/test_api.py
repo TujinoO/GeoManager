@@ -1278,6 +1278,32 @@ class DataImportApiTests(TestCase):
         self.assertIn(SUPERADMIN_GROUP_NAME, group_names)
         self.assertIn(GUEST_GROUP_NAME, group_names)
 
+    def test_import_commit_rejects_hidden_superadmin_access_group(self):
+        _, superadmin_group = ensure_superadmin_defaults(create_account=False)
+
+        response = self.client.post(
+            "/api/catalog/import/commit/",
+            data={
+                "file": self._csv_file("survey.csv", "name,value\nA,42\n"),
+                "payload": json.dumps(
+                    {
+                        "name": "隐藏角色表",
+                        "tableName": "hidden_group_table",
+                        "importMode": "table",
+                        "duplicateConfirmed": False,
+                        "accessGroupIds": [superadmin_group.id],
+                        "fieldMetadata": {},
+                    }
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "包含不存在或不可选择的角色")
+        self.assertFalse(
+            DataResource.objects.filter(storage_path="hidden_group_table").exists()
+        )
+
     def test_import_plain_table_writes_sqlite_data_and_metadata(self):
         self.assertFalse(self.table_path.exists())
         uploaded_file = self._csv_file("survey.csv", "name,value\nA,42\n")
@@ -1628,6 +1654,22 @@ class AdminDataResourceApiTests(TestCase):
             set(layer.access_groups.values_list("name", flat=True)),
             {SUPERADMIN_GROUP_NAME, self.group.name},
         )
+
+    def test_update_access_rejects_hidden_superadmin_group(self):
+        _, superadmin_group = ensure_superadmin_defaults(create_account=False)
+
+        response = self.client.post(
+            f"/api/admin/data/resources/{self.resource.id}/",
+            data=json.dumps(
+                {"action": "updateAccess", "accessGroupIds": [superadmin_group.id]}
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "包含不存在或不可选择的角色")
+        self.resource.refresh_from_db()
+        self.assertEqual(list(self.resource.access_groups.all()), [])
 
     def test_delete_requires_matching_confirmation_name(self):
         response = self.client.post(

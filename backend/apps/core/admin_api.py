@@ -864,7 +864,7 @@ def admin_data_resource_detail(request, resource_id: int):
         if isinstance(group_ids, JsonResponse):
             return group_ids
         try:
-            set_resource_access_groups(resource, group_ids)
+            set_resource_access_groups(resource, group_ids, viewer=request.user)
         except ImportDataError as exc:
             return JsonResponse({"detail": str(exc)}, status=400)
         changed_access = True

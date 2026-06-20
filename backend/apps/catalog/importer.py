@@ -20,6 +20,7 @@ from shapely.geometry import Point
 from apps.catalog.models import DataResource
 from apps.catalog.services import stable_catalog_code
 from apps.core.initialization import ensure_superadmin_defaults
+from apps.core.principal_visibility import visible_groups_for
 from apps.core.storage import table_data_path, vector_geopackage_path
 
 
@@ -273,7 +274,7 @@ def import_geographic_table(
         source_size_bytes=source_size_bytes,
         user=user,
     )
-    set_resource_access_groups(resource, access_group_ids)
+    set_resource_access_groups(resource, access_group_ids, viewer=user)
     return {
         "mode": "geographic",
         "resourceId": resource.id,
@@ -323,7 +324,7 @@ def import_plain_table(
         item_count=int(len(df)),
         status=DataResource.Status.ACTIVE,
     )
-    set_resource_access_groups(resource, access_group_ids)
+    set_resource_access_groups(resource, access_group_ids, viewer=user)
     return {
         "mode": "table",
         "resourceId": resource.id,
@@ -698,11 +699,25 @@ def _metadata_map(raw: Any, columns: set[str]) -> dict[str, str]:
     return metadata
 
 
-def set_resource_access_groups(resource: DataResource, group_ids: set[int]) -> None:
+def set_resource_access_groups(
+    resource: DataResource, group_ids: set[int], *, viewer=None
+) -> None:
+    requested_groups = list(Group.objects.filter(id__in=group_ids))
+    if len(requested_groups) != len(group_ids):
+        raise ImportDataError("包含不存在或不可选择的角色")
+    if viewer is not None:
+        visible_requested_ids = set(
+            visible_groups_for(
+                Group.objects.filter(id__in=group_ids).only("id", "name"), viewer
+            ).values_list("id", flat=True)
+        )
+        if visible_requested_ids != group_ids:
+            raise ImportDataError("包含不存在或不可选择的角色")
+
     normalized_group_ids = normalized_access_group_ids(group_ids)
     groups = list(Group.objects.filter(id__in=normalized_group_ids))
     if len(groups) != len(normalized_group_ids):
-        raise ImportDataError("包含不存在的角色")
+        raise ImportDataError("包含不存在或不可选择的角色")
     resource.access_groups.set(groups)
     for layer in resource.map_layers.all():
         layer.access_groups.set(groups)

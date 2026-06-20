@@ -575,7 +575,11 @@ def admin_workspace_detail(request, workspace_id: int):
         group_ids = _group_ids_payload(payload.get("accessGroupIds"))
         if isinstance(group_ids, JsonResponse):
             return group_ids
-        _set_access_groups_with_superadmin(scene, group_ids)
+        access_error = _set_access_groups_with_superadmin(
+            scene, group_ids, request.user
+        )
+        if isinstance(access_error, JsonResponse):
+            return access_error
         changed_access = True
     if update_fields:
         scene.save(update_fields=sorted(set([*update_fields, "updated_at"])))
@@ -709,9 +713,17 @@ def _serialize_access_group(group: Group) -> dict[str, Any]:
     }
 
 
-def _set_access_groups_with_superadmin(obj, group_ids: list[int]) -> None:
+def _set_access_groups_with_superadmin(obj, group_ids: list[int], viewer):
+    visible_requested_ids = set(
+        visible_groups_for(
+            Group.objects.filter(id__in=group_ids).only("id", "name"), viewer
+        ).values_list("id", flat=True)
+    )
+    if visible_requested_ids != set(group_ids):
+        return JsonResponse({"detail": "包含不存在或不可选择的角色"}, status=400)
     _, superadmin_group = ensure_superadmin_defaults(create_account=False)
     obj.access_groups.set(sorted({*group_ids, superadmin_group.id}))
+    return None
 
 
 def _admin_workspace_action_label(action: str, payload: dict[str, Any]) -> str:

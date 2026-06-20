@@ -28,14 +28,20 @@ def visible_users_for(queryset: QuerySet, viewer) -> QuerySet:
     if can_view_superadmin_principals(viewer):
         return queryset
     return queryset.exclude(
-        Q(username=superadmin_username()) | Q(groups__name=SUPERADMIN_GROUP_NAME)
+        Q(username=superadmin_username())
+        | Q(is_superuser=True)
+        | Q(groups__name=SUPERADMIN_GROUP_NAME)
     ).distinct()
 
 
 def visible_operation_logs_for(queryset: QuerySet, viewer) -> QuerySet:
     if can_view_superadmin_principals(viewer):
         return queryset
-    return queryset.exclude(user__groups__name=SUPERADMIN_GROUP_NAME).distinct()
+    return queryset.exclude(
+        Q(user__username=superadmin_username())
+        | Q(user__is_superuser=True)
+        | Q(user__groups__name=SUPERADMIN_GROUP_NAME)
+    ).distinct()
 
 
 def visible_group_ids_for(group_ids: list[int], viewer) -> list[int]:
