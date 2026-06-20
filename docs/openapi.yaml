@@ -226,11 +226,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  authenticated:
-                    type: boolean
-                    example: false
+                $ref: '#/components/schemas/UnauthenticatedUserInfoResponse'
 
   /api/admin/profile/:
     get:
@@ -329,6 +325,60 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /api/admin/profile/avatar/:
+    post:
+      tags: [管理后台]
+      summary: 上传当前用户头像
+      description: 上传当前用户头像文件。仅支持 JPG 和 PNG，后端会压缩为不超过 300x300 的 JPEG 并清空外部头像 URL。需要登录态并写入操作日志。
+      operationId: uploadAdminProfileAvatar
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdminProfileAvatarUploadRequest'
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProfileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/users/{userId}/avatar/:
+    get:
+      tags: [认证授权]
+      summary: 获取用户头像图片
+      description: 返回指定用户已上传的头像图片。需要登录态；用户不存在或未设置数据库头像时返回标准 JSON 错误。
+      operationId: getUserAvatar
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 用户 ID
+      responses:
+        '200':
+          description: 头像图片
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /api/admin/operation-logs/:
     get:
@@ -1617,69 +1667,6 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/catalog/resources/{id}/nongeo-analytics/:
-    get:
-      tags: [数据目录]
-      summary: 获取非地理数据分析摘要
-      description: |
-        返回 table/gene 等非地理数据资源的字段画像、完整率、分类分布、数值分布、
-        相关性矩阵、表格预览和前端可展示的数据洞察。需要 `core.browse_data`，
-        且只返回当前用户可访问的数据资源。
-      operationId: getNonGeoResourceAnalytics
-      security:
-        - sessionAuth: []
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      responses:
-        '200':
-          description: 成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NonGeoAnalyticsResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  /api/catalog/resources/{id}/table-query/:
-    post:
-      tags: [数据目录]
-      summary: 查询非地理表格数据
-      description: |
-        对 table/gene 等非地理数据资源执行属性过滤、排序、分页查询，返回结构化行数据。
-        不返回 GeoJSON，不进行空间过滤。需要 `core.query_data`，且只返回当前用户可访问的数据资源。
-      operationId: queryNonGeoResourceTable
-      security:
-        - sessionAuth: []
-      parameters:
-        - $ref: '#/components/parameters/ResourceId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NonGeoTableQueryRequest'
-      responses:
-        '200':
-          description: 查询成功
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NonGeoTableQueryResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
   /api/catalog/export/:
     post:
       tags: [数据目录]
@@ -2715,6 +2702,15 @@ components:
         user:
           $ref: '#/components/schemas/BaseUserInfo'
 
+    UnauthenticatedUserInfoResponse:
+      type: object
+      required: [authenticated]
+      properties:
+        authenticated:
+          type: boolean
+          enum: [false]
+          description: 当前请求未认证
+
     BaseUserInfo:
       type: object
       required:
@@ -3560,6 +3556,15 @@ components:
         isActive:
           type: boolean
           description: 是否启用账号，默认 true
+
+    AdminProfileAvatarUploadRequest:
+      type: object
+      required: [avatar]
+      properties:
+        avatar:
+          type: string
+          format: binary
+          description: JPG 或 PNG 头像文件，最大 2MB
 
     UserCreateResponse:
       allOf:
@@ -5277,360 +5282,6 @@ components:
           description: 地理坐标校验警告
           items:
             $ref: '#/components/schemas/ValidationWarning'
-
-    NonGeoAnalyticsResponse:
-      type: object
-      required:
-        [
-          resource,
-          summary,
-          fields,
-          categoricalDistributions,
-          numericDistributions,
-          correlation,
-          tablePreview,
-          insights,
-        ]
-      properties:
-        resource:
-          $ref: '#/components/schemas/ResourceListItem'
-        summary:
-          $ref: '#/components/schemas/NonGeoSummary'
-        fields:
-          type: array
-          description: 非地理数据字段画像列表，包含字段角色、完整率、唯一值和数值摘要
-          items:
-            $ref: '#/components/schemas/NonGeoFieldProfile'
-        categoricalDistributions:
-          type: array
-          description: 可直接绘制为柱状图、环图或排行表的分类字段分布
-          items:
-            $ref: '#/components/schemas/NonGeoCategoricalDistribution'
-        numericDistributions:
-          type: array
-          description: 可直接绘制为直方图、箱线概览或指标卡的数值字段分布
-          items:
-            $ref: '#/components/schemas/NonGeoNumericDistribution'
-        correlation:
-          oneOf:
-            - $ref: '#/components/schemas/NonGeoCorrelationMatrix'
-            - type: "null"
-          description: 数值字段相关性矩阵；数值字段不足两个或后端未计算时为 null
-        tablePreview:
-          $ref: '#/components/schemas/NonGeoTableQueryResponse'
-        insights:
-          type: array
-          description: 后端根据字段统计生成的简短中文洞察或质量提示
-          items:
-            type: string
-
-    NonGeoSummary:
-      type: object
-      required:
-        [
-          rowCount,
-          fieldCount,
-          numericFieldCount,
-          textFieldCount,
-          categoricalFieldCount,
-          completeness,
-          updatedAt,
-          suggestedView,
-        ]
-      properties:
-        rowCount:
-          type: integer
-          description: 数据资源总记录数
-        fieldCount:
-          type: integer
-          description: 数据资源字段总数
-        numericFieldCount:
-          type: integer
-          description: 可作为连续数值指标分析的字段数量
-        textFieldCount:
-          type: integer
-          description: 文本字段数量
-        categoricalFieldCount:
-          type: integer
-          description: 可作为分类维度分析的字段数量
-        completeness:
-          type: number
-          minimum: 0
-          maximum: 1
-          description: 全表非空单元格占比，0 到 1 之间
-        updatedAt:
-          type: string
-          format: date-time
-          description: 数据统计生成或资源最后更新时间
-        suggestedView:
-          type: string
-          enum: [species, community, traits, environment, generic]
-          description: 前端推荐的默认分析视角
-
-    NonGeoFieldProfile:
-      type: object
-      required:
-        [
-          name,
-          type,
-          label,
-          description,
-          unit,
-          role,
-          nullable,
-          nonNullCount,
-          nullCount,
-          completeness,
-          uniqueCount,
-          sampleValues,
-        ]
-      properties:
-        name:
-          type: string
-          description: 字段名，与表格查询返回行对象的键一致
-        type:
-          type: string
-          description: 后端识别的数据类型，如 string、integer、float、date
-        label:
-          type: string
-          description: 面向中文界面的字段展示名称，默认可与 name 相同
-        description:
-          type: string
-          description: 字段含义说明，来自导入字段元数据或后端识别结果
-        unit:
-          type: string
-          description: 字段单位；无单位时为空字符串
-        role:
-          type: string
-          enum: [identifier, category, measure, date, text, coordinate, unknown]
-          description: 字段在非地理分析中的推荐角色
-        nullable:
-          type: boolean
-          description: 是否存在空值
-        nonNullCount:
-          type: integer
-          description: 非空记录数
-        nullCount:
-          type: integer
-          description: 空值记录数
-        completeness:
-          type: number
-          minimum: 0
-          maximum: 1
-          description: 字段非空率，0 到 1 之间
-        uniqueCount:
-          type: integer
-          description: 唯一值数量
-        sampleValues:
-          type: array
-          description: 非空样例值
-          items:
-            oneOf:
-              - type: string
-              - type: number
-              - type: boolean
-              - type: 'null'
-        min:
-          type: [number, "null"]
-          description: 数值字段最小值；非数值字段为 null 或省略
-        max:
-          type: [number, "null"]
-          description: 数值字段最大值；非数值字段为 null 或省略
-        mean:
-          type: [number, "null"]
-          description: 数值字段平均值；非数值字段为 null 或省略
-
-    NonGeoCategoricalDistribution:
-      type: object
-      required: [field, label, total, items]
-      properties:
-        field:
-          type: string
-          description: 分类字段名
-        label:
-          type: string
-          description: 分类字段展示名称
-        total:
-          type: integer
-          description: 参与该分布统计的记录数
-        items:
-          type: array
-          description: 按数量降序排列的分类项
-          items:
-            $ref: '#/components/schemas/NonGeoDistributionItem'
-
-    NonGeoDistributionItem:
-      type: object
-      required: [value, count, ratio]
-      properties:
-        value:
-          oneOf:
-            - type: string
-            - type: number
-            - type: boolean
-            - type: 'null'
-          description: 分类值或数值区间标签
-        count:
-          type: integer
-          description: 该分类值或区间内记录数
-        ratio:
-          type: number
-          minimum: 0
-          maximum: 1
-          description: 占参与统计记录数的比例，0 到 1 之间
-
-    NonGeoNumericDistribution:
-      type: object
-      required: [field, label, min, max, mean, median, q1, q3, bins]
-      properties:
-        field:
-          type: string
-          description: 数值字段名
-        label:
-          type: string
-          description: 数值字段展示名称
-        min:
-          type: number
-          description: 最小值
-        max:
-          type: number
-          description: 最大值
-        mean:
-          type: number
-          description: 平均值
-        median:
-          type: number
-          description: 中位数
-        q1:
-          type: number
-          description: 第一四分位数
-        q3:
-          type: number
-          description: 第三四分位数
-        bins:
-          type: array
-          description: 直方图区间统计
-          items:
-            $ref: '#/components/schemas/NonGeoHistogramBin'
-
-    NonGeoHistogramBin:
-      type: object
-      required: [label, min, max, count, ratio]
-      properties:
-        label:
-          type: string
-          description: 区间展示标签
-        min:
-          type: number
-          description: 区间下界
-        max:
-          type: number
-          description: 区间上界
-        count:
-          type: integer
-          description: 区间内记录数
-        ratio:
-          type: number
-          minimum: 0
-          maximum: 1
-          description: 区间记录数占参与统计记录数的比例
-
-    NonGeoCorrelationMatrix:
-      type: object
-      required: [fields, values]
-      properties:
-        fields:
-          type: array
-          description: 相关性矩阵对应的字段名顺序
-          items:
-            type: string
-        values:
-          type: array
-          description: 相关系数二维数组，取值范围为 -1 到 1
-          items:
-            type: array
-            items:
-              type: number
-
-    NonGeoSortSpec:
-      type: object
-      required: [field, direction]
-      properties:
-        field:
-          type: string
-          description: 排序字段名
-        direction:
-          type: string
-          enum: [asc, desc]
-          description: 排序方向
-
-    NonGeoTableQueryRequest:
-      type: object
-      required: [attributeFilters, sort, limit, offset]
-      properties:
-        attributeFilters:
-          type: array
-          description: 非空间属性过滤条件
-          items:
-            $ref: '#/components/schemas/AttributeFilter'
-        sort:
-          oneOf:
-            - $ref: '#/components/schemas/NonGeoSortSpec'
-            - type: "null"
-          description: 排序配置；不排序时为 null
-        limit:
-          type: integer
-          minimum: 1
-          maximum: 30000
-          description: 返回记录上限
-        offset:
-          type: integer
-          minimum: 0
-          description: 分页偏移量
-
-    NonGeoTableQueryResponse:
-      type: object
-      required:
-        [resourceId, resourceName, totalCount, returnedCount, limit, offset, fields, rows]
-      properties:
-        resourceId:
-          type: integer
-          description: 数据资源 ID
-        resourceName:
-          type: string
-          description: 数据资源名称
-        totalCount:
-          type: integer
-          description: 过滤后的总记录数
-        returnedCount:
-          type: integer
-          description: 本次返回记录数
-        limit:
-          type: integer
-          description: 返回记录上限
-        offset:
-          type: integer
-          description: 分页偏移量
-        fields:
-          type: array
-          description: 查询结果字段
-          items:
-            $ref: '#/components/schemas/FieldInfo'
-        rows:
-          type: array
-          description: 查询返回的表格行，键为字段名
-          items:
-            $ref: '#/components/schemas/NonGeoTableRow'
-
-    NonGeoTableRow:
-      type: object
-      additionalProperties:
-        oneOf:
-          - type: string
-          - type: number
-          - type: boolean
-          - type: 'null'
-      description: 非地理表格行对象，键为字段名，值为原始单元格值或标准化后的标量值
 
     ExportRequest:
       type: object

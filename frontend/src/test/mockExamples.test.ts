@@ -112,31 +112,4 @@ describe("Prism mock example business consistency", () => {
     expect(query.returnedCount).toBe(query.geojson.features.length);
     expect(profile.bounds).toHaveLength(4);
   });
-
-  it("uses one non-geographic resource identity across analytics and table query", () => {
-    const resources = response<{
-      items: Array<{ id: number | string; itemCount?: number }>;
-    }>(examples, "GET /api/catalog/resources/").items;
-    const analytics = response<{
-      resource: { id: number; itemCount: number };
-      summary: { rowCount: number };
-    }>(examples, "GET /api/catalog/resources/{id}/nongeo-analytics/");
-    const tableQuery = response<{
-      resourceId: number;
-      totalCount: number;
-      returnedCount: number;
-      records: unknown[];
-    }>(examples, "POST /api/catalog/resources/{id}/table-query/");
-    const resource = resources.find(
-      (item) => item.id === analytics.resource.id,
-    );
-
-    expect(resource?.itemCount).toBe(analytics.resource.itemCount);
-    expect(analytics.summary.rowCount).toBe(analytics.resource.itemCount);
-    expect(tableQuery.resourceId).toBe(analytics.resource.id);
-    expect(tableQuery.totalCount).toBeLessThanOrEqual(
-      analytics.summary.rowCount,
-    );
-    expect(tableQuery.returnedCount).toBe(tableQuery.records.length);
-  });
 });

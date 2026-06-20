@@ -732,6 +732,73 @@ class WorkspaceSceneApiTests(TestCase):
         self.assertEqual(response.status_code, 413)
         self.assertEqual(response.json()["detail"], "请求体过大")
 
+    def test_admin_workspace_management_updates_status_access_and_delete(self):
+        group = Group.objects.create(name="专题协作组")
+        _, superadmin_group = ensure_superadmin_defaults(create_account=False)
+        scene = WorkspaceScene.objects.create(
+            owner=self.user,
+            kind=WorkspaceScene.Kind.TOPIC,
+            name="退化监测专题",
+            description="后台管理测试",
+            snapshot={"layerGroups": []},
+        )
+
+        list_response = self.client.get("/api/admin/workspaces/?kind=topic")
+
+        self.assertEqual(list_response.status_code, 200)
+        payload = list_response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(payload["items"][0]["name"], "退化监测专题")
+        self.assertEqual(payload["items"][0]["status"], "active")
+        self.assertTrue(payload["items"][0]["canManageAccess"])
+
+        access_response = self.client.post(
+            f"/api/admin/workspaces/{scene.id}/",
+            data=json.dumps({"action": "updateAccess", "accessGroupIds": [group.id]}),
+            content_type="application/json",
+        )
+        status_response = self.client.post(
+            f"/api/admin/workspaces/{scene.id}/",
+            data=json.dumps({"action": "setStatus", "status": "inactive"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(access_response.status_code, 200)
+        self.assertEqual(status_response.status_code, 200)
+        scene.refresh_from_db()
+        self.assertEqual(scene.status, WorkspaceScene.Status.INACTIVE)
+        self.assertEqual(
+            set(scene.access_groups.values_list("id", flat=True)),
+            {group.id, superadmin_group.id},
+        )
+        regular_response = self.client.get(f"/api/catalog/workspaces/{scene.id}/")
+        self.assertEqual(regular_response.status_code, 404)
+
+        bad_delete_response = self.client.post(
+            f"/api/admin/workspaces/{scene.id}/",
+            data=json.dumps({"action": "delete", "confirmationName": "错误名称"}),
+            content_type="application/json",
+        )
+        delete_response = self.client.post(
+            f"/api/admin/workspaces/{scene.id}/",
+            data=json.dumps({"action": "delete", "confirmationName": "退化监测专题"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(bad_delete_response.status_code, 400)
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertFalse(WorkspaceScene.objects.filter(pk=scene.id).exists())
+        self.assertTrue(
+            OperationLog.objects.filter(
+                module="数据管理",
+                action="删除专题",
+                target_type="workspace_scene",
+                target_id=scene.id,
+                target_code=WorkspaceScene.Kind.TOPIC,
+                target_name="退化监测专题",
+            ).exists()
+        )
+
 
 class DataImportApiTests(TestCase):
     def setUp(self):
@@ -1510,6 +1577,89 @@ class AchievementApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+    def test_admin_achievement_management_updates_status_access_and_delete(self):
+        grant(
+            self.user,
+            ("catalog", "view_achievement"),
+            ("catalog", "change_achievement"),
+            ("catalog", "delete_achievement"),
+        )
+        group = Group.objects.create(name="成果协作组")
+        _, superadmin_group = ensure_superadmin_defaults(create_account=False)
+        achievement = Achievement.objects.create(
+            title="胡杨恢复年度成果",
+            code="annual-restoration-result",
+            summary="年度成果汇总",
+            source="生态保护项目组",
+            status=Achievement.Status.DRAFT,
+        )
+
+        list_response = self.client.get("/api/admin/achievements/?status=draft")
+
+        self.assertEqual(list_response.status_code, 200)
+        payload = list_response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(payload["items"][0]["title"], "胡杨恢复年度成果")
+        self.assertTrue(payload["items"][0]["canManageAccess"])
+        self.assertEqual(payload["items"][0]["owner"]["displayName"], "未记录")
+
+        update_response = self.client.post(
+            f"/api/admin/achievements/{achievement.id}/",
+            data=json.dumps(
+                {
+                    "action": "update",
+                    "title": "胡杨恢复年度成果更新",
+                    "summary": "更新后的年度成果汇总",
+                    "displayOrder": 8,
+                    "accessGroupIds": [group.id],
+                }
+            ),
+            content_type="application/json",
+        )
+        status_response = self.client.post(
+            f"/api/admin/achievements/{achievement.id}/",
+            data=json.dumps({"action": "setStatus", "status": "published"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(status_response.status_code, 200)
+        achievement.refresh_from_db()
+        self.assertEqual(achievement.title, "胡杨恢复年度成果更新")
+        self.assertEqual(achievement.display_order, 8)
+        self.assertEqual(achievement.status, Achievement.Status.PUBLISHED)
+        self.assertEqual(
+            set(achievement.access_groups.values_list("id", flat=True)),
+            {group.id, superadmin_group.id},
+        )
+
+        bad_delete_response = self.client.post(
+            f"/api/admin/achievements/{achievement.id}/",
+            data=json.dumps({"action": "delete", "confirmationName": "错误名称"}),
+            content_type="application/json",
+        )
+        delete_response = self.client.post(
+            f"/api/admin/achievements/{achievement.id}/",
+            data=json.dumps(
+                {"action": "delete", "confirmationName": "胡杨恢复年度成果更新"}
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(bad_delete_response.status_code, 400)
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertFalse(Achievement.objects.filter(pk=achievement.id).exists())
+        self.assertTrue(
+            OperationLog.objects.filter(
+                module="数据管理",
+                action="删除成果",
+                target_type="achievement",
+                target_id=achievement.id,
+                target_code="annual-restoration-result",
+                target_name="胡杨恢复年度成果更新",
+            ).exists()
+        )
 
 
 class AdminDataResourceApiTests(TestCase):

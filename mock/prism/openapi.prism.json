@@ -745,13 +745,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "authenticated": {
-                      "type": "boolean",
-                      "example": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/UnauthenticatedUserInfoResponse"
                 }
               }
             }
@@ -1429,6 +1423,94 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/admin/profile/avatar/": {
+      "post": {
+        "tags": [
+          "管理后台"
+        ],
+        "summary": "上传当前用户头像",
+        "description": "上传当前用户头像文件。仅支持 JPG 和 PNG，后端会压缩为不超过 300x300 的 JPEG 并清空外部头像 URL。需要登录态并写入操作日志。",
+        "operationId": "uploadAdminProfileAvatar",
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminProfileAvatarUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "上传成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminProfileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/users/{userId}/avatar/": {
+      "get": {
+        "tags": [
+          "认证授权"
+        ],
+        "summary": "获取用户头像图片",
+        "description": "返回指定用户已上传的头像图片。需要登录态；用户不存在或未设置数据库头像时返回标准 JSON 错误。",
+        "operationId": "getUserAvatar",
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "用户 ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "头像图片",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -5843,830 +5925,6 @@
         }
       }
     },
-    "/api/catalog/resources/{id}/nongeo-analytics/": {
-      "get": {
-        "tags": [
-          "数据目录"
-        ],
-        "summary": "获取非地理数据分析摘要",
-        "description": "返回 table/gene 等非地理数据资源的字段画像、完整率、分类分布、数值分布、\n相关性矩阵、表格预览和前端可展示的数据洞察。需要 `core.browse_data`，\n且只返回当前用户可访问的数据资源。\n",
-        "operationId": "getNonGeoResourceAnalytics",
-        "security": [
-          {
-            "sessionAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/ResourceId"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "成功",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NonGeoAnalyticsResponse"
-                },
-                "example": {
-                  "resource": {
-                    "id": 13,
-                    "name": "胡杨群落生物多样性与功能性状数据表",
-                    "code": "nongeo-poplar-community-traits-2024",
-                    "dataType": "table",
-                    "category": {
-                      "code": "biodiversity",
-                      "name": "生物多样性"
-                    },
-                    "source": "2024 塔里木盆地野外调查",
-                    "provider": "中亚胡杨林生态系统保护项目组",
-                    "dataDate": "2024-09-30",
-                    "spatialExtent": "塔里木盆地样区",
-                    "coordinateSystem": "",
-                    "fileFormat": "XLSX",
-                    "description": "包含胡杨群落样方多样性、环境因子、物种功能性状和字段说明的非地理表格资源。",
-                    "qualityNote": "已完成字段标准化预检，部分字段来自样方统计和实验测定。",
-                    "status": "active",
-                    "isQueryable": true,
-                    "isRenderable": false,
-                    "updatedAt": "2026-06-18T12:00:00+08:00",
-                    "sizeBytes": 1087239,
-                    "itemCount": 2927
-                  },
-                  "summary": {
-                    "rowCount": 2927,
-                    "fieldCount": 92,
-                    "numericFieldCount": 58,
-                    "textFieldCount": 24,
-                    "categoricalFieldCount": 10,
-                    "completeness": 0.94,
-                    "updatedAt": "2026-06-18T12:00:00+08:00",
-                    "suggestedView": "community"
-                  },
-                  "fields": [
-                    {
-                      "name": "地区",
-                      "type": "string",
-                      "label": "地区",
-                      "description": "调查所在区域",
-                      "unit": "",
-                      "role": "category",
-                      "nullable": false,
-                      "nonNullCount": 2411,
-                      "nullCount": 0,
-                      "completeness": 1,
-                      "uniqueCount": 12,
-                      "sampleValues": [
-                        "巴州地区",
-                        "阿克苏地区",
-                        "和田地区"
-                      ]
-                    },
-                    {
-                      "name": "生活型（乔、灌、草）",
-                      "type": "string",
-                      "label": "生活型",
-                      "description": "植物生活型分类",
-                      "unit": "",
-                      "role": "category",
-                      "nullable": false,
-                      "nonNullCount": 2411,
-                      "nullCount": 0,
-                      "completeness": 1,
-                      "uniqueCount": 3,
-                      "sampleValues": [
-                        "乔木",
-                        "灌木",
-                        "草本"
-                      ]
-                    },
-                    {
-                      "name": "Shannon",
-                      "type": "float",
-                      "label": "Shannon 多样性",
-                      "description": "群落 Shannon 多样性指数",
-                      "unit": "",
-                      "role": "measure",
-                      "nullable": true,
-                      "nonNullCount": 516,
-                      "nullCount": 0,
-                      "completeness": 1,
-                      "uniqueCount": 490,
-                      "sampleValues": [
-                        0.035,
-                        0.92,
-                        1.12
-                      ],
-                      "min": 0.01,
-                      "max": 2.18,
-                      "mean": 0.82
-                    },
-                    {
-                      "name": "重要值",
-                      "type": "float",
-                      "label": "重要值",
-                      "description": "物种相对多度、相对频度和相对盖度综合指标",
-                      "unit": "",
-                      "role": "measure",
-                      "nullable": false,
-                      "nonNullCount": 2411,
-                      "nullCount": 0,
-                      "completeness": 1,
-                      "uniqueCount": 1982,
-                      "sampleValues": [
-                        12.31,
-                        8.5,
-                        4.92
-                      ],
-                      "min": 0.02,
-                      "max": 76.9,
-                      "mean": 6.44
-                    },
-                    {
-                      "name": "比叶面积",
-                      "type": "float",
-                      "label": "比叶面积",
-                      "description": "单位干质量叶面积",
-                      "unit": "cm²/g",
-                      "role": "measure",
-                      "nullable": false,
-                      "nonNullCount": 2411,
-                      "nullCount": 0,
-                      "completeness": 1,
-                      "uniqueCount": 2186,
-                      "sampleValues": [
-                        18.33,
-                        12.67,
-                        11.41
-                      ],
-                      "min": 0.0045,
-                      "max": 352.15,
-                      "mean": 13.78
-                    }
-                  ],
-                  "categoricalDistributions": [
-                    {
-                      "field": "种",
-                      "label": "物种记录 Top10",
-                      "total": 3966,
-                      "items": [
-                        {
-                          "value": "芦苇",
-                          "count": 316,
-                          "ratio": 0.0797
-                        },
-                        {
-                          "value": "柽柳",
-                          "count": 230,
-                          "ratio": 0.058
-                        },
-                        {
-                          "value": "戟叶鹅绒藤",
-                          "count": 151,
-                          "ratio": 0.0381
-                        },
-                        {
-                          "value": "骆驼刺",
-                          "count": 128,
-                          "ratio": 0.0323
-                        },
-                        {
-                          "value": "刺儿菜",
-                          "count": 119,
-                          "ratio": 0.03
-                        },
-                        {
-                          "value": "胡杨",
-                          "count": 112,
-                          "ratio": 0.0282
-                        }
-                      ]
-                    },
-                    {
-                      "field": "栖息地类型",
-                      "label": "栖息地类型构成",
-                      "total": 3966,
-                      "items": [
-                        {
-                          "value": "路旁",
-                          "count": 690,
-                          "ratio": 0.174
-                        },
-                        {
-                          "value": "林地",
-                          "count": 434,
-                          "ratio": 0.1094
-                        },
-                        {
-                          "value": "农田",
-                          "count": 388,
-                          "ratio": 0.0978
-                        },
-                        {
-                          "value": "草地",
-                          "count": 384,
-                          "ratio": 0.0968
-                        },
-                        {
-                          "value": "荒漠",
-                          "count": 238,
-                          "ratio": 0.06
-                        }
-                      ]
-                    },
-                    {
-                      "field": "生活型（乔、灌、草）",
-                      "label": "生活型构成",
-                      "total": 2411,
-                      "items": [
-                        {
-                          "value": "草本",
-                          "count": 974,
-                          "ratio": 0.404
-                        },
-                        {
-                          "value": "灌木",
-                          "count": 963,
-                          "ratio": 0.399
-                        },
-                        {
-                          "value": "乔木",
-                          "count": 474,
-                          "ratio": 0.197
-                        }
-                      ]
-                    },
-                    {
-                      "field": "科名",
-                      "label": "科级分类 Top10",
-                      "total": 2411,
-                      "items": [
-                        {
-                          "value": "豆科",
-                          "count": 435,
-                          "ratio": 0.18
-                        },
-                        {
-                          "value": "杨柳科",
-                          "count": 426,
-                          "ratio": 0.177
-                        },
-                        {
-                          "value": "柽柳科",
-                          "count": 424,
-                          "ratio": 0.176
-                        },
-                        {
-                          "value": "禾本科",
-                          "count": 330,
-                          "ratio": 0.137
-                        },
-                        {
-                          "value": "苋科",
-                          "count": 279,
-                          "ratio": 0.116
-                        }
-                      ]
-                    }
-                  ],
-                  "numericDistributions": [
-                    {
-                      "field": "Shannon",
-                      "label": "Shannon 多样性",
-                      "min": 0.01,
-                      "max": 2.18,
-                      "mean": 0.82,
-                      "median": 0.76,
-                      "q1": 0.39,
-                      "q3": 1.12,
-                      "bins": [
-                        {
-                          "label": "0.0-0.4",
-                          "min": 0,
-                          "max": 0.4,
-                          "count": 104,
-                          "ratio": 0.202
-                        },
-                        {
-                          "label": "0.4-0.8",
-                          "min": 0.4,
-                          "max": 0.8,
-                          "count": 152,
-                          "ratio": 0.295
-                        },
-                        {
-                          "label": "0.8-1.2",
-                          "min": 0.8,
-                          "max": 1.2,
-                          "count": 148,
-                          "ratio": 0.287
-                        },
-                        {
-                          "label": "1.2-1.6",
-                          "min": 1.2,
-                          "max": 1.6,
-                          "count": 72,
-                          "ratio": 0.14
-                        },
-                        {
-                          "label": "1.6+",
-                          "min": 1.6,
-                          "max": 2.18,
-                          "count": 40,
-                          "ratio": 0.078
-                        }
-                      ]
-                    },
-                    {
-                      "field": "重要值",
-                      "label": "物种重要值",
-                      "min": 0.02,
-                      "max": 76.9,
-                      "mean": 6.44,
-                      "median": 3.21,
-                      "q1": 1.18,
-                      "q3": 8.72,
-                      "bins": [
-                        {
-                          "label": "0-5",
-                          "min": 0,
-                          "max": 5,
-                          "count": 1320,
-                          "ratio": 0.547
-                        },
-                        {
-                          "label": "5-10",
-                          "min": 5,
-                          "max": 10,
-                          "count": 562,
-                          "ratio": 0.233
-                        },
-                        {
-                          "label": "10-20",
-                          "min": 10,
-                          "max": 20,
-                          "count": 344,
-                          "ratio": 0.143
-                        },
-                        {
-                          "label": "20-40",
-                          "min": 20,
-                          "max": 40,
-                          "count": 146,
-                          "ratio": 0.061
-                        },
-                        {
-                          "label": "40+",
-                          "min": 40,
-                          "max": 76.9,
-                          "count": 39,
-                          "ratio": 0.016
-                        }
-                      ]
-                    },
-                    {
-                      "field": "比叶面积",
-                      "label": "比叶面积",
-                      "min": 0.0045,
-                      "max": 352.15,
-                      "mean": 13.78,
-                      "median": 7.86,
-                      "q1": 3.05,
-                      "q3": 18.59,
-                      "bins": [
-                        {
-                          "label": "0-5",
-                          "min": 0,
-                          "max": 5,
-                          "count": 842,
-                          "ratio": 0.349
-                        },
-                        {
-                          "label": "5-10",
-                          "min": 5,
-                          "max": 10,
-                          "count": 511,
-                          "ratio": 0.212
-                        },
-                        {
-                          "label": "10-20",
-                          "min": 10,
-                          "max": 20,
-                          "count": 492,
-                          "ratio": 0.204
-                        },
-                        {
-                          "label": "20-50",
-                          "min": 20,
-                          "max": 50,
-                          "count": 408,
-                          "ratio": 0.169
-                        },
-                        {
-                          "label": "50+",
-                          "min": 50,
-                          "max": 352.15,
-                          "count": 158,
-                          "ratio": 0.066
-                        }
-                      ]
-                    }
-                  ],
-                  "correlation": {
-                    "fields": [
-                      "Shannon",
-                      "Simpson",
-                      "SR",
-                      "Pielou",
-                      "PD",
-                      "FRic",
-                      "FDis",
-                      "RaoQ"
-                    ],
-                    "values": [
-                      [
-                        1,
-                        0.86,
-                        0.52,
-                        0.74,
-                        0.41,
-                        0.32,
-                        0.28,
-                        0.35
-                      ],
-                      [
-                        0.86,
-                        1,
-                        0.49,
-                        0.69,
-                        0.36,
-                        0.27,
-                        0.31,
-                        0.33
-                      ],
-                      [
-                        0.52,
-                        0.49,
-                        1,
-                        0.44,
-                        0.67,
-                        0.58,
-                        0.45,
-                        0.51
-                      ],
-                      [
-                        0.74,
-                        0.69,
-                        0.44,
-                        1,
-                        0.39,
-                        0.3,
-                        0.26,
-                        0.29
-                      ],
-                      [
-                        0.41,
-                        0.36,
-                        0.67,
-                        0.39,
-                        1,
-                        0.61,
-                        0.48,
-                        0.57
-                      ],
-                      [
-                        0.32,
-                        0.27,
-                        0.58,
-                        0.3,
-                        0.61,
-                        1,
-                        0.54,
-                        0.72
-                      ],
-                      [
-                        0.28,
-                        0.31,
-                        0.45,
-                        0.26,
-                        0.48,
-                        0.54,
-                        1,
-                        0.76
-                      ],
-                      [
-                        0.35,
-                        0.33,
-                        0.51,
-                        0.29,
-                        0.57,
-                        0.72,
-                        0.76,
-                        1
-                      ]
-                    ]
-                  },
-                  "tablePreview": {
-                    "resourceId": 13,
-                    "resourceName": "胡杨群落生物多样性与功能性状数据表",
-                    "totalCount": 2927,
-                    "returnedCount": 5,
-                    "limit": 5,
-                    "offset": 0,
-                    "fields": [
-                      {
-                        "name": "地区",
-                        "type": "string",
-                        "nullable": false,
-                        "sampleValues": [
-                          "巴州地区"
-                        ],
-                        "description": "调查所在区域"
-                      },
-                      {
-                        "name": "种",
-                        "type": "string",
-                        "nullable": false,
-                        "sampleValues": [
-                          "胡杨"
-                        ],
-                        "description": "中文物种名"
-                      },
-                      {
-                        "name": "生活型（乔、灌、草）",
-                        "type": "string",
-                        "nullable": false,
-                        "sampleValues": [
-                          "乔木"
-                        ],
-                        "description": "植物生活型分类"
-                      },
-                      {
-                        "name": "比叶面积",
-                        "type": "float",
-                        "nullable": false,
-                        "sampleValues": [
-                          18.33
-                        ],
-                        "description": "单位干质量叶面积"
-                      },
-                      {
-                        "name": "重要值",
-                        "type": "float",
-                        "nullable": false,
-                        "sampleValues": [
-                          12.31
-                        ],
-                        "description": "物种综合优势度指标"
-                      }
-                    ],
-                    "records": [
-                      {
-                        "地区": "巴州地区",
-                        "种": "胡杨",
-                        "生活型（乔、灌、草）": "乔木",
-                        "比叶面积": 11.42,
-                        "重要值": 12.31
-                      },
-                      {
-                        "地区": "阿克苏地区",
-                        "种": "多枝柽柳",
-                        "生活型（乔、灌、草）": "灌木",
-                        "比叶面积": 7.86,
-                        "重要值": 9.2
-                      },
-                      {
-                        "地区": "和田地区",
-                        "种": "芦苇",
-                        "生活型（乔、灌、草）": "草本",
-                        "比叶面积": 26.7,
-                        "重要值": 8.44
-                      },
-                      {
-                        "地区": "喀什",
-                        "种": "骆驼刺",
-                        "生活型（乔、灌、草）": "灌木",
-                        "比叶面积": 5.34,
-                        "重要值": 6.82
-                      },
-                      {
-                        "地区": "巴州地区",
-                        "种": "灰胡杨",
-                        "生活型（乔、灌、草）": "乔木",
-                        "比叶面积": 10.11,
-                        "重要值": 5.76
-                      }
-                    ]
-                  },
-                  "insights": [
-                    "生活型记录以草本和灌木为主，二者合计占比约 80%。",
-                    "Shannon 与 Simpson 指数相关性较高，可作为群落多样性对比的核心指标组合。",
-                    "比叶面积存在长尾分布，建议在图表中提供对数视图或异常值提示。"
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      }
-    },
-    "/api/catalog/resources/{id}/table-query/": {
-      "post": {
-        "tags": [
-          "数据目录"
-        ],
-        "summary": "查询非地理表格数据",
-        "description": "对 table/gene 等非地理数据资源执行属性过滤、排序、分页查询，返回结构化行数据。\n不返回 GeoJSON，不进行空间过滤。需要 `core.query_data`，且只返回当前用户可访问的数据资源。\n",
-        "operationId": "queryNonGeoResourceTable",
-        "security": [
-          {
-            "sessionAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/ResourceId"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NonGeoTableQueryRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "查询成功",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NonGeoTableQueryResponse"
-                },
-                "example": {
-                  "resourceId": 13,
-                  "resourceName": "胡杨群落生物多样性与功能性状数据表",
-                  "totalCount": 2927,
-                  "returnedCount": 8,
-                  "limit": 20,
-                  "offset": 0,
-                  "fields": [
-                    {
-                      "name": "地区",
-                      "type": "string",
-                      "nullable": false,
-                      "sampleValues": [
-                        "巴州地区"
-                      ],
-                      "description": "调查所在区域"
-                    },
-                    {
-                      "name": "种",
-                      "type": "string",
-                      "nullable": false,
-                      "sampleValues": [
-                        "胡杨"
-                      ],
-                      "description": "中文物种名"
-                    },
-                    {
-                      "name": "生活型（乔、灌、草）",
-                      "type": "string",
-                      "nullable": false,
-                      "sampleValues": [
-                        "乔木"
-                      ],
-                      "description": "植物生活型分类"
-                    },
-                    {
-                      "name": "科名",
-                      "type": "string",
-                      "nullable": false,
-                      "sampleValues": [
-                        "杨柳科"
-                      ],
-                      "description": "中文科名"
-                    },
-                    {
-                      "name": "重要值",
-                      "type": "float",
-                      "nullable": false,
-                      "sampleValues": [
-                        12.31
-                      ],
-                      "description": "物种综合优势度指标"
-                    },
-                    {
-                      "name": "比叶面积",
-                      "type": "float",
-                      "nullable": false,
-                      "sampleValues": [
-                        11.42
-                      ],
-                      "description": "单位干质量叶面积"
-                    }
-                  ],
-                  "records": [
-                    {
-                      "地区": "巴州地区",
-                      "种": "胡杨",
-                      "生活型（乔、灌、草）": "乔木",
-                      "科名": "杨柳科",
-                      "重要值": 12.31,
-                      "比叶面积": 11.42
-                    },
-                    {
-                      "地区": "阿克苏地区",
-                      "种": "多枝柽柳",
-                      "生活型（乔、灌、草）": "灌木",
-                      "科名": "柽柳科",
-                      "重要值": 9.2,
-                      "比叶面积": 7.86
-                    },
-                    {
-                      "地区": "和田地区",
-                      "种": "芦苇",
-                      "生活型（乔、灌、草）": "草本",
-                      "科名": "禾本科",
-                      "重要值": 8.44,
-                      "比叶面积": 26.7
-                    },
-                    {
-                      "地区": "喀什",
-                      "种": "骆驼刺",
-                      "生活型（乔、灌、草）": "灌木",
-                      "科名": "豆科",
-                      "重要值": 6.82,
-                      "比叶面积": 5.34
-                    },
-                    {
-                      "地区": "巴州地区",
-                      "种": "灰胡杨",
-                      "生活型（乔、灌、草）": "乔木",
-                      "科名": "杨柳科",
-                      "重要值": 5.76,
-                      "比叶面积": 10.11
-                    },
-                    {
-                      "地区": "阿克苏地区",
-                      "种": "甘草",
-                      "生活型（乔、灌、草）": "草本",
-                      "科名": "豆科",
-                      "重要值": 4.92,
-                      "比叶面积": 18.64
-                    },
-                    {
-                      "地区": "和田地区",
-                      "种": "白麻",
-                      "生活型（乔、灌、草）": "草本",
-                      "科名": "夹竹桃科",
-                      "重要值": 4.17,
-                      "比叶面积": 16.38
-                    },
-                    {
-                      "地区": "喀什",
-                      "种": "红砂",
-                      "生活型（乔、灌、草）": "灌木",
-                      "科名": "柽柳科",
-                      "重要值": 3.84,
-                      "比叶面积": 6.28
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      }
-    },
     "/api/catalog/export/": {
       "post": {
         "tags": [
@@ -9459,6 +8717,21 @@
           }
         }
       },
+      "UnauthenticatedUserInfoResponse": {
+        "type": "object",
+        "required": [
+          "authenticated"
+        ],
+        "properties": {
+          "authenticated": {
+            "type": "boolean",
+            "enum": [
+              false
+            ],
+            "description": "当前请求未认证"
+          }
+        }
+      },
       "BaseUserInfo": {
         "type": "object",
         "required": [
@@ -10638,6 +9911,19 @@
           "isActive": {
             "type": "boolean",
             "description": "是否启用账号，默认 true"
+          }
+        }
+      },
+      "AdminProfileAvatarUploadRequest": {
+        "type": "object",
+        "required": [
+          "avatar"
+        ],
+        "properties": {
+          "avatar": {
+            "type": "string",
+            "format": "binary",
+            "description": "JPG 或 PNG 头像文件，最大 2MB"
           }
         }
       },
@@ -13386,557 +12672,6 @@
             }
           }
         }
-      },
-      "NonGeoAnalyticsResponse": {
-        "type": "object",
-        "required": [
-          "resource",
-          "summary",
-          "fields",
-          "categoricalDistributions",
-          "numericDistributions",
-          "correlation",
-          "tablePreview",
-          "insights"
-        ],
-        "properties": {
-          "resource": {
-            "$ref": "#/components/schemas/ResourceListItem"
-          },
-          "summary": {
-            "$ref": "#/components/schemas/NonGeoSummary"
-          },
-          "fields": {
-            "type": "array",
-            "description": "非地理数据字段画像列表，包含字段角色、完整率、唯一值和数值摘要",
-            "items": {
-              "$ref": "#/components/schemas/NonGeoFieldProfile"
-            }
-          },
-          "categoricalDistributions": {
-            "type": "array",
-            "description": "可直接绘制为柱状图、环图或排行表的分类字段分布",
-            "items": {
-              "$ref": "#/components/schemas/NonGeoCategoricalDistribution"
-            }
-          },
-          "numericDistributions": {
-            "type": "array",
-            "description": "可直接绘制为直方图、箱线概览或指标卡的数值字段分布",
-            "items": {
-              "$ref": "#/components/schemas/NonGeoNumericDistribution"
-            }
-          },
-          "correlation": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/NonGeoCorrelationMatrix"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "数值字段相关性矩阵；数值字段不足两个或后端未计算时为 null"
-          },
-          "tablePreview": {
-            "$ref": "#/components/schemas/NonGeoTableQueryResponse"
-          },
-          "insights": {
-            "type": "array",
-            "description": "后端根据字段统计生成的简短中文洞察或质量提示",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "NonGeoSummary": {
-        "type": "object",
-        "required": [
-          "rowCount",
-          "fieldCount",
-          "numericFieldCount",
-          "textFieldCount",
-          "categoricalFieldCount",
-          "completeness",
-          "updatedAt",
-          "suggestedView"
-        ],
-        "properties": {
-          "rowCount": {
-            "type": "integer",
-            "description": "数据资源总记录数"
-          },
-          "fieldCount": {
-            "type": "integer",
-            "description": "数据资源字段总数"
-          },
-          "numericFieldCount": {
-            "type": "integer",
-            "description": "可作为连续数值指标分析的字段数量"
-          },
-          "textFieldCount": {
-            "type": "integer",
-            "description": "文本字段数量"
-          },
-          "categoricalFieldCount": {
-            "type": "integer",
-            "description": "可作为分类维度分析的字段数量"
-          },
-          "completeness": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1,
-            "description": "全表非空单元格占比，0 到 1 之间"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "数据统计生成或资源最后更新时间"
-          },
-          "suggestedView": {
-            "type": "string",
-            "enum": [
-              "species",
-              "community",
-              "traits",
-              "environment",
-              "generic"
-            ],
-            "description": "前端推荐的默认分析视角"
-          }
-        }
-      },
-      "NonGeoFieldProfile": {
-        "type": "object",
-        "required": [
-          "name",
-          "type",
-          "label",
-          "description",
-          "unit",
-          "role",
-          "nullable",
-          "nonNullCount",
-          "nullCount",
-          "completeness",
-          "uniqueCount",
-          "sampleValues"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "字段名，与表格查询返回行对象的键一致"
-          },
-          "type": {
-            "type": "string",
-            "description": "后端识别的数据类型，如 string、integer、float、date"
-          },
-          "label": {
-            "type": "string",
-            "description": "面向中文界面的字段展示名称，默认可与 name 相同"
-          },
-          "description": {
-            "type": "string",
-            "description": "字段含义说明，来自导入字段元数据或后端识别结果"
-          },
-          "unit": {
-            "type": "string",
-            "description": "字段单位；无单位时为空字符串"
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "identifier",
-              "category",
-              "measure",
-              "date",
-              "text",
-              "coordinate",
-              "unknown"
-            ],
-            "description": "字段在非地理分析中的推荐角色"
-          },
-          "nullable": {
-            "type": "boolean",
-            "description": "是否存在空值"
-          },
-          "nonNullCount": {
-            "type": "integer",
-            "description": "非空记录数"
-          },
-          "nullCount": {
-            "type": "integer",
-            "description": "空值记录数"
-          },
-          "completeness": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1,
-            "description": "字段非空率，0 到 1 之间"
-          },
-          "uniqueCount": {
-            "type": "integer",
-            "description": "唯一值数量"
-          },
-          "sampleValues": {
-            "type": "array",
-            "description": "非空样例值",
-            "items": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "min": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "数值字段最小值；非数值字段为 null 或省略"
-          },
-          "max": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "数值字段最大值；非数值字段为 null 或省略"
-          },
-          "mean": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "description": "数值字段平均值；非数值字段为 null 或省略"
-          }
-        }
-      },
-      "NonGeoCategoricalDistribution": {
-        "type": "object",
-        "required": [
-          "field",
-          "label",
-          "total",
-          "items"
-        ],
-        "properties": {
-          "field": {
-            "type": "string",
-            "description": "分类字段名"
-          },
-          "label": {
-            "type": "string",
-            "description": "分类字段展示名称"
-          },
-          "total": {
-            "type": "integer",
-            "description": "参与该分布统计的记录数"
-          },
-          "items": {
-            "type": "array",
-            "description": "按数量降序排列的分类项",
-            "items": {
-              "$ref": "#/components/schemas/NonGeoDistributionItem"
-            }
-          }
-        }
-      },
-      "NonGeoDistributionItem": {
-        "type": "object",
-        "required": [
-          "value",
-          "count",
-          "ratio"
-        ],
-        "properties": {
-          "value": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "分类值或数值区间标签"
-          },
-          "count": {
-            "type": "integer",
-            "description": "该分类值或区间内记录数"
-          },
-          "ratio": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1,
-            "description": "占参与统计记录数的比例，0 到 1 之间"
-          }
-        }
-      },
-      "NonGeoNumericDistribution": {
-        "type": "object",
-        "required": [
-          "field",
-          "label",
-          "min",
-          "max",
-          "mean",
-          "median",
-          "q1",
-          "q3",
-          "bins"
-        ],
-        "properties": {
-          "field": {
-            "type": "string",
-            "description": "数值字段名"
-          },
-          "label": {
-            "type": "string",
-            "description": "数值字段展示名称"
-          },
-          "min": {
-            "type": "number",
-            "description": "最小值"
-          },
-          "max": {
-            "type": "number",
-            "description": "最大值"
-          },
-          "mean": {
-            "type": "number",
-            "description": "平均值"
-          },
-          "median": {
-            "type": "number",
-            "description": "中位数"
-          },
-          "q1": {
-            "type": "number",
-            "description": "第一四分位数"
-          },
-          "q3": {
-            "type": "number",
-            "description": "第三四分位数"
-          },
-          "bins": {
-            "type": "array",
-            "description": "直方图区间统计",
-            "items": {
-              "$ref": "#/components/schemas/NonGeoHistogramBin"
-            }
-          }
-        }
-      },
-      "NonGeoHistogramBin": {
-        "type": "object",
-        "required": [
-          "label",
-          "min",
-          "max",
-          "count",
-          "ratio"
-        ],
-        "properties": {
-          "label": {
-            "type": "string",
-            "description": "区间展示标签"
-          },
-          "min": {
-            "type": "number",
-            "description": "区间下界"
-          },
-          "max": {
-            "type": "number",
-            "description": "区间上界"
-          },
-          "count": {
-            "type": "integer",
-            "description": "区间内记录数"
-          },
-          "ratio": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 1,
-            "description": "区间记录数占参与统计记录数的比例"
-          }
-        }
-      },
-      "NonGeoCorrelationMatrix": {
-        "type": "object",
-        "required": [
-          "fields",
-          "values"
-        ],
-        "properties": {
-          "fields": {
-            "type": "array",
-            "description": "相关性矩阵对应的字段名顺序",
-            "items": {
-              "type": "string"
-            }
-          },
-          "values": {
-            "type": "array",
-            "description": "相关系数二维数组，取值范围为 -1 到 1",
-            "items": {
-              "type": "array",
-              "items": {
-                "type": "number"
-              }
-            }
-          }
-        }
-      },
-      "NonGeoSortSpec": {
-        "type": "object",
-        "required": [
-          "field",
-          "direction"
-        ],
-        "properties": {
-          "field": {
-            "type": "string",
-            "description": "排序字段名"
-          },
-          "direction": {
-            "type": "string",
-            "enum": [
-              "asc",
-              "desc"
-            ],
-            "description": "排序方向"
-          }
-        }
-      },
-      "NonGeoTableQueryRequest": {
-        "type": "object",
-        "required": [
-          "attributeFilters",
-          "sort",
-          "limit",
-          "offset"
-        ],
-        "properties": {
-          "attributeFilters": {
-            "type": "array",
-            "description": "非空间属性过滤条件",
-            "items": {
-              "$ref": "#/components/schemas/AttributeFilter"
-            }
-          },
-          "sort": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/NonGeoSortSpec"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "排序配置；不排序时为 null"
-          },
-          "limit": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 30000,
-            "description": "返回记录上限"
-          },
-          "offset": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "分页偏移量"
-          }
-        }
-      },
-      "NonGeoTableQueryResponse": {
-        "type": "object",
-        "required": [
-          "resourceId",
-          "resourceName",
-          "totalCount",
-          "returnedCount",
-          "limit",
-          "offset",
-          "fields",
-          "rows"
-        ],
-        "properties": {
-          "resourceId": {
-            "type": "integer",
-            "description": "数据资源 ID"
-          },
-          "resourceName": {
-            "type": "string",
-            "description": "数据资源名称"
-          },
-          "totalCount": {
-            "type": "integer",
-            "description": "过滤后的总记录数"
-          },
-          "returnedCount": {
-            "type": "integer",
-            "description": "本次返回记录数"
-          },
-          "limit": {
-            "type": "integer",
-            "description": "返回记录上限"
-          },
-          "offset": {
-            "type": "integer",
-            "description": "分页偏移量"
-          },
-          "fields": {
-            "type": "array",
-            "description": "查询结果字段",
-            "items": {
-              "$ref": "#/components/schemas/FieldInfo"
-            }
-          },
-          "rows": {
-            "type": "array",
-            "description": "查询返回的表格行，键为字段名",
-            "items": {
-              "$ref": "#/components/schemas/NonGeoTableRow"
-            }
-          }
-        }
-      },
-      "NonGeoTableRow": {
-        "type": "object",
-        "additionalProperties": {
-          "oneOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "number"
-            },
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "description": "非地理表格行对象，键为字段名，值为原始单元格值或标准化后的标量值"
       },
       "ExportRequest": {
         "type": "object",

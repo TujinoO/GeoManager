@@ -122,6 +122,10 @@ class WorkspaceScene(models.Model):
         PROJECT = "project", "工程"
         TOPIC = "topic", "专题"
 
+    class Status(models.TextChoices):
+        ACTIVE = "active", "启用"
+        INACTIVE = "inactive", "停用"
+
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -132,6 +136,15 @@ class WorkspaceScene(models.Model):
     name = models.CharField(max_length=160, verbose_name="名称")
     description = models.TextField(blank=True, verbose_name="说明")
     snapshot = models.JSONField(default=dict, blank=True, verbose_name="工作台快照")
+    access_groups = models.ManyToManyField(
+        Group, blank=True, related_name="workspace_scenes", verbose_name="访问角色"
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        verbose_name="状态",
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
 

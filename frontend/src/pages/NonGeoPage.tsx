@@ -37,14 +37,9 @@ import {
 import type { TableProps } from "antd";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "../api/client";
 import WorkspaceHeader from "../components/WorkspaceHeader";
 import { useAppContext } from "../contexts/AppContext";
-import type {
-  NonGeoAnalytics,
-  NonGeoTableQueryResult,
-  ResourceListItem,
-} from "../types";
+import type { DataResource, ResourceListItem } from "../types";
 import {
   isDataResource,
   resourceCategoryName,
@@ -54,6 +49,94 @@ import {
 
 type ResourceTypeFilter = "all" | "table" | "gene";
 type LeftPanelKey = "data" | "views" | "workspace" | "topics";
+type NonGeoScalar = string | number | boolean | null;
+type NonGeoFieldRole =
+  | "identifier"
+  | "category"
+  | "measure"
+  | "date"
+  | "text"
+  | "coordinate"
+  | "unknown";
+type NonGeoTableRow = Record<string, NonGeoScalar>;
+type NonGeoFieldProfile = {
+  name: string;
+  type: string;
+  label: string;
+  description: string;
+  unit: string;
+  role: NonGeoFieldRole;
+  nullable: boolean;
+  nonNullCount: number;
+  nullCount: number;
+  completeness: number;
+  uniqueCount: number;
+  sampleValues: NonGeoScalar[];
+  min?: number | null;
+  max?: number | null;
+  mean?: number | null;
+};
+type NonGeoTableQueryResult = {
+  resourceId: number;
+  resourceName: string;
+  totalCount: number;
+  returnedCount: number;
+  limit: number;
+  offset: number;
+  fields: Array<{
+    name: string;
+    type: string;
+    nullable: boolean;
+    sampleValues: NonGeoScalar[];
+    description: string;
+  }>;
+  rows: NonGeoTableRow[];
+};
+type NonGeoAnalytics = {
+  resource: ResourceListItem;
+  summary: {
+    rowCount: number;
+    fieldCount: number;
+    numericFieldCount: number;
+    textFieldCount: number;
+    categoricalFieldCount: number;
+    completeness: number;
+    updatedAt: string;
+    suggestedView:
+      | "species"
+      | "community"
+      | "traits"
+      | "environment"
+      | "generic";
+  };
+  fields: NonGeoFieldProfile[];
+  categoricalDistributions: Array<{
+    field: string;
+    label: string;
+    total: number;
+    items: Array<{ value: NonGeoScalar; count: number; ratio: number }>;
+  }>;
+  numericDistributions: Array<{
+    field: string;
+    label: string;
+    min: number;
+    max: number;
+    mean: number;
+    median: number;
+    q1: number;
+    q3: number;
+    bins: Array<{
+      label: string;
+      min: number;
+      max: number;
+      count: number;
+      ratio: number;
+    }>;
+  }>;
+  correlation: { fields: string[]; values: number[][] } | null;
+  tablePreview: NonGeoTableQueryResult;
+  insights: string[];
+};
 type CategoricalDistribution =
   NonGeoAnalytics["categoricalDistributions"][number];
 type NumericDistribution = NonGeoAnalytics["numericDistributions"][number];
@@ -148,6 +231,322 @@ const roleLabels: Record<FieldProfile["role"], string> = {
   unknown: "未知",
 };
 
+const demoUpdatedAt = "2026-06-20T00:00:00+08:00";
+
+const demoResources: DataResource[] = [
+  {
+    id: 9001,
+    name: "胡杨样地群落监测示例表",
+    code: "demo-populus-community-table",
+    dataType: "table",
+    category: null,
+    source: "前端演示数据",
+    provider: "中亚胡杨林生态系统保护项目组",
+    dataDate: "2026-06-20",
+    spatialExtent: "塔里木河中游示例样地",
+    coordinateSystem: "",
+    fileFormat: "DEMO",
+    description: "用于展示非地理数据工作台的本地示例数据，后端合同尚未确定。",
+    qualityNote: "演示数据不参与后端查询、导出或权限校验。",
+    sizeBytes: 0,
+    itemCount: 8,
+    status: "active",
+    isQueryable: false,
+    isRenderable: false,
+    updatedAt: demoUpdatedAt,
+  },
+  {
+    id: 9002,
+    name: "胡杨遗传标记示例集",
+    code: "demo-populus-gene-table",
+    dataType: "gene",
+    category: null,
+    source: "前端演示数据",
+    provider: "中亚胡杨林生态系统保护项目组",
+    dataDate: "2026-06-20",
+    spatialExtent: "中亚胡杨分布区",
+    coordinateSystem: "",
+    fileFormat: "DEMO",
+    description: "用于展示基因非地理数据入口的本地示例资源。",
+    qualityNote: "演示数据不代表真实测序结果。",
+    sizeBytes: 0,
+    itemCount: 6,
+    status: "active",
+    isQueryable: false,
+    isRenderable: false,
+    updatedAt: demoUpdatedAt,
+  },
+];
+
+const demoPrimaryResource = demoResources[0]!;
+
+const demoTableRows: TableRow[] = [
+  {
+    样地编号: "TLM-01",
+    生活型: "乔木",
+    物种: "胡杨",
+    重要值: 42.6,
+    盖度: 68,
+    土壤含水率: 14.2,
+  },
+  {
+    样地编号: "TLM-02",
+    生活型: "灌木",
+    物种: "柽柳",
+    重要值: 31.4,
+    盖度: 45,
+    土壤含水率: 10.8,
+  },
+  {
+    样地编号: "TLM-03",
+    生活型: "草本",
+    物种: "芦苇",
+    重要值: 18.9,
+    盖度: 37,
+    土壤含水率: 18.1,
+  },
+  {
+    样地编号: "TLM-04",
+    生活型: "乔木",
+    物种: "胡杨",
+    重要值: 39.8,
+    盖度: 61,
+    土壤含水率: 12.7,
+  },
+  {
+    样地编号: "TLM-05",
+    生活型: "灌木",
+    物种: "盐穗木",
+    重要值: 22.3,
+    盖度: 28,
+    土壤含水率: 9.5,
+  },
+  {
+    样地编号: "TLM-06",
+    生活型: "乔木",
+    物种: "胡杨",
+    重要值: 45.1,
+    盖度: 72,
+    土壤含水率: 15.4,
+  },
+  {
+    样地编号: "TLM-07",
+    生活型: "草本",
+    物种: "骆驼刺",
+    重要值: 16.2,
+    盖度: 24,
+    土壤含水率: 8.9,
+  },
+  {
+    样地编号: "TLM-08",
+    生活型: "灌木",
+    物种: "柽柳",
+    重要值: 27.7,
+    盖度: 33,
+    土壤含水率: 11.6,
+  },
+];
+
+const demoFields: NonGeoAnalytics["fields"] = [
+  {
+    name: "样地编号",
+    type: "string",
+    label: "样地编号",
+    description: "样地调查记录编号",
+    unit: "",
+    role: "identifier",
+    nullable: false,
+    nonNullCount: 8,
+    nullCount: 0,
+    completeness: 1,
+    uniqueCount: 8,
+    sampleValues: ["TLM-01", "TLM-02", "TLM-03"],
+  },
+  {
+    name: "生活型",
+    type: "string",
+    label: "生活型",
+    description: "植物生活型分类",
+    unit: "",
+    role: "category",
+    nullable: false,
+    nonNullCount: 8,
+    nullCount: 0,
+    completeness: 1,
+    uniqueCount: 3,
+    sampleValues: ["乔木", "灌木", "草本"],
+  },
+  {
+    name: "物种",
+    type: "string",
+    label: "物种",
+    description: "优势或伴生植物名称",
+    unit: "",
+    role: "category",
+    nullable: false,
+    nonNullCount: 8,
+    nullCount: 0,
+    completeness: 1,
+    uniqueCount: 5,
+    sampleValues: ["胡杨", "柽柳", "芦苇"],
+  },
+  {
+    name: "重要值",
+    type: "float",
+    label: "重要值",
+    description: "群落优势度综合指标",
+    unit: "",
+    role: "measure",
+    nullable: false,
+    nonNullCount: 8,
+    nullCount: 0,
+    completeness: 1,
+    uniqueCount: 8,
+    sampleValues: [42.6, 31.4, 18.9],
+    min: 16.2,
+    max: 45.1,
+    mean: 30.5,
+  },
+  {
+    name: "盖度",
+    type: "float",
+    label: "盖度",
+    description: "样地植被盖度",
+    unit: "%",
+    role: "measure",
+    nullable: false,
+    nonNullCount: 8,
+    nullCount: 0,
+    completeness: 1,
+    uniqueCount: 8,
+    sampleValues: [68, 45, 37],
+    min: 24,
+    max: 72,
+    mean: 46,
+  },
+  {
+    name: "土壤含水率",
+    type: "float",
+    label: "土壤含水率",
+    description: "表层土壤含水率",
+    unit: "%",
+    role: "measure",
+    nullable: false,
+    nonNullCount: 8,
+    nullCount: 0,
+    completeness: 1,
+    uniqueCount: 8,
+    sampleValues: [14.2, 10.8, 18.1],
+    min: 8.9,
+    max: 18.1,
+    mean: 12.65,
+  },
+];
+
+const demoTablePreview: NonGeoTableQueryResult = {
+  resourceId: 9001,
+  resourceName: "胡杨样地群落监测示例表",
+  totalCount: demoTableRows.length,
+  returnedCount: demoTableRows.length,
+  limit: 80,
+  offset: 0,
+  fields: demoFields.map((field) => ({
+    name: field.name,
+    type: field.type,
+    nullable: field.nullable,
+    sampleValues: field.sampleValues,
+    description: field.description,
+  })),
+  rows: demoTableRows,
+};
+
+const demoAnalytics: NonGeoAnalytics = {
+  resource: demoPrimaryResource,
+  summary: {
+    rowCount: demoTableRows.length,
+    fieldCount: demoFields.length,
+    numericFieldCount: 3,
+    textFieldCount: 0,
+    categoricalFieldCount: 2,
+    completeness: 1,
+    updatedAt: demoUpdatedAt,
+    suggestedView: "species",
+  },
+  fields: demoFields,
+  categoricalDistributions: [
+    {
+      field: "生活型",
+      label: "生活型",
+      total: 8,
+      items: [
+        { value: "乔木", count: 3, ratio: 0.375 },
+        { value: "灌木", count: 3, ratio: 0.375 },
+        { value: "草本", count: 2, ratio: 0.25 },
+      ],
+    },
+    {
+      field: "物种",
+      label: "物种",
+      total: 8,
+      items: [
+        { value: "胡杨", count: 3, ratio: 0.375 },
+        { value: "柽柳", count: 2, ratio: 0.25 },
+        { value: "芦苇", count: 1, ratio: 0.125 },
+        { value: "盐穗木", count: 1, ratio: 0.125 },
+        { value: "骆驼刺", count: 1, ratio: 0.125 },
+      ],
+    },
+  ],
+  numericDistributions: [
+    {
+      field: "重要值",
+      label: "重要值",
+      min: 16.2,
+      max: 45.1,
+      mean: 30.5,
+      median: 29.55,
+      q1: 21.45,
+      q3: 40.5,
+      bins: [
+        { label: "16.2-23.4", min: 16.2, max: 23.4, count: 3, ratio: 0.375 },
+        { label: "23.4-30.6", min: 23.4, max: 30.6, count: 1, ratio: 0.125 },
+        { label: "30.6-37.9", min: 30.6, max: 37.9, count: 1, ratio: 0.125 },
+        { label: "37.9-45.1", min: 37.9, max: 45.1, count: 3, ratio: 0.375 },
+      ],
+    },
+    {
+      field: "盖度",
+      label: "盖度",
+      min: 24,
+      max: 72,
+      mean: 46,
+      median: 41,
+      q1: 31.75,
+      q3: 62.75,
+      bins: [
+        { label: "24-36", min: 24, max: 36, count: 3, ratio: 0.375 },
+        { label: "36-48", min: 36, max: 48, count: 2, ratio: 0.25 },
+        { label: "48-60", min: 48, max: 60, count: 0, ratio: 0 },
+        { label: "60-72", min: 60, max: 72, count: 3, ratio: 0.375 },
+      ],
+    },
+  ],
+  correlation: {
+    fields: ["重要值", "盖度", "土壤含水率"],
+    values: [
+      [1, 0.94, 0.58],
+      [0.94, 1, 0.63],
+      [0.58, 0.63, 1],
+    ],
+  },
+  tablePreview: demoTablePreview,
+  insights: [
+    "示例表包含 8 条样地记录和 6 个字段。",
+    "胡杨样地在重要值和盖度上占优，适合展示组成分布和性状关系视图。",
+    "当前数据为前端 demo，非地理后端合同尚未确定。",
+  ],
+};
+
 export default function NonGeoPage() {
   const { user } = useAppContext();
   const { message } = App.useApp();
@@ -236,49 +635,40 @@ export default function NonGeoPage() {
       return;
     }
     setLoadingResources(true);
-    try {
-      const [tableResponse, geneResponse] = await Promise.all([
-        api.resources({ dataType: "table" }),
-        api.resources({ dataType: "gene" }),
-      ]);
-      const nextResources = [...tableResponse.items, ...geneResponse.items];
-      setResources(nextResources);
-      setActiveResourceId((current) => {
-        if (
-          current !== null &&
-          nextResources.some(
-            (resource) => isDataResource(resource) && resource.id === current,
-          )
-        ) {
-          return current;
-        }
-        const firstResource = nextResources.find(isDataResource);
-        return firstResource?.id ?? null;
-      });
-    } catch (error) {
-      message.warning(
-        error instanceof Error ? error.message : "非地理数据资源加载失败",
-      );
-    } finally {
-      setLoadingResources(false);
-    }
-  }, [canBrowseData, message]);
+    setResources(demoResources);
+    setActiveResourceId((current) =>
+      current !== null &&
+      demoResources.some(
+        (resource) => isDataResource(resource) && resource.id === current,
+      )
+        ? current
+        : (demoResources[0]?.id ?? null),
+    );
+    setLoadingResources(false);
+  }, [canBrowseData]);
 
   const loadAnalytics = useCallback(async (resourceId: number) => {
     setLoadingAnalytics(true);
     setAnalyticsError("");
     setTableResult(null);
-    try {
-      const response = await api.nonGeoAnalytics(resourceId);
-      setAnalytics(response);
-    } catch (error) {
-      setAnalytics(null);
-      setAnalyticsError(
-        error instanceof Error ? error.message : "非地理分析接口暂不可用",
-      );
-    } finally {
-      setLoadingAnalytics(false);
-    }
+    const resource = demoResources.find(
+      (item) => isDataResource(item) && item.id === resourceId,
+    );
+    setAnalytics(
+      resource
+        ? {
+            ...demoAnalytics,
+            resource,
+            tablePreview: {
+              ...demoTablePreview,
+              resourceId: resource.id,
+              resourceName: resource.name,
+            },
+          }
+        : null,
+    );
+    setAnalyticsError(resource ? "" : "未找到示例资源");
+    setLoadingAnalytics(false);
   }, []);
 
   const queryTable = useCallback(async () => {
@@ -290,25 +680,32 @@ export default function NonGeoPage() {
       return;
     }
     setQueryingTable(true);
-    try {
-      const result = await api.queryNonGeoTable(activeResourceId, {
-        attributeFilters: [],
-        sort: primaryNumeric
-          ? { field: primaryNumeric.field, direction: "desc" }
-          : null,
-        limit: 80,
-        offset: 0,
-      });
-      setTableResult(result);
-      setAnalysisTab("table");
-    } catch (error) {
-      message.warning(
-        error instanceof Error ? error.message : "非地理明细查询失败",
-      );
-    } finally {
-      setQueryingTable(false);
-    }
-  }, [activeResourceId, canQueryData, message, primaryNumeric]);
+    const resourceName =
+      selectedResource?.name ?? demoTablePreview.resourceName;
+    const rows = primaryNumeric
+      ? [...demoTableRows].sort(
+          (left, right) =>
+            Number(right[primaryNumeric.field] ?? 0) -
+            Number(left[primaryNumeric.field] ?? 0),
+        )
+      : demoTableRows;
+    setTableResult({
+      ...demoTablePreview,
+      resourceId: activeResourceId,
+      resourceName,
+      rows,
+      returnedCount: rows.length,
+      totalCount: rows.length,
+    });
+    setAnalysisTab("table");
+    setQueryingTable(false);
+  }, [
+    activeResourceId,
+    canQueryData,
+    message,
+    primaryNumeric,
+    selectedResource,
+  ]);
 
   useEffect(() => {
     void loadResources();

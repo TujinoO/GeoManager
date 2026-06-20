@@ -202,41 +202,6 @@ describe("api client", () => {
     );
   });
 
-  it("posts non-geographic table query filters to the resource endpoint", async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse({
-        resourceId: 13,
-        resourceName: "胡杨群落生物多样性与功能性状数据表",
-        totalCount: 1,
-        returnedCount: 1,
-        limit: 20,
-        offset: 0,
-        fields: [],
-        records: [],
-      }),
-    );
-
-    await api.queryNonGeoTable(13, {
-      attributeFilters: [
-        { field: "生活型（乔、灌、草）", operator: "eq", value: "乔木" },
-      ],
-      sort: { field: "重要值", direction: "desc" },
-      limit: 20,
-      offset: 0,
-    });
-
-    const request = capturedRequest(fetchMock);
-    expect(requestPath(request)).toBe("/api/catalog/resources/13/table-query/");
-    expect(JSON.parse(await request.clone().text())).toEqual({
-      attributeFilters: [
-        { field: "生活型（乔、灌、草）", operator: "eq", value: "乔木" },
-      ],
-      sort: { field: "重要值", direction: "desc" },
-      limit: 20,
-      offset: 0,
-    });
-  });
-
   it("starts custom raster rendering with explicit rules mode and dataset reference", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({

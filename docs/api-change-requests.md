@@ -23,14 +23,15 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260616-001 | Implementing | Multiple catalog/admin/auth endpoints | new endpoints, response fields, permission behavior | Done | Updating | Implementing | Pending | Layer workspace snapshots, upload duplicate detection, data overview stats |
 | API-20260617-001 | BackendReady | POST /api/auth/guest-login/ | new endpoint, permission behavior | Done | N/A | Done | Done | Dedicated guest login account and group |
 | API-20260617-002 | BackendReady | POST /api/catalog/workspaces/; POST /api/catalog/workspaces/{workspaceId}/ | request body, status code | Done | N/A | Done | Done | Workspace snapshots store references, not raw data |
-| API-20260618-001 | ContractReady | GET /api/catalog/resources/{id}/nongeo-analytics/; POST /api/catalog/resources/{id}/table-query/ | new endpoint, response fields, permission behavior, mock data | Done | Done | Pending | Pending | Non-geographic table analytics workspace |
+| API-20260618-001 | Blocked | Non-geographic analytics workspace | endpoint design paused | Removed | Demo only | N/A | Pending | Non-geographic backend contract is not finalized; `/nongeo` remains frontend demo only |
 | API-20260619-001 | Implementing | POST /api/catalog/import/commit/; GET /api/admin/data/resources/; POST /api/admin/data/resources/{id}/ | request body, response fields, permission behavior, mock data | Done | Updating | Implementing | Pending | Uploaded data visibility scope |
 | API-20260619-002 | Verified | Multiple mock example endpoints | mock data consistency | N/A | Done | N/A | Done | Align representative auth, vector, raster, and non-geographic mock data |
 | API-20260619-003 | BackendReady | POST /api/catalog/import/preview/; POST /api/catalog/import/validate/; POST /api/catalog/import/commit/ | request body, response semantics, mock data | Done | Done | Done | Done | Import storage IDs unique; duplicate detection uses display name |
 | API-20260620-001 | BackendReady | GET /api/admin/system-logs/ | new endpoint, response fields, permission behavior, mock data | Done | Done | Done | Pending | System log file selector for admin logs page |
 | API-20260620-002 | BackendReady | Data/workspace/achievement CRUD endpoints | permission behavior, response fields, new endpoint, request body | Done | N/A | Done | Done | Fine-grained CRUD permissions for data, workspace scenes, and achievements |
 | API-20260620-003 | BackendReady | GET /api/admin/operation-logs/ | response fields, query parameters | Done | N/A | Done | Done | Structured audit target fields for data, workspace scenes, and achievements |
-| API-20260620-004 | ContractReady | GET/POST /api/admin/workspaces/; GET/POST /api/admin/achievements/ | new endpoints, request body, response fields, permission behavior, mock data | Done | Done | Pending | Pending | Shared management UI for 工程、专题 and 成果 |
+| API-20260620-004 | BackendReady | GET/POST /api/admin/workspaces/; GET/POST /api/admin/achievements/ | new endpoints, request body, response fields, permission behavior, mock data | Done | Done | Done | Pending | Shared management UI for 工程、专题 and 成果 |
+| API-20260620-005 | BackendReady | POST /api/admin/profile/avatar/; GET /api/users/{userId}/avatar/ | contract coverage | Done | N/A | Done | Pending | Existing avatar endpoints added to OpenAPI and generated SDK |
 
 ## Entry Template
 
@@ -104,7 +105,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 
 - Status: Verified
 - Owner: Frontend
-- Endpoints: `POST /api/auth/register/`, `GET /api/catalog/resources/`, `POST /api/catalog/scan/`, `GET /api/catalog/resources/{id}/profile/`, `POST /api/catalog/resources/{id}/query/`, `GET /api/layers/`, `GET /api/layers/{layer_name}/features/`, `GET /api/layers/{layer_name}/profile/`, `POST /api/layers/{layer_name}/query/`, `GET /api/catalog/resources/{id}/nongeo-analytics/`, `POST /api/catalog/resources/{id}/table-query/`
+- Endpoints: `POST /api/auth/register/`, `GET /api/catalog/resources/`, `POST /api/catalog/scan/`, `GET /api/catalog/resources/{id}/profile/`, `POST /api/catalog/resources/{id}/query/`, `GET /api/layers/`, `GET /api/layers/{layer_name}/features/`, `GET /api/layers/{layer_name}/profile/`, `POST /api/layers/{layer_name}/query/`
 - Change type: mock data
 - OpenAPI change: None; endpoint shapes, status codes, permissions, and generated frontend API types are unchanged.
 - Mock examples: `mock/prism/examples/00-public-auth.json`, `mock/prism/examples/30-catalog-vector.json`, `mock/prism/examples/35-catalog-nongeo.json`
@@ -167,7 +168,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 
 ## API-20260620-004 - Managed Workspaces and Achievements
 
-- Status: ContractReady
+- Status: BackendReady
 - Owner: Frontend / Backend
 - Endpoints: `GET /api/admin/workspaces/`, `POST /api/admin/workspaces/{workspaceId}/`, `GET /api/admin/achievements/`, `POST /api/admin/achievements/{achievementId}/`
 - Change type: new endpoint, request body, response fields, permission behavior, mock data
@@ -176,7 +177,20 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Frontend reason: The resource management area now needs 工程、专题 and 成果 management pages with the same interaction model as 存量数据: list, filter, status control, information editing, visibility group configuration, and deletion confirmation.
 - Backend implementation notes: Implement Django admin APIs that reuse `WorkspaceScene` ownership rules and the achievements model/service. Use `catalog.view/change/delete_workspacescene` for 工程/专题 list, update, and delete behavior, and `catalog.view/change/delete_achievement` for 成果 management. Owners may update access scope on their own 工程/专题 when `canManageAccess=true`. Enforce object-level access group filtering for normal browse/search/load endpoints and write all user-triggered changes to `OperationLog` with Chinese module/action text.
 - Verification: run `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build`, plus backend API tests for list filtering, update actions, owner-only access updates, permission denial, deletion confirmation, and audit log creation.
-- Result: Frontend contract and mock are ready; backend implementation pending.
+- Result: Backend implementation and focused tests are covered by the current consistency repair; frontend verification still pending.
+
+## API-20260620-005 - Avatar Endpoint Contract Coverage
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `POST /api/admin/profile/avatar/`, `GET /api/users/{userId}/avatar/`
+- Change type: contract coverage, response fields
+- OpenAPI change: Adds the existing avatar upload endpoint and avatar image endpoint to the canonical contract. Upload accepts multipart `avatar` and returns `AdminProfileResponse`; image fetch returns `image/jpeg` or standard JSON errors.
+- Mock examples: N/A
+- Frontend reason: Existing backend avatar APIs must be represented in generated SDK/types instead of remaining private hand-written fetch targets.
+- Backend implementation notes: Existing Django views already validate JPG/PNG, cap upload size, compress to JPEG, store image bytes on `UserProfile`, and return `/api/users/{userId}/avatar/` through profile serialization.
+- Verification: run `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check`, plus backend core avatar tests if this behavior changes.
+- Result: Contract added for existing backend behavior.
 
 ## API-20260617-002 - Workspace Snapshot Raw Data Guard
 
@@ -206,13 +220,13 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 
 ## API-20260618-001 - Non-Geographic Table Analytics
 
-- Status: ContractReady
-- Owner: Frontend / Backend
-- Endpoints: `GET /api/catalog/resources/{id}/nongeo-analytics/`, `POST /api/catalog/resources/{id}/table-query/`
-- Change type: new endpoint, response fields, permission behavior, mock data
-- OpenAPI change: Adds a non-geographic resource analytics response for table/gene resources, including resource summary, field profiles, categorical distributions, numeric distributions, correlation matrix, table preview, and short insights. Adds a table query endpoint returning rows rather than GeoJSON, with attribute filters, sorting, limit, and offset.
-- Mock examples: `mock/prism/examples/35-catalog-nongeo.json`; `mock/prism/examples/30-catalog-vector.json` now includes a representative table resource in the resource list.
-- Frontend reason: `/nongeo` needs a rich analysis workspace for ecological table data without reusing vector GeoJSON query semantics or adding backend-specific assumptions in React.
-- Backend implementation notes: Implement read-only Django endpoints under catalog. `nongeo-analytics` should support `table` and `gene` DataResource records visible to the current user, derive stats from the SQLite table or relevant non-geographic storage, cap expensive distinct/top-N/correlation work, and return `400` for unsupported spatial-only resource types. `table-query` should apply the same attribute operators as `AttributeFilter`, support deterministic pagination/sorting, and never include geometry. Enforce `core.browse_data` for analytics and `core.query_data` for row query; continue applying DataResource `access_groups`.
-- Verification: run backend catalog API tests for table/gene resources, permission denial tests, Prism mock build, and frontend API generation/type checks.
-- Result: Backend implementation pending; frontend can develop against the contract and Prism mock without modifying backend code.
+- Status: Blocked
+- Owner: Frontend
+- Endpoints: none currently declared
+- Change type: endpoint design paused
+- OpenAPI change: Removes the previously proposed `/api/catalog/resources/{id}/nongeo-analytics/` and `/api/catalog/resources/{id}/table-query/` paths from the canonical contract while retaining frontend-side demo types for local UI exploration.
+- Mock examples: Frontend demo only; no backend mock contract.
+- Frontend reason: Non-geographic analysis design is not finalized, so backend implementation would lock in premature field profiling, statistics, filtering, and pagination semantics.
+- Backend implementation notes: Do not implement non-geographic analytics/query endpoints until the product contract is reintroduced through `docs/openapi.yaml` and a new backend handoff.
+- Verification: run `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check`.
+- Result: Deferred by product/design decision; `/nongeo` remains a front-end demo.

@@ -309,6 +309,13 @@ export type UserInfoResponse = {
     user: BaseUserInfo;
 };
 
+export type UnauthenticatedUserInfoResponse = {
+    /**
+     * 当前请求未认证
+     */
+    authenticated: false;
+};
+
 export type BaseUserInfo = {
     /**
      * 用户 ID
@@ -1076,6 +1083,13 @@ export type UserCreateRequest = {
      * 是否启用账号，默认 true
      */
     isActive?: boolean;
+};
+
+export type AdminProfileAvatarUploadRequest = {
+    /**
+     * JPG 或 PNG 头像文件，最大 2MB
+     */
+    avatar: Blob | File;
 };
 
 export type UserCreateResponse = UserInfo & {
@@ -2655,309 +2669,6 @@ export type QueryResponse = {
     warnings: Array<ValidationWarning>;
 };
 
-export type NonGeoAnalyticsResponse = {
-    resource: ResourceListItem;
-    summary: NonGeoSummary;
-    /**
-     * 非地理数据字段画像列表，包含字段角色、完整率、唯一值和数值摘要
-     */
-    fields: Array<NonGeoFieldProfile>;
-    /**
-     * 可直接绘制为柱状图、环图或排行表的分类字段分布
-     */
-    categoricalDistributions: Array<NonGeoCategoricalDistribution>;
-    /**
-     * 可直接绘制为直方图、箱线概览或指标卡的数值字段分布
-     */
-    numericDistributions: Array<NonGeoNumericDistribution>;
-    /**
-     * 数值字段相关性矩阵；数值字段不足两个或后端未计算时为 null
-     */
-    correlation: NonGeoCorrelationMatrix | null;
-    tablePreview: NonGeoTableQueryResponse;
-    /**
-     * 后端根据字段统计生成的简短中文洞察或质量提示
-     */
-    insights: Array<string>;
-};
-
-export type NonGeoSummary = {
-    /**
-     * 数据资源总记录数
-     */
-    rowCount: number;
-    /**
-     * 数据资源字段总数
-     */
-    fieldCount: number;
-    /**
-     * 可作为连续数值指标分析的字段数量
-     */
-    numericFieldCount: number;
-    /**
-     * 文本字段数量
-     */
-    textFieldCount: number;
-    /**
-     * 可作为分类维度分析的字段数量
-     */
-    categoricalFieldCount: number;
-    /**
-     * 全表非空单元格占比，0 到 1 之间
-     */
-    completeness: number;
-    /**
-     * 数据统计生成或资源最后更新时间
-     */
-    updatedAt: string;
-    /**
-     * 前端推荐的默认分析视角
-     */
-    suggestedView: 'species' | 'community' | 'traits' | 'environment' | 'generic';
-};
-
-export type NonGeoFieldProfile = {
-    /**
-     * 字段名，与表格查询返回行对象的键一致
-     */
-    name: string;
-    /**
-     * 后端识别的数据类型，如 string、integer、float、date
-     */
-    type: string;
-    /**
-     * 面向中文界面的字段展示名称，默认可与 name 相同
-     */
-    label: string;
-    /**
-     * 字段含义说明，来自导入字段元数据或后端识别结果
-     */
-    description: string;
-    /**
-     * 字段单位；无单位时为空字符串
-     */
-    unit: string;
-    /**
-     * 字段在非地理分析中的推荐角色
-     */
-    role: 'identifier' | 'category' | 'measure' | 'date' | 'text' | 'coordinate' | 'unknown';
-    /**
-     * 是否存在空值
-     */
-    nullable: boolean;
-    /**
-     * 非空记录数
-     */
-    nonNullCount: number;
-    /**
-     * 空值记录数
-     */
-    nullCount: number;
-    /**
-     * 字段非空率，0 到 1 之间
-     */
-    completeness: number;
-    /**
-     * 唯一值数量
-     */
-    uniqueCount: number;
-    /**
-     * 非空样例值
-     */
-    sampleValues: Array<string | number | boolean | null>;
-    /**
-     * 数值字段最小值；非数值字段为 null 或省略
-     */
-    min?: number | null;
-    /**
-     * 数值字段最大值；非数值字段为 null 或省略
-     */
-    max?: number | null;
-    /**
-     * 数值字段平均值；非数值字段为 null 或省略
-     */
-    mean?: number | null;
-};
-
-export type NonGeoCategoricalDistribution = {
-    /**
-     * 分类字段名
-     */
-    field: string;
-    /**
-     * 分类字段展示名称
-     */
-    label: string;
-    /**
-     * 参与该分布统计的记录数
-     */
-    total: number;
-    /**
-     * 按数量降序排列的分类项
-     */
-    items: Array<NonGeoDistributionItem>;
-};
-
-export type NonGeoDistributionItem = {
-    /**
-     * 分类值或数值区间标签
-     */
-    value: string | number | boolean | null;
-    /**
-     * 该分类值或区间内记录数
-     */
-    count: number;
-    /**
-     * 占参与统计记录数的比例，0 到 1 之间
-     */
-    ratio: number;
-};
-
-export type NonGeoNumericDistribution = {
-    /**
-     * 数值字段名
-     */
-    field: string;
-    /**
-     * 数值字段展示名称
-     */
-    label: string;
-    /**
-     * 最小值
-     */
-    min: number;
-    /**
-     * 最大值
-     */
-    max: number;
-    /**
-     * 平均值
-     */
-    mean: number;
-    /**
-     * 中位数
-     */
-    median: number;
-    /**
-     * 第一四分位数
-     */
-    q1: number;
-    /**
-     * 第三四分位数
-     */
-    q3: number;
-    /**
-     * 直方图区间统计
-     */
-    bins: Array<NonGeoHistogramBin>;
-};
-
-export type NonGeoHistogramBin = {
-    /**
-     * 区间展示标签
-     */
-    label: string;
-    /**
-     * 区间下界
-     */
-    min: number;
-    /**
-     * 区间上界
-     */
-    max: number;
-    /**
-     * 区间内记录数
-     */
-    count: number;
-    /**
-     * 区间记录数占参与统计记录数的比例
-     */
-    ratio: number;
-};
-
-export type NonGeoCorrelationMatrix = {
-    /**
-     * 相关性矩阵对应的字段名顺序
-     */
-    fields: Array<string>;
-    /**
-     * 相关系数二维数组，取值范围为 -1 到 1
-     */
-    values: Array<Array<number>>;
-};
-
-export type NonGeoSortSpec = {
-    /**
-     * 排序字段名
-     */
-    field: string;
-    /**
-     * 排序方向
-     */
-    direction: 'asc' | 'desc';
-};
-
-export type NonGeoTableQueryRequest = {
-    /**
-     * 非空间属性过滤条件
-     */
-    attributeFilters: Array<AttributeFilter>;
-    /**
-     * 排序配置；不排序时为 null
-     */
-    sort: NonGeoSortSpec | null;
-    /**
-     * 返回记录上限
-     */
-    limit: number;
-    /**
-     * 分页偏移量
-     */
-    offset: number;
-};
-
-export type NonGeoTableQueryResponse = {
-    /**
-     * 数据资源 ID
-     */
-    resourceId: number;
-    /**
-     * 数据资源名称
-     */
-    resourceName: string;
-    /**
-     * 过滤后的总记录数
-     */
-    totalCount: number;
-    /**
-     * 本次返回记录数
-     */
-    returnedCount: number;
-    /**
-     * 返回记录上限
-     */
-    limit: number;
-    /**
-     * 分页偏移量
-     */
-    offset: number;
-    /**
-     * 查询结果字段
-     */
-    fields: Array<FieldInfo>;
-    /**
-     * 查询返回的表格行，键为字段名
-     */
-    rows: Array<NonGeoTableRow>;
-};
-
-/**
- * 非地理表格行对象，键为字段名，值为原始单元格值或标准化后的标量值
- */
-export type NonGeoTableRow = {
-    [key: string]: string | number | boolean | null;
-};
-
 export type ExportRequest = {
     /**
      * 目标 EPSG，reproject 为 true 时使用
@@ -3478,9 +3189,7 @@ export type GetCurrentUserErrors = {
     /**
      * 未认证
      */
-    401: {
-        authenticated?: boolean;
-    };
+    401: UnauthenticatedUserInfoResponse;
 };
 
 export type GetCurrentUserError = GetCurrentUserErrors[keyof GetCurrentUserErrors];
@@ -3609,6 +3318,69 @@ export type UpdateAdminProfilePasswordResponses = {
 };
 
 export type UpdateAdminProfilePasswordResponse = UpdateAdminProfilePasswordResponses[keyof UpdateAdminProfilePasswordResponses];
+
+export type UploadAdminProfileAvatarData = {
+    body: AdminProfileAvatarUploadRequest;
+    path?: never;
+    query?: never;
+    url: '/api/admin/profile/avatar/';
+};
+
+export type UploadAdminProfileAvatarErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+};
+
+export type UploadAdminProfileAvatarError = UploadAdminProfileAvatarErrors[keyof UploadAdminProfileAvatarErrors];
+
+export type UploadAdminProfileAvatarResponses = {
+    /**
+     * 上传成功
+     */
+    200: AdminProfileResponse;
+};
+
+export type UploadAdminProfileAvatarResponse = UploadAdminProfileAvatarResponses[keyof UploadAdminProfileAvatarResponses];
+
+export type GetUserAvatarData = {
+    body?: never;
+    path: {
+        /**
+         * 用户 ID
+         */
+        userId: number;
+    };
+    query?: never;
+    url: '/api/users/{userId}/avatar/';
+};
+
+export type GetUserAvatarErrors = {
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type GetUserAvatarError = GetUserAvatarErrors[keyof GetUserAvatarErrors];
+
+export type GetUserAvatarResponses = {
+    /**
+     * 头像图片
+     */
+    200: Blob | File;
+};
+
+export type GetUserAvatarResponse = GetUserAvatarResponses[keyof GetUserAvatarResponses];
 
 export type ListAdminOperationLogsData = {
     body?: never;
@@ -5042,90 +4814,6 @@ export type QueryResourceResponses = {
 };
 
 export type QueryResourceResponse = QueryResourceResponses[keyof QueryResourceResponses];
-
-export type GetNonGeoResourceAnalyticsData = {
-    body?: never;
-    path: {
-        /**
-         * 资源 ID
-         */
-        id: number;
-    };
-    query?: never;
-    url: '/api/catalog/resources/{id}/nongeo-analytics/';
-};
-
-export type GetNonGeoResourceAnalyticsErrors = {
-    /**
-     * 请求错误
-     */
-    400: ErrorResponse;
-    /**
-     * 未认证
-     */
-    401: ErrorResponse;
-    /**
-     * 权限不足或 CSRF 校验失败
-     */
-    403: ErrorResponse;
-    /**
-     * 资源不存在
-     */
-    404: ErrorResponse;
-};
-
-export type GetNonGeoResourceAnalyticsError = GetNonGeoResourceAnalyticsErrors[keyof GetNonGeoResourceAnalyticsErrors];
-
-export type GetNonGeoResourceAnalyticsResponses = {
-    /**
-     * 成功
-     */
-    200: NonGeoAnalyticsResponse;
-};
-
-export type GetNonGeoResourceAnalyticsResponse = GetNonGeoResourceAnalyticsResponses[keyof GetNonGeoResourceAnalyticsResponses];
-
-export type QueryNonGeoResourceTableData = {
-    body: NonGeoTableQueryRequest;
-    path: {
-        /**
-         * 资源 ID
-         */
-        id: number;
-    };
-    query?: never;
-    url: '/api/catalog/resources/{id}/table-query/';
-};
-
-export type QueryNonGeoResourceTableErrors = {
-    /**
-     * 请求错误
-     */
-    400: ErrorResponse;
-    /**
-     * 未认证
-     */
-    401: ErrorResponse;
-    /**
-     * 权限不足或 CSRF 校验失败
-     */
-    403: ErrorResponse;
-    /**
-     * 资源不存在
-     */
-    404: ErrorResponse;
-};
-
-export type QueryNonGeoResourceTableError = QueryNonGeoResourceTableErrors[keyof QueryNonGeoResourceTableErrors];
-
-export type QueryNonGeoResourceTableResponses = {
-    /**
-     * 查询成功
-     */
-    200: NonGeoTableQueryResponse;
-};
-
-export type QueryNonGeoResourceTableResponse = QueryNonGeoResourceTableResponses[keyof QueryNonGeoResourceTableResponses];
 
 export type ExportLayersData = {
     body: ExportRequest;
