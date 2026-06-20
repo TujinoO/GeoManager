@@ -207,6 +207,7 @@ def start_export_job(
     epsg: int | None,
     reproject: bool,
     clip_geometry: dict[str, Any] | None,
+    vector_format: str,
 ) -> RasterJob:
     from tempfile import NamedTemporaryFile
 
@@ -222,6 +223,7 @@ def start_export_job(
                 epsg,
                 reproject=reproject,
                 clip_geometry=clip_geometry,
+                vector_format=vector_format,
                 progress=lambda text: _append_job(job.id, text),
             )
             with NamedTemporaryFile(

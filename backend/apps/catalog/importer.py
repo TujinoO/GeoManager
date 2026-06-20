@@ -702,7 +702,7 @@ def set_resource_access_groups(resource: DataResource, group_ids: set[int]) -> N
     normalized_group_ids = normalized_access_group_ids(group_ids)
     groups = list(Group.objects.filter(id__in=normalized_group_ids))
     if len(groups) != len(normalized_group_ids):
-        raise ImportDataError("包含不存在的用户组")
+        raise ImportDataError("包含不存在的角色")
     resource.access_groups.set(groups)
     for layer in resource.map_layers.all():
         layer.access_groups.set(groups)

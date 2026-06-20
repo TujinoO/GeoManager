@@ -31,11 +31,11 @@ export function UserSummaryCards({ metrics }: { metrics: UserSummaryMetrics }) {
         description="已禁止登录的平台账号"
       />
       <UserSummaryCard
-        title="用户组数量"
+        title="角色数量"
         value={metrics.groups}
         suffix="个"
         icon={<TeamOutlined />}
-        description="当前可分配的权限用户组"
+        description="当前可分配的权限角色"
       />
     </Row>
   );

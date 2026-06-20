@@ -579,7 +579,7 @@ export default function WorkspaceHeader({
         },
         {
           key: "admin-groups",
-          label: "用户组权限",
+          label: "角色权限",
           onClick: () => navigateFromHeader("/admin/auth/groups"),
         },
       );
@@ -655,7 +655,7 @@ export default function WorkspaceHeader({
       steps.push({
         title: "后台管理",
         description:
-          "进入运行概览、个人设置、操作日志、系统设置以及用户组权限等管理功能。",
+          "进入运行概览、个人设置、操作日志、系统设置以及角色权限等管理功能。",
         target: () => adminTabRef.current ?? document.body,
         placement: "bottom",
       });

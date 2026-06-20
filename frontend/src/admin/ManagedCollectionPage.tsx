@@ -352,11 +352,11 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
               className="inventory-drawer-form"
             >
               <Typography.Title level={5}>访问权限</Typography.Title>
-              <Form.Item name="accessGroupIds" label="允许访问的用户组">
+              <Form.Item name="accessGroupIds" label="允许访问的角色">
                 <Select
                   mode="multiple"
                   disabled={!canMaintain && !selectedItem.canManageAccess}
-                  placeholder="选择需要共享的用户组"
+                  placeholder="选择需要共享的角色"
                   onChange={(nextValue) =>
                     editForm.setFieldValue(
                       "accessGroupIds",

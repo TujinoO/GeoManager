@@ -3,6 +3,10 @@ import type { FeatureInfo, LoadedVectorLayer } from "../types";
 import { sourceIdFor } from "../utils/geometry";
 import { clearFeatureState, featureStateTarget, getMapState } from "./mapState";
 
+type FeatureWithProperties = {
+  properties?: Record<string, unknown> | null;
+};
+
 export function syncVectorInteractions(
   map: MapboxMap,
   layers: LoadedVectorLayer[],
@@ -92,7 +96,7 @@ function addVectorInteraction(
         ? {
             layerId: layer.id,
             layerName: layer.name,
-            properties: feature.properties ?? {},
+            properties: (feature as FeatureWithProperties).properties ?? {},
           }
         : null,
     );

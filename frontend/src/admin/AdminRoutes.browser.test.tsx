@@ -146,7 +146,7 @@ const availablePermissions = [
   },
   {
     id: "core.view_group_operation_logs",
-    label: "查看指定用户组日志",
+    label: "查看指定角色日志",
     group: "日志权限",
   },
   {
@@ -728,13 +728,13 @@ describe("admin routes", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: /操作/ })[2]);
     const superadminGroupItems = await screen.findAllByRole("menuitem", {
-      name: /更改用户组/,
+      name: /更改角色/,
     });
     const superadminGroupItem =
       superadminGroupItems[superadminGroupItems.length - 1];
     expect(superadminGroupItem).toHaveAttribute("aria-disabled", "true");
     expect(
-      within(superadminGroupItem).getByTitle("不能修改系统锁定用户组"),
+      within(superadminGroupItem).getByTitle("不能修改系统锁定角色"),
     ).toBeInTheDocument();
   }, 30000);
 
@@ -759,7 +759,7 @@ describe("admin routes", () => {
     expect(screen.getByText("我自己可见")).toBeInTheDocument();
     expect(screen.getByText("超级管理员可见")).toBeInTheDocument();
     expect(
-      screen.queryByText("不选择用户组时，仅上传者本人和超级管理员可见。"),
+      screen.queryByText("不选择角色时，仅上传者本人和超级管理员可见。"),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /数据校验并继续/ }));
 

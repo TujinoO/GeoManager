@@ -469,10 +469,10 @@ export default function AdminDataImportPage() {
                   size={10}
                   style={{ width: "100%" }}
                 >
-                  <Form.Item name="accessGroupIds" label="指定用户组可见">
+                  <Form.Item name="accessGroupIds" label="指定角色可见">
                     <Select
                       mode="multiple"
-                      placeholder="选择需要共享的数据用户组"
+                      placeholder="选择需要共享的数据角色"
                       onChange={(nextValue) =>
                         form.setFieldValue(
                           "accessGroupIds",

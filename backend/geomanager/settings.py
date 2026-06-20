@@ -101,7 +101,7 @@ WSGI_APPLICATION = "geomanager.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": PROJECT_CONFIG.app_path("database", "data.sqlite3"),
+        "NAME": PROJECT_CONFIG.research_path("meta.db"),
     }
 }
 

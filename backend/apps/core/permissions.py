@@ -59,7 +59,7 @@ FEATURE_PERMISSIONS: tuple[FeaturePermissionDef, ...] = (
         "core",
         "FeaturePermission",
         "view_group_operation_logs",
-        "查看指定用户组日志",
+        "查看指定角色日志",
         "日志权限",
     ),
     FeaturePermissionDef(
@@ -253,11 +253,11 @@ def group_names(user) -> str:
         if user.is_authenticated
         else []
     )
-    return "、".join(names) if names else "未分组"
+    return "、".join(names) if names else "未分配角色"
 
 
 def permission_denied_message(user) -> str:
-    return f"当前用户组“{group_names(user)}”无权限"
+    return f"当前角色“{group_names(user)}”无权限"
 
 
 def feature_denied_response(user) -> JsonResponse:

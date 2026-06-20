@@ -46,6 +46,7 @@ import {
 } from "react";
 import {
   type DropPlacement,
+  type ExportFormat,
   type LayerDropPlacement,
   useLayerContext,
 } from "../hooks/LayerContext";
@@ -979,6 +980,7 @@ function NodeActions({
   const [exportEpsg, setExportEpsg] = useState<number | null>(
     defaultExportEpsg(exportItems),
   );
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("geojson");
   const [exportRunning, setExportRunning] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [exportMessages, setExportMessages] = useState<string[]>([]);
@@ -1039,6 +1041,7 @@ function NodeActions({
           reproject: exportReproject,
           clip: exportClip,
           clipGeometry: exportClip ? ctx.exportClipGeometry : null,
+          format: exportFormat,
         },
         ({ percent, messages }) => {
           setExportProgress(percent);
@@ -1126,6 +1129,7 @@ function NodeActions({
             <ExportOptionsCard
               title={`导出 ${subjectName}`}
               epsg={exportEpsg}
+              format={exportFormat}
               reproject={exportReproject}
               clip={exportClip}
               clipReady={Boolean(ctx.exportClipGeometry)}
@@ -1133,6 +1137,7 @@ function NodeActions({
               progress={exportProgress}
               messages={exportMessages}
               onEpsgChange={setExportEpsg}
+              onFormatChange={setExportFormat}
               onReprojectChange={setExportReproject}
               onClipChange={setExportClip}
               onClearClip={ctx.clearExportClipGeometry}
@@ -1237,6 +1242,7 @@ function exportItemsForLayer(layer: LoadedLayer): ExportLayerItem[] {
 function ExportOptionsCard({
   title,
   epsg,
+  format,
   reproject,
   clip,
   clipReady,
@@ -1244,6 +1250,7 @@ function ExportOptionsCard({
   progress,
   messages,
   onEpsgChange,
+  onFormatChange,
   onReprojectChange,
   onClipChange,
   onClearClip,
@@ -1251,6 +1258,7 @@ function ExportOptionsCard({
 }: {
   title: string;
   epsg: number | null;
+  format: ExportFormat;
   reproject: boolean;
   clip: boolean;
   clipReady: boolean;
@@ -1258,6 +1266,7 @@ function ExportOptionsCard({
   progress: number;
   messages: string[];
   onEpsgChange: (value: number | null) => void;
+  onFormatChange: (value: ExportFormat) => void;
   onReprojectChange: (value: boolean) => void;
   onClipChange: (value: boolean) => void;
   onClearClip: () => void;
@@ -1268,6 +1277,18 @@ function ExportOptionsCard({
   return (
     <Card className="symbolization-card export-card" size="small" title={title}>
       <Space orientation="vertical" className="full-width symbolization-stack">
+        <div className="export-option-row">
+          <Typography.Text strong>矢量格式</Typography.Text>
+          <Segmented<ExportFormat>
+            size="small"
+            value={format}
+            options={[
+              { label: "GeoJSON", value: "geojson" },
+              { label: "Shapefile", value: "shapefile" },
+            ]}
+            onChange={onFormatChange}
+          />
+        </div>
         <div className="export-option-row">
           <Typography.Text strong>重投影</Typography.Text>
           <Switch checked={reproject} onChange={onReprojectChange} />

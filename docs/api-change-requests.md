@@ -33,6 +33,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260620-004 | BackendReady | GET/POST /api/admin/workspaces/ | new endpoints, request body, response fields, permission behavior, mock data | Done | Done | Done | Pending | Shared management UI for 工程、专题 |
 | API-20260620-005 | BackendReady | POST /api/admin/profile/avatar/; GET /api/users/{userId}/avatar/ | contract coverage | Done | N/A | Done | Pending | Existing avatar endpoints added to OpenAPI and generated SDK |
 | API-20260620-006 | BackendReady | Multiple catalog/auth endpoints | removed endpoints, response fields, permission behavior | Done | Done | Done | Pending | Remove previous temporary GeoPackage resources and broad maintenance flag |
+| API-20260620-007 | BackendReady | POST /api/users/{userId}/permissions/; POST /api/catalog/export/; POST /api/catalog/export/async/ | request body, response fields, permission behavior | Done | Done | Done | Pending | User permission close overrides and vector export format selection |
 
 ## Entry Template
 
@@ -50,6 +51,19 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Verification: commands or response checks required before marking implemented
 - Result: current backend/frontend verification result
 ```
+
+## API-20260620-007 - User Permission Disable Overrides And Export Format
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `POST /api/users/{userId}/permissions/`, `POST /api/catalog/export/`, `POST /api/catalog/export/async/`
+- Change type: request body, response fields, permission behavior
+- OpenAPI change: `UserInfo` now returns `disabledPermissions`, and the user permission update request accepts `disabledPermissions` so admins can close role-inherited or directly granted permissions per user. Export requests now accept `format=geojson|shapefile` for vector layers; downloads remain ZIP responses and export request parsing is not constrained by Django upload-memory limits.
+- Mock examples: `mock/prism/examples/10-admin-auth.json`
+- Frontend reason: The permission UI needs inherited role permissions to be individually closable, and data download must let users choose Shapefile or GeoJSON.
+- Backend implementation notes: Store closed permissions on `UserProfile.disabled_permissions`, filter them against granted permissions, preserve server-side permission checks, and package Shapefile component files into the ZIP when requested.
+- Verification: run backend core/catalog export tests plus `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build`.
+- Result: Backend and frontend implementation included in this change; full verification pending.
 
 ## API-20260615-001 - Initial Mock Separation Contract
 

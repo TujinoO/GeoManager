@@ -665,7 +665,7 @@ export default function NonGeoPage() {
       return;
     }
     if (!canQueryData) {
-      message.warning("当前用户组无数据查询权限");
+      message.warning("当前角色无数据查询权限");
       return;
     }
     setQueryingTable(true);

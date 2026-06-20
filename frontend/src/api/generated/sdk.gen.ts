@@ -322,9 +322,9 @@ export const updateUserGroups = <ThrowOnError extends boolean = false>(options: 
 });
 
 /**
- * 更新用户单独授予的功能权限
+ * 更新用户功能权限
  *
- * 为指定用户设置直接授予的功能权限。最终生效权限为用户组权限与用户直授权限合并后，再扣除用户主动关闭权限；当前登录用户不能在认证授权页修改自己的直授权限，应通过用户设置调整主动关闭权限。需要 `core.manage_auth` 和 `core.manage_feature_permissions`。
+ * 为指定用户设置单独授予权限和单独关闭权限。最终生效权限为角色权限与用户直授权限合并后，再扣除用户单独关闭权限；当前登录用户不能在认证授权页修改自己的权限，应通过用户设置调整主动关闭权限。需要 `core.manage_auth` 和 `core.manage_feature_permissions`。
  */
 export const updateUserPermissions = <ThrowOnError extends boolean = false>(options: Options<UpdateUserPermissionsData, ThrowOnError>): RequestResult<UpdateUserPermissionsResponses, UpdateUserPermissionsErrors, ThrowOnError> => (options.client ?? client).post<UpdateUserPermissionsResponses, UpdateUserPermissionsErrors, ThrowOnError>({
     security: [{
@@ -770,7 +770,7 @@ export const queryResource = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * 同步导出图层
  *
- * 将指定图层数据导出为 ZIP 文件（含 Shapefile 或 GeoTIFF）
+ * 将指定图层数据导出为 ZIP 文件；矢量图层可选择 GeoJSON 或 Shapefile，栅格图层导出为 GeoTIFF。导出请求不受 Django `DATA_UPLOAD_MAX_MEMORY_SIZE` 上传内存限制影响。
  */
 export const exportLayers = <ThrowOnError extends boolean = false>(options: Options<ExportLayersData, ThrowOnError>): RequestResult<ExportLayersResponses, ExportLayersErrors, ThrowOnError> => (options.client ?? client).post<ExportLayersResponses, ExportLayersErrors, ThrowOnError>({
     security: [{

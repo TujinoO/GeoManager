@@ -822,7 +822,8 @@
                       "core.query_data",
                       "catalog.add_dataresource",
                       "core.view_data_overview"
-                    ]
+                    ],
+                    "disabledPermissions": []
                   },
                   "avatarUrl": "",
                   "department": "平台运维组",
@@ -1017,7 +1018,8 @@
                       "core.query_data",
                       "catalog.add_dataresource",
                       "core.view_data_overview"
-                    ]
+                    ],
+                    "disabledPermissions": []
                   },
                   "avatarUrl": "",
                   "department": "平台运维组",
@@ -1200,7 +1202,8 @@
                       "core.browse_data",
                       "catalog.add_dataresource",
                       "core.view_data_overview"
-                    ]
+                    ],
+                    "disabledPermissions": []
                   },
                   "avatarUrl": "",
                   "department": "平台运维组",
@@ -2045,7 +2048,8 @@
                         "raster.manage_rasterdataset",
                         "catalog.add_dataresource",
                         "core.view_data_overview"
-                      ]
+                      ],
+                      "disabledPermissions": []
                     },
                     {
                       "id": 2,
@@ -2129,7 +2133,8 @@
                         "core.load_raster_layer",
                         "catalog.add_dataresource",
                         "core.view_data_overview"
-                      ]
+                      ],
+                      "disabledPermissions": []
                     },
                     {
                       "id": 3,
@@ -2216,7 +2221,8 @@
                         "raster.manage_rasterdataset",
                         "catalog.add_dataresource",
                         "core.view_data_overview"
-                      ]
+                      ],
+                      "disabledPermissions": []
                     },
                     {
                       "id": 4,
@@ -2283,7 +2289,8 @@
                         "core.load_vector_layer",
                         "catalog.add_dataresource",
                         "core.view_data_overview"
-                      ]
+                      ],
+                      "disabledPermissions": []
                     }
                   ]
                 }
@@ -2396,7 +2403,8 @@
                       "core.load_raster_layer",
                       "catalog.add_dataresource",
                       "core.view_data_overview"
-                    ]
+                    ],
+                    "disabledPermissions": []
                   },
                   "generatedPassword": "MockPwd-2026-7Xq"
                 }
@@ -2541,7 +2549,8 @@
                     "core.load_raster_layer",
                     "catalog.add_dataresource",
                     "core.view_data_overview"
-                  ]
+                  ],
+                  "disabledPermissions": []
                 }
               }
             }
@@ -2566,8 +2575,8 @@
         "tags": [
           "用户管理"
         ],
-        "summary": "更新用户单独授予的功能权限",
-        "description": "为指定用户设置直接授予的功能权限。最终生效权限为用户组权限与用户直授权限合并后，再扣除用户主动关闭权限；当前登录用户不能在认证授权页修改自己的直授权限，应通过用户设置调整主动关闭权限。需要 `core.manage_auth` 和 `core.manage_feature_permissions`。",
+        "summary": "更新用户功能权限",
+        "description": "为指定用户设置单独授予权限和单独关闭权限。最终生效权限为角色权限与用户直授权限合并后，再扣除用户单独关闭权限；当前登录用户不能在认证授权页修改自己的权限，应通过用户设置调整主动关闭权限。需要 `core.manage_auth` 和 `core.manage_feature_permissions`。",
         "operationId": "updateUserPermissions",
         "security": [
           {
@@ -2686,7 +2695,8 @@
                     "core.load_raster_layer",
                     "catalog.add_dataresource",
                     "core.view_data_overview"
-                  ]
+                  ],
+                  "disabledPermissions": []
                 }
               }
             }
@@ -2893,7 +2903,8 @@
                     "core.load_vector_layer",
                     "catalog.add_dataresource",
                     "core.view_data_overview"
-                  ]
+                  ],
+                  "disabledPermissions": []
                 }
               }
             }
@@ -3044,7 +3055,7 @@
                     },
                     {
                       "id": "core.view_group_operation_logs",
-                      "label": "查看用户组日志",
+                      "label": "查看角色日志",
                       "group": "日志权限"
                     },
                     {
@@ -5452,7 +5463,7 @@
           "数据目录"
         ],
         "summary": "同步导出图层",
-        "description": "将指定图层数据导出为 ZIP 文件（含 Shapefile 或 GeoTIFF）",
+        "description": "将指定图层数据导出为 ZIP 文件；矢量图层可选择 GeoJSON 或 Shapefile，栅格图层导出为 GeoTIFF。导出请求不受 Django `DATA_UPLOAD_MAX_MEMORY_SIZE` 上传内存限制影响。",
         "operationId": "exportLayers",
         "security": [
           {
@@ -8693,13 +8704,14 @@
               "isActive",
               "groupPermissions",
               "directPermissions",
+              "disabledPermissions",
               "effectivePermissions",
               "operationLogGroupIds"
             ],
             "properties": {
               "groupIds": {
                 "type": "array",
-                "description": "用户所属用户组 ID 列表",
+                "description": "用户所属角色 ID 列表；后端实现使用 Django Group",
                 "items": {
                   "type": "integer"
                 }
@@ -8710,7 +8722,7 @@
               },
               "groupPermissions": {
                 "type": "array",
-                "description": "用户通过所属用户组继承的平台功能权限列表",
+                "description": "用户通过所属角色继承的平台功能权限列表",
                 "items": {
                   "type": "string"
                 }
@@ -8722,9 +8734,16 @@
                   "type": "string"
                 }
               },
+              "disabledPermissions": {
+                "type": "array",
+                "description": "单独关闭该用户已授予的平台功能权限列表，可用于关闭角色继承权限或单独授予权限",
+                "items": {
+                  "type": "string"
+                }
+              },
               "effectivePermissions": {
                 "type": "array",
-                "description": "用户组权限与用户直授权限合并后，扣除用户主动关闭权限的实际生效功能权限列表",
+                "description": "角色权限与用户直授权限合并后，扣除用户单独关闭权限的实际生效功能权限列表",
                 "items": {
                   "type": "string"
                 }
@@ -8866,6 +8885,13 @@
           "directPermissions": {
             "type": "array",
             "description": "单独授予该用户的平台功能权限列表，必须全部来自 availablePermissions",
+            "items": {
+              "type": "string"
+            }
+          },
+          "disabledPermissions": {
+            "type": "array",
+            "description": "单独关闭该用户的平台功能权限列表，必须全部来自 availablePermissions；后端只保存该用户已授予权限中的关闭项",
             "items": {
               "type": "string"
             }
@@ -11203,6 +11229,15 @@
               }
             ],
             "description": "裁切 GeoJSON 几何"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "geojson",
+              "shapefile"
+            ],
+            "default": "geojson",
+            "description": "矢量图层导出格式；选择 shapefile 时后端将 Shapefile 组件文件写入目录后压缩为 ZIP"
           },
           "items": {
             "type": "array",

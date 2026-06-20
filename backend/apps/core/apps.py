@@ -29,6 +29,9 @@ class CoreConfig(AppConfig):
         import threading
 
         if len(sys.argv) > 1 and sys.argv[1] not in {"runserver"}:
+            if "waitress" not in " ".join(sys.argv):
+                return
+        if "migrate" in sys.argv or "collectstatic" in sys.argv:
             return
         if (
             len(sys.argv) > 1

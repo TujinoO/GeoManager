@@ -23,6 +23,17 @@ const thumbnailMinZoom = 0;
 const thumbnailMaxZoom = 17;
 const thumbnailExtentSourceId = "thumbnail-current-view-extent";
 const thumbnailExtentLayerId = "thumbnail-current-view-extent-line";
+type ThumbnailExtentGeoJson = {
+  type: "FeatureCollection";
+  features: Array<{
+    type: "Feature";
+    properties: Record<string, never>;
+    geometry: {
+      type: "Polygon";
+      coordinates: number[][][];
+    };
+  }>;
+};
 const trendMonths = [
   "7",
   "8",
@@ -263,7 +274,7 @@ function zoomForThumbnail(mapZoom: number) {
 
 function updateThumbnailExtent(map: MapboxMap, bounds: MapViewState["bounds"]) {
   const [west, south, east, north] = bounds;
-  const data: GeoJSON.FeatureCollection<GeoJSON.Polygon> = {
+  const data: ThumbnailExtentGeoJson = {
     type: "FeatureCollection",
     features: [
       {

@@ -69,7 +69,8 @@
           "core.query_data",
           "catalog.add_dataresource",
           "core.view_data_overview"
-        ]
+        ],
+        "disabledPermissions": []
       },
       "avatarUrl": "",
       "department": "平台运维组",
@@ -223,7 +224,8 @@
           "core.query_data",
           "catalog.add_dataresource",
           "core.view_data_overview"
-        ]
+        ],
+        "disabledPermissions": []
       },
       "avatarUrl": "",
       "department": "平台运维组",
@@ -365,7 +367,8 @@
           "core.browse_data",
           "catalog.add_dataresource",
           "core.view_data_overview"
-        ]
+        ],
+        "disabledPermissions": []
       },
       "avatarUrl": "",
       "department": "平台运维组",
@@ -538,7 +541,8 @@
             "raster.manage_rasterdataset",
             "catalog.add_dataresource",
             "core.view_data_overview"
-          ]
+          ],
+          "disabledPermissions": []
         },
         {
           "id": 2,
@@ -622,7 +626,8 @@
             "core.load_raster_layer",
             "catalog.add_dataresource",
             "core.view_data_overview"
-          ]
+          ],
+          "disabledPermissions": []
         },
         {
           "id": 3,
@@ -709,7 +714,8 @@
             "raster.manage_rasterdataset",
             "catalog.add_dataresource",
             "core.view_data_overview"
-          ]
+          ],
+          "disabledPermissions": []
         },
         {
           "id": 4,
@@ -776,7 +782,8 @@
             "core.load_vector_layer",
             "catalog.add_dataresource",
             "core.view_data_overview"
-          ]
+          ],
+          "disabledPermissions": []
         }
       ]
     }
@@ -850,7 +857,8 @@
           "core.load_raster_layer",
           "catalog.add_dataresource",
           "core.view_data_overview"
-        ]
+        ],
+        "disabledPermissions": []
       },
       "generatedPassword": "MockPwd-2026-7Xq"
     }
@@ -940,7 +948,8 @@
         "core.load_raster_layer",
         "catalog.add_dataresource",
         "core.view_data_overview"
-      ]
+      ],
+      "disabledPermissions": []
     }
   },
   "POST /api/users/{userId}/permissions/": {
@@ -1027,7 +1036,8 @@
         "core.load_raster_layer",
         "catalog.add_dataresource",
         "core.view_data_overview"
-      ]
+      ],
+      "disabledPermissions": []
     }
   },
   "POST /api/users/{userId}/password/reset/": {
@@ -1102,7 +1112,8 @@
         "core.load_vector_layer",
         "catalog.add_dataresource",
         "core.view_data_overview"
-      ]
+      ],
+      "disabledPermissions": []
     }
   },
   "GET /api/groups/": {
@@ -1216,7 +1227,7 @@
         },
         {
           "id": "core.view_group_operation_logs",
-          "label": "查看用户组日志",
+          "label": "查看角色日志",
           "group": "日志权限"
         },
         {

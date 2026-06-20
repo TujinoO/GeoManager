@@ -23,7 +23,7 @@ class UserProfile(models.Model):
     operation_log_group_ids = models.JSONField(
         default=list,
         blank=True,
-        verbose_name="可查看日志用户组",
+        verbose_name="可查看日志角色",
     )
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
 
@@ -46,7 +46,7 @@ class FeaturePermission(models.Model):
             ("view_operation_logs", "可查看操作日志"),
             ("view_all_operation_logs", "可查看所有用户日志"),
             ("view_own_operation_logs", "可查看自己的日志"),
-            ("view_group_operation_logs", "可查看指定用户组日志"),
+            ("view_group_operation_logs", "可查看指定角色日志"),
             ("manage_system_settings", "可修改系统设置"),
             ("manage_auth", "可修改认证授权"),
             ("view_dashboard_resource_card", "可查看 Dashboard 数据资源卡片"),

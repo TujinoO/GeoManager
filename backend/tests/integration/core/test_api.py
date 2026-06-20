@@ -326,7 +326,7 @@ class FeaturePermissionTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["detail"], "用户组仍有关联用户，不能删除")
+        self.assertEqual(response.json()["detail"], "角色仍有关联用户，不能删除")
 
     def test_create_user_permission_can_create_user_when_registration_is_closed(self):
         SystemSetting.objects.update_or_create(
@@ -382,7 +382,7 @@ class FeaturePermissionTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["detail"], "用户组为必选项")
+        self.assertEqual(response.json()["detail"], "角色为必选项")
 
     def test_manage_feature_permissions_without_create_user_cannot_create_user(self):
         manager = get_user_model().objects.create_user(
@@ -440,7 +440,7 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(
             response.json()["detail"],
-            "不能将普通用户加入超级管理员用户组",
+            "不能将普通用户加入超级管理员角色",
         )
 
     def test_regular_user_cannot_be_assigned_to_superadmin_group(self):
@@ -464,7 +464,7 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(
             response.json()["detail"],
-            "不能将普通用户加入超级管理员用户组",
+            "不能将普通用户加入超级管理员角色",
         )
 
     def test_current_user_cannot_update_own_groups_from_auth_management(self):
@@ -485,7 +485,7 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(
             response.json()["detail"],
-            "不能修改当前登录用户的用户组",
+            "不能修改当前登录用户的角色",
         )
 
     def test_superadmin_user_groups_cannot_be_updated_from_auth_management(self):
@@ -503,7 +503,7 @@ class FeaturePermissionTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["detail"], "不能修改超级管理员的用户组")
+        self.assertEqual(response.json()["detail"], "不能修改超级管理员的角色")
 
     def test_manage_auth_can_toggle_user_status(self):
         manager = get_user_model().objects.create_user(
@@ -719,7 +719,7 @@ class FeaturePermissionTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(delete_response.status_code, 400)
-        self.assertEqual(delete_response.json()["detail"], "系统内置用户组不能删除")
+        self.assertEqual(delete_response.json()["detail"], "系统内置角色不能删除")
 
         missing_locked_response = self.client.post(
             f"/api/groups/{group.id}/",
@@ -729,7 +729,7 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(missing_locked_response.status_code, 400)
         self.assertEqual(
             missing_locked_response.json()["detail"],
-            "超级管理员用户组必须保留系统锁定权限",
+            "超级管理员角色必须保留系统锁定权限",
         )
 
         patch_response = self.client.post(
@@ -762,7 +762,7 @@ class FeaturePermissionTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(delete_response.status_code, 400)
-        self.assertEqual(delete_response.json()["detail"], "系统内置用户组不能删除")
+        self.assertEqual(delete_response.json()["detail"], "系统内置角色不能删除")
 
         rename_response = self.client.post(
             f"/api/groups/{group.id}/",
@@ -795,7 +795,7 @@ class FeaturePermissionTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["detail"], "不能修改超级管理员的用户组")
+        self.assertEqual(response.json()["detail"], "不能修改超级管理员的角色")
 
     def test_regular_user_cannot_be_left_without_group(self):
         manager = get_user_model().objects.create_user(
@@ -815,7 +815,7 @@ class FeaturePermissionTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["detail"], "用户组为必选项")
+        self.assertEqual(response.json()["detail"], "角色为必选项")
 
     def test_user_list_returns_direct_and_effective_permissions(self):
         manager = get_user_model().objects.create_user(

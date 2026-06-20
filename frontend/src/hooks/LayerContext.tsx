@@ -17,11 +17,13 @@ import type {
 
 export type DropPlacement = "before" | "after";
 export type LayerDropPlacement = DropPlacement | "inside";
+export type ExportFormat = "geojson" | "shapefile";
 export interface ExportOptions {
   epsg: number | null;
   reproject: boolean;
   clip: boolean;
   clipGeometry: GeoJsonGeometry | null;
+  format: ExportFormat;
 }
 
 export type ExportProgressHandler = (state: {

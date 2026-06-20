@@ -17,7 +17,12 @@ from apps.catalog.data_query import (
     get_resource_profile,
     query_resource as query_data_resource,
 )
-from apps.catalog.export import ExportError, export_layers_zip, validate_epsg
+from apps.catalog.export import (
+    ExportError,
+    export_layers_zip,
+    validate_epsg,
+    validate_vector_format,
+)
 from apps.catalog.importer import (
     ImportDataError,
     import_uploaded_table,
@@ -712,6 +717,29 @@ def _json_payload(
     return payload
 
 
+def _json_payload_from_stream(request) -> dict[str, Any] | JsonResponse:
+    try:
+        content_length = int(request.META.get("CONTENT_LENGTH") or 0)
+    except ValueError:
+        content_length = 0
+    stream = request.META.get("wsgi.input")
+    try:
+        raw = stream.read(content_length) if stream and content_length else b""
+    except OSError:
+        raw = b""
+    if not raw:
+        raw = b"{}"
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except UnicodeDecodeError:
+        return JsonResponse({"detail": "请求体编码必须是 UTF-8"}, status=400)
+    except json.JSONDecodeError:
+        return JsonResponse({"detail": "请求体不是有效 JSON"}, status=400)
+    if not isinstance(payload, dict):
+        return JsonResponse({"detail": "请求体必须是 JSON 对象"}, status=400)
+    return payload
+
+
 def _snapshot_contains_embedded_data(value: object) -> bool:
     if isinstance(value, dict):
         if "geojson" in value:
@@ -828,13 +856,16 @@ def resource_query(request, pk: int):
 def export_loaded_layers(request):
     if not has_feature_perm(request.user, "catalog.export_dataresource"):
         return feature_denied_response(request.user)
-    try:
-        payload = json.loads(request.body.decode("utf-8"))
-    except json.JSONDecodeError:
-        return JsonResponse({"detail": "请求体不是有效 JSON"}, status=400)
+    payload = _json_payload_from_stream(request)
+    if isinstance(payload, JsonResponse):
+        return payload
     try:
         epsg = validate_epsg(payload.get("epsg", 4326))
     except Exception as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    try:
+        vector_format = validate_vector_format(payload.get("format", "geojson"))
+    except ExportError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
 
     items = payload.get("items") or []
@@ -856,6 +887,7 @@ def export_loaded_layers(request):
             epsg,
             reproject=bool(payload.get("reproject", True)),
             clip_geometry=payload.get("clipGeometry") if payload.get("clip") else None,
+            vector_format=vector_format,
         )
     except ExportError as exc:
         log_operation(
@@ -887,10 +919,9 @@ def export_loaded_layers(request):
 def export_loaded_layers_async(request):
     if not has_feature_perm(request.user, "catalog.export_dataresource"):
         return feature_denied_response(request.user)
-    try:
-        payload = json.loads(request.body.decode("utf-8"))
-    except json.JSONDecodeError:
-        return JsonResponse({"detail": "请求体不是有效 JSON"}, status=400)
+    payload = _json_payload_from_stream(request)
+    if isinstance(payload, JsonResponse):
+        return payload
 
     reproject = bool(payload.get("reproject", True))
     epsg = None
@@ -899,6 +930,10 @@ def export_loaded_layers_async(request):
             epsg = validate_epsg(payload.get("epsg", 4326))
         except Exception as exc:
             return JsonResponse({"detail": str(exc)}, status=400)
+    try:
+        vector_format = validate_vector_format(payload.get("format", "geojson"))
+    except ExportError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
 
     items = payload.get("items") or []
     if not isinstance(items, list):
@@ -916,7 +951,11 @@ def export_loaded_layers_async(request):
     clip_geometry = payload.get("clipGeometry") if payload.get("clip") else None
     try:
         job = start_export_job(
-            items=items, epsg=epsg, reproject=reproject, clip_geometry=clip_geometry
+            items=items,
+            epsg=epsg,
+            reproject=reproject,
+            clip_geometry=clip_geometry,
+            vector_format=vector_format,
         )
     except ExportError as exc:
         log_operation(
@@ -1015,7 +1054,7 @@ def _group_ids_payload(value: Any) -> list[int] | JsonResponse:
     except (TypeError, ValueError):
         return JsonResponse({"detail": "accessGroupIds 必须是整数数组"}, status=400)
     if Group.objects.filter(id__in=group_ids).count() != len(group_ids):
-        return JsonResponse({"detail": "包含不存在的访问用户组"}, status=400)
+        return JsonResponse({"detail": "包含不存在的访问角色"}, status=400)
     return group_ids
 
 

@@ -74,4 +74,6 @@ app_data = "/data/app"
 research_data_root = "/data/research"
 ```
 
+运行元数据库位于科研数据根目录 `/data/research/meta.db`；业务运行日志、静态文件、媒体文件和初始密码文件仍位于 `/data/app` 下的固定子目录。
+
 `127.0.0.1:8000` 适合由宿主机 nginx 反向代理；如需直接对外访问，可改为 `-p 8000:8000`。更完整的运行说明见 [`docs/operations.md`](docs/operations.md)。

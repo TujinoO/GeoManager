@@ -98,6 +98,8 @@ export default function AdminAuthPage() {
   const [userPermissionDrafts, setUserPermissionDrafts] = useState<
     Record<number, string[]>
   >({});
+  const [userDisabledPermissionDrafts, setUserDisabledPermissionDrafts] =
+    useState<Record<number, string[]>>({});
   const [userLogGroupDrafts, setUserLogGroupDrafts] = useState<
     Record<number, number[]>
   >({});
@@ -125,6 +127,14 @@ export default function AdminAuthPage() {
       setUserPermissionDrafts(
         Object.fromEntries(
           userData.items.map((item) => [item.id, item.directPermissions ?? []]),
+        ),
+      );
+      setUserDisabledPermissionDrafts(
+        Object.fromEntries(
+          userData.items.map((item) => [
+            item.id,
+            item.disabledPermissions ?? [],
+          ]),
         ),
       );
       setUserLogGroupDrafts(
@@ -216,7 +226,7 @@ export default function AdminAuthPage() {
       ),
     },
     {
-      title: "用户组",
+      title: "角色",
       dataIndex: "groupIds",
       width: 210,
       search: false,
@@ -312,7 +322,7 @@ export default function AdminAuthPage() {
 
   const groupColumns: ProColumns<Group>[] = [
     {
-      title: "用户组",
+      title: "角色",
       dataIndex: "name",
       width: "24%",
       render: (_, record) => (
@@ -357,8 +367,8 @@ export default function AdminAuthPage() {
         record.userCount === 0 && !record.isProtected ? (
           <Popconfirm
             key="delete"
-            title="确认删除空用户组？"
-            description="删除前请确认该用户组没有关联用户。"
+            title="确认删除空角色？"
+            description="删除前请确认该角色没有关联用户。"
             onConfirm={() => handleDeleteGroup(record)}
           >
             <Button type="link" danger icon={<DeleteOutlined />}>
@@ -404,9 +414,9 @@ export default function AdminAuthPage() {
       }));
       createGroupForm.resetFields();
       setCreateGroupOpen(false);
-      message.success("用户组已创建");
+      message.success("角色已创建");
     } catch (error) {
-      message.error(formOrApiError(error, "用户组创建失败"));
+      message.error(formOrApiError(error, "角色创建失败"));
     }
   }
 
@@ -459,6 +469,11 @@ export default function AdminAuthPage() {
       [targetUser.id]:
         current[targetUser.id] ?? targetUser.directPermissions ?? [],
     }));
+    setUserDisabledPermissionDrafts((current) => ({
+      ...current,
+      [targetUser.id]:
+        current[targetUser.id] ?? targetUser.disabledPermissions ?? [],
+    }));
     setUserLogGroupDrafts((current) => ({
       ...current,
       [targetUser.id]:
@@ -470,11 +485,14 @@ export default function AdminAuthPage() {
   function userActionItems(record: User): MenuProps["items"] {
     const cannotEditOwnGroups = record.id === user?.id;
     const cannotEditLockedGroups = hasLockedGroupMembership(record, groups);
+    const cannotEditGuest = isGuestAccount(record);
     const groupDisabledReason = cannotEditOwnGroups
-      ? "不能修改自己的用户组"
+      ? "不能修改自己的角色"
       : cannotEditLockedGroups
-        ? "不能修改系统锁定用户组"
-        : "";
+        ? "不能修改系统锁定角色"
+        : cannotEditGuest
+          ? "游客账号不能修改角色"
+          : "";
     const cannotEditOwnPermissions = record.id === user?.id;
     return [
       {
@@ -482,10 +500,10 @@ export default function AdminAuthPage() {
         icon: <TeamOutlined />,
         label: groupDisabledReason ? (
           <Tooltip title={groupDisabledReason}>
-            <span title={groupDisabledReason}>更改用户组</span>
+            <span title={groupDisabledReason}>更改角色</span>
           </Tooltip>
         ) : (
-          "更改用户组"
+          "更改角色"
         ),
         disabled: Boolean(groupDisabledReason),
       },
@@ -499,26 +517,27 @@ export default function AdminAuthPage() {
         ) : (
           "更改权限"
         ),
-        disabled: !canManagePermissions || cannotEditOwnPermissions,
+        disabled:
+          !canManagePermissions || cannotEditOwnPermissions || cannotEditGuest,
       },
       {
         key: "status",
         icon: <StopOutlined />,
         label: record.isActive ? "停用" : "启用",
-        disabled: record.id === user?.id,
+        disabled: record.id === user?.id || cannotEditGuest,
       },
       {
         key: "resetPassword",
         icon: <KeyOutlined />,
         label: "重置密码",
-        disabled: record.id === user?.id,
+        disabled: record.id === user?.id || cannotEditGuest,
       },
       {
         key: "delete",
         icon: <DeleteOutlined />,
         label: "删除",
         danger: true,
-        disabled: record.id === user?.id,
+        disabled: record.id === user?.id || cannotEditGuest,
       },
     ];
   }
@@ -661,7 +680,7 @@ export default function AdminAuthPage() {
       (permission) => !values.includes(permission),
     );
     if (missingLockedPermissions.length > 0) {
-      message.warning("系统锁定用户组必须保留锁定权限");
+      message.warning("系统锁定角色必须保留锁定权限");
     }
     setGroupDrafts((current) => ({
       ...current,
@@ -678,7 +697,7 @@ export default function AdminAuthPage() {
       delete next[group.id];
       return next;
     });
-    message.success("用户组已删除");
+    message.success("角色已删除");
   }
 
   async function handleSaveUserGroups() {
@@ -697,7 +716,7 @@ export default function AdminAuthPage() {
       current.map((user) => (user.id === updated.id ? updated : user)),
     );
     setGroupUser(null);
-    message.success("用户组归属已保存");
+    message.success("角色归属已保存");
     await loadAuthData();
   }
 
@@ -711,6 +730,8 @@ export default function AdminAuthPage() {
     }
     const updated = await api.updateAdminUserPermissions(permissionUser.id, {
       directPermissions: userPermissionDrafts[permissionUser.id] ?? [],
+      disabledPermissions:
+        userDisabledPermissionDrafts[permissionUser.id] ?? [],
       operationLogGroupIds: userLogGroupDrafts[permissionUser.id] ?? [],
     });
     setUsers((current) =>
@@ -724,6 +745,10 @@ export default function AdminAuthPage() {
       ...current,
       [updated.id]: updated.operationLogGroupIds ?? [],
     }));
+    setUserDisabledPermissionDrafts((current) => ({
+      ...current,
+      [updated.id]: updated.disabledPermissions ?? [],
+    }));
     setPermissionUser(null);
     message.success("用户权限已保存");
   }
@@ -733,7 +758,7 @@ export default function AdminAuthPage() {
   }
 
   if (activeSection === "groups" && !canManagePermissions) {
-    return <Result status="403" title="无权限访问用户组权限" />;
+    return <Result status="403" title="无权限访问角色权限" />;
   }
 
   return (
@@ -779,7 +804,7 @@ export default function AdminAuthPage() {
             <ProTable<Group>
               className="admin-table"
               rowKey="id"
-              headerTitle="用户组列表"
+              headerTitle="角色列表"
               columns={groupColumns}
               dataSource={groups}
               cardBordered
@@ -794,7 +819,7 @@ export default function AdminAuthPage() {
                   icon={<PlusOutlined />}
                   onClick={() => setCreateGroupOpen(true)}
                 >
-                  新建用户组
+                  新建角色
                 </Button>,
               ]}
             />
@@ -835,7 +860,7 @@ export default function AdminAuthPage() {
                   <Tag color="error">停用</Tag>
                 )}
               </dd>
-              <dt>用户组</dt>
+              <dt>角色</dt>
               <dd>
                 <Space size={[6, 6]} wrap>
                   {activeUser.groupIds.length > 0 ? (
@@ -845,7 +870,7 @@ export default function AdminAuthPage() {
                       </Tag>
                     ))
                   ) : (
-                    <Tag>未分组</Tag>
+                    <Tag>未分配角色</Tag>
                   )}
                 </Space>
               </dd>
@@ -861,7 +886,7 @@ export default function AdminAuthPage() {
                   <Tag>未单独授予</Tag>
                 )}
               </dd>
-              <dt>用户组继承权限</dt>
+              <dt>角色继承权限</dt>
               <dd>
                 {(activeUser.groupPermissions ?? []).length > 0 ? (
                   <PermissionTags
@@ -881,7 +906,7 @@ export default function AdminAuthPage() {
                   maxVisible={10}
                 />
               </dd>
-              <dt>可查看日志用户组</dt>
+              <dt>可查看日志角色</dt>
               <dd>
                 <GroupTags
                   groupIds={activeUser.operationLogGroupIds ?? []}
@@ -943,7 +968,7 @@ export default function AdminAuthPage() {
       </Drawer>
 
       <Drawer
-        title="设置用户组"
+        title="设置角色"
         open={Boolean(groupUser)}
         onClose={() => setGroupUser(null)}
         extra={
@@ -993,13 +1018,13 @@ export default function AdminAuthPage() {
                 </Typography.Text>
               }
               description={
-                "开关控制单独授予权限；来自用户组的权限标记为「组继承」且不可关闭。"
+                "开关控制实际生效权限；来自角色的权限标记为「角色继承」，关闭后写入「单独关闭」。"
               }
             />
             <div className="admin-permission-effective">
-              <Typography.Text strong>可查看日志用户组</Typography.Text>
+              <Typography.Text strong>可查看日志角色</Typography.Text>
               <Typography.Text type="secondary">
-                {"仅在该用户具备「查看指定用户组日志」权限时生效。"}
+                {"仅在该用户具备「查看指定角色日志」权限时生效。"}
               </Typography.Text>
               <Select
                 mode="multiple"
@@ -1018,7 +1043,7 @@ export default function AdminAuthPage() {
                     [permissionUser.id]: values.map(Number),
                   }));
                 }}
-                placeholder={"选择允许查看日志的用户组"}
+                placeholder={"选择允许查看日志的角色"}
                 style={{ width: "100%" }}
               />
             </div>
@@ -1031,10 +1056,19 @@ export default function AdminAuthPage() {
                 []
               }
               groupPermissions={permissionUser.groupPermissions ?? []}
+              disabledPermissions={
+                userDisabledPermissionDrafts[permissionUser.id] ??
+                permissionUser.disabledPermissions ??
+                []
+              }
               onChange={(values) => {
                 setUserPermissionDrafts((current) => ({
                   ...current,
-                  [permissionUser.id]: values,
+                  [permissionUser.id]: values.directPermissions,
+                }));
+                setUserDisabledPermissionDrafts((current) => ({
+                  ...current,
+                  [permissionUser.id]: values.disabledPermissions,
                 }));
               }}
             />
@@ -1043,7 +1077,7 @@ export default function AdminAuthPage() {
       </Drawer>
 
       <Modal
-        title="新建用户组"
+        title="新建角色"
         open={createGroupOpen}
         onOk={handleCreateGroup}
         onCancel={() => setCreateGroupOpen(false)}
@@ -1052,8 +1086,8 @@ export default function AdminAuthPage() {
         <Form form={createGroupForm} layout="vertical">
           <Form.Item
             name="name"
-            label="用户组名称"
-            rules={[{ required: true, message: "请输入用户组名称" }]}
+            label="角色名称"
+            rules={[{ required: true, message: "请输入角色名称" }]}
           >
             <Input />
           </Form.Item>
@@ -1061,7 +1095,7 @@ export default function AdminAuthPage() {
       </Modal>
 
       <Drawer
-        title="用户组权限"
+        title="角色权限"
         open={Boolean(permissionGroup)}
         onClose={closePermissionDrawer}
         size="large"
@@ -1085,7 +1119,7 @@ export default function AdminAuthPage() {
               <Alert
                 type="warning"
                 showIcon
-                title="系统锁定用户组必须保留锁定权限，不允许修改"
+                title="系统锁定角色必须保留锁定权限，不允许修改"
               />
             )}
             <PermissionPanel
@@ -1127,8 +1161,8 @@ export default function AdminAuthPage() {
           </Form.Item>
           <Form.Item
             name="groupIds"
-            label="用户组"
-            rules={[{ required: true, message: "请选择用户组" }]}
+            label="角色"
+            rules={[{ required: true, message: "请选择角色" }]}
           >
             <Select mode="multiple" options={groupOptions} />
           </Form.Item>
@@ -1162,7 +1196,7 @@ function GroupTags({
   groupIds,
   groupNameById,
   maxVisible = 6,
-  emptyText = "未分组",
+  emptyText = "未分配角色",
 }: {
   groupIds: number[];
   groupNameById: Map<number, string>;
@@ -1229,6 +1263,10 @@ function hasLockedGroupMembership(user: User, groups: Group[]) {
     groups.filter(isGroupMembershipLocked).map((group) => group.id),
   );
   return user.groupIds.some((groupId) => lockedGroupIds.has(groupId));
+}
+
+function isGuestAccount(user: User) {
+  return user.username === "guest";
 }
 
 function UserIdentity({

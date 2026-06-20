@@ -1415,7 +1415,7 @@ class ExportApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
-        self.assertIn("当前用户组\u201c未分组\u201d无权限", response.json()["detail"])
+        self.assertIn("当前角色“未分配角色”无权限", response.json()["detail"])
 
     def test_export_vector_geojson_zip(self):
         grant(self.user, ("catalog", "export_dataresource"))

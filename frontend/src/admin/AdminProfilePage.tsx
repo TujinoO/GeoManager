@@ -58,7 +58,7 @@ function createProfileDescriptionColumns(
       },
     },
     {
-      title: "用户组",
+      title: "角色",
       dataIndex: "roles",
       editable: false,
       render: (_, entity) =>
@@ -71,7 +71,7 @@ function createProfileDescriptionColumns(
             ))}
           </Space>
         ) : (
-          <Typography.Text type="secondary">未分配用户组</Typography.Text>
+          <Typography.Text type="secondary">未分配角色</Typography.Text>
         ),
     },
     {

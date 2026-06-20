@@ -70,6 +70,10 @@ export function clearFeatureState(
 export function featureStateTarget(
   feature: MapboxGeoJSONFeature,
 ): FeatureStateTarget | null {
-  if (feature.id === undefined || !feature.source) return null;
-  return { source: feature.source, id: feature.id };
+  const targetFeature = feature as MapboxGeoJSONFeature & {
+    id?: string | number;
+    source?: string;
+  };
+  if (targetFeature.id === undefined || !targetFeature.source) return null;
+  return { source: targetFeature.source, id: targetFeature.id };
 }

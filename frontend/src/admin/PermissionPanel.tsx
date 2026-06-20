@@ -25,7 +25,11 @@ interface UserModeProps {
   availablePermissions: AdminPermissionItem[];
   directPermissions: string[];
   groupPermissions: string[];
-  onChange: (directPermissionIds: string[]) => void;
+  disabledPermissions: string[];
+  onChange: (values: {
+    directPermissions: string[];
+    disabledPermissions: string[];
+  }) => void;
 }
 
 interface ProfileModeProps {
@@ -136,22 +140,32 @@ function useSectionState(
     if (props.mode === "user") {
       const directSet = new Set(props.directPermissions);
       const groupSet = new Set(props.groupPermissions);
+      const disabledSet = new Set(props.disabledPermissions);
       const enabledCount = ids.filter(
-        (id) => directSet.has(id) || groupSet.has(id),
+        (id) => (directSet.has(id) || groupSet.has(id)) && !disabledSet.has(id),
       ).length;
-      const editableIds = ids.filter((id) => !groupSet.has(id));
-      const allEnabled = editableIds.every((id) => directSet.has(id));
+      const allEnabled = ids.every(
+        (id) => (directSet.has(id) || groupSet.has(id)) && !disabledSet.has(id),
+      );
       return {
         summary: `${enabledCount}/${ids.length}`,
         allEnabled,
-        toggleable: editableIds.length > 0,
+        toggleable: ids.length > 0,
         toggleAll: (checked: boolean) => {
-          const current = new Set(props.directPermissions);
-          for (const id of editableIds) {
-            if (checked) current.add(id);
-            else current.delete(id);
+          const nextDirect = new Set(props.directPermissions);
+          const nextDisabled = new Set(props.disabledPermissions);
+          for (const id of ids) {
+            if (checked) {
+              nextDisabled.delete(id);
+              if (!groupSet.has(id)) nextDirect.add(id);
+            } else if (directSet.has(id) || groupSet.has(id)) {
+              nextDisabled.add(id);
+            }
           }
-          props.onChange([...current]);
+          props.onChange({
+            directPermissions: [...nextDirect],
+            disabledPermissions: [...nextDisabled],
+          });
         },
       };
     }
@@ -243,21 +257,34 @@ function UserPermissionRow({
   permission,
   directPermissions,
   groupPermissions,
+  disabledPermissions,
   onChange,
 }: {
   permission: AdminPermissionItem;
 } & UserModeProps) {
   const isDirect = directPermissions.includes(permission.id);
   const isFromGroup = groupPermissions.includes(permission.id);
-  const isEnabled = isDirect || isFromGroup;
+  const isDisabled = disabledPermissions.includes(permission.id);
+  const isGranted = isDirect || isFromGroup;
+  const isEnabled = isGranted && !isDisabled;
 
   const handleChange = (checked: boolean) => {
-    if (isFromGroup) return;
+    const nextDirect = new Set(directPermissions);
+    const nextDisabled = new Set(disabledPermissions);
     if (checked) {
-      onChange([...directPermissions, permission.id]);
+      nextDisabled.delete(permission.id);
+      if (!isFromGroup) {
+        nextDirect.add(permission.id);
+      }
     } else {
-      onChange(directPermissions.filter((id) => id !== permission.id));
+      if (isGranted) {
+        nextDisabled.add(permission.id);
+      }
     }
+    onChange({
+      directPermissions: [...nextDirect],
+      disabledPermissions: [...nextDisabled],
+    });
   };
 
   return (
@@ -275,27 +302,21 @@ function UserPermissionRow({
       <div className="perm-row-actions">
         {isFromGroup && (
           <Tag icon={<CheckCircleFilled />} color="blue">
-            组继承
+            角色继承
           </Tag>
         )}
-        {isDirect && !isFromGroup && (
+        {isDirect && !isFromGroup && !isDisabled && (
           <Tag icon={<CheckCircleFilled />} color="green">
             单独授予
           </Tag>
         )}
-        {!isEnabled && (
+        {isGranted && isDisabled && <Tag color="orange">单独关闭</Tag>}
+        {!isGranted && (
           <Tag icon={<MinusCircleOutlined />} color="default">
             未授予
           </Tag>
         )}
-        <Tooltip title={isFromGroup ? "该权限来自用户组，不可单独关闭" : ""}>
-          <Switch
-            size="small"
-            checked={isEnabled}
-            disabled={isFromGroup}
-            onChange={handleChange}
-          />
-        </Tooltip>
+        <Switch size="small" checked={isEnabled} onChange={handleChange} />
       </div>
     </div>
   );

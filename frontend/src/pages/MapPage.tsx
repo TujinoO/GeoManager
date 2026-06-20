@@ -145,7 +145,7 @@ export default function MapPage() {
   const { startRasterRender, setMapInstance } = useRasterRender(
     layerGroups.updateRasterLayer,
   );
-  const permissionDeniedMessage = `当前用户组"${userRoles.length > 0 ? userRoles.join("、") : "未分组"}"无权限`;
+  const permissionDeniedMessage = `当前角色"${userRoles.length > 0 ? userRoles.join("、") : "未分配角色"}"无权限`;
   const handleWorkspaceLoaded = useCallback(() => {
     setTableLayer(null);
     setSelectedFeature(null);
@@ -613,6 +613,7 @@ export default function MapPage() {
           reproject: options.reproject,
           clip: options.clip,
           clipGeometry: options.clipGeometry,
+          format: options.format,
           items,
         });
         onProgress?.({

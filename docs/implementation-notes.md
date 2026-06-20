@@ -84,6 +84,7 @@ backend/apps/
 ## 统一功能权限
 
 - 平台功能权限统一基于 Django `Permission + Group`，不引入独立角色表。用户通过所属用户组获得功能权限。
+- 产品和前端界面统一把 Django Group 表述为“角色”；接口字段和后端模型名保留 `group*` 命名以兼容 Django auth 和既有 OpenAPI 路径。
 - `apps.core.permissions.FEATURE_PERMISSIONS` 是统一注册表；后台用户组配置页只同步注册表内权限，保留用户组已有其他模型权限。
 - 功能权限元数据按 `后台权限`、`数据权限`、`人员权限` 三类返回，前端认证授权页按该分组展示和维护。
 - 迁移后初始化会先按注册表统一创建或更新 Django `Permission` 记录，再同步 `超级管理员` 用户组并补齐全部功能权限，同时创建 `普通用户` 用户组并授予浏览数据、查询数据、新增数据资源、工程/专题增删查改、加载矢量图层和加载栅格图层权限。
@@ -92,10 +93,12 @@ backend/apps/
 - 首批平台功能权限包括：功能权限配置、数据浏览、数据查询、矢量加载、栅格加载、自定义符号化等后台内部功能权限。
 - 数据和工程/专题的增删查改均使用 Django 模型 CRUD 权限并纳入同一用户组配置入口：`catalog.add/view/change/delete_dataresource`、`catalog.add/view/change/delete_workspacescene`。`catalog.add_dataresource` 控制后台导入，`catalog.change_dataresource` 控制存量数据启停、默认可视化和访问范围配置，`catalog.delete_dataresource` 控制删除确认。
 - `core.view_data_overview` 独立控制 Dashboard 总数据情况卡片；卡片包含资源总数、启用资源数、数据大小、条目数和类型聚合，超级管理员额外看到按 `DataResource.maintainer` 聚合的上传用户统计。
-- 前后端无权限提示统一为 `当前用户组“xxxx”无权限`；无用户组时显示 `未分组`。
+- 前后端无权限提示统一为 `当前角色“xxxx”无权限`；无角色时显示 `未分配角色`。
+- 用户级权限关闭统一写入 `UserProfile.disabled_permissions`。后台认证授权页可以关闭角色继承权限或单独授予权限，但不修改角色本身；后端保存前会把关闭列表裁剪到该用户已授予权限集合。
 - `core.load_raster_layer` 控制按默认规则加载栅格和访问 XYZ；`core.custom_symbolization` 只控制用户打开符号化编辑器并提交自定义规则。
 - 栅格渲染 API 使用 `rulesMode` 区分默认/自定义：默认加载不传 `rules` 或传 `rulesMode: "default"`；自定义符号化传 `rulesMode: "custom"` 和 `rules`。
 - 游客访问使用专用系统账号 `guest` 和独立 `游客` 用户组实现，不再复用 `普通用户` 组。`普通用户` 继续用于自助注册和后台创建的常规账号，默认保留新增数据资源、工程/专题增删查改权限；`游客` 默认只授予浏览、查询、矢量加载和栅格加载权限。`guest` 账号密码不可用，只能通过 `/api/auth/guest-login/` 建立会话，并在后台管理中禁止删除、停用、重置密码、改组或单独授予直授权限。
+- `游客` 内置组与 `guest` 游客账号都不可删除；前端禁用删除入口，后端继续作为强制安全边界。
 
 ## 前端模块结构
 
@@ -494,6 +497,7 @@ CREATE TABLE gpkg_data_columns (
 ## 代码结构与内置配置
 
 - 项目结构维护说明见 `docs/project-structure.md`；移动前端或后端模块时必须同步更新该文档。
+- Django 运行元数据库使用研究数据根目录下的 `meta.db`，路径为 `settings.PROJECT_CONFIG.research_path("meta.db")`。这保证数据、工程和专题等元信息随研究数据根迁移；由于这些模型与 Django auth、权限和审计关系共用同一关系数据库，当前实现保持一个 SQLite 元数据库来维护外键和多对多关系完整性。
 - 后端内置账号和内置用户组配置集中在 `backend/apps/core/configuration/builtins.py`，包括 `超级管理员`、`普通用户`、`游客`、`guest`、初始管理员环境变量名、初始密码文件名和默认权限集合。
 - 业务逻辑不得直接散落维护内置账号/用户组字符串；需要判断内置组或内置账号时，通过 `apps.core.initialization` 暴露的 helper 和常量引用配置。
 - `超级管理员`、`普通用户`、`游客` 都属于系统内置受保护用户组，不能删除或重命名。`超级管理员` 权限由系统强制补齐；`普通用户` 和 `游客` 的默认权限只在用户组首次创建时应用，后续后台调整应被保留。

@@ -37,7 +37,7 @@ const authRoute: MenuDataItem = {
     },
     {
       path: "/admin/auth/groups",
-      name: "用户组权限",
+      name: "角色权限",
     },
   ],
 };

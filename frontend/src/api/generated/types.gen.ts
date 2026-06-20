@@ -1013,7 +1013,7 @@ export type AdminDashboardDiskDevice = {
 
 export type UserInfo = BaseUserInfo & {
     /**
-     * 用户所属用户组 ID 列表
+     * 用户所属角色 ID 列表；后端实现使用 Django Group
      */
     groupIds: Array<number>;
     /**
@@ -1021,7 +1021,7 @@ export type UserInfo = BaseUserInfo & {
      */
     isActive: boolean;
     /**
-     * 用户通过所属用户组继承的平台功能权限列表
+     * 用户通过所属角色继承的平台功能权限列表
      */
     groupPermissions: Array<string>;
     /**
@@ -1029,7 +1029,11 @@ export type UserInfo = BaseUserInfo & {
      */
     directPermissions: Array<string>;
     /**
-     * 用户组权限与用户直授权限合并后，扣除用户主动关闭权限的实际生效功能权限列表
+     * 单独关闭该用户已授予的平台功能权限列表，可用于关闭角色继承权限或单独授予权限
+     */
+    disabledPermissions: Array<string>;
+    /**
+     * 角色权限与用户直授权限合并后，扣除用户单独关闭权限的实际生效功能权限列表
      */
     effectivePermissions: Array<string>;
     /**
@@ -1105,6 +1109,10 @@ export type UserPermissionUpdateRequest = {
      * 单独授予该用户的平台功能权限列表，必须全部来自 availablePermissions
      */
     directPermissions: Array<string>;
+    /**
+     * 单独关闭该用户的平台功能权限列表，必须全部来自 availablePermissions；后端只保存该用户已授予权限中的关闭项
+     */
+    disabledPermissions?: Array<string>;
     /**
      * 该用户具备 `core.view_group_operation_logs` 时允许查看日志的目标用户组 ID 列表；空数组表示未配置指定用户组
      */
@@ -2447,6 +2455,10 @@ export type ExportRequest = {
      * 裁切 GeoJSON 几何
      */
     clipGeometry?: GeoJsonGeometry | null;
+    /**
+     * 矢量图层导出格式；选择 shapefile 时后端将 Shapefile 组件文件写入目录后压缩为 ZIP
+     */
+    format?: 'geojson' | 'shapefile';
     /**
      * 待导出图层
      */

@@ -27,12 +27,14 @@ def export_layers_zip(
     *,
     reproject: bool = True,
     clip_geometry: dict[str, Any] | None = None,
+    vector_format: str = "geojson",
     progress: ProgressCallback | None = None,
 ) -> bytes:
     if not items:
         raise ExportError("缺少导出图层")
     if reproject and (epsg is None or epsg < 1024 or epsg > 999999):
         raise ExportError("EPSG code 不合法")
+    vector_format = validate_vector_format(vector_format)
 
     with TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
@@ -46,13 +48,14 @@ def export_layers_zip(
                 name = safe_filename(str(item.get("name") or f"layer-{index}"))
                 prefix = f"{index:02d}-{name}"
                 if layer_type == "vector":
-                    output = root / f"{prefix}.geojson"
-                    export_vector_geojson(
+                    export_vector_layer(
                         item.get("geojson"),
                         epsg if reproject and epsg else 4326,
-                        output,
+                        root,
+                        prefix,
+                        vector_format,
+                        archive,
                     )
-                    archive.write(output, output.name)
                 elif layer_type == "raster":
                     output = root / f"{prefix}.tif"
                     if progress:
@@ -70,6 +73,35 @@ def export_layers_zip(
         if progress:
             progress("导出压缩包已生成 100%")
         return zip_path.read_bytes()
+
+
+def validate_vector_format(value: Any) -> str:
+    vector_format = str(value or "geojson").strip().lower()
+    if vector_format not in {"geojson", "shapefile"}:
+        raise ExportError("导出格式必须是 geojson 或 shapefile")
+    return vector_format
+
+
+def export_vector_layer(
+    geojson: Any,
+    epsg: int,
+    root: Path,
+    prefix: str,
+    vector_format: str,
+    archive: zipfile.ZipFile,
+) -> None:
+    if vector_format == "geojson":
+        output = root / f"{prefix}.geojson"
+        export_vector_geojson(geojson, epsg, output)
+        archive.write(output, output.name)
+        return
+
+    folder = root / prefix
+    folder.mkdir()
+    output = folder / f"{prefix}.shp"
+    export_vector_shapefile(geojson, epsg, output)
+    for file_path in folder.iterdir():
+        archive.write(file_path, f"{prefix}/{file_path.name}")
 
 
 def export_vector_geojson(geojson: Any, epsg: int, output: Path) -> None:
@@ -94,6 +126,24 @@ def export_vector_geojson(geojson: Any, epsg: int, output: Path) -> None:
         output.write_text(gdf.to_json(drop_id=True), encoding="utf-8")
     except Exception as exc:
         raise ExportError(f"导出矢量 GeoJSON 失败：{exc}") from exc
+
+
+def export_vector_shapefile(geojson: Any, epsg: int, output: Path) -> None:
+    if not isinstance(geojson, dict) or geojson.get("type") != "FeatureCollection":
+        raise ExportError("矢量图层缺少有效 GeoJSON")
+    features = geojson.get("features") or []
+    if not features:
+        raise ExportError("Shapefile 导出需要至少一条矢量要素")
+
+    try:
+        import geopandas as gpd
+
+        gdf = gpd.GeoDataFrame.from_features(features, crs="EPSG:4326")
+        if epsg != 4326:
+            gdf = gdf.to_crs(epsg=epsg)
+        gdf.to_file(output, driver="ESRI Shapefile", encoding="UTF-8")
+    except Exception as exc:
+        raise ExportError(f"导出矢量 Shapefile 失败：{exc}") from exc
 
 
 def export_raster_tif(

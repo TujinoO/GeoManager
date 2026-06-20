@@ -347,7 +347,7 @@ def group_list(request):
             }
         )
     if not has_feature_perm(request.user, "core.manage_feature_permissions"):
-        return JsonResponse({"detail": "当前用户无权限配置用户组"}, status=403)
+        return JsonResponse({"detail": "当前用户无权限配置角色"}, status=403)
 
     payload = _json_payload(request)
     if isinstance(payload, JsonResponse):
@@ -363,11 +363,9 @@ def group_list(request):
         group = Group.objects.create(name=name)
         _set_group_feature_permissions(group, permissions)
     except IntegrityError:
-        return JsonResponse({"detail": "用户组名称已存在"}, status=400)
+        return JsonResponse({"detail": "角色名称已存在"}, status=400)
 
-    log_operation(
-        request.user, "认证授权", "创建用户组", "success", group.name, request
-    )
+    log_operation(request.user, "认证授权", "创建角色", "success", group.name, request)
     return JsonResponse(_serialize_group(group), status=201)
 
 
@@ -377,7 +375,7 @@ def group_detail(request, group_id: int):
     try:
         group = Group.objects.get(pk=group_id)
     except Group.DoesNotExist:
-        return JsonResponse({"detail": "用户组不存在"}, status=404)
+        return JsonResponse({"detail": "角色不存在"}, status=404)
 
     payload = _json_payload(request)
     if isinstance(payload, JsonResponse):
@@ -390,15 +388,15 @@ def group_detail(request, group_id: int):
             or is_default_user_group(group)
             or is_guest_group(group)
         ):
-            return JsonResponse({"detail": "系统内置用户组不能删除"}, status=400)
+            return JsonResponse({"detail": "系统内置角色不能删除"}, status=400)
         if group.user_set.exists():
-            return JsonResponse({"detail": "用户组仍有关联用户，不能删除"}, status=400)
+            return JsonResponse({"detail": "角色仍有关联用户，不能删除"}, status=400)
         group_name = group.name
         group.delete()
         log_operation(
-            request.user, "认证授权", "删除用户组", "success", group_name, request
+            request.user, "认证授权", "删除角色", "success", group_name, request
         )
-        return JsonResponse({"detail": "用户组已删除"})
+        return JsonResponse({"detail": "角色已删除"})
 
     payload = _json_payload(request)
     if isinstance(payload, JsonResponse):
@@ -409,17 +407,17 @@ def group_detail(request, group_id: int):
             return name
         if is_superadmin_group(group) and name != SUPERADMIN_GROUP_NAME:
             return JsonResponse(
-                {"detail": f"{SUPERADMIN_GROUP_NAME}用户组名称不能修改"},
+                {"detail": f"{SUPERADMIN_GROUP_NAME}角色名称不能修改"},
                 status=400,
             )
         if is_default_user_group(group) and name != DEFAULT_USER_GROUP_NAME:
             return JsonResponse(
-                {"detail": f"{DEFAULT_USER_GROUP_NAME}用户组名称不能修改"},
+                {"detail": f"{DEFAULT_USER_GROUP_NAME}角色名称不能修改"},
                 status=400,
             )
         if is_guest_group(group) and name != GUEST_GROUP_NAME:
             return JsonResponse(
-                {"detail": f"{GUEST_GROUP_NAME}用户组名称不能修改"},
+                {"detail": f"{GUEST_GROUP_NAME}角色名称不能修改"},
                 status=400,
             )
         group.name = name
@@ -431,7 +429,7 @@ def group_detail(request, group_id: int):
             locked = superadmin_group_locked_permissions()
             if locked - set(permissions):
                 return JsonResponse(
-                    {"detail": f"{SUPERADMIN_GROUP_NAME}用户组必须保留系统锁定权限"},
+                    {"detail": f"{SUPERADMIN_GROUP_NAME}角色必须保留系统锁定权限"},
                     status=400,
                 )
             permissions = protected_group_permissions()
@@ -441,10 +439,8 @@ def group_detail(request, group_id: int):
     try:
         group.save()
     except IntegrityError:
-        return JsonResponse({"detail": "用户组名称已存在"}, status=400)
-    log_operation(
-        request.user, "认证授权", "更新用户组", "success", group.name, request
-    )
+        return JsonResponse({"detail": "角色名称已存在"}, status=400)
+    log_operation(request.user, "认证授权", "更新角色", "success", group.name, request)
     return JsonResponse(_serialize_group(group))
 
 
@@ -590,14 +586,14 @@ def update_user_groups(request, user_id: int):
     except User.DoesNotExist:
         return JsonResponse({"detail": "用户不存在"}, status=404)
     if user.pk == request.user.pk:
-        return JsonResponse({"detail": "不能修改当前登录用户的用户组"}, status=400)
+        return JsonResponse({"detail": "不能修改当前登录用户的角色"}, status=400)
     if is_superadmin_user(user):
         return JsonResponse(
-            {"detail": f"不能修改{SUPERADMIN_GROUP_NAME}的用户组"}, status=400
+            {"detail": f"不能修改{SUPERADMIN_GROUP_NAME}的角色"}, status=400
         )
     if is_guest_user(user):
         return JsonResponse(
-            {"detail": f"{GUEST_GROUP_NAME}账号不能修改用户组"}, status=400
+            {"detail": f"{GUEST_GROUP_NAME}账号不能修改角色"}, status=400
         )
 
     try:
@@ -608,17 +604,17 @@ def update_user_groups(request, user_id: int):
         _, protected_group = ensure_superadmin_defaults(create_account=False)
         normalized_group_ids.add(protected_group.id)
     elif not normalized_group_ids:
-        return JsonResponse({"detail": "用户组为必选项"}, status=400)
+        return JsonResponse({"detail": "角色为必选项"}, status=400)
 
     groups = list(Group.objects.filter(id__in=normalized_group_ids))
     if len(groups) != len(normalized_group_ids):
-        return JsonResponse({"detail": "包含不存在的用户组"}, status=400)
+        return JsonResponse({"detail": "包含不存在的角色"}, status=400)
     if not is_initial_superadmin_user(user) and any(
         is_superadmin_group(group) for group in groups
     ):
         return JsonResponse(
             {
-                "detail": f"不能将{DEFAULT_USER_GROUP_NAME}加入{SUPERADMIN_GROUP_NAME}用户组"
+                "detail": f"不能将{DEFAULT_USER_GROUP_NAME}加入{SUPERADMIN_GROUP_NAME}角色"
             },
             status=400,
         )
@@ -626,7 +622,7 @@ def update_user_groups(request, user_id: int):
     log_operation(
         request.user,
         "认证授权",
-        "设置用户组",
+        "设置角色",
         "success",
         user.get_username(),
         request,
@@ -653,6 +649,9 @@ def update_user_permissions(request, user_id: int):
     )
     if isinstance(operation_log_group_ids, JsonResponse):
         return operation_log_group_ids
+    disabled_permissions = _permission_names(payload.get("disabledPermissions", []))
+    if isinstance(disabled_permissions, JsonResponse):
+        return disabled_permissions
 
     User = get_user_model()
     try:
@@ -667,6 +666,7 @@ def update_user_permissions(request, user_id: int):
         )
 
     _set_user_feature_permissions(user, permissions)
+    _set_disabled_permissions(user, disabled_permissions)
     _set_operation_log_group_ids(user, operation_log_group_ids)
     log_operation(
         request.user,
@@ -1558,7 +1558,7 @@ def _data_resource_export_rows(
         "存储路径",
         "数据大小",
         "数据条目数",
-        "访问用户组",
+        "访问角色",
         "维护人员",
         "更新时间",
     ]
@@ -1896,10 +1896,25 @@ def _serialize_admin_user(user) -> dict[str, Any]:
     serialized = serialize_user(user)
     serialized["groupIds"] = list(user.groups.values_list("id", flat=True))
     serialized["isActive"] = user.is_active
+    serialized["groupPermissions"] = sorted(_group_feature_permissions(user))
     serialized["directPermissions"] = sorted(direct_feature_permissions(user))
+    serialized["disabledPermissions"] = sorted(disabled_feature_permissions(user))
     serialized["effectivePermissions"] = sorted(effective_feature_permissions(user))
     serialized["operationLogGroupIds"] = _operation_log_group_ids(user)
     return serialized
+
+
+def _group_feature_permissions(user) -> set[str]:
+    permission_names = set(FEATURE_PERMISSION_NAMES)
+    return {
+        permission_name
+        for group in user.groups.prefetch_related("permissions__content_type").all()
+        for permission in group.permissions.all()
+        for permission_name in [
+            f"{permission.content_type.app_label}.{permission.codename}"
+        ]
+        if permission_name in permission_names
+    }
 
 
 def _serialize_group(group: Group) -> dict[str, Any]:
@@ -2125,7 +2140,7 @@ def _operation_log_group_ids_payload(value: Any) -> list[int] | JsonResponse:
     )
     missing_ids = set(normalized_group_ids) - existing_ids
     if missing_ids:
-        return JsonResponse({"detail": "包含不存在的日志用户组"}, status=400)
+        return JsonResponse({"detail": "包含不存在的日志角色"}, status=400)
     return normalized_group_ids
 
 
@@ -2133,6 +2148,17 @@ def _set_operation_log_group_ids(user, group_ids: list[int]) -> None:
     profile = _ensure_profile(user)
     profile.operation_log_group_ids = group_ids
     profile.save(update_fields=["operation_log_group_ids", "updated_at"])
+
+
+def _set_disabled_permissions(user, permission_names: list[str]) -> None:
+    granted = granted_feature_permissions(user)
+    profile = _ensure_profile(user)
+    profile.disabled_permissions = sorted(
+        permission_name
+        for permission_name in permission_names
+        if permission_name in granted
+    )
+    profile.save(update_fields=["disabled_permissions", "updated_at"])
 
 
 def _parse_query_datetime(value: Any, *, end_of_day: bool):
@@ -2183,15 +2209,15 @@ def _create_admin_user(User, payload: dict[str, Any]):
     except (TypeError, ValueError):
         return JsonResponse({"detail": "groupIds 必须是整数数组"}, status=400)
     if not normalized_group_ids:
-        return JsonResponse({"detail": "用户组为必选项"}, status=400)
+        return JsonResponse({"detail": "角色为必选项"}, status=400)
 
     groups = list(Group.objects.filter(id__in=normalized_group_ids))
     if len(groups) != len(normalized_group_ids):
-        return JsonResponse({"detail": "包含不存在的用户组"}, status=400)
+        return JsonResponse({"detail": "包含不存在的角色"}, status=400)
     if any(is_superadmin_group(group) for group in groups):
         return JsonResponse(
             {
-                "detail": f"不能将{DEFAULT_USER_GROUP_NAME}加入{SUPERADMIN_GROUP_NAME}用户组"
+                "detail": f"不能将{DEFAULT_USER_GROUP_NAME}加入{SUPERADMIN_GROUP_NAME}角色"
             },
             status=400,
         )
