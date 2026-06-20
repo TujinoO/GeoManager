@@ -28,6 +28,8 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260619-002 | Verified | Multiple mock example endpoints | mock data consistency | N/A | Done | N/A | Done | Align representative auth, vector, raster, and non-geographic mock data |
 | API-20260619-003 | BackendReady | POST /api/catalog/import/preview/; POST /api/catalog/import/validate/; POST /api/catalog/import/commit/ | request body, response semantics, mock data | Done | Done | Done | Done | Import storage IDs unique; duplicate detection uses display name |
 | API-20260620-001 | BackendReady | GET /api/admin/system-logs/ | new endpoint, response fields, permission behavior, mock data | Done | Done | Done | Pending | System log file selector for admin logs page |
+| API-20260620-002 | BackendReady | Data/workspace/achievement CRUD endpoints | permission behavior, response fields, new endpoint, request body | Done | N/A | Done | Done | Fine-grained CRUD permissions for data, workspace scenes, and achievements |
+| API-20260620-003 | BackendReady | GET /api/admin/operation-logs/ | response fields, query parameters | Done | N/A | Done | Done | Structured audit target fields for data, workspace scenes, and achievements |
 
 ## Entry Template
 
@@ -135,6 +137,32 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Read only `.log` and rotated `.log.N` files from `app_path("logs")`, never return absolute paths, cap returned tail lines, and reject unknown file names.
 - Verification: run backend core API tests plus `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build`.
 - Result: Contract and implementation completed; full verification pending current change validation.
+
+## API-20260620-002 - Fine-Grained CRUD Permissions
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `GET /api/auth/me/`, `GET /api/admin/data/resources/`, `POST /api/admin/data/resources/{id}/`, `POST /api/catalog/import/preview/`, `POST /api/catalog/import/validate/`, `POST /api/catalog/import/commit/`, `GET/POST /api/catalog/workspaces/`, `GET/POST /api/catalog/workspaces/{workspaceId}/`, `GET/POST /api/achievements/`, `GET/POST /api/achievements/{achievementId}/`
+- Change type: permission behavior, response fields, new endpoint, request body
+- OpenAPI change: Replaces coarse data maintenance checks with `catalog.add/view/change/delete_dataresource`, adds `catalog.add/view/change/delete_workspacescene` checks for project/topic snapshots, adds achievement create/detail/update/delete endpoints with `catalog.add/view/change/delete_achievement`, and exposes matching booleans in `UserPermissions`.
+- Mock examples: N/A
+- Frontend reason: UI needs separate add, view, edit, and delete capability checks for data, project/topic workspace snapshots, and achievements instead of one broad maintenance permission.
+- Backend implementation notes: Keep object-level access groups and workspace ownership checks; allow uploaders to update only their own data visibility; continue writing operation logs for user-triggered create/update/delete actions.
+- Verification: run backend catalog/core permission tests plus `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check`.
+- Result: Backend implementation and focused tests completed in this change.
+
+## API-20260620-003 - Structured Audit Targets
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `GET /api/admin/operation-logs/`
+- Change type: response fields, query parameters
+- OpenAPI change: `AdminOperationLog` now returns `targetType`, `targetId`, `targetCode`, and `targetName`; the operation log list accepts `targetType` and `targetId` query filters, and keyword search includes target fields.
+- Mock examples: N/A
+- Frontend reason: Audit log UI must trace create/read/update/delete operations to a specific data resource, project/topic workspace scene, or achievement by backend ID instead of relying on mutable names inside summary text.
+- Backend implementation notes: Store structured target fields on `OperationLog`; write `data_resource`, `workspace_scene`, and `achievement` targets from the relevant backend views, preserving target ID/name before delete.
+- Verification: run backend audit, catalog, and core operation-log tests plus `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check`.
+- Result: Backend implementation and focused tests completed in this change.
 
 ## API-20260617-002 - Workspace Snapshot Raw Data Guard
 

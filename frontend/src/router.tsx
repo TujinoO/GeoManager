@@ -13,7 +13,10 @@ export function RequireAuth() {
 /** 需要数据维护权限才能访问的后台数据管理路由 */
 export function RequireDataMaintain() {
   const { user } = useAppContext();
-  if (!user?.permissions.canMaintainData) {
+  if (
+    !user?.permissions.canChangeDataResources &&
+    !user?.permissions.canDeleteDataResources
+  ) {
     return <Navigate to="/admin/profile" replace />;
   }
   return <Outlet />;
@@ -23,7 +26,9 @@ export function RequireDataMaintain() {
 export function RequireDataInventory() {
   const { user } = useAppContext();
   if (
-    !user?.permissions.canMaintainData &&
+    !user?.permissions.canViewDataResources &&
+    !user?.permissions.canChangeDataResources &&
+    !user?.permissions.canDeleteDataResources &&
     !user?.permissions.canUploadData &&
     !user?.permissions.canExportData
   ) {
@@ -35,7 +40,7 @@ export function RequireDataInventory() {
 /** 需要数据上传或数据维护权限才能访问的后台导入路由 */
 export function RequireDataUpload() {
   const { user } = useAppContext();
-  if (!user?.permissions.canUploadData && !user?.permissions.canMaintainData) {
+  if (!user?.permissions.canUploadData) {
     return <Navigate to="/admin/profile" replace />;
   }
   return <Outlet />;

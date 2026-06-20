@@ -22,7 +22,9 @@ const baseResourceRoutes: MenuDataItem[] = [
 function resourceRouteFor(user: User | null) {
   const routes = [...baseResourceRoutes];
   if (
-    user?.permissions.canMaintainData ||
+    user?.permissions.canViewDataResources ||
+    user?.permissions.canChangeDataResources ||
+    user?.permissions.canDeleteDataResources ||
     user?.permissions.canUploadData ||
     user?.permissions.canExportData
   ) {
@@ -32,7 +34,7 @@ function resourceRouteFor(user: User | null) {
       icon: <DatabaseOutlined />,
     });
   }
-  if (user?.permissions.canUploadData || user?.permissions.canMaintainData) {
+  if (user?.permissions.canUploadData) {
     routes.push({
       path: "/resources/data/import",
       name: "数据导入",

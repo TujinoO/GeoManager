@@ -495,7 +495,9 @@ export default function WorkspaceHeader({
       },
     ];
     if (
-      user?.permissions.canMaintainData ||
+      user?.permissions.canViewDataResources ||
+      user?.permissions.canChangeDataResources ||
+      user?.permissions.canDeleteDataResources ||
       user?.permissions.canUploadData ||
       user?.permissions.canExportData
     ) {
@@ -505,7 +507,7 @@ export default function WorkspaceHeader({
         onClick: () => navigateFromHeader("/resources/data/inventory"),
       });
     }
-    if (user?.permissions.canUploadData || user?.permissions.canMaintainData) {
+    if (user?.permissions.canUploadData) {
       items.push({
         key: "resources-import",
         label: "数据导入",
@@ -516,8 +518,10 @@ export default function WorkspaceHeader({
   }, [
     navigateFromHeader,
     user?.permissions.canExportData,
-    user?.permissions.canMaintainData,
+    user?.permissions.canChangeDataResources,
+    user?.permissions.canDeleteDataResources,
     user?.permissions.canUploadData,
+    user?.permissions.canViewDataResources,
   ]);
 
   const adminMenuItems = useMemo<MenuProps["items"]>(() => {

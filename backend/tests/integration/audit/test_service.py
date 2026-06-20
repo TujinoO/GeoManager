@@ -45,6 +45,29 @@ class LogOperationTests(TestCase):
         self.assertEqual(log.status, "success")
         self.assertEqual(log.message, "导出成功")
 
+    def test_creates_log_with_target_fields(self):
+        user = get_user_model().objects.create_user(
+            username="target-log-test", password="pass12345"
+        )
+
+        log_operation(
+            user,
+            "数据管理",
+            "更新存量数据",
+            "success",
+            "更新访问权限",
+            target_type="data_resource",
+            target_id=42,
+            target_code="resource-code",
+            target_name="样地数据",
+        )
+
+        log = OperationLog.objects.first()
+        self.assertEqual(log.target_type, "data_resource")
+        self.assertEqual(log.target_id, 42)
+        self.assertEqual(log.target_code, "resource-code")
+        self.assertEqual(log.target_name, "样地数据")
+
     def test_creates_log_with_null_user_for_anonymous(self):
         anonymous = MagicMock()
         anonymous.is_authenticated = False

@@ -128,9 +128,6 @@ FEATURE_PERMISSIONS: tuple[FeaturePermissionDef, ...] = (
         "core", "FeaturePermission", "query_data", "查询数据", "数据权限"
     ),
     FeaturePermissionDef(
-        "core", "FeaturePermission", "upload_data", "上传数据", "数据权限"
-    ),
-    FeaturePermissionDef(
         "core", "FeaturePermission", "load_vector_layer", "加载矢量图层", "数据权限"
     ),
     FeaturePermissionDef(
@@ -147,7 +144,43 @@ FEATURE_PERMISSIONS: tuple[FeaturePermissionDef, ...] = (
         "catalog", "DataResource", "export_dataresource", "导出数据资源", "数据权限"
     ),
     FeaturePermissionDef(
+        "catalog", "DataResource", "add_dataresource", "新增数据资源", "数据权限"
+    ),
+    FeaturePermissionDef(
+        "catalog", "DataResource", "view_dataresource", "查看存量数据资源", "数据权限"
+    ),
+    FeaturePermissionDef(
+        "catalog", "DataResource", "change_dataresource", "编辑数据资源", "数据权限"
+    ),
+    FeaturePermissionDef(
+        "catalog", "DataResource", "delete_dataresource", "删除数据资源", "数据权限"
+    ),
+    FeaturePermissionDef(
         "catalog", "DataResource", "maintain_dataresource", "维护数据资源", "数据权限"
+    ),
+    FeaturePermissionDef(
+        "catalog", "WorkspaceScene", "add_workspacescene", "新增工程专题", "数据权限"
+    ),
+    FeaturePermissionDef(
+        "catalog", "WorkspaceScene", "view_workspacescene", "查看工程专题", "数据权限"
+    ),
+    FeaturePermissionDef(
+        "catalog", "WorkspaceScene", "change_workspacescene", "编辑工程专题", "数据权限"
+    ),
+    FeaturePermissionDef(
+        "catalog", "WorkspaceScene", "delete_workspacescene", "删除工程专题", "数据权限"
+    ),
+    FeaturePermissionDef(
+        "catalog", "Achievement", "add_achievement", "新增成果", "数据权限"
+    ),
+    FeaturePermissionDef(
+        "catalog", "Achievement", "view_achievement", "查看成果", "数据权限"
+    ),
+    FeaturePermissionDef(
+        "catalog", "Achievement", "change_achievement", "编辑成果", "数据权限"
+    ),
+    FeaturePermissionDef(
+        "catalog", "Achievement", "delete_achievement", "删除成果", "数据权限"
     ),
     FeaturePermissionDef(
         "raster",

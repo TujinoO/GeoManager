@@ -45,7 +45,9 @@ describe("Prism mock example business consistency", () => {
     }>(examples, "POST /api/auth/register/");
 
     expect(register.user.permissions.canUploadData).toBe(true);
-    expect(register.user.effectivePermissions).toContain("core.upload_data");
+    expect(register.user.effectivePermissions).toContain(
+      "catalog.add_dataresource",
+    );
     expect(register.user.roles).toContain("普通用户");
     expect(register.user.roles).not.toContain("游客");
   });

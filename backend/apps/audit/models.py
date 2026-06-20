@@ -20,6 +20,12 @@ class OperationLog(models.Model):
     status = models.CharField(
         max_length=16, choices=Status.choices, verbose_name="结果"
     )
+    target_type = models.CharField(max_length=64, blank=True, verbose_name="目标类型")
+    target_id = models.PositiveBigIntegerField(
+        null=True, blank=True, verbose_name="目标后台 ID"
+    )
+    target_code = models.CharField(max_length=128, blank=True, verbose_name="目标编码")
+    target_name = models.CharField(max_length=255, blank=True, verbose_name="目标名称")
     message = models.TextField(blank=True, verbose_name="说明")
     ip_address = models.GenericIPAddressField(
         null=True, blank=True, verbose_name="IP 地址"
@@ -32,6 +38,7 @@ class OperationLog(models.Model):
         ordering = ("-created_at",)
         indexes = [
             models.Index(fields=("module", "action")),
+            models.Index(fields=("target_type", "target_id")),
             models.Index(fields=("created_at",)),
         ]
 

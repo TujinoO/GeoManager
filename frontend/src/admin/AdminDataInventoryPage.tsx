@@ -106,10 +106,13 @@ export default function AdminDataInventoryPage() {
   const [deleteText, setDeleteText] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  const canMaintain = Boolean(user?.permissions.canMaintainData);
+  const canView = Boolean(user?.permissions.canViewDataResources);
+  const canChange = Boolean(user?.permissions.canChangeDataResources);
+  const canDelete = Boolean(user?.permissions.canDeleteDataResources);
   const canUpload = Boolean(user?.permissions.canUploadData);
   const canExport = Boolean(user?.permissions.canExportData);
-  const canOpenInventory = canMaintain || canUpload || canExport;
+  const canOpenInventory =
+    canView || canChange || canDelete || canUpload || canExport;
   const drawerAccessGroupIds =
     Form.useWatch("accessGroupIds", visualizationForm) ?? [];
 
@@ -201,7 +204,7 @@ export default function AdminDataInventoryPage() {
       return;
     }
     try {
-      if (!canMaintain) {
+      if (!canChange) {
         const values = visualizationForm.getFieldsValue(true);
         if (!selectedResource.canManageAccess) {
           message.warning("当前用户不能修改该数据的可见范围");
@@ -255,6 +258,10 @@ export default function AdminDataInventoryPage() {
   }
 
   async function toggleStatus(resource: AdminDataResource, checked: boolean) {
+    if (!canChange) {
+      message.warning("当前用户无数据编辑权限");
+      return;
+    }
     const nextStatus = checked ? "active" : "inactive";
     try {
       const updated = await api.updateAdminDataResource(resource.id, {
@@ -289,6 +296,10 @@ export default function AdminDataInventoryPage() {
 
   async function confirmDelete() {
     if (!deleteTarget) {
+      return;
+    }
+    if (!canDelete) {
+      message.warning("当前用户无删除权限");
       return;
     }
     setDeleting(true);
@@ -372,7 +383,7 @@ export default function AdminDataInventoryPage() {
             checked={record.status === "active"}
             checkedChildren="启用"
             unCheckedChildren="禁用"
-            disabled={!canMaintain}
+            disabled={!canChange}
             onChange={(checked) => toggleStatus(record, checked)}
           />
         </Space>
@@ -459,14 +470,14 @@ export default function AdminDataInventoryPage() {
             <Button
               icon={<SettingOutlined />}
               onClick={() => openResourceDrawer(record)}
-              disabled={!canMaintain && !record.canManageAccess}
+              disabled={!canChange && !record.canManageAccess}
             />
           </Tooltip>
-          <Tooltip title={canMaintain ? "删除" : "当前用户无删除权限"}>
+          <Tooltip title={canDelete ? "删除" : "当前用户无删除权限"}>
             <Button
               danger
               icon={<DeleteOutlined />}
-              disabled={!canMaintain}
+              disabled={!canDelete}
               onClick={() => setDeleteTarget(record)}
             />
           </Tooltip>
@@ -605,7 +616,7 @@ export default function AdminDataInventoryPage() {
 
       <Drawer
         size={560}
-        title={canMaintain ? "存量数据配置" : "数据可见范围"}
+        title={canChange ? "存量数据配置" : "数据可见范围"}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         extra={
@@ -613,7 +624,7 @@ export default function AdminDataInventoryPage() {
             type="primary"
             icon={<SaveOutlined />}
             loading={saving}
-            disabled={!canMaintain && !selectedResource?.canManageAccess}
+            disabled={!canChange && !selectedResource?.canManageAccess}
             onClick={saveResourceSettings}
           >
             保存
@@ -659,7 +670,7 @@ export default function AdminDataInventoryPage() {
               <Form.Item name="accessGroupIds" label="允许访问的用户组">
                 <Select
                   mode="multiple"
-                  disabled={!canMaintain && !selectedResource.canManageAccess}
+                  disabled={!canChange && !selectedResource.canManageAccess}
                   placeholder="选择需要共享的数据用户组"
                   onChange={(nextValue) =>
                     visualizationForm.setFieldValue(
@@ -705,7 +716,7 @@ export default function AdminDataInventoryPage() {
                 label="默认图层名称"
                 rules={[{ required: true, message: "请输入默认图层名称" }]}
               >
-                <Input disabled={!canMaintain} />
+                <Input disabled={!canChange} />
               </Form.Item>
               <Form.Item
                 name="defaultVisible"
@@ -715,26 +726,26 @@ export default function AdminDataInventoryPage() {
                 <Switch
                   checkedChildren="显示"
                   unCheckedChildren="隐藏"
-                  disabled={!canMaintain}
+                  disabled={!canChange}
                 />
               </Form.Item>
               {selectedResource.dataType === "vector" && (
                 <Form.Item name="pointColor" label="点位/主色">
-                  <Input type="color" disabled={!canMaintain} />
+                  <Input type="color" disabled={!canChange} />
                 </Form.Item>
               )}
               <Form.Item name="symbolizationJson" label="矢量符号 JSON">
                 <Input.TextArea
                   rows={6}
                   spellCheck={false}
-                  disabled={!canMaintain}
+                  disabled={!canChange}
                 />
               </Form.Item>
               <Form.Item name="rasterRulesJson" label="栅格规则 JSON">
                 <Input.TextArea
                   rows={6}
                   spellCheck={false}
-                  disabled={!canMaintain}
+                  disabled={!canChange}
                 />
               </Form.Item>
             </Form>

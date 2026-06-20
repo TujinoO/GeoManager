@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Any
 
 from django.conf import settings
+from django.contrib.auth.models import Group
 from django.core.exceptions import RequestDataTooBig
 from django.db import IntegrityError
 from django.http import FileResponse, HttpResponse, JsonResponse
@@ -139,7 +140,7 @@ def scan_sources(request):
 @require_POST
 @api_login_required
 def import_preview(request):
-    if not _can_upload_data(request.user):
+    if not _can_create_data_resource(request.user):
         return feature_denied_response(request.user)
     uploaded_file = request.FILES.get("file")
     if uploaded_file is None:
@@ -178,7 +179,7 @@ def import_preview(request):
 @require_POST
 @api_login_required
 def import_validate(request):
-    if not _can_upload_data(request.user):
+    if not _can_create_data_resource(request.user):
         return feature_denied_response(request.user)
     uploaded_file = request.FILES.get("file")
     if uploaded_file is None:
@@ -229,7 +230,7 @@ def import_validate(request):
 @require_POST
 @api_login_required
 def import_commit(request):
-    if not _can_upload_data(request.user):
+    if not _can_create_data_resource(request.user):
         return feature_denied_response(request.user)
     uploaded_file = request.FILES.get("file")
     if uploaded_file is None:
@@ -266,6 +267,7 @@ def import_commit(request):
             request,
         )
         return JsonResponse(_import_error_payload(exc), status=400)
+    resource = DataResource.objects.filter(pk=result.get("resourceId")).first()
     log_operation(
         request.user,
         "数据导入",
@@ -273,14 +275,16 @@ def import_commit(request):
         "success",
         f"{result.get('resourceName', uploaded_file.name)}：导入 {result.get('importedRows', 0)} 行",
         request,
+        target_type="data_resource",
+        target_id=resource.id if resource else result.get("resourceId"),
+        target_code=resource.code if resource else "",
+        target_name=resource.name if resource else result.get("resourceName", ""),
     )
     return JsonResponse(result, status=201)
 
 
-def _can_upload_data(user) -> bool:
-    return has_feature_perm(user, "core.upload_data") or has_feature_perm(
-        user, "catalog.maintain_dataresource"
-    )
+def _can_create_data_resource(user) -> bool:
+    return has_feature_perm(user, "catalog.add_dataresource")
 
 
 @require_http_methods(["GET", "POST"])
@@ -288,6 +292,8 @@ def _can_upload_data(user) -> bool:
 def workspaces(request):
     if request.method == "POST":
         return _create_workspace(request)
+    if not has_feature_perm(request.user, "catalog.view_workspacescene"):
+        return feature_denied_response(request.user)
     kind = str(request.GET.get("kind", "")).strip()
     if kind and kind not in WorkspaceScene.Kind.values:
         return JsonResponse({"detail": "kind 仅支持 project 或 topic"}, status=400)
@@ -298,6 +304,8 @@ def workspaces(request):
 
 
 def _create_workspace(request):
+    if not has_feature_perm(request.user, "catalog.add_workspacescene"):
+        return feature_denied_response(request.user)
     payload = _json_payload(request, max_body_bytes=WORKSPACE_SNAPSHOT_MAX_BODY_BYTES)
     if isinstance(payload, JsonResponse):
         return payload
@@ -315,6 +323,10 @@ def _create_workspace(request):
         "success",
         scene.name,
         request,
+        target_type="workspace_scene",
+        target_id=scene.id,
+        target_code=scene.kind,
+        target_name=scene.name,
     )
     return JsonResponse(_serialize_workspace(scene), status=201)
 
@@ -326,12 +338,30 @@ def workspace_detail(request, workspace_id: int):
     if isinstance(scene, JsonResponse):
         return scene
     if request.method == "GET":
+        if not has_feature_perm(request.user, "catalog.view_workspacescene"):
+            return feature_denied_response(request.user)
+        log_operation(
+            request.user,
+            "工作台",
+            f"查看{_workspace_kind_label(scene.kind)}",
+            "success",
+            scene.name,
+            request,
+            target_type="workspace_scene",
+            target_id=scene.id,
+            target_code=scene.kind,
+            target_name=scene.name,
+        )
         return JsonResponse(_serialize_workspace(scene))
     payload = _json_payload(request, max_body_bytes=WORKSPACE_SNAPSHOT_MAX_BODY_BYTES)
     if isinstance(payload, JsonResponse):
         return payload
     if payload.get("action") == "delete":
+        if not has_feature_perm(request.user, "catalog.delete_workspacescene"):
+            return feature_denied_response(request.user)
         name = scene.name
+        target_id = scene.id
+        target_code = scene.kind
         kind_label = _workspace_kind_label(scene.kind)
         scene.delete()
         log_operation(
@@ -341,8 +371,14 @@ def workspace_detail(request, workspace_id: int):
             "success",
             name,
             request,
+            target_type="workspace_scene",
+            target_id=target_id,
+            target_code=target_code,
+            target_name=name,
         )
         return JsonResponse({"detail": f"{kind_label}已删除"})
+    if not has_feature_perm(request.user, "catalog.change_workspacescene"):
+        return feature_denied_response(request.user)
     values = _workspace_payload(payload, partial=True)
     if isinstance(values, JsonResponse):
         return values
@@ -359,6 +395,10 @@ def workspace_detail(request, workspace_id: int):
         "success",
         scene.name,
         request,
+        target_type="workspace_scene",
+        target_id=scene.id,
+        target_code=scene.kind,
+        target_name=scene.name,
     )
     return JsonResponse(_serialize_workspace(scene))
 
@@ -480,6 +520,18 @@ def resource_profile(request, pk: int):
         profile = get_vector_resource_profile(resource)
     except DataQueryError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
+    log_operation(
+        request.user,
+        "数据查询",
+        "查看数据资源",
+        "success",
+        resource.name,
+        request,
+        target_type="data_resource",
+        target_id=resource.id,
+        target_code=resource.code,
+        target_name=resource.name,
+    )
     return JsonResponse(
         {
             "resource": serialize_resource(resource),
@@ -546,6 +598,10 @@ def resource_query(request, pk: int):
             "failed",
             f"{resource.name}：{exc}",
             request,
+            target_type="data_resource",
+            target_id=resource.id,
+            target_code=resource.code,
+            target_name=resource.name,
         )
         return JsonResponse({"detail": str(exc)}, status=400)
     log_operation(
@@ -555,6 +611,10 @@ def resource_query(request, pk: int):
         "success",
         f"{resource.name}：返回 {result.get('returnedCount', 0)} 条",
         request,
+        target_type="data_resource",
+        target_id=resource.id,
+        target_code=resource.code,
+        target_name=resource.name,
     )
     return JsonResponse(result)
 
@@ -797,18 +857,150 @@ def layer_features(request, layer_name: str):
     return JsonResponse(geojson)
 
 
-@require_GET
+@require_http_methods(["GET", "POST"])
 @api_login_required
 def achievements(request):
-    if not has_feature_perm(request.user, "core.browse_data"):
+    if request.method == "POST":
+        return create_achievement(request)
+    if not has_feature_perm(request.user, "catalog.view_achievement"):
         return feature_denied_response(request.user)
-    queryset = Achievement.objects.filter(
-        status=Achievement.Status.PUBLISHED
-    ).select_related("category", "related_layer")
+    queryset = Achievement.objects.select_related("category", "related_layer")
+    if not _can_manage_achievements(request.user):
+        queryset = queryset.filter(status=Achievement.Status.PUBLISHED)
+    status = str(request.GET.get("status", "")).strip()
+    if status:
+        if not _can_manage_achievements(request.user):
+            return feature_denied_response(request.user)
+        if status not in Achievement.Status.values:
+            return JsonResponse(
+                {"detail": "status 仅支持 draft、published 或 archived"}, status=400
+            )
+        queryset = queryset.filter(status=status)
     achievements_qs = filter_accessible(queryset, request.user)
     return JsonResponse(
         {"items": [serialize_achievement(item) for item in achievements_qs]}
     )
+
+
+@require_http_methods(["GET", "POST"])
+@api_login_required
+def achievement_detail(request, achievement_id: int):
+    achievement = get_object_or_404(
+        Achievement.objects.select_related(
+            "category", "related_layer"
+        ).prefetch_related("access_groups"),
+        pk=achievement_id,
+    )
+    if not user_can_access(achievement, request.user):
+        return JsonResponse({"detail": "无权访问该成果"}, status=403)
+    if request.method == "GET":
+        if not has_feature_perm(request.user, "catalog.view_achievement"):
+            return feature_denied_response(request.user)
+        if (
+            achievement.status != Achievement.Status.PUBLISHED
+            and not _can_manage_achievements(request.user)
+        ):
+            return JsonResponse({"detail": "成果不存在"}, status=404)
+        log_operation(
+            request.user,
+            "成果管理",
+            "查看成果",
+            "success",
+            achievement.title,
+            request,
+            target_type="achievement",
+            target_id=achievement.id,
+            target_code=achievement.code,
+            target_name=achievement.title,
+        )
+        return JsonResponse(serialize_achievement(achievement))
+
+    payload = _json_payload(request)
+    if isinstance(payload, JsonResponse):
+        return payload
+    if payload.get("action") == "delete":
+        if not has_feature_perm(request.user, "catalog.delete_achievement"):
+            return feature_denied_response(request.user)
+        title = achievement.title
+        target_id = achievement.id
+        target_code = achievement.code
+        achievement.delete()
+        log_operation(
+            request.user,
+            "成果管理",
+            "删除成果",
+            "success",
+            title,
+            request,
+            target_type="achievement",
+            target_id=target_id,
+            target_code=target_code,
+            target_name=title,
+        )
+        return JsonResponse({"detail": "成果已删除"})
+
+    if not has_feature_perm(request.user, "catalog.change_achievement"):
+        return feature_denied_response(request.user)
+    values = _achievement_payload(payload, partial=True, user=request.user)
+    if isinstance(values, JsonResponse):
+        return values
+    for key, value in values.items():
+        if key == "access_group_ids":
+            continue
+        setattr(achievement, key, value)
+    try:
+        achievement.save()
+        if "access_group_ids" in values:
+            achievement.access_groups.set(values["access_group_ids"])
+    except IntegrityError:
+        return JsonResponse({"detail": "成果编码已存在"}, status=400)
+    log_operation(
+        request.user,
+        "成果管理",
+        "更新成果",
+        "success",
+        achievement.title,
+        request,
+        target_type="achievement",
+        target_id=achievement.id,
+        target_code=achievement.code,
+        target_name=achievement.title,
+    )
+    achievement.refresh_from_db()
+    return JsonResponse(serialize_achievement(achievement))
+
+
+@require_POST
+@api_login_required
+def create_achievement(request):
+    if not has_feature_perm(request.user, "catalog.add_achievement"):
+        return feature_denied_response(request.user)
+    payload = _json_payload(request)
+    if isinstance(payload, JsonResponse):
+        return payload
+    values = _achievement_payload(payload, partial=False, user=request.user)
+    if isinstance(values, JsonResponse):
+        return values
+    access_group_ids = values.pop("access_group_ids", None)
+    try:
+        achievement = Achievement.objects.create(**values)
+        if access_group_ids is not None:
+            achievement.access_groups.set(access_group_ids)
+    except IntegrityError:
+        return JsonResponse({"detail": "成果编码已存在"}, status=400)
+    log_operation(
+        request.user,
+        "成果管理",
+        "新增成果",
+        "success",
+        achievement.title,
+        request,
+        target_type="achievement",
+        target_id=achievement.id,
+        target_code=achievement.code,
+        target_name=achievement.title,
+    )
+    return JsonResponse(serialize_achievement(achievement), status=201)
 
 
 @require_GET
@@ -837,19 +1029,125 @@ def search(request):
         for item in filter_accessible(resource_qs, request.user)
     )
 
-    achievement_qs = Achievement.objects.filter(
-        status=Achievement.Status.PUBLISHED,
-        title__icontains=query,
-    ).select_related("category")
+    if has_feature_perm(request.user, "catalog.view_achievement"):
+        achievement_qs = Achievement.objects.filter(
+            status=Achievement.Status.PUBLISHED,
+            title__icontains=query,
+        ).select_related("category")
+        achievements = [
+            serialize_achievement(item)
+            for item in filter_accessible(achievement_qs, request.user)
+        ]
+    else:
+        achievements = []
     return JsonResponse(
         {
             "resources": items,
-            "achievements": [
-                serialize_achievement(item)
-                for item in filter_accessible(achievement_qs, request.user)
-            ],
+            "achievements": achievements,
         }
     )
+
+
+def _can_manage_achievements(user) -> bool:
+    return (
+        has_feature_perm(user, "catalog.add_achievement")
+        or has_feature_perm(user, "catalog.change_achievement")
+        or has_feature_perm(user, "catalog.delete_achievement")
+    )
+
+
+def _achievement_payload(
+    payload: dict[str, Any], *, partial: bool, user
+) -> dict[str, Any] | JsonResponse:
+    values: dict[str, Any] = {}
+    if not partial or "title" in payload:
+        title = str(payload.get("title", "")).strip()
+        if not title:
+            return JsonResponse({"detail": "成果标题不能为空"}, status=400)
+        values["title"] = title
+    if not partial or "code" in payload:
+        code = str(payload.get("code", "")).strip()
+        if not code:
+            return JsonResponse({"detail": "成果编码不能为空"}, status=400)
+        values["code"] = code
+    if "summary" in payload:
+        values["summary"] = str(payload.get("summary") or "").strip()
+    elif not partial:
+        values["summary"] = ""
+    if "source" in payload:
+        values["source"] = str(payload.get("source") or "").strip()
+    elif not partial:
+        values["source"] = ""
+    if "imagePath" in payload:
+        values["image_path"] = str(payload.get("imagePath") or "").strip()
+    elif not partial:
+        values["image_path"] = ""
+    if "attachmentPath" in payload:
+        values["attachment_path"] = str(payload.get("attachmentPath") or "").strip()
+    elif not partial:
+        values["attachment_path"] = ""
+    if "displayOrder" in payload:
+        try:
+            values["display_order"] = int(payload.get("displayOrder"))
+        except (TypeError, ValueError):
+            return JsonResponse({"detail": "displayOrder 必须是整数"}, status=400)
+    elif not partial:
+        values["display_order"] = 100
+    if "status" in payload:
+        status = str(payload.get("status", "")).strip()
+        if status not in Achievement.Status.values:
+            return JsonResponse(
+                {"detail": "status 仅支持 draft、published 或 archived"}, status=400
+            )
+        values["status"] = status
+    elif not partial:
+        values["status"] = Achievement.Status.DRAFT
+    if "categoryId" in payload:
+        category_id = payload.get("categoryId")
+        if category_id in (None, ""):
+            values["category"] = None
+        else:
+            category = DictionaryItem.objects.filter(
+                pk=category_id,
+                dict_type=DictionaryItem.DictType.ACHIEVEMENT_CATEGORY,
+                is_active=True,
+            ).first()
+            if not category:
+                return JsonResponse({"detail": "成果分类不存在"}, status=400)
+            values["category"] = category
+    elif not partial:
+        values["category"] = None
+    if "relatedLayerId" in payload:
+        layer_id = payload.get("relatedLayerId")
+        if layer_id in (None, ""):
+            values["related_layer"] = None
+        else:
+            layer = MapLayer.objects.filter(pk=layer_id, is_active=True).first()
+            if not layer:
+                return JsonResponse({"detail": "关联图层不存在"}, status=400)
+            if not user_can_access(layer, user):
+                return JsonResponse({"detail": "无权访问关联图层"}, status=403)
+            values["related_layer"] = layer
+    elif not partial:
+        values["related_layer"] = None
+    if "accessGroupIds" in payload:
+        group_ids = _group_ids_payload(payload.get("accessGroupIds"))
+        if isinstance(group_ids, JsonResponse):
+            return group_ids
+        values["access_group_ids"] = group_ids
+    return values
+
+
+def _group_ids_payload(value: Any) -> list[int] | JsonResponse:
+    if not isinstance(value, list):
+        return JsonResponse({"detail": "accessGroupIds 必须是数组"}, status=400)
+    try:
+        group_ids = sorted({int(group_id) for group_id in value})
+    except (TypeError, ValueError):
+        return JsonResponse({"detail": "accessGroupIds 必须是整数数组"}, status=400)
+    if Group.objects.filter(id__in=group_ids).count() != len(group_ids):
+        return JsonResponse({"detail": "包含不存在的访问用户组"}, status=400)
+    return group_ids
 
 
 def _registered_vector_layer_names() -> set[str]:

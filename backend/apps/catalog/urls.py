@@ -60,5 +60,10 @@ urlpatterns = [
         name="layer-query",
     ),
     path("achievements/", views.achievements, name="achievements"),
+    path(
+        "achievements/<int:achievement_id>/",
+        views.achievement_detail,
+        name="achievement-detail",
+    ),
     path("search/", views.search, name="search"),
 ]

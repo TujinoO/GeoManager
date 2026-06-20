@@ -85,16 +85,16 @@ backend/apps/
 - 平台功能权限统一基于 Django `Permission + Group`，不引入独立角色表。用户通过所属用户组获得功能权限。
 - `apps.core.permissions.FEATURE_PERMISSIONS` 是统一注册表；后台用户组配置页只同步注册表内权限，保留用户组已有其他模型权限。
 - 功能权限元数据按 `后台权限`、`数据权限`、`人员权限` 三类返回，前端认证授权页按该分组展示和维护。
-- 迁移后初始化会先按注册表统一创建或更新 Django `Permission` 记录，再同步 `超级管理员` 用户组并补齐全部功能权限，同时创建 `普通用户` 用户组并授予浏览数据、查询数据、上传数据、加载矢量图层、加载栅格图层权限；历史 `游客` 用户组会自动改名为 `普通用户`。
+- 迁移后初始化会先按注册表统一创建或更新 Django `Permission` 记录，再同步 `超级管理员` 用户组并补齐全部功能权限，同时创建 `普通用户` 用户组并授予浏览数据、查询数据、新增数据资源、工程/专题增删查改、成果查看、加载矢量图层和加载栅格图层权限；历史 `游客` 用户组会自动改名为 `普通用户`。
 - 管理员新建普通用户和修改普通用户组归属时必须保留至少一个用户组；自助注册用户默认加入 `普通用户` 用户组。
 - 数据资源和图层的 `access_groups` 继续控制“能看见哪些对象”；功能权限控制“能对可见对象做什么”。
 - 首批平台功能权限包括：功能权限配置、数据浏览、数据查询、矢量加载、栅格加载、自定义符号化等后台内部功能权限。
-- 现有导出、数据维护、栅格数据集管理权限也纳入同一用户组配置入口；`core.upload_data` 独立控制后台导入，`catalog.maintain_dataresource` 控制存量数据启停、默认可视化、访问范围配置和删除确认，并兼容允许导入。
+- 数据、工程/专题和成果的增删查改均使用 Django 模型 CRUD 权限并纳入同一用户组配置入口：`catalog.add/view/change/delete_dataresource`、`catalog.add/view/change/delete_workspacescene`、`catalog.add/view/change/delete_achievement`。`catalog.add_dataresource` 控制后台导入，`catalog.change_dataresource` 控制存量数据启停、默认可视化和访问范围配置，`catalog.delete_dataresource` 控制删除确认。历史 `core.upload_data` 和 `catalog.maintain_dataresource` 不再作为 CRUD 接口放行条件。
 - `core.view_data_overview` 独立控制 Dashboard 总数据情况卡片；卡片包含资源总数、启用资源数、数据大小、条目数和类型聚合，超级管理员额外看到按 `DataResource.maintainer` 聚合的上传用户统计。
 - 前后端无权限提示统一为 `当前用户组“xxxx”无权限`；无用户组时显示 `未分组`。
 - `core.load_raster_layer` 控制按默认规则加载栅格和访问 XYZ；`core.custom_symbolization` 只控制用户打开符号化编辑器并提交自定义规则。
 - 栅格渲染 API 使用 `rulesMode` 区分默认/自定义：默认加载不传 `rules` 或传 `rulesMode: "default"`；自定义符号化传 `rulesMode: "custom"` 和 `rules`。
-- 游客访问使用专用系统账号 `guest` 和独立 `游客` 用户组实现，不再复用 `普通用户` 组。`普通用户` 继续用于自助注册和后台创建的常规账号，默认保留上传权限；`游客` 默认只授予浏览、查询、矢量加载和栅格加载权限。`guest` 账号密码不可用，只能通过 `/api/auth/guest-login/` 建立会话，并在后台管理中禁止删除、停用、重置密码、改组或单独授予直授权限。
+- 游客访问使用专用系统账号 `guest` 和独立 `游客` 用户组实现，不再复用 `普通用户` 组。`普通用户` 继续用于自助注册和后台创建的常规账号，默认保留新增数据资源、工程/专题增删查改和成果查看权限；`游客` 默认只授予浏览、查询、成果查看、矢量加载和栅格加载权限。`guest` 账号密码不可用，只能通过 `/api/auth/guest-login/` 建立会话，并在后台管理中禁止删除、停用、重置密码、改组或单独授予直授权限。
 
 ## 前端模块结构
 
@@ -190,7 +190,7 @@ frontend/src/
 - `DataResource.default_visualization` 保存默认可视化方案 JSON；空间资源保存方案时会创建或更新关联 `MapLayer`，同步默认图层名称、默认显隐、既有默认透明度、矢量符号化和栅格规则。前端存量数据配置不再提供单独默认透明度控件；栅格色带和 PNG/XYZ 生成仍由后端栅格服务处理。
 - 存量数据启停、默认可视化保存、访问用户组配置、删除和清单导出均写入 `OperationLog(module="数据管理")`。删除用户导入的矢量/表格资源时清理 GeoPackage 图层或 SQLite 表；栅格等可能复用的研究数据文件保留，仅删除资源登记和关联图层。
 - 用户导入数据的可见范围由 `DataResource.access_groups` 和 `DataResource.maintainer` 共同控制：上传者本人强制可见，`超级管理员` 用户组强制写入访问组，用户选择的 `accessGroupIds` 表示额外可见用户组。选择 `游客` 用户组表示无需账号即可通过游客会话访问，前端上传和存量数据管理都必须提示。历史无上传者且无访问组的数据继续作为平台公共登记资源处理。
-- 存量数据可见范围可由上传者本人或具备 `catalog.maintain_dataresource` 的用户修改；上传者只能执行 `updateAccess`，启停、默认可视化、删除仍需要维护数据资源权限。`GET /api/admin/data/resources/` 对上传用户开放时只返回其本人上传的数据。
+- 存量数据可见范围可由上传者本人或具备 `catalog.change_dataresource` 的用户修改；上传者只能执行 `updateAccess`，启停和默认可视化需要 `catalog.change_dataresource`，删除需要 `catalog.delete_dataresource`。`GET /api/admin/data/resources/` 对仅具备 `catalog.add_dataresource` 的上传用户开放时只返回其本人上传的数据。
 - 操作日志中的模块、动作和说明统一使用中文，只记录用户主动发起的关键行为。认证、用户组、用户、系统配置、存量数据管理、导入预览/校验/提交、数据查询、已加载图层导出、异步导出发起/下载、个人资料更新、个人权限开关更新、栅格渲染样式注册、栅格渲染任务发起、栅格唯一值统计和栅格导入写入 `OperationLog`。目录扫描、启动扫描、后台数据发现和异步任务内部执行进度不写入操作日志，应保留在系统日志、任务消息或 `RasterDataset.progress_log` 中。
 - 系统日志查看复用日志入口权限 `core.view_operation_logs`，接口只读取业务数据根目录 `logs/` 下的 `.log` 与轮转 `.log.N` 文件，按文件名选择并返回尾部文本内容，不暴露服务器绝对路径，也不提供跨目录或整文件下载能力。
 - 操作日志 IP 记录优先识别反向代理传入的 `CF-Connecting-IP`、`True-Client-IP`、`X-Real-IP`、`X-Forwarded-For` 和 `Forwarded` 头，并在候选链路中优先选择公网 IP；没有有效公网 IP 时才回退到首个可识别地址或 `REMOTE_ADDR`。公网部署必须由前置代理传递真实客户端 IP，否则容器内只能看到 Docker 网桥地址。
@@ -496,3 +496,9 @@ CREATE TABLE gpkg_data_columns (
 - 业务逻辑不得直接散落维护内置账号/用户组字符串；需要判断内置组或内置账号时，通过 `apps.core.initialization` 暴露的 helper 和常量引用配置。
 - `超级管理员`、`普通用户`、`游客` 都属于系统内置受保护用户组，不能删除或重命名。`超级管理员` 权限由系统强制补齐；`普通用户` 和 `游客` 的默认权限只在用户组首次创建时应用，后续后台调整应被保留。
 - 前端认证授权页不得通过中文用户组名推断保护规则，应消费后端返回的 `isProtected` 与 `lockedPermissions`。
+
+## 审计目标定位
+
+- `OperationLog` 除自由文本 `message` 外，使用 `target_type`、`target_id`、`target_code`、`target_name` 记录结构化操作目标。数据资源写 `data_resource + DataResource.id/code/name`，工程/专题写 `workspace_scene + WorkspaceScene.id/kind/name`，成果写 `achievement + Achievement.id/code/title`。
+- 删除操作必须在删除数据库对象前缓存目标 ID、编码和名称，并写入结构化目标字段；不能只依赖名称文本追溯。
+- 后台数据资源维护按操作类型授权：`update`、`setStatus`、`saveVisualization` 必须具备 `catalog.change_dataresource`；`updateAccess` 允许资源维护人或具备 `catalog.change_dataresource` 的用户执行；空更新不写成功日志。

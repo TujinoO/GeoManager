@@ -87,7 +87,19 @@
           "canMaintainData": true,
           "canManageRasterData": true,
           "canUploadData": true,
-          "canViewDataOverview": true
+          "canViewDataOverview": true,
+          "canViewDataResources": true,
+          "canCreateDataResources": true,
+          "canChangeDataResources": true,
+          "canDeleteDataResources": true,
+          "canViewWorkspaces": true,
+          "canCreateWorkspaces": true,
+          "canChangeWorkspaces": true,
+          "canDeleteWorkspaces": true,
+          "canViewAchievements": true,
+          "canCreateAchievements": true,
+          "canChangeAchievements": true,
+          "canDeleteAchievements": true
         },
         "groupIds": [
           1
@@ -117,7 +129,7 @@
           "catalog.export_dataresource",
           "catalog.maintain_dataresource",
           "raster.manage_rasterdataset",
-          "core.upload_data",
+          "catalog.add_dataresource",
           "core.view_data_overview"
         ],
         "operationLogGroupIds": [
@@ -147,7 +159,7 @@
           "catalog.export_dataresource",
           "catalog.maintain_dataresource",
           "raster.manage_rasterdataset",
-          "core.upload_data",
+          "catalog.add_dataresource",
           "core.view_data_overview"
         ]
       }
@@ -193,7 +205,19 @@
           "canMaintainData": false,
           "canManageRasterData": false,
           "canUploadData": true,
-          "canViewDataOverview": false
+          "canViewDataOverview": false,
+          "canViewDataResources": false,
+          "canCreateDataResources": true,
+          "canChangeDataResources": false,
+          "canDeleteDataResources": false,
+          "canViewWorkspaces": true,
+          "canCreateWorkspaces": true,
+          "canChangeWorkspaces": true,
+          "canDeleteWorkspaces": true,
+          "canViewAchievements": true,
+          "canCreateAchievements": false,
+          "canChangeAchievements": false,
+          "canDeleteAchievements": false
         },
         "groupIds": [
           2
@@ -205,7 +229,7 @@
           "core.query_data",
           "core.load_vector_layer",
           "core.load_raster_layer",
-          "core.upload_data"
+          "catalog.add_dataresource"
         ],
         "operationLogGroupIds": [],
         "groupPermissions": [
@@ -213,7 +237,7 @@
           "core.query_data",
           "core.load_vector_layer",
           "core.load_raster_layer",
-          "core.upload_data"
+          "catalog.add_dataresource"
         ]
       }
     }
@@ -263,7 +287,19 @@
           "canMaintainData": true,
           "canManageRasterData": true,
           "canUploadData": true,
-          "canViewDataOverview": true
+          "canViewDataOverview": true,
+          "canViewDataResources": true,
+          "canCreateDataResources": true,
+          "canChangeDataResources": true,
+          "canDeleteDataResources": true,
+          "canViewWorkspaces": true,
+          "canCreateWorkspaces": true,
+          "canChangeWorkspaces": true,
+          "canDeleteWorkspaces": true,
+          "canViewAchievements": true,
+          "canCreateAchievements": true,
+          "canChangeAchievements": true,
+          "canDeleteAchievements": true
         },
         "groupIds": [
           1
@@ -276,7 +312,7 @@
           "core.query_data",
           "core.load_vector_layer",
           "core.load_raster_layer",
-          "core.upload_data",
+          "catalog.add_dataresource",
           "core.view_data_overview"
         ],
         "operationLogGroupIds": [
@@ -289,7 +325,7 @@
           "core.query_data",
           "core.load_vector_layer",
           "core.load_raster_layer",
-          "core.upload_data",
+          "catalog.add_dataresource",
           "core.view_data_overview"
         ]
       }

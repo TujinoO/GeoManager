@@ -138,8 +138,8 @@ flowchart TD
 | F07 | 用户设置 / 个人中心 | `frontend/src/admin/AdminProfilePage.tsx` | 个人资料、头像、密码、主动关闭权限 | `/api/admin/profile/`、`/api/admin/profile/update/`、`/api/admin/profile/password/`、`/api/admin/profile/permissions/` | 后台用户可访问 | 信息结构优化、权限可视化、安全状态 | 未开始 |
 | F08 | 操作日志 | `frontend/src/admin/AdminOperationLogsPage.tsx` | 审计日志筛选、分页、导出、风险定位 | `/api/admin/operation-logs/` | 需 `core.view_operation_logs`，范围按日志权限裁剪 | 表格效率优先，增加趋势和异常摘要 | 未开始 |
 | F09 | 系统设置 | `frontend/src/admin/AdminSystemSettingsPage.tsx` | 系统名称、注册开关、栅格配置、运行配置查看 | `/api/admin/settings/` | 需 `core.manage_system_settings` | 配置健康、缓存/脚本状态展示 | 未开始 |
-| F10 | 存量数据管理 | `frontend/src/admin/AdminDataInventoryPage.tsx` | 数据清单、启停、访问范围、默认可视化、删除确认、清单导出 | `/api/admin/data/resources/`、`/api/admin/data/resources/{id}/`、`/api/admin/data/resources/export/` | 需 `catalog.maintain_dataresource` 或导出权限 | 高密度表格 + 统计卡 + 右侧抽屉 | 未开始 |
-| F11 | 数据导入 | `frontend/src/admin/AdminDataImportPage.tsx` | 文件选择、预检、校验、字段元数据、提交入库 | `/api/catalog/import/preview/`、`/api/catalog/import/validate/`、`/api/catalog/import/commit/` | 需 `catalog.maintain_dataresource` | 步骤化导入、校验结果可视化、错误定位 | 未开始 |
+| F10 | 存量数据管理 | `frontend/src/admin/AdminDataInventoryPage.tsx` | 数据清单、启停、访问范围、默认可视化、删除确认、清单导出 | `/api/admin/data/resources/`、`/api/admin/data/resources/{id}/`、`/api/admin/data/resources/export/` | 查看需 `catalog.view_dataresource`，编辑需 `catalog.change_dataresource`，删除需 `catalog.delete_dataresource`，导出需 `catalog.export_dataresource` | 高密度表格 + 统计卡 + 右侧抽屉 | 未开始 |
+| F11 | 数据导入 | `frontend/src/admin/AdminDataImportPage.tsx` | 文件选择、预检、校验、字段元数据、提交入库 | `/api/catalog/import/preview/`、`/api/catalog/import/validate/`、`/api/catalog/import/commit/` | 需 `catalog.add_dataresource` | 步骤化导入、校验结果可视化、错误定位 | 未开始 |
 | F12 | 用户管理 | `frontend/src/admin/AdminAuthPage.tsx` | 用户列表、新建、启停、删除、重置密码、分组、直授权限 | `/api/users/`、`/api/users/{userId}/...`、`/api/groups/` | 需 `core.manage_auth`；新建需 `core.create_user` | 用户状态、角色分布、权限影响提示 | 未开始 |
 | F13 | 用户组权限 | `frontend/src/admin/AdminAuthPage.tsx` | 用户组列表、创建、修改、权限矩阵、保护组提示 | `/api/groups/`、`/api/groups/{groupId}/` | 需 `core.manage_auth` 和部分功能权限配置权限 | 权限矩阵、模块覆盖率、风险权限提示 | 未开始 |
 

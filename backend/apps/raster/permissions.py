@@ -7,5 +7,5 @@ from apps.core.permissions import has_feature_perm
 
 def can_manage_raster_data(user: AbstractBaseUser) -> bool:
     return has_feature_perm(user, "raster.manage_raster_dataset") or has_feature_perm(
-        user, "catalog.maintain_dataresource"
+        user, "catalog.change_dataresource"
     )

@@ -423,9 +423,25 @@ export type UserPermissions = {
      */
     canQueryData: boolean;
     /**
-     * 是否可上传数据；不同于维护存量数据权限，不包含删除、启停或默认可视化配置
+     * 是否可新增数据资源，对应 `catalog.add_dataresource`
      */
     canUploadData: boolean;
+    /**
+     * 是否可查看存量数据资源，对应 `catalog.view_dataresource`
+     */
+    canViewDataResources: boolean;
+    /**
+     * 是否可新增数据资源，对应 `catalog.add_dataresource`
+     */
+    canCreateDataResources: boolean;
+    /**
+     * 是否可编辑数据资源，对应 `catalog.change_dataresource`
+     */
+    canChangeDataResources: boolean;
+    /**
+     * 是否可删除数据资源，对应 `catalog.delete_dataresource`
+     */
+    canDeleteDataResources: boolean;
     /**
      * 是否可加载矢量图层
      */
@@ -443,9 +459,41 @@ export type UserPermissions = {
      */
     canExportData: boolean;
     /**
-     * 是否可维护数据资源
+     * 是否具备编辑或删除数据资源能力，用于兼容现有前端管理入口判断
      */
     canMaintainData: boolean;
+    /**
+     * 是否可查看工程和专题，对应 `catalog.view_workspacescene`
+     */
+    canViewWorkspaces: boolean;
+    /**
+     * 是否可新增工程和专题，对应 `catalog.add_workspacescene`
+     */
+    canCreateWorkspaces: boolean;
+    /**
+     * 是否可编辑工程和专题，对应 `catalog.change_workspacescene`
+     */
+    canChangeWorkspaces: boolean;
+    /**
+     * 是否可删除工程和专题，对应 `catalog.delete_workspacescene`
+     */
+    canDeleteWorkspaces: boolean;
+    /**
+     * 是否可查看成果，对应 `catalog.view_achievement`
+     */
+    canViewAchievements: boolean;
+    /**
+     * 是否可新增成果，对应 `catalog.add_achievement`
+     */
+    canCreateAchievements: boolean;
+    /**
+     * 是否可编辑成果，对应 `catalog.change_achievement`
+     */
+    canChangeAchievements: boolean;
+    /**
+     * 是否可删除成果，对应 `catalog.delete_achievement`
+     */
+    canDeleteAchievements: boolean;
     /**
      * 是否可管理栅格数据集
      */
@@ -565,6 +613,22 @@ export type AdminOperationLog = {
      * 操作结果
      */
     result: 'success' | 'warning' | 'failed';
+    /**
+     * 结构化操作目标类型；数据资源为 data_resource，工程/专题为 workspace_scene，成果为 achievement；无明确单一目标时为空字符串
+     */
+    targetType: string;
+    /**
+     * 操作目标的后台数据库 ID；删除后仍保留删除前 ID，无明确单一目标时为 null
+     */
+    targetId: number | null;
+    /**
+     * 操作目标编码；数据资源和成果为 code，工程/专题为 kind，无编码时为空字符串
+     */
+    targetCode: string;
+    /**
+     * 操作目标名称；删除后仍保留删除前名称，无明确单一目标时为空字符串
+     */
+    targetName: string;
     /**
      * 客户端 IP 地址，为空字符串表示未记录
      */
@@ -1403,7 +1467,7 @@ export type AdminDataResource = {
      */
     accessGroups: Array<AdminDataResourceAccessGroup>;
     /**
-     * 当前用户是否可修改该资源的可见范围；上传者本人或具备 `catalog.maintain_dataresource` 时为 true
+     * 当前用户是否可修改该资源的可见范围；上传者本人或具备 `catalog.change_dataresource` 时为 true
      */
     canManageAccess: boolean;
     /**
@@ -1778,6 +1842,57 @@ export type Achievement = {
      * 最后更新时间
      */
     updatedAt: string;
+};
+
+export type AchievementWriteRequest = {
+    /**
+     * 操作类型；提交 delete 时删除成果，其余情况下按字段更新或创建成果
+     */
+    action?: 'delete';
+    /**
+     * 成果标题；新增时必填
+     */
+    title?: string;
+    /**
+     * 成果编码；新增时必填且唯一
+     */
+    code?: string;
+    /**
+     * 成果分类 ID；为空表示不分类
+     */
+    categoryId?: number | null;
+    /**
+     * 成果摘要或说明
+     */
+    summary?: string;
+    /**
+     * 成果来源
+     */
+    source?: string;
+    /**
+     * 成果图片相对路径
+     */
+    imagePath?: string;
+    /**
+     * 成果附件相对路径
+     */
+    attachmentPath?: string;
+    /**
+     * 关联图层 ID；为空表示不关联图层
+     */
+    relatedLayerId?: number | null;
+    /**
+     * 可访问成果的用户组 ID；空数组表示不限制访问用户组
+     */
+    accessGroupIds?: Array<number>;
+    /**
+     * 展示排序值
+     */
+    displayOrder?: number;
+    /**
+     * 成果发布状态
+     */
+    status?: 'draft' | 'published' | 'archived';
 };
 
 export type RasterDataset = {
@@ -3260,6 +3375,10 @@ export type GetAdminProfileErrors = {
      * 未认证
      */
     401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
 };
 
 export type GetAdminProfileError = GetAdminProfileErrors[keyof GetAdminProfileErrors];
@@ -3393,7 +3512,15 @@ export type ListAdminOperationLogsData = {
          */
         result?: 'success' | 'warning' | 'failed';
         /**
-         * 跨用户、模块、动作和摘要的关键词筛选
+         * 按结构化操作目标类型筛选
+         */
+        targetType?: 'data_resource' | 'workspace_scene' | 'achievement';
+        /**
+         * 按结构化操作目标后台 ID 精确筛选
+         */
+        targetId?: number;
+        /**
+         * 跨用户、模块、动作、操作目标和摘要的关键词筛选
          */
         keyword?: string;
         /**
@@ -4332,6 +4459,10 @@ export type GetCatalogWorkspaceErrors = {
      */
     401: ErrorResponse;
     /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
      * 资源不存在
      */
     404: ErrorResponse;
@@ -4369,6 +4500,10 @@ export type UpdateCatalogWorkspaceErrors = {
      * 未认证
      */
     401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
     /**
      * 资源不存在
      */
@@ -4940,7 +5075,12 @@ export type QueryLayerResponse = QueryLayerResponses[keyof QueryLayerResponses];
 export type GetAchievementsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * 成果状态筛选；仅具备成果管理权限时可用
+         */
+        status?: 'draft' | 'published' | 'archived';
+    };
     url: '/api/achievements/';
 };
 
@@ -4965,6 +5105,119 @@ export type GetAchievementsResponses = {
 };
 
 export type GetAchievementsResponse = GetAchievementsResponses[keyof GetAchievementsResponses];
+
+export type CreateAchievementData = {
+    body: AchievementWriteRequest;
+    path?: never;
+    query?: never;
+    url: '/api/achievements/';
+};
+
+export type CreateAchievementErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type CreateAchievementError = CreateAchievementErrors[keyof CreateAchievementErrors];
+
+export type CreateAchievementResponses = {
+    /**
+     * 新增成功
+     */
+    201: Achievement;
+};
+
+export type CreateAchievementResponse = CreateAchievementResponses[keyof CreateAchievementResponses];
+
+export type GetAchievementData = {
+    body?: never;
+    path: {
+        /**
+         * 成果 ID
+         */
+        achievementId: number;
+    };
+    query?: never;
+    url: '/api/achievements/{achievementId}/';
+};
+
+export type GetAchievementErrors = {
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type GetAchievementError = GetAchievementErrors[keyof GetAchievementErrors];
+
+export type GetAchievementResponses = {
+    /**
+     * 成功
+     */
+    200: Achievement;
+};
+
+export type GetAchievementResponse = GetAchievementResponses[keyof GetAchievementResponses];
+
+export type UpdateAchievementData = {
+    body: AchievementWriteRequest;
+    path: {
+        /**
+         * 成果 ID
+         */
+        achievementId: number;
+    };
+    query?: never;
+    url: '/api/achievements/{achievementId}/';
+};
+
+export type UpdateAchievementErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateAchievementError = UpdateAchievementErrors[keyof UpdateAchievementErrors];
+
+export type UpdateAchievementResponses = {
+    /**
+     * 操作成功
+     */
+    200: Achievement | DetailResponse;
+};
+
+export type UpdateAchievementResponse = UpdateAchievementResponses[keyof UpdateAchievementResponses];
 
 export type SearchData = {
     body?: never;

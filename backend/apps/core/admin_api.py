@@ -731,9 +731,11 @@ def admin_settings(request):
 @api_login_required
 def admin_data_resources(request):
     if not (
-        has_feature_perm(request.user, "catalog.maintain_dataresource")
+        has_feature_perm(request.user, "catalog.view_dataresource")
+        or has_feature_perm(request.user, "catalog.change_dataresource")
+        or has_feature_perm(request.user, "catalog.delete_dataresource")
         or has_feature_perm(request.user, "catalog.export_dataresource")
-        or has_feature_perm(request.user, "core.upload_data")
+        or has_feature_perm(request.user, "catalog.add_dataresource")
     ):
         return feature_denied_response(request.user)
     queryset = _filter_admin_data_resources(
@@ -743,7 +745,9 @@ def admin_data_resources(request):
         request.GET,
     )
     if not (
-        has_feature_perm(request.user, "catalog.maintain_dataresource")
+        has_feature_perm(request.user, "catalog.view_dataresource")
+        or has_feature_perm(request.user, "catalog.change_dataresource")
+        or has_feature_perm(request.user, "catalog.delete_dataresource")
         or has_feature_perm(request.user, "catalog.export_dataresource")
     ):
         queryset = queryset.filter(maintainer=request.user)
@@ -787,24 +791,25 @@ def admin_data_resource_detail(request, resource_id: int):
         return JsonResponse({"detail": "数据资源不存在"}, status=404)
 
     action = str(payload.get("action", "update")).strip()
-    can_maintain = has_feature_perm(request.user, "catalog.maintain_dataresource")
-    can_update_access = can_maintain or resource.maintainer_id == request.user.id
+    can_change = has_feature_perm(request.user, "catalog.change_dataresource")
+    can_delete = has_feature_perm(request.user, "catalog.delete_dataresource")
+    can_update_access = can_change or resource.maintainer_id == request.user.id
     if action == "delete":
-        if not can_maintain:
+        if not can_delete:
             return feature_denied_response(request.user)
         return _delete_admin_data_resource(request, resource, payload)
     if action not in {"update", "setStatus", "saveVisualization", "updateAccess"}:
         return JsonResponse({"detail": "不支持的数据资源操作"}, status=400)
-    if action in {"setStatus", "saveVisualization"} and not can_maintain:
-        return feature_denied_response(request.user)
-    if action == "update" and not can_maintain:
-        disallowed_fields = {"status", "visualization"} & set(payload)
-        if disallowed_fields:
+    if action == "updateAccess":
+        if not can_update_access:
             return feature_denied_response(request.user)
-    if "accessGroupIds" in payload and not can_update_access:
+    elif not can_change:
+        return feature_denied_response(request.user)
+    if "accessGroupIds" in payload and not (can_change or can_update_access):
         return feature_denied_response(request.user)
 
     update_fields = []
+    changed_access = False
     if action in {"update", "setStatus"} and "status" in payload:
         status = str(payload.get("status", "")).strip()
         if status not in DataResource.Status.values:
@@ -825,6 +830,7 @@ def admin_data_resource_detail(request, resource_id: int):
             set_resource_access_groups(resource, group_ids)
         except ImportDataError as exc:
             return JsonResponse({"detail": str(exc)}, status=400)
+        changed_access = True
 
     if action in {"update", "saveVisualization"} and "visualization" in payload:
         visualization = payload.get("visualization")
@@ -842,6 +848,9 @@ def admin_data_resource_detail(request, resource_id: int):
         update_fields.append("updated_at")
         resource.save(update_fields=sorted(set(update_fields)))
 
+    if not update_fields and not changed_access:
+        return JsonResponse({"detail": "没有可更新的数据资源字段"}, status=400)
+
     log_operation(
         request.user,
         "数据管理",
@@ -849,6 +858,10 @@ def admin_data_resource_detail(request, resource_id: int):
         "success",
         resource.name,
         request,
+        target_type="data_resource",
+        target_id=resource.id,
+        target_code=resource.code,
+        target_name=resource.name,
     )
     resource.refresh_from_db()
     updated_resource = (
@@ -1238,7 +1251,7 @@ def _serialize_admin_data_resource(
             _serialize_access_group(group) for group in resource.access_groups.all()
         ],
         "canManageAccess": bool(
-            has_feature_perm(request_user, "catalog.maintain_dataresource")
+            has_feature_perm(request_user, "catalog.change_dataresource")
             or resource.maintainer_id == getattr(request_user, "id", None)
         ),
         "maintainer": maintainer,
@@ -1389,6 +1402,8 @@ def _delete_admin_data_resource(
         return JsonResponse({"detail": "删除确认名称与数据资源名称不一致"}, status=400)
 
     name = resource.name
+    target_id = resource.id
+    target_code = resource.code
     storage_message = _delete_imported_resource_storage(resource)
     MapLayer.objects.filter(data_resource=resource).delete()
     resource.delete()
@@ -1399,6 +1414,10 @@ def _delete_admin_data_resource(
         "success",
         f"{name}；{storage_message}",
         request,
+        target_type="data_resource",
+        target_id=target_id,
+        target_code=target_code,
+        target_name=name,
     )
     return JsonResponse({"detail": "数据资源已删除"})
 
@@ -1951,6 +1970,10 @@ def _serialize_operation_log(log: OperationLog) -> dict[str, Any]:
         "module": log.module,
         "action": log.action,
         "result": log.status,
+        "targetType": log.target_type,
+        "targetId": log.target_id,
+        "targetCode": log.target_code,
+        "targetName": log.target_name,
         "ipAddress": log.ip_address or "",
         "summary": log.message,
     }
@@ -2004,6 +2027,8 @@ def _filter_operation_logs(queryset, params):
     module = str(params.get("module", "")).strip()
     action = str(params.get("action", "")).strip()
     result = str(params.get("result", "")).strip()
+    target_type = str(params.get("targetType", "")).strip()
+    target_id = str(params.get("targetId", "")).strip()
     keyword = str(params.get("keyword", "")).strip()
     start_time = _parse_query_datetime(params.get("startTime"), end_of_day=False)
     end_time = _parse_query_datetime(params.get("endTime"), end_of_day=True)
@@ -2025,6 +2050,13 @@ def _filter_operation_logs(queryset, params):
         queryset = queryset.filter(action__icontains=action)
     if result:
         queryset = queryset.filter(status=result)
+    if target_type:
+        queryset = queryset.filter(target_type=target_type)
+    if target_id:
+        try:
+            queryset = queryset.filter(target_id=int(target_id))
+        except ValueError:
+            return queryset.none()
     if keyword:
         queryset = queryset.filter(
             Q(user__username__icontains=keyword)
@@ -2032,6 +2064,9 @@ def _filter_operation_logs(queryset, params):
             | Q(user__last_name__icontains=keyword)
             | Q(module__icontains=keyword)
             | Q(action__icontains=keyword)
+            | Q(target_type__icontains=keyword)
+            | Q(target_code__icontains=keyword)
+            | Q(target_name__icontains=keyword)
             | Q(message__icontains=keyword)
         )
     if start_time:

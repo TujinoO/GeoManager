@@ -129,6 +129,18 @@ def serialize_user(user):
     groups = list(user.groups.values_list("name", flat=True))
     group_ids = list(user.groups.values_list("id", flat=True))
     profile = _profile_values(user)
+    can_create_data = has_feature_perm(user, "catalog.add_dataresource")
+    can_view_data = has_feature_perm(user, "catalog.view_dataresource")
+    can_change_data = has_feature_perm(user, "catalog.change_dataresource")
+    can_delete_data = has_feature_perm(user, "catalog.delete_dataresource")
+    can_create_workspace = has_feature_perm(user, "catalog.add_workspacescene")
+    can_view_workspace = has_feature_perm(user, "catalog.view_workspacescene")
+    can_change_workspace = has_feature_perm(user, "catalog.change_workspacescene")
+    can_delete_workspace = has_feature_perm(user, "catalog.delete_workspacescene")
+    can_create_achievement = has_feature_perm(user, "catalog.add_achievement")
+    can_view_achievement = has_feature_perm(user, "catalog.view_achievement")
+    can_change_achievement = has_feature_perm(user, "catalog.change_achievement")
+    can_delete_achievement = has_feature_perm(user, "catalog.delete_achievement")
     permissions = {
         "canAccessAdmin": True,
         "canManageFeaturePermissions": has_feature_perm(
@@ -170,16 +182,28 @@ def serialize_user(user):
         "canViewDataOverview": has_feature_perm(user, "core.view_data_overview"),
         "canBrowseData": has_feature_perm(user, "core.browse_data"),
         "canQueryData": has_feature_perm(user, "core.query_data"),
-        "canUploadData": has_feature_perm(user, "core.upload_data"),
+        "canUploadData": can_create_data,
+        "canViewDataResources": can_view_data,
+        "canCreateDataResources": can_create_data,
+        "canChangeDataResources": can_change_data,
+        "canDeleteDataResources": can_delete_data,
         "canLoadVectorLayer": has_feature_perm(user, "core.load_vector_layer"),
         "canLoadRasterLayer": has_feature_perm(user, "core.load_raster_layer"),
         "canUseCustomSymbolization": has_feature_perm(
             user, "core.custom_symbolization"
         ),
         "canExportData": has_feature_perm(user, "catalog.export_dataresource"),
-        "canMaintainData": has_feature_perm(user, "catalog.maintain_dataresource"),
+        "canMaintainData": can_change_data or can_delete_data,
+        "canViewWorkspaces": can_view_workspace,
+        "canCreateWorkspaces": can_create_workspace,
+        "canChangeWorkspaces": can_change_workspace,
+        "canDeleteWorkspaces": can_delete_workspace,
+        "canViewAchievements": can_view_achievement,
+        "canCreateAchievements": can_create_achievement,
+        "canChangeAchievements": can_change_achievement,
+        "canDeleteAchievements": can_delete_achievement,
         "canManageRasterData": has_feature_perm(user, "raster.manage_raster_dataset")
-        or has_feature_perm(user, "catalog.maintain_dataresource"),
+        or can_change_data,
     }
     return {
         "id": user.id,

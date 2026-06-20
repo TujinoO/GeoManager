@@ -10,7 +10,7 @@ from django.test import TestCase
 from shapely.geometry import Point
 
 from apps.audit.models import OperationLog
-from apps.catalog.models import DataResource, MapLayer, WorkspaceScene
+from apps.catalog.models import Achievement, DataResource, MapLayer, WorkspaceScene
 from apps.catalog.services import scan_catalog_sources, scan_vector_geopackage
 from apps.core.initialization import (
     GUEST_GROUP_NAME,
@@ -362,6 +362,22 @@ class CatalogBusinessScenarioTests(TestCase):
                 action="查询数据资源",
                 status=OperationLog.Status.SUCCESS,
                 message__contains="返回 2 条",
+                target_type="data_resource",
+                target_id=self.resource.id,
+                target_code=self.resource.code,
+                target_name=self.resource.name,
+            ).exists()
+        )
+        self.assertTrue(
+            OperationLog.objects.filter(
+                user=self.researcher,
+                module="数据查询",
+                action="查看数据资源",
+                status=OperationLog.Status.SUCCESS,
+                target_type="data_resource",
+                target_id=self.resource.id,
+                target_code=self.resource.code,
+                target_name=self.resource.name,
             ).exists()
         )
 
@@ -502,6 +518,13 @@ class WorkspaceSceneApiTests(TestCase):
         self.user = get_user_model().objects.create_user(
             username="workspace-owner", password="pass12345"
         )
+        grant(
+            self.user,
+            ("catalog", "add_workspacescene"),
+            ("catalog", "view_workspacescene"),
+            ("catalog", "change_workspacescene"),
+            ("catalog", "delete_workspacescene"),
+        )
         self.client.force_login(self.user)
 
     def test_create_list_load_update_and_delete_workspace_scene(self):
@@ -543,6 +566,10 @@ class WorkspaceSceneApiTests(TestCase):
                 action="保存工程",
                 status=OperationLog.Status.SUCCESS,
                 message="现场判读工程",
+                target_type="workspace_scene",
+                target_id=created["id"],
+                target_code="project",
+                target_name="现场判读工程",
             ).exists()
         )
 
@@ -587,6 +614,10 @@ class WorkspaceSceneApiTests(TestCase):
                 action="更新工程",
                 status=OperationLog.Status.SUCCESS,
                 message="更新后的工程",
+                target_type="workspace_scene",
+                target_id=created["id"],
+                target_code="project",
+                target_name="更新后的工程",
             ).exists()
         )
 
@@ -605,6 +636,10 @@ class WorkspaceSceneApiTests(TestCase):
                 action="删除工程",
                 status=OperationLog.Status.SUCCESS,
                 message="更新后的工程",
+                target_type="workspace_scene",
+                target_id=created["id"],
+                target_code="project",
+                target_name="更新后的工程",
             ).exists()
         )
 
@@ -703,7 +738,7 @@ class DataImportApiTests(TestCase):
         self.user = get_user_model().objects.create_user(
             username="importer", password="pass12345"
         )
-        grant(self.user, ("catalog", "maintain_dataresource"))
+        grant(self.user, ("catalog", "add_dataresource"))
         self.client.force_login(self.user)
         self.vector_path = vector_geopackage_path()
         self.table_path = table_data_path("data.sqlite")
@@ -1043,9 +1078,9 @@ class DataImportApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.json()["importedRows"], 2)
 
-    def test_upload_data_permission_can_import_without_maintain_permission(self):
+    def test_add_dataresource_permission_can_import(self):
         self.user.user_permissions.clear()
-        grant(self.user, ("core", "upload_data"))
+        grant(self.user, ("catalog", "add_dataresource"))
 
         response = self.client.post(
             "/api/catalog/import/commit/",
@@ -1343,6 +1378,140 @@ class ExportApiTests(TestCase):
         }
 
 
+class AchievementApiTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="achievement-manager", password="pass12345"
+        )
+        self.client.force_login(self.user)
+
+    def test_achievements_require_view_permission(self):
+        Achievement.objects.create(
+            title="公开保护成果",
+            code="public-achievement",
+            status=Achievement.Status.PUBLISHED,
+        )
+
+        response = self.client.get("/api/achievements/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_view_permission_lists_published_accessible_achievements_only(self):
+        grant(self.user, ("catalog", "view_achievement"))
+        Achievement.objects.create(
+            title="公开保护成果",
+            code="public-achievement",
+            status=Achievement.Status.PUBLISHED,
+        )
+        Achievement.objects.create(
+            title="草稿成果",
+            code="draft-achievement",
+            status=Achievement.Status.DRAFT,
+        )
+
+        response = self.client.get("/api/achievements/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [item["title"] for item in response.json()["items"]], ["公开保护成果"]
+        )
+
+    def test_create_update_and_delete_achievement_use_separate_permissions(self):
+        grant(
+            self.user,
+            ("catalog", "add_achievement"),
+            ("catalog", "view_achievement"),
+            ("catalog", "change_achievement"),
+            ("catalog", "delete_achievement"),
+        )
+
+        create_response = self.client.post(
+            "/api/achievements/",
+            data=json.dumps(
+                {
+                    "title": "胡杨林修复成果",
+                    "code": "poplar-restoration-result",
+                    "summary": "年度修复成果汇总",
+                    "source": "生态保护项目组",
+                    "status": "draft",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+        created = create_response.json()
+        self.assertEqual(created["title"], "胡杨林修复成果")
+        self.assertTrue(
+            OperationLog.objects.filter(
+                user=self.user,
+                module="成果管理",
+                action="新增成果",
+                target_type="achievement",
+                target_id=created["id"],
+                target_code="poplar-restoration-result",
+                target_name="胡杨林修复成果",
+            ).exists()
+        )
+
+        update_response = self.client.post(
+            f"/api/achievements/{created['id']}/",
+            data=json.dumps({"status": "published", "displayOrder": 12}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["status"], "published")
+        self.assertEqual(update_response.json()["displayOrder"], 12)
+        self.assertTrue(
+            OperationLog.objects.filter(
+                user=self.user,
+                module="成果管理",
+                action="更新成果",
+                target_type="achievement",
+                target_id=created["id"],
+                target_code="poplar-restoration-result",
+                target_name="胡杨林修复成果",
+            ).exists()
+        )
+
+        delete_response = self.client.post(
+            f"/api/achievements/{created['id']}/",
+            data=json.dumps({"action": "delete"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertFalse(Achievement.objects.filter(pk=created["id"]).exists())
+        self.assertTrue(
+            OperationLog.objects.filter(
+                user=self.user,
+                module="成果管理",
+                action="删除成果",
+                target_type="achievement",
+                target_id=created["id"],
+                target_code="poplar-restoration-result",
+                target_name="胡杨林修复成果",
+            ).exists()
+        )
+
+    def test_update_achievement_requires_change_permission(self):
+        grant(self.user, ("catalog", "view_achievement"))
+        achievement = Achievement.objects.create(
+            title="公开保护成果",
+            code="public-achievement",
+            status=Achievement.Status.PUBLISHED,
+        )
+
+        response = self.client.post(
+            f"/api/achievements/{achievement.id}/",
+            data=json.dumps({"summary": "更新"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+
 class AdminDataResourceApiTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(
@@ -1350,7 +1519,9 @@ class AdminDataResourceApiTests(TestCase):
         )
         grant(
             self.user,
-            ("catalog", "maintain_dataresource"),
+            ("catalog", "view_dataresource"),
+            ("catalog", "change_dataresource"),
+            ("catalog", "delete_dataresource"),
             ("catalog", "export_dataresource"),
             ("core", "browse_data"),
         )
@@ -1399,7 +1570,12 @@ class AdminDataResourceApiTests(TestCase):
         self.assertNotIn(self.resource.id, regular_ids)
         self.assertTrue(
             OperationLog.objects.filter(
-                module="数据管理", action="切换数据状态"
+                module="数据管理",
+                action="切换数据状态",
+                target_type="data_resource",
+                target_id=self.resource.id,
+                target_code=self.resource.code,
+                target_name=self.resource.name,
             ).exists()
         )
 
@@ -1460,7 +1636,12 @@ class AdminDataResourceApiTests(TestCase):
         self.assertFalse(DataResource.objects.filter(pk=self.resource.id).exists())
         self.assertTrue(
             OperationLog.objects.filter(
-                module="数据管理", action="删除存量数据"
+                module="数据管理",
+                action="删除存量数据",
+                target_type="data_resource",
+                target_id=self.resource.id,
+                target_code=self.resource.code,
+                target_name=self.resource.name,
             ).exists()
         )
 
@@ -1481,7 +1662,7 @@ class AdminDataResourceApiTests(TestCase):
         other = get_user_model().objects.create_user(
             username="other-uploader", password="pass12345"
         )
-        grant(uploader, ("core", "upload_data"))
+        grant(uploader, ("catalog", "add_dataresource"))
         ensure_guest_user()
         _, superadmin_group = ensure_superadmin_defaults(create_account=False)
         guest_group = Group.objects.get(name=GUEST_GROUP_NAME)
@@ -1535,6 +1716,41 @@ class AdminDataResourceApiTests(TestCase):
             {guest_group.id, superadmin_group.id},
         )
         self.assertEqual(status_response.status_code, 403)
+
+    def test_data_resource_update_requires_change_permission(self):
+        user = get_user_model().objects.create_user(
+            username="no-data-change", password="pass12345"
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            f"/api/admin/data/resources/{self.resource.id}/",
+            data=json.dumps({"action": "update"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(
+            OperationLog.objects.filter(
+                user=user,
+                module="数据管理",
+                action="更新存量数据",
+                target_id=self.resource.id,
+            ).exists()
+        )
+
+    def test_data_resource_update_rejects_empty_change(self):
+        before_count = OperationLog.objects.count()
+
+        response = self.client.post(
+            f"/api/admin/data/resources/{self.resource.id}/",
+            data=json.dumps({"action": "update"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "没有可更新的数据资源字段")
+        self.assertEqual(OperationLog.objects.count(), before_count)
 
 
 def grant(user, *specs):

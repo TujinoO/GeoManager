@@ -38,7 +38,19 @@
           "canMaintainData": true,
           "canManageRasterData": true,
           "canUploadData": true,
-          "canViewDataOverview": true
+          "canViewDataOverview": true,
+          "canViewDataResources": true,
+          "canCreateDataResources": true,
+          "canChangeDataResources": true,
+          "canDeleteDataResources": true,
+          "canViewWorkspaces": true,
+          "canCreateWorkspaces": true,
+          "canChangeWorkspaces": true,
+          "canDeleteWorkspaces": true,
+          "canViewAchievements": true,
+          "canCreateAchievements": true,
+          "canChangeAchievements": true,
+          "canDeleteAchievements": true
         },
         "groupIds": [
           1
@@ -49,7 +61,7 @@
           "core.manage_auth",
           "core.browse_data",
           "core.query_data",
-          "core.upload_data",
+          "catalog.add_dataresource",
           "core.view_data_overview"
         ],
         "operationLogGroupIds": [
@@ -60,7 +72,7 @@
           "core.manage_auth",
           "core.browse_data",
           "core.query_data",
-          "core.upload_data",
+          "catalog.add_dataresource",
           "core.view_data_overview"
         ]
       },
@@ -99,8 +111,63 @@
           "group": "概览权限"
         },
         {
-          "id": "core.upload_data",
-          "label": "上传数据",
+          "id": "catalog.add_dataresource",
+          "label": "新增数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.view_dataresource",
+          "label": "查看存量数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.change_dataresource",
+          "label": "编辑数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.delete_dataresource",
+          "label": "删除数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.add_workspacescene",
+          "label": "新增工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.view_workspacescene",
+          "label": "查看工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.change_workspacescene",
+          "label": "编辑工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.delete_workspacescene",
+          "label": "删除工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.add_achievement",
+          "label": "新增成果",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.view_achievement",
+          "label": "查看成果",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.change_achievement",
+          "label": "编辑成果",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.delete_achievement",
+          "label": "删除成果",
           "group": "数据权限"
         }
       ],
@@ -150,7 +217,19 @@
           "canMaintainData": true,
           "canManageRasterData": true,
           "canUploadData": true,
-          "canViewDataOverview": true
+          "canViewDataOverview": true,
+          "canViewDataResources": true,
+          "canCreateDataResources": true,
+          "canChangeDataResources": true,
+          "canDeleteDataResources": true,
+          "canViewWorkspaces": true,
+          "canCreateWorkspaces": true,
+          "canChangeWorkspaces": true,
+          "canDeleteWorkspaces": true,
+          "canViewAchievements": true,
+          "canCreateAchievements": true,
+          "canChangeAchievements": true,
+          "canDeleteAchievements": true
         },
         "groupIds": [
           1
@@ -161,7 +240,7 @@
           "core.manage_auth",
           "core.browse_data",
           "core.query_data",
-          "core.upload_data",
+          "catalog.add_dataresource",
           "core.view_data_overview"
         ],
         "operationLogGroupIds": [
@@ -172,7 +251,7 @@
           "core.manage_auth",
           "core.browse_data",
           "core.query_data",
-          "core.upload_data",
+          "catalog.add_dataresource",
           "core.view_data_overview"
         ]
       },
@@ -201,8 +280,63 @@
           "group": "概览权限"
         },
         {
-          "id": "core.upload_data",
-          "label": "上传数据",
+          "id": "catalog.add_dataresource",
+          "label": "新增数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.view_dataresource",
+          "label": "查看存量数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.change_dataresource",
+          "label": "编辑数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.delete_dataresource",
+          "label": "删除数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.add_workspacescene",
+          "label": "新增工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.view_workspacescene",
+          "label": "查看工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.change_workspacescene",
+          "label": "编辑工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.delete_workspacescene",
+          "label": "删除工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.add_achievement",
+          "label": "新增成果",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.view_achievement",
+          "label": "查看成果",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.change_achievement",
+          "label": "编辑成果",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.delete_achievement",
+          "label": "删除成果",
           "group": "数据权限"
         }
       ],
@@ -252,7 +386,19 @@
           "canMaintainData": true,
           "canManageRasterData": true,
           "canUploadData": true,
-          "canViewDataOverview": true
+          "canViewDataOverview": true,
+          "canViewDataResources": true,
+          "canCreateDataResources": true,
+          "canChangeDataResources": true,
+          "canDeleteDataResources": true,
+          "canViewWorkspaces": true,
+          "canCreateWorkspaces": true,
+          "canChangeWorkspaces": true,
+          "canDeleteWorkspaces": true,
+          "canViewAchievements": true,
+          "canCreateAchievements": true,
+          "canChangeAchievements": true,
+          "canDeleteAchievements": true
         },
         "groupIds": [
           1
@@ -262,7 +408,7 @@
         "effectivePermissions": [
           "core.manage_auth",
           "core.browse_data",
-          "core.upload_data",
+          "catalog.add_dataresource",
           "core.view_data_overview"
         ],
         "operationLogGroupIds": [
@@ -272,7 +418,7 @@
         "groupPermissions": [
           "core.manage_auth",
           "core.browse_data",
-          "core.upload_data",
+          "catalog.add_dataresource",
           "core.view_data_overview"
         ]
       },
@@ -302,8 +448,63 @@
           "group": "概览权限"
         },
         {
-          "id": "core.upload_data",
-          "label": "上传数据",
+          "id": "catalog.add_dataresource",
+          "label": "新增数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.view_dataresource",
+          "label": "查看存量数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.change_dataresource",
+          "label": "编辑数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.delete_dataresource",
+          "label": "删除数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.add_workspacescene",
+          "label": "新增工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.view_workspacescene",
+          "label": "查看工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.change_workspacescene",
+          "label": "编辑工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.delete_workspacescene",
+          "label": "删除工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.add_achievement",
+          "label": "新增成果",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.view_achievement",
+          "label": "查看成果",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.change_achievement",
+          "label": "编辑成果",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.delete_achievement",
+          "label": "删除成果",
           "group": "数据权限"
         }
       ],
@@ -358,7 +559,19 @@
             "canMaintainData": true,
             "canManageRasterData": true,
             "canUploadData": true,
-            "canViewDataOverview": true
+            "canViewDataOverview": true,
+            "canViewDataResources": true,
+            "canCreateDataResources": true,
+            "canChangeDataResources": true,
+            "canDeleteDataResources": true,
+            "canViewWorkspaces": true,
+            "canCreateWorkspaces": true,
+            "canChangeWorkspaces": true,
+            "canDeleteWorkspaces": true,
+            "canViewAchievements": true,
+            "canCreateAchievements": true,
+            "canChangeAchievements": true,
+            "canDeleteAchievements": true
           },
           "groupIds": [
             1
@@ -381,7 +594,7 @@
             "catalog.export_dataresource",
             "catalog.maintain_dataresource",
             "raster.manage_rasterdataset",
-            "core.upload_data",
+            "catalog.add_dataresource",
             "core.view_data_overview"
           ],
           "operationLogGroupIds": [
@@ -405,7 +618,7 @@
             "catalog.export_dataresource",
             "catalog.maintain_dataresource",
             "raster.manage_rasterdataset",
-            "core.upload_data",
+            "catalog.add_dataresource",
             "core.view_data_overview"
           ]
         },
@@ -446,7 +659,19 @@
             "canMaintainData": false,
             "canManageRasterData": false,
             "canUploadData": true,
-            "canViewDataOverview": true
+            "canViewDataOverview": true,
+            "canViewDataResources": true,
+            "canCreateDataResources": true,
+            "canChangeDataResources": false,
+            "canDeleteDataResources": false,
+            "canViewWorkspaces": true,
+            "canCreateWorkspaces": true,
+            "canChangeWorkspaces": true,
+            "canDeleteWorkspaces": true,
+            "canViewAchievements": true,
+            "canCreateAchievements": false,
+            "canChangeAchievements": false,
+            "canDeleteAchievements": false
           },
           "groupIds": [
             3
@@ -466,7 +691,7 @@
             "core.load_vector_layer",
             "core.load_raster_layer",
             "catalog.export_dataresource",
-            "core.upload_data",
+            "catalog.add_dataresource",
             "core.view_data_overview"
           ],
           "operationLogGroupIds": [
@@ -482,7 +707,7 @@
             "core.query_data",
             "core.load_vector_layer",
             "core.load_raster_layer",
-            "core.upload_data",
+            "catalog.add_dataresource",
             "core.view_data_overview"
           ]
         },
@@ -523,7 +748,19 @@
             "canMaintainData": true,
             "canManageRasterData": true,
             "canUploadData": true,
-            "canViewDataOverview": true
+            "canViewDataOverview": true,
+            "canViewDataResources": true,
+            "canCreateDataResources": true,
+            "canChangeDataResources": true,
+            "canDeleteDataResources": true,
+            "canViewWorkspaces": true,
+            "canCreateWorkspaces": true,
+            "canChangeWorkspaces": true,
+            "canDeleteWorkspaces": true,
+            "canViewAchievements": true,
+            "canCreateAchievements": true,
+            "canChangeAchievements": true,
+            "canDeleteAchievements": true
           },
           "groupIds": [
             4
@@ -544,7 +781,7 @@
             "catalog.export_dataresource",
             "catalog.maintain_dataresource",
             "raster.manage_rasterdataset",
-            "core.upload_data",
+            "catalog.add_dataresource",
             "core.view_data_overview"
           ],
           "operationLogGroupIds": [
@@ -564,7 +801,7 @@
             "catalog.export_dataresource",
             "catalog.maintain_dataresource",
             "raster.manage_rasterdataset",
-            "core.upload_data",
+            "catalog.add_dataresource",
             "core.view_data_overview"
           ]
         },
@@ -605,7 +842,19 @@
             "canMaintainData": false,
             "canManageRasterData": false,
             "canUploadData": true,
-            "canViewDataOverview": true
+            "canViewDataOverview": true,
+            "canViewDataResources": false,
+            "canCreateDataResources": true,
+            "canChangeDataResources": false,
+            "canDeleteDataResources": false,
+            "canViewWorkspaces": true,
+            "canCreateWorkspaces": true,
+            "canChangeWorkspaces": true,
+            "canDeleteWorkspaces": true,
+            "canViewAchievements": true,
+            "canCreateAchievements": false,
+            "canChangeAchievements": false,
+            "canDeleteAchievements": false
           },
           "groupIds": [
             2
@@ -616,7 +865,7 @@
             "core.browse_data",
             "core.query_data",
             "core.load_vector_layer",
-            "core.upload_data",
+            "catalog.add_dataresource",
             "core.view_data_overview"
           ],
           "operationLogGroupIds": [],
@@ -624,7 +873,7 @@
             "core.browse_data",
             "core.query_data",
             "core.load_vector_layer",
-            "core.upload_data",
+            "catalog.add_dataresource",
             "core.view_data_overview"
           ]
         }
@@ -670,7 +919,19 @@
           "canMaintainData": false,
           "canManageRasterData": false,
           "canUploadData": true,
-          "canViewDataOverview": true
+          "canViewDataOverview": true,
+          "canViewDataResources": true,
+          "canCreateDataResources": true,
+          "canChangeDataResources": false,
+          "canDeleteDataResources": false,
+          "canViewWorkspaces": true,
+          "canCreateWorkspaces": true,
+          "canChangeWorkspaces": true,
+          "canDeleteWorkspaces": true,
+          "canViewAchievements": true,
+          "canCreateAchievements": false,
+          "canChangeAchievements": false,
+          "canDeleteAchievements": false
         },
         "groupIds": [
           3
@@ -682,7 +943,7 @@
           "core.query_data",
           "core.load_vector_layer",
           "core.load_raster_layer",
-          "core.upload_data",
+          "catalog.add_dataresource",
           "core.view_data_overview"
         ],
         "operationLogGroupIds": [],
@@ -691,7 +952,7 @@
           "core.query_data",
           "core.load_vector_layer",
           "core.load_raster_layer",
-          "core.upload_data",
+          "catalog.add_dataresource",
           "core.view_data_overview"
         ]
       },
@@ -737,7 +998,19 @@
         "canMaintainData": false,
         "canManageRasterData": false,
         "canUploadData": true,
-        "canViewDataOverview": true
+        "canViewDataOverview": true,
+        "canViewDataResources": true,
+        "canCreateDataResources": true,
+        "canChangeDataResources": false,
+        "canDeleteDataResources": false,
+        "canViewWorkspaces": true,
+        "canCreateWorkspaces": true,
+        "canChangeWorkspaces": true,
+        "canDeleteWorkspaces": true,
+        "canViewAchievements": true,
+        "canCreateAchievements": false,
+        "canChangeAchievements": false,
+        "canDeleteAchievements": false
       },
       "groupIds": [
         3,
@@ -758,7 +1031,7 @@
         "core.load_vector_layer",
         "core.load_raster_layer",
         "catalog.export_dataresource",
-        "core.upload_data",
+        "catalog.add_dataresource",
         "core.view_data_overview"
       ],
       "operationLogGroupIds": [
@@ -774,7 +1047,7 @@
         "core.query_data",
         "core.load_vector_layer",
         "core.load_raster_layer",
-        "core.upload_data",
+        "catalog.add_dataresource",
         "core.view_data_overview"
       ]
     }
@@ -817,7 +1090,19 @@
         "canMaintainData": false,
         "canManageRasterData": false,
         "canUploadData": true,
-        "canViewDataOverview": true
+        "canViewDataOverview": true,
+        "canViewDataResources": true,
+        "canCreateDataResources": true,
+        "canChangeDataResources": false,
+        "canDeleteDataResources": false,
+        "canViewWorkspaces": true,
+        "canCreateWorkspaces": true,
+        "canChangeWorkspaces": true,
+        "canDeleteWorkspaces": true,
+        "canViewAchievements": true,
+        "canCreateAchievements": false,
+        "canChangeAchievements": false,
+        "canDeleteAchievements": false
       },
       "groupIds": [
         3
@@ -838,7 +1123,7 @@
         "core.load_vector_layer",
         "core.load_raster_layer",
         "catalog.export_dataresource",
-        "core.upload_data",
+        "catalog.add_dataresource",
         "core.view_data_overview"
       ],
       "operationLogGroupIds": [
@@ -854,7 +1139,7 @@
         "core.query_data",
         "core.load_vector_layer",
         "core.load_raster_layer",
-        "core.upload_data",
+        "catalog.add_dataresource",
         "core.view_data_overview"
       ]
     }
@@ -903,7 +1188,19 @@
         "canMaintainData": false,
         "canManageRasterData": false,
         "canUploadData": true,
-        "canViewDataOverview": true
+        "canViewDataOverview": true,
+        "canViewDataResources": false,
+        "canCreateDataResources": true,
+        "canChangeDataResources": false,
+        "canDeleteDataResources": false,
+        "canViewWorkspaces": true,
+        "canCreateWorkspaces": true,
+        "canChangeWorkspaces": true,
+        "canDeleteWorkspaces": true,
+        "canViewAchievements": true,
+        "canCreateAchievements": false,
+        "canChangeAchievements": false,
+        "canDeleteAchievements": false
       },
       "groupIds": [
         2
@@ -914,7 +1211,7 @@
         "core.browse_data",
         "core.query_data",
         "core.load_vector_layer",
-        "core.upload_data",
+        "catalog.add_dataresource",
         "core.view_data_overview"
       ],
       "operationLogGroupIds": [],
@@ -922,7 +1219,7 @@
         "core.browse_data",
         "core.query_data",
         "core.load_vector_layer",
-        "core.upload_data",
+        "catalog.add_dataresource",
         "core.view_data_overview"
       ]
     }
@@ -954,7 +1251,7 @@
             "catalog.maintain_dataresource",
             "raster.manage_rasterdataset",
             "core.view_data_overview",
-            "core.upload_data"
+            "catalog.add_dataresource"
           ],
           "isProtected": true,
           "lockedPermissions": [
@@ -971,7 +1268,7 @@
             "core.browse_data",
             "core.query_data",
             "core.load_vector_layer",
-            "core.upload_data",
+            "catalog.add_dataresource",
             "core.load_raster_layer"
           ],
           "isProtected": true,
@@ -1109,8 +1406,63 @@
           "group": "概览权限"
         },
         {
-          "id": "core.upload_data",
-          "label": "上传数据",
+          "id": "catalog.add_dataresource",
+          "label": "新增数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.view_dataresource",
+          "label": "查看存量数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.change_dataresource",
+          "label": "编辑数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.delete_dataresource",
+          "label": "删除数据资源",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.add_workspacescene",
+          "label": "新增工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.view_workspacescene",
+          "label": "查看工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.change_workspacescene",
+          "label": "编辑工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.delete_workspacescene",
+          "label": "删除工程专题",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.add_achievement",
+          "label": "新增成果",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.view_achievement",
+          "label": "查看成果",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.change_achievement",
+          "label": "编辑成果",
+          "group": "数据权限"
+        },
+        {
+          "id": "catalog.delete_achievement",
+          "label": "删除成果",
           "group": "数据权限"
         }
       ]

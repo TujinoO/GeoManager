@@ -138,10 +138,7 @@ export default function AdminDataImportPage() {
   );
 
   useEffect(() => {
-    if (
-      !user?.permissions.canMaintainData &&
-      !user?.permissions.canUploadData
-    ) {
+    if (!user?.permissions.canUploadData) {
       return;
     }
     let ignore = false;
@@ -160,9 +157,9 @@ export default function AdminDataImportPage() {
     return () => {
       ignore = true;
     };
-  }, [user?.permissions.canMaintainData, user?.permissions.canUploadData]);
+  }, [user?.permissions.canUploadData]);
 
-  if (!user?.permissions.canMaintainData && !user?.permissions.canUploadData) {
+  if (!user?.permissions.canUploadData) {
     return <Navigate to="/admin/profile" replace />;
   }
 

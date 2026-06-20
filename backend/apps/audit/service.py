@@ -17,6 +17,11 @@ def log_operation(
     status: str,
     message: str = "",
     request: Any = None,
+    *,
+    target_type: str = "",
+    target_id: int | None = None,
+    target_code: str = "",
+    target_name: str = "",
 ) -> None:
     from apps.audit.models import OperationLog
 
@@ -25,6 +30,10 @@ def log_operation(
         module=module,
         action=action,
         status=status,
+        target_type=target_type,
+        target_id=target_id,
+        target_code=target_code,
+        target_name=target_name,
         message=message,
         ip_address=_client_ip(request),
     )

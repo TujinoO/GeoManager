@@ -183,11 +183,11 @@ class RegistrationApiTests(TestCase):
             ).exists()
         )
 
-    def test_auth_me_reports_upload_and_data_overview_permissions(self):
+    def test_auth_me_reports_data_create_and_data_overview_permissions(self):
         user = get_user_model().objects.create_user(
             username="permission-flags-user", password="pass12345"
         )
-        grant(user, ("core", "upload_data"), ("core", "view_data_overview"))
+        grant(user, ("catalog", "add_dataresource"), ("core", "view_data_overview"))
         self.client.force_login(user)
 
         response = self.client.get("/api/auth/me/")
@@ -195,6 +195,7 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         permissions = response.json()["user"]["permissions"]
         self.assertTrue(permissions["canUploadData"])
+        self.assertTrue(permissions["canCreateDataResources"])
         self.assertTrue(permissions["canViewDataOverview"])
 
     def test_registered_user_after_initialization_is_standard_user(self):
@@ -687,7 +688,7 @@ class FeaturePermissionTests(TestCase):
         )
         permissions_response = self.client.post(
             f"/api/users/{guest.id}/permissions/",
-            data=json.dumps({"directPermissions": ["core.upload_data"]}),
+            data=json.dumps({"directPermissions": ["catalog.add_dataresource"]}),
             content_type="application/json",
         )
 
@@ -1027,6 +1028,10 @@ class FeaturePermissionTests(TestCase):
             action="保存配置",
             status="success",
             message="写入运行配置",
+            target_type="data_resource",
+            target_id=123,
+            target_code="resource-123",
+            target_name="测试数据",
         )
         OperationLog.objects.create(
             user=manager,
@@ -1039,13 +1044,22 @@ class FeaturePermissionTests(TestCase):
 
         response = self.client.get(
             "/api/admin/operation-logs/",
-            {"module": "系统设置", "result": "success"},
+            {
+                "module": "系统设置",
+                "result": "success",
+                "targetType": "data_resource",
+                "targetId": 123,
+            },
         )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["total"], 1)
         self.assertEqual(payload["items"][0]["action"], "保存配置")
+        self.assertEqual(payload["items"][0]["targetType"], "data_resource")
+        self.assertEqual(payload["items"][0]["targetId"], 123)
+        self.assertEqual(payload["items"][0]["targetCode"], "resource-123")
+        self.assertEqual(payload["items"][0]["targetName"], "测试数据")
 
     def test_admin_operation_logs_can_filter_by_user_id(self):
         manager = get_user_model().objects.create_user(
