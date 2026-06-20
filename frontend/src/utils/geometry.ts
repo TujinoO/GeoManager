@@ -242,6 +242,63 @@ export function moveLayerBetweenGroups(
   );
   if (!sourceGroup || !targetGroup || !sourceLayer) return groups;
 
+  const targetIsStandalone =
+    !targetGroup.isManual &&
+    targetGroup.children.length === 1 &&
+    targetGroup.children[0]?.id === targetLayerId;
+  if (targetIsStandalone && placement !== "inside") {
+    const sourceIsStandalone =
+      !sourceGroup.isManual &&
+      sourceGroup.children.length === 1 &&
+      sourceGroup.children[0]?.id === sourceLayerId;
+    if (sourceIsStandalone) {
+      return reorderLayerGroups(
+        groups,
+        sourceGroupId,
+        targetGroupId,
+        placement,
+      );
+    }
+
+    const now = new Date();
+    const extractedGroup: LoadedLayerGroup = {
+      id: `ungrouped-${sourceLayer.id}-${now.getTime()}`,
+      name: sourceLayer.name,
+      sourceResource: sourceLayer.sourceResource,
+      visible: true,
+      summary: sourceLayer.summary,
+      createdAt: now.toISOString(),
+      metadata: sourceLayer.metadata,
+      symbolization: sourceGroup.symbolization,
+      children: [sourceLayer],
+    };
+    const targetIndex = groups.findIndex((group) => group.id === targetGroupId);
+    if (targetIndex < 0) return groups;
+    const withoutSourceLayer = groups
+      .map((group) =>
+        group.id === sourceGroupId
+          ? {
+              ...group,
+              children: group.children.filter(
+                (layer) => layer.id !== sourceLayerId,
+              ),
+            }
+          : group,
+      )
+      .filter((group) => group.children.length > 0 || group.isManual);
+    const adjustedTargetIndex = withoutSourceLayer.findIndex(
+      (group) => group.id === targetGroupId,
+    );
+    if (adjustedTargetIndex < 0) return groups;
+    const next = [...withoutSourceLayer];
+    next.splice(
+      placement === "before" ? adjustedTargetIndex : adjustedTargetIndex + 1,
+      0,
+      extractedGroup,
+    );
+    return next;
+  }
+
   const withoutSource = groups
     .map((group) =>
       group.id === sourceGroupId

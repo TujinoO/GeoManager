@@ -10,6 +10,7 @@ import {
   extractCoordinates,
   geometryFromBoundsText,
   geometryFromPoints,
+  moveLayerBetweenGroups,
   normalizeDisplayLngLat,
   polygonGeometry,
   rasterSourceKey,
@@ -191,6 +192,51 @@ describe("reorderLayerGroups", () => {
   });
 });
 
+describe("moveLayerBetweenGroups", () => {
+  it("reorders standalone loaded layers instead of nesting them", () => {
+    const groups = [
+      testGroup("first", [testLayer("layer-1")]),
+      testGroup("second", [testLayer("layer-2")]),
+    ];
+
+    const result = moveLayerBetweenGroups(
+      groups,
+      "first",
+      "layer-1",
+      "second",
+      "layer-2",
+      "after",
+    );
+
+    expect(result.map((group) => group.id)).toEqual(["second", "first"]);
+    expect(result.every((group) => group.children.length === 1)).toBe(true);
+  });
+
+  it("extracts a grouped layer back to the top level", () => {
+    const groups = [
+      { ...testGroup("manual", [testLayer("layer-1")]), isManual: true },
+      testGroup("target", [testLayer("layer-2")]),
+    ];
+
+    const result = moveLayerBetweenGroups(
+      groups,
+      "manual",
+      "layer-1",
+      "target",
+      "layer-2",
+      "before",
+    );
+
+    expect(
+      result.map((group) => group.children.map((layer) => layer.id)),
+    ).toEqual([[], ["layer-1"], ["layer-2"]]);
+    expect(result[0].id).toBe("manual");
+    expect(result[0].isManual).toBe(true);
+    expect(result[1].id).toMatch(/^ungrouped-layer-1-/);
+    expect(result[2].id).toBe("target");
+  });
+});
+
 describe("extractCoordinates", () => {
   it("extracts point coordinates", () => {
     const points: [number, number][] = [];
@@ -221,6 +267,63 @@ describe("extractCoordinates", () => {
     expect(points).toEqual([]);
   });
 });
+
+function testGroup(
+  id: string,
+  children: LoadedLayerGroup["children"],
+): LoadedLayerGroup {
+  return {
+    id,
+    name: id,
+    sourceResource: {
+      id: 1,
+      name: id,
+      code: id,
+      dataType: "vector",
+      category: null,
+      source: "",
+      provider: "",
+      dataDate: null,
+      spatialExtent: "",
+      coordinateSystem: "",
+      fileFormat: "",
+      description: "",
+      qualityNote: "",
+      sizeBytes: 0,
+      itemCount: 0,
+      status: "active",
+      isQueryable: true,
+      isRenderable: true,
+      updatedAt: "2026-06-20T00:00:00.000Z",
+    },
+    visible: true,
+    summary: id,
+    createdAt: "2026-06-20T00:00:00.000Z",
+    metadata: {},
+    symbolization: {
+      opacity: 1,
+    },
+    children,
+  } as LoadedLayerGroup;
+}
+
+function testLayer(id: string): LoadedLayerGroup["children"][number] {
+  return {
+    id,
+    name: id,
+    layerType: "vector",
+    sourceResource: testGroup("resource", []).sourceResource,
+    geojson: { type: "FeatureCollection", features: [] },
+    geometryType: "Point",
+    visible: true,
+    summary: id,
+    metadata: {},
+    symbolization: {
+      opacity: 1,
+    },
+    fields: [],
+  } as LoadedLayerGroup["children"][number];
+}
 
 describe("combinedFeatureBounds", () => {
   it("returns null for empty collections", () => {

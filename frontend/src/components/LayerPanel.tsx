@@ -146,6 +146,9 @@ export default function LayerPanel() {
       })
       .filter((group) => group.children.length > 0 || group.isManual);
   }, [groups, query]);
+  const layerTreeLabel = groups.some((group) => group.isManual)
+    ? "已加载图层与图层组"
+    : "已加载图层";
 
   const setDragTargetIfChanged = useCallback(
     (next: { groupId: string; placement: DropPlacement } | null) => {
@@ -478,19 +481,75 @@ export default function LayerPanel() {
       </div>
       <Input
         prefix={<SearchOutlined style={{ fontSize: 15 }} />}
-        placeholder="搜索图层组或图层"
+        placeholder="搜索图层或图层组"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         allowClear
       />
       {filteredGroups.length > 0 ? (
-        <div className="layer-tree" role="tree" aria-label="已加载图层组">
+        <div className="layer-tree" role="tree" aria-label={layerTreeLabel}>
           {filteredGroups.map((group) => {
+            const standaloneLayer = standaloneLayerForGroup(group);
             const expanded = keyword ? true : !collapsedGroupIds.has(group.id);
             const dropClass =
               dragTarget?.groupId === group.id
                 ? ` layer-group-drop-${dragTarget.placement}`
                 : "";
+            if (standaloneLayer) {
+              return (
+                <div
+                  key={group.id}
+                  className="layer-group-shell layer-standalone-shell"
+                >
+                  <LayerItemNode
+                    groupId={group.id}
+                    layer={standaloneLayer}
+                    dragging={
+                      draggingLayer?.groupId === group.id &&
+                      draggingLayer.layerId === standaloneLayer.id
+                    }
+                    dropPlacement={
+                      layerDropTarget?.groupId === group.id &&
+                      layerDropTarget.layerId === standaloneLayer.id
+                        ? layerDropTarget.placement
+                        : null
+                    }
+                    onDragStart={(event) =>
+                      handleLayerDragStart(event, group.id, standaloneLayer.id)
+                    }
+                    onDragEnd={() => {
+                      setDraggingLayer(null);
+                      setLayerDropTarget(null);
+                    }}
+                    onDragOver={(event) =>
+                      handleLayerDragOverLayer(
+                        event,
+                        group.id,
+                        standaloneLayer.id,
+                      )
+                    }
+                    onDrop={(event) =>
+                      handleLayerDrop(
+                        event,
+                        group.id,
+                        standaloneLayer.id,
+                        layerDropTarget?.placement ?? "after",
+                      )
+                    }
+                    onVisibilityChange={ctx.setLayerVisibility}
+                    onNameChange={ctx.setLayerName}
+                    onSymbolizationChange={handleLayerSymbolizationChange}
+                    onLocate={ctx.locateLayer}
+                    onRemove={ctx.removeLayer}
+                    onSelect={() =>
+                      ctx.selectLayer(group.id, standaloneLayer.id)
+                    }
+                    selected={ctx.selectedLayerId === standaloneLayer.id}
+                    exportItems={exportItemsForLayer(standaloneLayer)}
+                  />
+                </div>
+              );
+            }
             return (
               <div
                 key={group.id}
@@ -697,6 +756,13 @@ interface SaveWorkspaceFormValues {
   targetId?: number;
   name: string;
   description?: string;
+}
+
+function standaloneLayerForGroup(group: LoadedLayerGroup): LoadedLayer | null {
+  if (group.isManual || group.children.length !== 1) {
+    return null;
+  }
+  return group.children[0] ?? null;
 }
 
 interface GroupNodeProps {
