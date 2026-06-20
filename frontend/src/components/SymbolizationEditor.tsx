@@ -684,7 +684,7 @@ export function VectorSymbolizationEditor({
                 <Alert
                   type="info"
                   showIcon
-                  message="密度热力用于显示点位聚集程度，当前按点位数量计算密度。"
+                  title="密度热力用于显示点位聚集程度，当前按点位数量计算密度。"
                 />
                 <ControlRow label="热力色带">
                   <Select

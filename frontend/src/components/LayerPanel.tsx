@@ -740,7 +740,7 @@ export default function LayerPanel() {
                   className="workspace-save-overwrite-alert"
                   type="warning"
                   showIcon
-                  message={`将覆盖“${selectedSaveTarget.name}”`}
+                  title={`将覆盖“${selectedSaveTarget.name}”`}
                   description="当前图层树、视图状态和符号化配置会替换该保存项的快照，名称和说明保持不变。"
                 />
               ) : null}
@@ -975,7 +975,9 @@ function LayerItemNode({
           />
           <LayerTooltip
             title={
-              ctx.isLayerExtentVisible(layer.id) ? "隐藏图层范围" : "显示图层范围"
+              ctx.isLayerExtentVisible(layer.id)
+                ? "隐藏图层范围"
+                : "显示图层范围"
             }
           >
             <Switch

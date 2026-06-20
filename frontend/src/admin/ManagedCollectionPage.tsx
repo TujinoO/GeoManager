@@ -360,7 +360,7 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
                 <Alert
                   type="warning"
                   showIcon
-                  message="游客可见后，无需登录账号即可浏览和查询该对象。"
+                  title="游客可见后，无需登录账号即可浏览和查询该对象。"
                 />
               )}
               {renderFormItems(selectedItem, canMaintain)}
