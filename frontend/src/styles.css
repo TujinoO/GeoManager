@@ -3782,8 +3782,8 @@ body:has(.login-shell),
 .workspace-body {
   --workspace-edge: var(--workspace-screen-edge);
   --workspace-gap: 8px;
-  --side-panel-width: clamp(278px, 20vw, 320px);
-  --bottom-panel-height: clamp(176px, 18vh, 210px);
+  --side-panel-width: clamp(296px, 21vw, 342px);
+  --bottom-panel-height: clamp(190px, 19vh, 228px);
   height: 100dvh;
   min-height: 0;
   position: relative;
