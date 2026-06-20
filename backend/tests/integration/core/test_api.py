@@ -655,6 +655,26 @@ class FeaturePermissionTests(TestCase):
         usernames = {item["username"] for item in response.json()["items"]}
         self.assertNotIn("django-superuser", usernames)
 
+    def test_group_list_counts_only_visible_users(self):
+        manager = get_user_model().objects.create_user(
+            username="visible-count-manager", password="pass12345"
+        )
+        visible_user = get_user_model().objects.create_user(
+            username="visible-count-user", password="pass12345"
+        )
+        superadmin_user, _ = ensure_superadmin_defaults()
+        shared_group = Group.objects.create(name="共享角色")
+        visible_user.groups.add(shared_group)
+        superadmin_user.groups.add(shared_group)
+        grant(manager, ("core", "manage_auth"))
+        self.client.force_login(manager)
+
+        response = self.client.get("/api/groups/")
+
+        self.assertEqual(response.status_code, 200)
+        groups = {item["name"]: item for item in response.json()["items"]}
+        self.assertEqual(groups["共享角色"]["userCount"], 1)
+
     def test_superadmin_group_list_includes_superadmin_role(self):
         manager, _ = ensure_superadmin_defaults()
         self.client.force_login(manager)
@@ -1166,6 +1186,32 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(payload["total"], 1)
         self.assertEqual(payload["items"][0]["summary"], "目标用户日志")
 
+    def test_admin_operation_logs_user_id_filter_cannot_reveal_superadmin(self):
+        manager = get_user_model().objects.create_user(
+            username="log-hidden-user-id-manager", password="pass12345"
+        )
+        superadmin, _ = ensure_superadmin_defaults()
+        grant(
+            manager,
+            ("core", "view_operation_logs"),
+            ("core", "view_all_operation_logs"),
+        )
+        OperationLog.objects.create(
+            user=superadmin,
+            module="认证授权",
+            action="保存权限",
+            status="success",
+            message="隐藏超级管理员日志",
+        )
+        self.client.force_login(manager)
+
+        response = self.client.get(
+            "/api/admin/operation-logs/", {"userId": superadmin.id}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["total"], 0)
+
     def test_admin_operation_logs_hide_django_superuser_logs(self):
         manager = get_user_model().objects.create_user(
             username="log-superuser-manager", password="pass12345"
@@ -1317,6 +1363,50 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(payload["total"], 1)
         self.assertEqual(payload["items"][0]["summary"], "目标组日志")
 
+    def test_admin_operation_logs_group_scope_ignores_hidden_superadmin_group(self):
+        manager = get_user_model().objects.create_user(
+            username="hidden-group-log-manager", password="pass12345"
+        )
+        target = get_user_model().objects.create_user(
+            username="hidden-group-log-target", password="pass12345"
+        )
+        target_group = Group.objects.create(name="普通日志目标组")
+        target.groups.add(target_group)
+        superadmin, superadmin_group = ensure_superadmin_defaults()
+        UserProfile.objects.update_or_create(
+            user=manager,
+            defaults={
+                "operation_log_group_ids": [target_group.id, superadmin_group.id]
+            },
+        )
+        grant(
+            manager,
+            ("core", "view_operation_logs"),
+            ("core", "view_group_operation_logs"),
+        )
+        OperationLog.objects.create(
+            user=target,
+            module="数据管理",
+            action="导入数据",
+            status="success",
+            message="普通角色日志",
+        )
+        OperationLog.objects.create(
+            user=superadmin,
+            module="数据管理",
+            action="导入数据",
+            status="success",
+            message="隐藏超级管理员角色日志",
+        )
+        self.client.force_login(manager)
+
+        response = self.client.get("/api/admin/operation-logs/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(payload["items"][0]["summary"], "普通角色日志")
+
     def test_admin_system_logs_lists_files_and_returns_tail_content(self):
         manager, _ = ensure_superadmin_defaults()
         log_dir = app_path("logs")
@@ -1442,6 +1532,33 @@ class FeaturePermissionTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["detail"], "包含不存在的日志角色")
+
+    def test_user_list_filters_hidden_superadmin_log_group_ids(self):
+        manager = get_user_model().objects.create_user(
+            username="hidden-log-group-list-manager", password="pass12345"
+        )
+        target = get_user_model().objects.create_user(
+            username="hidden-log-group-list-target", password="pass12345"
+        )
+        visible_group = Group.objects.create(name="可见日志角色")
+        _, superadmin_group = ensure_superadmin_defaults(create_account=False)
+        UserProfile.objects.update_or_create(
+            user=target,
+            defaults={
+                "operation_log_group_ids": [visible_group.id, superadmin_group.id]
+            },
+        )
+        grant(manager, ("core", "manage_auth"))
+        self.client.force_login(manager)
+
+        response = self.client.get("/api/users/")
+
+        self.assertEqual(response.status_code, 200)
+        users = {item["username"]: item for item in response.json()["items"]}
+        self.assertEqual(
+            users["hidden-log-group-list-target"]["operationLogGroupIds"],
+            [visible_group.id],
+        )
 
     def test_admin_dashboard_counts_data_and_daily_active_users(self):
         manager = get_user_model().objects.create_user(

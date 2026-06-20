@@ -21,6 +21,7 @@
           "canViewAllOperationLogs": true,
           "canViewOwnOperationLogs": true,
           "canViewGroupOperationLogs": true,
+          "canViewSystemLogs": true,
           "canManageSystemSettings": true,
           "canManageAuth": true,
           "canViewDashboardResourceCard": true,
@@ -176,6 +177,7 @@
           "canViewAllOperationLogs": true,
           "canViewOwnOperationLogs": true,
           "canViewGroupOperationLogs": true,
+          "canViewSystemLogs": true,
           "canManageSystemSettings": true,
           "canManageAuth": true,
           "canViewDashboardResourceCard": true,
@@ -321,6 +323,7 @@
           "canViewAllOperationLogs": true,
           "canViewOwnOperationLogs": true,
           "canViewGroupOperationLogs": true,
+          "canViewSystemLogs": true,
           "canManageSystemSettings": true,
           "canManageAuth": true,
           "canViewDashboardResourceCard": true,
@@ -452,15 +455,15 @@
       "items": [
         {
           "id": 1,
-          "username": "admin",
+          "username": "ops_manager",
           "displayName": "系统管理员",
-          "email": "admin@example.local",
+          "email": "ops.manager@example.local",
           "avatarUrl": "",
           "department": "平台运维组",
           "isStaff": false,
           "isSuperuser": false,
           "roles": [
-            "超级管理员"
+            "系统管理员"
           ],
           "permissions": {
             "canAccessAdmin": true,
@@ -470,6 +473,7 @@
             "canViewAllOperationLogs": true,
             "canViewOwnOperationLogs": true,
             "canViewGroupOperationLogs": true,
+            "canViewSystemLogs": true,
             "canManageSystemSettings": true,
             "canManageAuth": true,
             "canViewDashboardResourceCard": true,
@@ -497,7 +501,7 @@
             "canDeleteWorkspaces": true
           },
           "groupIds": [
-            1
+            6
           ],
           "isActive": true,
           "directPermissions": [],
@@ -520,9 +524,8 @@
             "core.view_data_overview"
           ],
           "operationLogGroupIds": [
-            1,
-            2,
-            3
+            3,
+            4
           ],
           "groupPermissions": [
             "core.manage_auth",
@@ -564,6 +567,7 @@
             "canViewAllOperationLogs": false,
             "canViewOwnOperationLogs": true,
             "canViewGroupOperationLogs": true,
+            "canViewSystemLogs": false,
             "canManageSystemSettings": false,
             "canManageAuth": false,
             "canViewDashboardResourceCard": true,
@@ -649,6 +653,7 @@
             "canViewAllOperationLogs": true,
             "canViewOwnOperationLogs": true,
             "canViewGroupOperationLogs": true,
+            "canViewSystemLogs": false,
             "canManageSystemSettings": false,
             "canManageAuth": false,
             "canViewDashboardResourceCard": true,
@@ -737,6 +742,7 @@
             "canViewAllOperationLogs": false,
             "canViewOwnOperationLogs": true,
             "canViewGroupOperationLogs": true,
+            "canViewSystemLogs": false,
             "canManageSystemSettings": false,
             "canManageAuth": false,
             "canViewDashboardResourceCard": true,
@@ -810,6 +816,7 @@
           "canViewAllOperationLogs": false,
           "canViewOwnOperationLogs": true,
           "canViewGroupOperationLogs": true,
+          "canViewSystemLogs": false,
           "canManageSystemSettings": false,
           "canManageAuth": false,
           "canViewDashboardResourceCard": true,
@@ -885,6 +892,7 @@
         "canViewAllOperationLogs": false,
         "canViewOwnOperationLogs": true,
         "canViewGroupOperationLogs": true,
+        "canViewSystemLogs": false,
         "canManageSystemSettings": false,
         "canManageAuth": false,
         "canViewDashboardResourceCard": true,
@@ -973,6 +981,7 @@
         "canViewAllOperationLogs": false,
         "canViewOwnOperationLogs": true,
         "canViewGroupOperationLogs": true,
+        "canViewSystemLogs": false,
         "canManageSystemSettings": false,
         "canManageAuth": false,
         "canViewDashboardResourceCard": true,
@@ -1067,6 +1076,7 @@
         "canViewAllOperationLogs": false,
         "canViewOwnOperationLogs": true,
         "canViewGroupOperationLogs": true,
+        "canViewSystemLogs": false,
         "canManageSystemSettings": false,
         "canManageAuth": false,
         "canViewDashboardResourceCard": true,
@@ -1120,8 +1130,8 @@
     "200": {
       "items": [
         {
-          "id": 1,
-          "name": "超级管理员",
+          "id": 6,
+          "name": "系统管理员",
           "userCount": 1,
           "permissions": [
             "core.manage_auth",
@@ -1144,12 +1154,8 @@
             "core.view_data_overview",
             "catalog.add_dataresource"
           ],
-          "isProtected": true,
-          "lockedPermissions": [
-            "core.manage_auth",
-            "core.manage_feature_permissions",
-            "core.manage_system_settings"
-          ]
+          "isProtected": false,
+          "lockedPermissions": []
         },
         {
           "id": 2,

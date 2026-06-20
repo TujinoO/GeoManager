@@ -357,6 +357,7 @@
                       "canViewAllOperationLogs": true,
                       "canViewOwnOperationLogs": true,
                       "canViewGroupOperationLogs": true,
+                      "canViewSystemLogs": true,
                       "canManageSystemSettings": true,
                       "canManageAuth": true,
                       "canViewDashboardResourceCard": true,
@@ -528,6 +529,7 @@
                       "canViewAllOperationLogs": false,
                       "canViewOwnOperationLogs": false,
                       "canViewGroupOperationLogs": false,
+                      "canViewSystemLogs": false,
                       "canManageSystemSettings": false,
                       "canManageAuth": false,
                       "canViewDashboardResourceCard": false,
@@ -661,6 +663,7 @@
                       "canViewAllOperationLogs": true,
                       "canViewOwnOperationLogs": true,
                       "canViewGroupOperationLogs": true,
+                      "canViewSystemLogs": true,
                       "canManageSystemSettings": true,
                       "canManageAuth": true,
                       "canViewDashboardResourceCard": true,
@@ -774,6 +777,7 @@
                       "canViewAllOperationLogs": true,
                       "canViewOwnOperationLogs": true,
                       "canViewGroupOperationLogs": true,
+                      "canViewSystemLogs": true,
                       "canManageSystemSettings": true,
                       "canManageAuth": true,
                       "canViewDashboardResourceCard": true,
@@ -970,6 +974,7 @@
                       "canViewAllOperationLogs": true,
                       "canViewOwnOperationLogs": true,
                       "canViewGroupOperationLogs": true,
+                      "canViewSystemLogs": true,
                       "canManageSystemSettings": true,
                       "canManageAuth": true,
                       "canViewDashboardResourceCard": true,
@@ -1156,6 +1161,7 @@
                       "canViewAllOperationLogs": true,
                       "canViewOwnOperationLogs": true,
                       "canViewGroupOperationLogs": true,
+                      "canViewSystemLogs": true,
                       "canManageSystemSettings": true,
                       "canManageAuth": true,
                       "canViewDashboardResourceCard": true,
@@ -1785,11 +1791,57 @@
                           "itemCount": 130
                         }
                       ],
+                      "ownUploads": {
+                        "totalResources": 3,
+                        "activeResources": 3,
+                        "totalSizeBytes": 246579,
+                        "totalItemCount": 128,
+                        "typeBreakdown": [
+                          {
+                            "dataType": "vector",
+                            "count": 1,
+                            "sizeBytes": 180224,
+                            "itemCount": 120
+                          },
+                          {
+                            "dataType": "table",
+                            "count": 1,
+                            "sizeBytes": 66355,
+                            "itemCount": 8
+                          }
+                        ]
+                      },
+                      "visibleResources": {
+                        "totalResources": 8,
+                        "activeResources": 7,
+                        "totalSizeBytes": 276889600,
+                        "totalItemCount": 387,
+                        "typeBreakdown": [
+                          {
+                            "dataType": "vector",
+                            "count": 2,
+                            "sizeBytes": 491520,
+                            "itemCount": 255
+                          },
+                          {
+                            "dataType": "raster",
+                            "count": 2,
+                            "sizeBytes": 276824064,
+                            "itemCount": 2
+                          },
+                          {
+                            "dataType": "table",
+                            "count": 2,
+                            "sizeBytes": 65536,
+                            "itemCount": 130
+                          }
+                        ]
+                      },
                       "uploaders": [
                         {
                           "user": {
                             "id": 1,
-                            "username": "admin",
+                            "username": "ops_manager",
                             "displayName": "系统管理员"
                           },
                           "resourceCount": 3,
@@ -1838,7 +1890,7 @@
                         {
                           "userId": 1,
                           "displayName": "系统管理员",
-                          "username": "admin",
+                          "username": "ops_manager",
                           "loginCount": 3
                         }
                       ]
@@ -1959,15 +2011,15 @@
                   "items": [
                     {
                       "id": 1,
-                      "username": "admin",
+                      "username": "ops_manager",
                       "displayName": "系统管理员",
-                      "email": "admin@example.local",
+                      "email": "ops.manager@example.local",
                       "avatarUrl": "",
                       "department": "平台运维组",
                       "isStaff": false,
                       "isSuperuser": false,
                       "roles": [
-                        "超级管理员"
+                        "系统管理员"
                       ],
                       "permissions": {
                         "canAccessAdmin": true,
@@ -1977,6 +2029,7 @@
                         "canViewAllOperationLogs": true,
                         "canViewOwnOperationLogs": true,
                         "canViewGroupOperationLogs": true,
+                        "canViewSystemLogs": true,
                         "canManageSystemSettings": true,
                         "canManageAuth": true,
                         "canViewDashboardResourceCard": true,
@@ -2004,7 +2057,7 @@
                         "canDeleteWorkspaces": true
                       },
                       "groupIds": [
-                        1
+                        6
                       ],
                       "isActive": true,
                       "directPermissions": [],
@@ -2027,9 +2080,8 @@
                         "core.view_data_overview"
                       ],
                       "operationLogGroupIds": [
-                        1,
-                        2,
-                        3
+                        3,
+                        4
                       ],
                       "groupPermissions": [
                         "core.manage_auth",
@@ -2071,6 +2123,7 @@
                         "canViewAllOperationLogs": false,
                         "canViewOwnOperationLogs": true,
                         "canViewGroupOperationLogs": true,
+                        "canViewSystemLogs": false,
                         "canManageSystemSettings": false,
                         "canManageAuth": false,
                         "canViewDashboardResourceCard": true,
@@ -2156,6 +2209,7 @@
                         "canViewAllOperationLogs": true,
                         "canViewOwnOperationLogs": true,
                         "canViewGroupOperationLogs": true,
+                        "canViewSystemLogs": false,
                         "canManageSystemSettings": false,
                         "canManageAuth": false,
                         "canViewDashboardResourceCard": true,
@@ -2244,6 +2298,7 @@
                         "canViewAllOperationLogs": false,
                         "canViewOwnOperationLogs": true,
                         "canViewGroupOperationLogs": true,
+                        "canViewSystemLogs": false,
                         "canManageSystemSettings": false,
                         "canManageAuth": false,
                         "canViewDashboardResourceCard": true,
@@ -2356,6 +2411,7 @@
                       "canViewAllOperationLogs": false,
                       "canViewOwnOperationLogs": true,
                       "canViewGroupOperationLogs": true,
+                      "canViewSystemLogs": false,
                       "canManageSystemSettings": false,
                       "canManageAuth": false,
                       "canViewDashboardResourceCard": true,
@@ -2486,6 +2542,7 @@
                     "canViewAllOperationLogs": false,
                     "canViewOwnOperationLogs": true,
                     "canViewGroupOperationLogs": true,
+                    "canViewSystemLogs": false,
                     "canManageSystemSettings": false,
                     "canManageAuth": false,
                     "canViewDashboardResourceCard": true,
@@ -2632,6 +2689,7 @@
                     "canViewAllOperationLogs": false,
                     "canViewOwnOperationLogs": true,
                     "canViewGroupOperationLogs": true,
+                    "canViewSystemLogs": false,
                     "canManageSystemSettings": false,
                     "canManageAuth": false,
                     "canViewDashboardResourceCard": true,
@@ -2858,6 +2916,7 @@
                     "canViewAllOperationLogs": false,
                     "canViewOwnOperationLogs": true,
                     "canViewGroupOperationLogs": true,
+                    "canViewSystemLogs": false,
                     "canManageSystemSettings": false,
                     "canManageAuth": false,
                     "canViewDashboardResourceCard": true,
@@ -2948,8 +3007,8 @@
                 "example": {
                   "items": [
                     {
-                      "id": 1,
-                      "name": "超级管理员",
+                      "id": 6,
+                      "name": "系统管理员",
                       "userCount": 1,
                       "permissions": [
                         "core.manage_auth",
@@ -2972,12 +3031,8 @@
                         "core.view_data_overview",
                         "catalog.add_dataresource"
                       ],
-                      "isProtected": true,
-                      "lockedPermissions": [
-                        "core.manage_auth",
-                        "core.manage_feature_permissions",
-                        "core.manage_system_settings"
-                      ]
+                      "isProtected": false,
+                      "lockedPermissions": []
                     },
                     {
                       "id": 2,
@@ -3576,7 +3631,7 @@
                       "dataType": "vector",
                       "category": {
                         "id": 1,
-                        "type": "topic",
+                        "type": "data_category",
                         "code": "field_monitoring",
                         "name": "野外监测"
                       },
@@ -3625,7 +3680,7 @@
                       "itemCount": 126,
                       "uploader": {
                         "id": 1,
-                        "username": "admin",
+                        "username": "ops_manager",
                         "displayName": "系统管理员"
                       }
                     },
@@ -3651,12 +3706,6 @@
                       },
                       "status": "active",
                       "accessGroups": [
-                        {
-                          "id": 1,
-                          "name": "超级管理员",
-                          "isGuest": false,
-                          "isSuperadmin": true
-                        },
                         {
                           "id": 3,
                           "name": "科研用户",
@@ -3708,7 +3757,7 @@
                       "dataType": "table",
                       "category": {
                         "id": 2,
-                        "type": "topic",
+                        "type": "data_category",
                         "code": "growth_monitoring",
                         "name": "生长监测"
                       },
@@ -3724,12 +3773,6 @@
                       "defaultVisualization": {},
                       "status": "inactive",
                       "accessGroups": [
-                        {
-                          "id": 1,
-                          "name": "超级管理员",
-                          "isGuest": false,
-                          "isSuperadmin": true
-                        },
                         {
                           "id": 5,
                           "name": "游客",
@@ -3759,12 +3802,6 @@
                   ],
                   "total": 3,
                   "availableAccessGroups": [
-                    {
-                      "id": 1,
-                      "name": "超级管理员",
-                      "isGuest": false,
-                      "isSuperadmin": true
-                    },
                     {
                       "id": 2,
                       "name": "普通用户",
@@ -4544,6 +4581,8 @@
                       "code": "nongeo-poplar-community-traits-2024",
                       "dataType": "table",
                       "category": {
+                        "id": 104,
+                        "type": "data_category",
                         "code": "biodiversity",
                         "name": "生物多样性"
                       },
@@ -9527,7 +9566,7 @@
           },
           "maintainer": {
             "type": "string",
-            "description": "维护人员显示名称"
+            "description": "维护人员显示名称；维护人是当前主体不可见的超级管理员用户时返回空字符串"
           },
           "uploader": {
             "oneOf": [
@@ -9538,7 +9577,7 @@
                 "type": "null"
               }
             ],
-            "description": "上传或维护该资源的用户；无法归属时为 null"
+            "description": "上传或维护该资源的用户；无法归属或维护人是当前主体不可见的超级管理员用户时为 null"
           },
           "createdAt": {
             "type": "string",

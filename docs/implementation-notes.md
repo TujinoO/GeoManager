@@ -502,6 +502,7 @@ CREATE TABLE gpkg_data_columns (
 - 后端内置账号和内置用户组配置集中在 `backend/apps/core/configuration/builtins.py`，包括 `超级管理员`、`普通用户`、`游客`、`guest`、初始管理员环境变量名、初始密码文件名和默认权限集合。
 - 业务逻辑不得直接散落维护内置账号/用户组字符串；需要判断内置组或内置账号时，通过 `apps.core.initialization` 暴露的 helper 和常量引用配置。
 - `超级管理员`、`普通用户`、`游客` 都属于系统内置受保护用户组，不能删除或重命名。`超级管理员` 权限由系统强制补齐；`普通用户` 和 `游客` 的默认权限只在用户组首次创建时应用，后续后台调整应被保留。
+- 非超级管理员主体不可见的用户、角色、操作日志和访问角色过滤统一通过 `backend/apps/core/principal_visibility.py` 暴露的 helper 实现；视图和前端不得绕过该模块自行暴露或二次判断超级管理员主体。
 - 前端认证授权页不得通过中文用户组名推断保护规则，应消费后端返回的 `isProtected` 与 `lockedPermissions`。
 
 ## 审计目标定位

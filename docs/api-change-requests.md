@@ -37,6 +37,8 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260620-008 | BackendReady | GET /api/admin/dashboard/ | response fields | Done | N/A | Done | Pending | Split data overview into own uploads and visible resources |
 | API-20260620-009 | BackendReady | GET /api/admin/data/resources/; GET /api/admin/data/resources/export/; POST /api/admin/data/resources/{id}/; GET /api/layers/; GET /api/catalog/directories/ | permission behavior | Done | N/A | Done | Done | Admin inventory and catalog object visibility scope |
 | API-20260620-010 | BackendReady | Auth/admin principal endpoints and operation logs | response fields, permission behavior | Done | N/A | Done | Done | Hide superadmin principals from non-superadmin users and always allow own operation logs |
+| API-20260621-001 | Verified | Auth/admin dashboard mock endpoints | mock data | N/A | Done | N/A | Done | Align Prism examples with existing OpenAPI-required fields |
+| API-20260621-002 | Verified | GET /api/users/; GET /api/groups/; GET /api/admin/data/resources/ | mock data | N/A | Done | N/A | Done | Exercise non-superadmin admin responses without superadmin principals |
 
 ## Entry Template
 
@@ -93,6 +95,32 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Centralize principal visibility through backend queryset helpers, apply it to user/group/log/access-group responses, and keep forced superadmin access in storage/permission internals.
 - Verification: run backend core/catalog API tests and frontend API generation/type checks.
 - Result: Backend and frontend implementation included in this change.
+
+## API-20260621-001 - Prism Mock Schema Alignment
+
+- Status: Verified
+- Owner: Frontend
+- Endpoints: `POST /api/auth/login/`, `POST /api/auth/register/`, `GET /api/auth/me/`, admin auth user/profile endpoints, `GET /api/admin/dashboard/`, `GET /api/admin/data/resources/`
+- Change type: mock data
+- OpenAPI change: None. Existing schemas already require `UserPermissions.canViewSystemLogs`, `AdminDashboardDataOverviewCard.ownUploads`, `AdminDashboardDataOverviewCard.visibleResources`, and structured `DictionaryItem` category values.
+- Mock examples: `mock/prism/examples/00-public-auth.json`, `mock/prism/examples/10-admin-auth.json`, `mock/prism/examples/20-admin-dashboard-data.json`, `mock/prism/examples/30-catalog-vector.json`
+- Frontend reason: Prism-backed browser and performance checks should run without response validation errors from stale mock fixtures.
+- Backend implementation notes: No backend implementation required; real backend contract is unchanged.
+- Verification: run `cd frontend && pnpm run mock:build && pnpm run api:changes:check && pnpm test -- src/test/mockExamples.test.ts && pnpm run perf:mock -- --label codex-e2e-check`.
+- Result: Mock fixtures updated to match the current OpenAPI contract; verification completed in this change.
+
+## API-20260621-002 - Non-Superadmin Principal Mock Isolation
+
+- Status: Verified
+- Owner: Frontend
+- Endpoints: `GET /api/users/`, `GET /api/groups/`, `GET /api/admin/data/resources/`
+- Change type: mock data
+- OpenAPI change: None. Existing schemas already allow filtered user, role, uploader, maintainer, and access-role responses.
+- Mock examples: `mock/prism/examples/10-admin-auth.json`, `mock/prism/examples/20-admin-dashboard-data.json`
+- Frontend reason: Browser and Prism-backed permission checks need default admin-auth/data examples that represent a non-superadmin manager and therefore contain no superadmin user, role, log-role, uploader, or access-role principals.
+- Backend implementation notes: No backend implementation required; real backend filtering is implemented by principal visibility helpers.
+- Verification: run `cd frontend && pnpm run mock:build && pnpm run api:changes:check`.
+- Result: Mock fixtures demonstrate non-superadmin responses with superadmin principals omitted before frontend rendering.
 
 ## API-20260615-001 - Initial Mock Separation Contract
 

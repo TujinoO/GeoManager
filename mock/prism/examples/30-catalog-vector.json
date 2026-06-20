@@ -134,6 +134,8 @@
           "code": "nongeo-poplar-community-traits-2024",
           "dataType": "table",
           "category": {
+            "id": 104,
+            "type": "data_category",
             "code": "biodiversity",
             "name": "生物多样性"
           },

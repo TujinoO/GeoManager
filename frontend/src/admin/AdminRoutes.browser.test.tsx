@@ -736,6 +736,59 @@ describe("admin routes", () => {
     ).toBeInTheDocument();
   }, 30000);
 
+  it("does not render hidden superadmin principals in auth management", async () => {
+    const researchGroup = {
+      id: 3,
+      name: "科研用户",
+      userCount: 1,
+      permissions: ["core.view_operation_logs"],
+      isProtected: false,
+      lockedPermissions: [],
+    };
+    const dataGroup = {
+      id: 4,
+      name: "数据管理员",
+      userCount: 1,
+      permissions: ["core.manage_auth"],
+      isProtected: false,
+      lockedPermissions: [],
+    };
+    const visibleUser = {
+      ...adminApiUser,
+      id: 7,
+      username: "data_admin_li",
+      displayName: "李数据管理员",
+      roles: ["数据管理员"],
+      groupIds: [dataGroup.id],
+      operationLogGroupIds: [researchGroup.id],
+    };
+    mockApi.adminUsers.mockResolvedValue({
+      items: [visibleUser],
+    });
+    mockApi.adminGroups.mockResolvedValue({
+      items: [researchGroup, dataGroup],
+      availablePermissions,
+    });
+
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/admin/auth/users"]}>
+        <AdminAuthPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("用户列表")).toBeInTheDocument();
+    expect(screen.getByText("data_admin_li")).toBeInTheDocument();
+    expect(screen.queryByText("超级管理员")).not.toBeInTheDocument();
+    expect(screen.queryByText("superadmin")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /操作/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /更改权限/ }));
+
+    const drawer = await screen.findByRole("dialog", { name: "设置用户权限" });
+    expect(within(drawer).getByText("科研用户")).toBeInTheDocument();
+    expect(within(drawer).queryByText("超级管理员")).not.toBeInTheDocument();
+  }, 30000);
+
   it("runs the admin data import step flow through preview and validation", async () => {
     renderAdminRoute("/resources/data/import");
 
@@ -891,13 +944,13 @@ describe("admin routes", () => {
     expect(screen.queryByText("populus_plots")).not.toBeInTheDocument();
   });
 
-  it("uses usernames when superadmin display names are empty in data management", async () => {
+  it("does not render hidden superadmin uploader identity in data management", async () => {
     mockApi.adminDataResources.mockResolvedValueOnce({
       items: [
         {
           id: 1,
-          name: "超级管理员上传数据",
-          code: "superadmin-resource",
+          name: "脱敏维护数据",
+          code: "masked-maintainer-resource",
           dataType: "table",
           category: null,
           source: "用户导入",
@@ -906,7 +959,54 @@ describe("admin routes", () => {
           spatialExtent: "",
           coordinateSystem: "",
           fileFormat: "CSV",
-          storagePath: "superadmin_resource",
+          storagePath: "masked_maintainer_resource",
+          description: "",
+          qualityNote: "",
+          defaultVisualization: {},
+          status: "active",
+          accessGroups: [],
+          canManageAccess: true,
+          maintainer: "",
+          uploader: null,
+          createdAt: "2026-06-01T10:00:00+08:00",
+          updatedAt: "2026-06-01T10:00:00+08:00",
+          defaultLayer: null,
+        },
+      ],
+      total: 1,
+      availableAccessGroups: [
+        { id: 2, name: "科研用户", isGuest: false, isSuperadmin: false },
+      ],
+    });
+
+    renderAdminRoute("/resources/data/inventory");
+
+    expect(await screen.findByText("脱敏维护数据")).toBeInTheDocument();
+    expect(screen.getAllByText("未记录").length).toBeGreaterThan(0);
+    expect(screen.queryByText("超级管理员")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "配置脱敏维护数据" }));
+
+    expect(await screen.findByText("访问权限")).toBeInTheDocument();
+    expect(screen.queryByText("超级管理员可见")).not.toBeInTheDocument();
+  });
+
+  it("uses usernames when uploader display names are empty in data management", async () => {
+    mockApi.adminDataResources.mockResolvedValueOnce({
+      items: [
+        {
+          id: 1,
+          name: "无显示名上传数据",
+          code: "unnamed-uploader-resource",
+          dataType: "table",
+          category: null,
+          source: "用户导入",
+          provider: "平台组",
+          dataDate: null,
+          spatialExtent: "",
+          coordinateSystem: "",
+          fileFormat: "CSV",
+          storagePath: "unnamed_uploader_resource",
           description: "",
           qualityNote: "",
           defaultVisualization: {},
@@ -915,8 +1015,8 @@ describe("admin routes", () => {
           canManageAccess: true,
           maintainer: "",
           uploader: {
-            id: 1,
-            username: "superadmin",
+            id: 6,
+            username: "data_operator",
             displayName: "",
           },
           createdAt: "2026-06-01T10:00:00+08:00",
@@ -930,13 +1030,11 @@ describe("admin routes", () => {
 
     renderAdminRoute("/resources/data/inventory");
 
-    expect(await screen.findByText("超级管理员上传数据")).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "配置超级管理员上传数据" }),
-    );
+    expect(await screen.findByText("无显示名上传数据")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "配置无显示名上传数据" }));
 
     await waitFor(() => {
-      expect(screen.getAllByText("superadmin").length).toBeGreaterThan(1);
+      expect(screen.getAllByText("data_operator").length).toBeGreaterThan(1);
     });
   });
 
