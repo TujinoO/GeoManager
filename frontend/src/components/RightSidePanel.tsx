@@ -106,11 +106,15 @@ const riskMatrix = [
 interface Props {
   selectedFeature: FeatureInfo | null;
   currentView: MapViewState | null;
+  thumbnailCenter: [number, number];
+  thumbnailZoom: number;
 }
 
 export default function RightSidePanel({
   selectedFeature,
   currentView,
+  thumbnailCenter,
+  thumbnailZoom,
 }: Props) {
   return (
     <div className="right-panel-stack">
@@ -118,7 +122,11 @@ export default function RightSidePanel({
         className="right-map-overview-panel"
         aria-label="当前视角平面缩略图"
       >
-        <FlatMapThumbnail currentView={currentView} />
+        <FlatMapThumbnail
+          currentView={currentView}
+          fixedCenter={thumbnailCenter}
+          fixedZoom={thumbnailZoom}
+        />
       </section>
 
       <section
@@ -177,8 +185,12 @@ export default function RightSidePanel({
 
 function FlatMapThumbnail({
   currentView,
+  fixedCenter,
+  fixedZoom,
 }: {
   currentView: MapViewState | null;
+  fixedCenter: [number, number];
+  fixedZoom: number;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
@@ -193,8 +205,8 @@ function FlatMapThumbnail({
     const mapOptions: MapboxOptions = {
       container,
       style: osmChineseVectorStyle,
-      center: currentView.center,
-      zoom: zoomForThumbnail(currentView.zoom),
+      center: fixedCenter,
+      zoom: zoomForThumbnail(fixedZoom),
       bearing: 0,
       pitch: 0,
       projection: "mercator",
@@ -218,7 +230,7 @@ function FlatMapThumbnail({
     } catch {
       setMapUnavailable(true);
     }
-  }, [currentView, mapUnavailable]);
+  }, [currentView, fixedCenter, fixedZoom, mapUnavailable]);
 
   useEffect(() => {
     return () => {
@@ -232,12 +244,6 @@ function FlatMapThumbnail({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !currentView) return;
-    map.jumpTo({
-      center: currentView.center,
-      zoom: zoomForThumbnail(currentView.zoom),
-      bearing: 0,
-      pitch: 0,
-    });
     if (map.isStyleLoaded()) {
       updateThumbnailExtent(map, currentView.bounds);
     } else {
