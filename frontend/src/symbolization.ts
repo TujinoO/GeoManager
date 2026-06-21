@@ -20,6 +20,34 @@ type IconTextFit = "none" | "width" | "height" | "both";
 type LineCap = "butt" | "round" | "square";
 type LineJoin = "bevel" | "round" | "miter" | "none";
 
+export const platformSymbolIconIds = [
+  "gm-marker",
+  "gm-station",
+  "gm-sample",
+  "gm-plot",
+  "gm-water",
+  "gm-alert",
+  "gm-priority",
+] as const;
+
+export type PlatformSymbolIconId = (typeof platformSymbolIconIds)[number];
+
+export const legacySymbolIconAliases = {
+  "marker-15": "gm-marker",
+  "harbor-15": "gm-station",
+  "circle-15": "gm-sample",
+  "triangle-15": "gm-alert",
+  "star-15": "gm-priority",
+} as const satisfies Record<string, PlatformSymbolIconId>;
+
+export function normalizeSymbolIconImage(iconImage: string) {
+  return (
+    legacySymbolIconAliases[
+      iconImage as keyof typeof legacySymbolIconAliases
+    ] ?? iconImage
+  );
+}
+
 export interface GroupSymbolization {
   opacity: number;
 }
@@ -136,6 +164,8 @@ export interface FillSymbolization {
 
 export interface HeatmapSymbolization {
   heatmapWeight: number;
+  heatmapWeightField: string;
+  heatmapWeightFieldMax: number;
   heatmapIntensity: number;
   heatmapRadius: number;
   heatmapOpacity: number;
@@ -210,7 +240,7 @@ export const defaultVectorSymbolization: VectorSymbolization = {
     symbolAvoidEdges: false,
     symbolSortKey: 0,
     symbolZOrder: "auto",
-    iconImage: "marker-15",
+    iconImage: "gm-marker",
     iconSize: 1,
     iconSizeScaleRange: [0.8, 2],
     iconAllowOverlap: true,
@@ -270,22 +300,28 @@ export const defaultVectorSymbolization: VectorSymbolization = {
     textOcclusionOpacity: 1,
   },
   heatmap: {
-    heatmapWeight: 1,
-    heatmapIntensity: 1,
-    heatmapRadius: 28,
-    heatmapOpacity: 0.72,
+    heatmapWeight: 0.72,
+    heatmapWeightField: "",
+    heatmapWeightFieldMax: 1,
+    heatmapIntensity: 0.9,
+    heatmapRadius: 24,
+    heatmapOpacity: 0.78,
     heatmapColor: [
       "interpolate",
       ["linear"],
       ["heatmap-density"],
       0,
       "rgba(0, 0, 0, 0)",
-      0.18,
-      "#8ecae6",
-      0.42,
-      "#2a9d8f",
-      0.72,
-      "#f4a261",
+      0.12,
+      "rgba(72, 202, 228, 0.22)",
+      0.32,
+      "#48cae4",
+      0.55,
+      "#80ed99",
+      0.76,
+      "#ffd166",
+      0.92,
+      "#f77f00",
       1,
       "#d62828",
     ],

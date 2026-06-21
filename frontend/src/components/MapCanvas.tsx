@@ -28,6 +28,10 @@ import {
   upsertPolygonLayer,
 } from "../map/spatialDraw";
 import {
+  bindPlatformSymbolImageFallback,
+  registerPlatformSymbolImages,
+} from "../map/symbolImages";
+import {
   addLoadedStyleLayers,
   removeLayerGroup,
   removeLoadedLayerGroup,
@@ -131,7 +135,10 @@ export default function MapCanvas({
       mapOptions.accessToken = mapboxToken;
     }
     const map = new mapboxgl.Map(mapOptions);
-    map.on("style.load", () => {
+    const unbindPlatformSymbolImageFallback =
+      bindPlatformSymbolImageFallback(map);
+    const handleStyleLoad = () => {
+      registerPlatformSymbolImages(map);
       map.setFog({
         color: "rgb(221, 232, 224)",
         "high-color": "rgb(52, 96, 123)",
@@ -144,7 +151,8 @@ export default function MapCanvas({
         hideAdministrativeBoundaries(map);
         map.once("idle", () => hideAdministrativeBoundaries(map));
       }
-    });
+    };
+    map.on("style.load", handleStyleLoad);
     map.addControl(
       new mapboxgl.ScaleControl({ unit: "metric" }),
       "bottom-left",
@@ -201,6 +209,8 @@ export default function MapCanvas({
       map.off("zoomend", emitViewState);
       map.off("rotateend", emitViewState);
       map.off("pitchend", emitViewState);
+      map.off("style.load", handleStyleLoad);
+      unbindPlatformSymbolImageFallback();
       window.removeEventListener("resize", resizeAndEmitViewState);
       map.off("mousemove", updatePointer);
       map.off("mouseleave", clearPointer);
@@ -415,6 +425,7 @@ function syncLoadedLayers(
   layers: LoadedLayer[],
   onFeatureSelect?: (feature: FeatureInfo | null) => void,
 ) {
+  registerPlatformSymbolImages(map);
   const renderableVectorLayers = layers.filter(
     (l): l is LoadedVectorLayer => l.layerType === "vector" && "geojson" in l,
   );

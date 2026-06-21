@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { platformSymbolImageId } from "./map/symbolImages";
 import {
   cloneDefaultGroupSymbolization,
   cloneDefaultRasterSymbolization,
@@ -6,6 +7,7 @@ import {
   defaultGroupSymbolization,
   defaultRasterSymbolization,
   defaultVectorSymbolization,
+  normalizeSymbolIconImage,
   rasterSymbolizationFromRules,
 } from "./symbolization";
 
@@ -40,6 +42,31 @@ describe("defaultVectorSymbolization", () => {
       0,
     );
     expect(defaultVectorSymbolization.fill.fillOpacity).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("normalizeSymbolIconImage", () => {
+  it("keeps platform icon ids unchanged", () => {
+    expect(normalizeSymbolIconImage("gm-marker")).toBe("gm-marker");
+  });
+
+  it("maps legacy sprite names to platform icon ids", () => {
+    expect(normalizeSymbolIconImage("triangle-15")).toBe("gm-alert");
+    expect(normalizeSymbolIconImage("star-15")).toBe("gm-priority");
+  });
+});
+
+describe("platformSymbolImageId", () => {
+  it("builds color-specific image ids for platform icons", () => {
+    expect(platformSymbolImageId("gm-water", "#2F7D62")).toBe(
+      "gm-water--2f7d62",
+    );
+  });
+
+  it("keeps non-platform icon ids unchanged", () => {
+    expect(platformSymbolImageId("custom-sprite", "#2f7d62")).toBe(
+      "custom-sprite",
+    );
   });
 });
 

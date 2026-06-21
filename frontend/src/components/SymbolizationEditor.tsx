@@ -18,15 +18,16 @@ import {
 import type { ReactNode } from "react";
 import { useCallback, useState } from "react";
 import { api } from "../api/client";
-import type {
-  Anchor,
-  CircleSymbolization,
-  FillSymbolization,
-  HeatmapSymbolization,
-  LineSymbolization,
-  RasterSymbolization,
-  SymbolLayerSymbolization,
-  VectorSymbolization,
+import {
+  normalizeSymbolIconImage,
+  type Anchor,
+  type CircleSymbolization,
+  type FillSymbolization,
+  type HeatmapSymbolization,
+  type LineSymbolization,
+  type RasterSymbolization,
+  type SymbolLayerSymbolization,
+  type VectorSymbolization,
 } from "../symbolization";
 import type { RasterBandMetadata, ResourceField } from "../types";
 
@@ -52,12 +53,16 @@ const heatmapPalettes = [
       ["heatmap-density"],
       0,
       "rgba(0, 0, 0, 0)",
-      0.18,
-      "#8ecae6",
-      0.42,
-      "#2a9d8f",
-      0.72,
-      "#f4a261",
+      0.12,
+      "rgba(72, 202, 228, 0.22)",
+      0.32,
+      "#48cae4",
+      0.55,
+      "#80ed99",
+      0.76,
+      "#ffd166",
+      0.92,
+      "#f77f00",
       1,
       "#d62828",
     ],
@@ -252,6 +257,19 @@ function displaySymbolizationOption(option: string) {
   return symbolizationOptionLabels[option] ?? option;
 }
 
+function isNumericResourceField(field: ResourceField) {
+  const type = field.type.toLowerCase();
+  return (
+    type.includes("int") ||
+    type.includes("float") ||
+    type.includes("double") ||
+    type.includes("decimal") ||
+    type.includes("number") ||
+    type.includes("numeric") ||
+    type.includes("real")
+  );
+}
+
 export function VectorSymbolizationEditor({
   value,
   fields,
@@ -336,7 +354,7 @@ export function VectorSymbolizationEditor({
         pointMode: "symbol",
         symbol: {
           ...value.symbol,
-          iconImage: "marker-15",
+          iconImage: "gm-marker",
           iconColor: "#d9a441",
           iconHaloColor: "#173f39",
           iconHaloWidth: 0.8,
@@ -352,8 +370,11 @@ export function VectorSymbolizationEditor({
         pointMode: "heatmap",
         heatmap: {
           ...value.heatmap,
-          heatmapIntensity: 1.15,
-          heatmapRadius: 32,
+          heatmapWeight: 0.72,
+          heatmapWeightField: "",
+          heatmapWeightFieldMax: 1,
+          heatmapIntensity: 0.9,
+          heatmapRadius: 24,
           heatmapOpacity: 0.78,
           heatmapColor: [
             ...(heatmapPalettes[0]?.value ?? value.heatmap.heatmapColor),
@@ -401,6 +422,16 @@ export function VectorSymbolizationEditor({
   const defaultLabelField =
     labelFieldOptions.find((option) => option.value)?.value ?? "";
   const labelEnabled = value.symbol.textField.trim().length > 0;
+  const selectedHeatmapWeightField = value.heatmap.heatmapWeightField ?? "";
+  const heatmapWeightFieldOptions = [
+    { value: "", label: "按点位数量" },
+    ...fields.filter(isNumericResourceField).map((field) => ({
+      value: field.name,
+      label: field.description
+        ? `${field.name} · ${field.description}`
+        : field.name,
+    })),
+  ];
   const normalizedGeometry = (geometryType ?? "").toLowerCase();
   const geometryUnknown =
     !normalizedGeometry ||
@@ -415,18 +446,21 @@ export function VectorSymbolizationEditor({
     ? "自动识别可用表达方式"
     : geometryType;
   const iconOptions = [
-    { value: "marker-15", label: "定位标记" },
-    { value: "circle-15", label: "圆形标记" },
-    { value: "triangle-15", label: "三角标记" },
-    { value: "star-15", label: "星形标记" },
-    { value: "harbor-15", label: "站点标记" },
+    { value: "gm-marker", label: "定位标记" },
+    { value: "gm-station", label: "监测站点" },
+    { value: "gm-sample", label: "调查样点" },
+    { value: "gm-plot", label: "植被样方" },
+    { value: "gm-water", label: "水文点位" },
+    { value: "gm-alert", label: "风险预警" },
+    { value: "gm-priority", label: "重点点位" },
   ];
+  const selectedIconImage = normalizeSymbolIconImage(value.symbol.iconImage);
   const iconImageOptions = iconOptions.some(
-    (option) => option.value === value.symbol.iconImage,
+    (option) => option.value === selectedIconImage,
   )
     ? iconOptions
     : [
-        { value: value.symbol.iconImage, label: value.symbol.iconImage },
+        { value: selectedIconImage, label: selectedIconImage },
         ...iconOptions,
       ];
   const currentHeatmapColor = JSON.stringify(value.heatmap.heatmapColor);
@@ -658,7 +692,7 @@ export function VectorSymbolizationEditor({
                   <Select
                     className="full-width"
                     showSearch
-                    value={value.symbol.iconImage}
+                    value={selectedIconImage}
                     options={iconImageOptions}
                     onChange={(next) => updateSymbol("iconImage", next)}
                   />
@@ -684,8 +718,34 @@ export function VectorSymbolizationEditor({
                 <Alert
                   type="info"
                   showIcon
-                  title="密度热力用于显示点位聚集程度，当前按点位数量计算密度。"
+                  title={
+                    selectedHeatmapWeightField
+                      ? `密度热力按 ${selectedHeatmapWeightField} 字段加权，缩放时自动淡出为点位明细。`
+                      : "密度热力用于显示点位聚集程度，当前按点位数量计算密度，缩放时自动淡出为点位明细。"
+                  }
                 />
+                <ControlRow label="权重字段">
+                  <Select
+                    className="full-width"
+                    value={selectedHeatmapWeightField}
+                    options={heatmapWeightFieldOptions}
+                    onChange={(next) =>
+                      updateHeatmap("heatmapWeightField", next)
+                    }
+                  />
+                </ControlRow>
+                {selectedHeatmapWeightField && (
+                  <NumberField
+                    label="权重上限"
+                    value={value.heatmap.heatmapWeightFieldMax ?? 1}
+                    min={1}
+                    max={100000}
+                    step={1}
+                    onChange={(next) =>
+                      updateHeatmap("heatmapWeightFieldMax", next)
+                    }
+                  />
+                )}
                 <ControlRow label="热力色带">
                   <Select
                     className="full-width"
@@ -698,23 +758,23 @@ export function VectorSymbolizationEditor({
                 </ControlRow>
                 <NumberField
                   label="影响半径"
-                  value={value.heatmap.heatmapRadius}
+                  value={value.heatmap.heatmapRadius ?? 24}
                   min={1}
-                  max={120}
+                  max={80}
                   step={1}
                   onChange={(next) => updateHeatmap("heatmapRadius", next)}
                 />
                 <NumberField
                   label="热力强度"
-                  value={value.heatmap.heatmapIntensity}
+                  value={value.heatmap.heatmapIntensity ?? 0.9}
                   min={0}
-                  max={10}
+                  max={3}
                   step={0.1}
                   onChange={(next) => updateHeatmap("heatmapIntensity", next)}
                 />
                 <NumberField
                   label="热力透明度"
-                  value={value.heatmap.heatmapOpacity}
+                  value={value.heatmap.heatmapOpacity ?? 0.78}
                   min={0}
                   max={1}
                   step={0.05}
@@ -955,10 +1015,10 @@ export function VectorSymbolizationEditor({
                 <Typography.Text strong>热力高级</Typography.Text>
                 <NumberField
                   label="heatmap-weight"
-                  value={value.heatmap.heatmapWeight}
+                  value={value.heatmap.heatmapWeight ?? 0.72}
                   min={0}
-                  max={10}
-                  step={0.1}
+                  max={1}
+                  step={0.05}
                   onChange={(next) => updateHeatmap("heatmapWeight", next)}
                 />
               </>

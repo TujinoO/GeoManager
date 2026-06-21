@@ -1109,6 +1109,7 @@ function NodeActions({
   const [symbolizationOpen, setSymbolizationOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [draftSymbolization, setDraftSymbolization] = useState(symbolization);
+  const committedSymbolizationRef = useRef(symbolization);
   const [exportReproject, setExportReproject] = useState(false);
   const [exportClip, setExportClip] = useState(false);
   const [exportEpsg, setExportEpsg] = useState<number | null>(
@@ -1130,11 +1131,20 @@ function NodeActions({
 
   function openSymbolizationModal() {
     if (!canUseCustomSymbolization) return;
+    committedSymbolizationRef.current = symbolization;
     setDraftSymbolization(symbolization);
     setSymbolizationOpen(true);
   }
 
   function closeSymbolizationModal() {
+    const committedSymbolization = committedSymbolizationRef.current;
+    if (
+      isVectorSymbolization(committedSymbolization) &&
+      isVectorSymbolization(draftSymbolization)
+    ) {
+      onSymbolizationChange(committedSymbolization);
+      setDraftSymbolization(committedSymbolization);
+    }
     setSymbolizationOpen(false);
   }
 
@@ -1192,8 +1202,14 @@ function NodeActions({
     if (!canUseCustomSymbolization) {
       return;
     }
+    committedSymbolizationRef.current = draftSymbolization;
     onSymbolizationChange(draftSymbolization);
     setSymbolizationOpen(false);
+  }
+
+  function previewVectorSymbolization(next: VectorSymbolization) {
+    setDraftSymbolization(next);
+    onSymbolizationChange(next);
   }
 
   function renderSymbolizationEditor() {
@@ -1203,7 +1219,7 @@ function NodeActions({
           value={draftSymbolization}
           fields={fields}
           geometryType={geometryType}
-          onChange={setDraftSymbolization}
+          onChange={previewVectorSymbolization}
           onApply={applyDraftSymbolization}
         />
       );
@@ -1294,10 +1310,14 @@ function NodeActions({
         {canUseCustomSymbolization && (
           <LayerTooltip title="符号化">
             <Button
-              className="action-btn"
+              className={`action-btn symbolization-action-btn${
+                symbolizationOpen ? " is-active" : ""
+              }`}
               type="text"
               size="small"
               aria-label={`${subjectName}符号化`}
+              aria-expanded={symbolizationOpen}
+              aria-haspopup="dialog"
               icon={<BgColorsOutlined style={{ fontSize: 14 }} />}
               onClick={openSymbolizationModal}
             />
