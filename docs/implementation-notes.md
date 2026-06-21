@@ -301,6 +301,7 @@ frontend/src/
 - React 19 检查项：未使用 `ReactDOM.render`、`findDOMNode`、字符串 ref、无参 `useRef()`、旧 `react-dom/test-utils` 或依赖 `ReactElement` 默认 `any` props 的写法；入口仍使用 `react-dom/client` 的 `createRoot`。
 - Ant Design 6 适配项：`Alert message` 改为 `title`，`Tabs tabPosition` 改为 `tabPlacement`，`Space direction` 改为 `orientation`，`Popover styles.body` 改为 `styles.content`。
 - CSS 风险项：项目仍存在少量基于 Ant Design 内部类名的布局微调（如 Tabs、Table、Descriptions、Switch），升级后需要通过页面走查持续确认 DOM 结构变化没有影响样式。
+- 前端 `pnpm-workspace.yaml` 使用 overrides 覆盖开发工具链传递依赖中的 `lodash`、`uuid`、`js-yaml` 安全版本，以消除 Prism/OpenAPI 生成工具链审计漏洞。调整这些 overrides 后必须运行 `pnpm install`、`pnpm audit --audit-level moderate`、`pnpm run mock:build` 和 `pnpm run check:api`，确认锁文件、Mock bundle 和 OpenAPI 类型生成仍可用。
 
 ## 版本管理
 
@@ -499,6 +500,7 @@ CREATE TABLE gpkg_data_columns (
 
 - 项目结构维护说明见 `docs/project-structure.md`；移动前端或后端模块时必须同步更新该文档。
 - Django 运行元数据库使用业务数据根目录下的 `database/meta.db`，路径为 `settings.PROJECT_CONFIG.app_path("database", "meta.db")`。研究数据根只保存矢量、栅格、基因和表格等研究数据文件，不再混放 Django auth、权限、审计、目录登记、工程和专题等应用元信息。
+- TOML 配置加载对布尔值和地图浮点数执行显式类型校验：布尔字段不再用 `bool(value)` 宽松转换，`default_center` 和 `default_zoom` 必须是有限数字。后台系统设置接口对同类输入返回 JSON 400，避免非法请求触发 500 或写入不可用运行配置。
 - 后端内置账号和内置用户组配置集中在 `backend/apps/core/configuration/builtins.py`，包括 `超级管理员`、`普通用户`、`游客`、`guest`、初始管理员环境变量名、初始密码文件名和默认权限集合。
 - 业务逻辑不得直接散落维护内置账号/用户组字符串；需要判断内置组或内置账号时，通过 `apps.core.initialization` 暴露的 helper 和常量引用配置。
 - `超级管理员`、`普通用户`、`游客` 都属于系统内置受保护用户组，不能删除或重命名。`超级管理员` 权限由系统强制补齐；`普通用户` 和 `游客` 的默认权限只在用户组首次创建时应用，后续后台调整应被保留。

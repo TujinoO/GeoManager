@@ -127,9 +127,7 @@ export function addLoadedStyleLayers(
         "circle-pitch-alignment": style.circle.circlePitchAlignment,
         "circle-pitch-scale": style.circle.circlePitchScale,
         "circle-stroke-color": style.circle.circleStrokeColor,
-        "circle-stroke-opacity": buildHeatmapDetailOpacity(
-          circleStrokeOpacity,
-        ),
+        "circle-stroke-opacity": buildHeatmapDetailOpacity(circleStrokeOpacity),
         "circle-stroke-width": stateNumber(
           style.circle.circleStrokeWidth,
           style.circle.circleStrokeWidth + 1.2,

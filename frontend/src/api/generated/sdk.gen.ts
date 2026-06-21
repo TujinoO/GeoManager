@@ -62,7 +62,7 @@ export const login = <ThrowOnError extends boolean = false>(options: Options<Log
 /**
  * 游客登录
  *
- * 使用系统维护的专用 `guest` 账号建立游客会话。游客账号不可使用密码登录，只归属 `游客` 用户组，默认仅具备浏览、查询和图层加载权限。
+ * 使用系统维护的专用 `guest` 账号建立游客会话。游客账号不可使用密码登录，只归属 `游客` 用户组；游客用户组默认不具备任何功能权限，管理员可在认证授权中调整游客角色权限。
  *
  */
 export const guestLogin = <ThrowOnError extends boolean = false>(options?: Options<GuestLoginData, ThrowOnError>): RequestResult<GuestLoginResponses, GuestLoginErrors, ThrowOnError> => (options?.client ?? client).post<GuestLoginResponses, GuestLoginErrors, ThrowOnError>({ url: '/api/auth/guest-login/', ...options });

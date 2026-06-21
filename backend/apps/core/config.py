@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from pathlib import Path
 from typing import Any
 
@@ -158,12 +159,18 @@ def load_project_config(config_path: Path, program_root: Path) -> ProjectConfig:
         config_path=source_path,
         runtime=runtime,
         system_name=_string(system.get("name"), "application.system.name"),
-        allow_registration=bool(system.get("allow_registration", False)),
+        allow_registration=_bool(
+            system.get("allow_registration", False),
+            "application.system.allow_registration",
+        ),
         app_data=app_root,
         research_data_root=research_root,
         map=MapConfig(
             default_center=_center(map_config.get("default_center")),
-            default_zoom=float(map_config.get("default_zoom", 4.5)),
+            default_zoom=_finite_float(
+                map_config.get("default_zoom", 4.5),
+                "application.map.default_zoom",
+            ),
             default_basemap=_string(
                 map_config.get("default_basemap"),
                 "application.map.default_basemap",
@@ -231,7 +238,7 @@ def _load_toml_document(path: Path) -> dict[str, Any]:
 
 def _runtime_config(raw: dict[str, Any]) -> RuntimeConfig:
     return RuntimeConfig(
-        debug=bool(raw.get("debug", False)),
+        debug=_bool(raw.get("debug", False), "runtime.debug"),
         allowed_hosts=_string_tuple(
             raw.get("allowed_hosts", ["*"]), "runtime.allowed_hosts"
         ),
@@ -251,10 +258,14 @@ def _runtime_config(raw: dict[str, Any]) -> RuntimeConfig:
             raw.get("waitress_threads", 4),
             "runtime.waitress_threads",
         ),
-        disable_catalog_startup_scan=bool(
-            raw.get("disable_catalog_startup_scan", False)
+        disable_catalog_startup_scan=_bool(
+            raw.get("disable_catalog_startup_scan", False),
+            "runtime.disable_catalog_startup_scan",
         ),
-        disable_raster_startup_scan=bool(raw.get("disable_raster_startup_scan", False)),
+        disable_raster_startup_scan=_bool(
+            raw.get("disable_raster_startup_scan", False),
+            "runtime.disable_raster_startup_scan",
+        ),
     )
 
 
@@ -291,6 +302,22 @@ def _positive_int(value: Any, key: str) -> int:
     return value
 
 
+def _bool(value: Any, key: str) -> bool:
+    if not isinstance(value, bool):
+        raise ConfigValidationError(f"配置项 {key} 必须是布尔值")
+    return value
+
+
+def _finite_float(value: Any, key: str) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ConfigValidationError(f"配置项 {key} 必须是有效数字") from exc
+    if not math.isfinite(number):
+        raise ConfigValidationError(f"配置项 {key} 必须是有效数字")
+    return number
+
+
 def _absolute_path(value: Any, key: str) -> Path:
     path_text = _string(value, key)
     path = Path(path_text).expanduser()
@@ -304,8 +331,8 @@ def _center(value: Any) -> tuple[float, float]:
         raise ConfigValidationError(
             "配置项 application.map.default_center 必须是 [经度, 纬度]"
         )
-    lon = float(value[0])
-    lat = float(value[1])
+    lon = _finite_float(value[0], "application.map.default_center[0]")
+    lat = _finite_float(value[1], "application.map.default_center[1]")
     if not -180 <= lon <= 180 or not -90 <= lat <= 90:
         raise ConfigValidationError(
             "配置项 application.map.default_center 超出经纬度范围"

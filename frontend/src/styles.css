@@ -5733,7 +5733,11 @@ body:has(.login-shell),
   margin-inline: 1px;
   color: #eafff8;
   background:
-    linear-gradient(135deg, rgba(116, 243, 221, 0.24), rgba(34, 197, 143, 0.22)),
+    linear-gradient(
+      135deg,
+      rgba(116, 243, 221, 0.24),
+      rgba(34, 197, 143, 0.22)
+    ),
     rgba(8, 32, 42, 0.5);
   border: 1px solid rgba(116, 243, 221, 0.44);
   box-shadow:
@@ -5765,7 +5769,11 @@ body:has(.login-shell),
 .layer-tree .symbolization-action-btn.ant-btn-text.is-active {
   color: #ffffff;
   background:
-    linear-gradient(135deg, rgba(143, 255, 238, 0.34), rgba(34, 197, 143, 0.32)),
+    linear-gradient(
+      135deg,
+      rgba(143, 255, 238, 0.34),
+      rgba(34, 197, 143, 0.32)
+    ),
     rgba(10, 54, 49, 0.84);
   border-color: rgba(143, 255, 238, 0.72);
   box-shadow:

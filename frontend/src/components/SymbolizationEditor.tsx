@@ -459,10 +459,7 @@ export function VectorSymbolizationEditor({
     (option) => option.value === selectedIconImage,
   )
     ? iconOptions
-    : [
-        { value: selectedIconImage, label: selectedIconImage },
-        ...iconOptions,
-      ];
+    : [{ value: selectedIconImage, label: selectedIconImage }, ...iconOptions];
   const currentHeatmapColor = JSON.stringify(value.heatmap.heatmapColor);
   const heatmapPaletteOptions: Array<{ label: string; value: string }> =
     heatmapPalettes.map((palette) => ({

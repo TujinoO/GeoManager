@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import math
 import os
 import platform
 import re
@@ -734,9 +735,12 @@ def admin_settings(request):
             return system_name
         patch.setdefault("system", {})["name"] = system_name
     if "allowRegistration" in payload:
-        patch.setdefault("system", {})["allow_registration"] = bool(
-            payload["allowRegistration"]
+        allow_registration = _boolean_value(
+            payload["allowRegistration"], "allowRegistration"
         )
+        if isinstance(allow_registration, JsonResponse):
+            return allow_registration
+        patch.setdefault("system", {})["allow_registration"] = allow_registration
     if "map" in payload:
         map_patch = _map_patch(payload["map"])
         if isinstance(map_patch, JsonResponse):
@@ -2391,9 +2395,22 @@ def _map_patch(value: Any) -> dict[str, Any] | JsonResponse:
             return JsonResponse(
                 {"detail": "defaultCenter 必须是 [经度, 纬度]"}, status=400
             )
-        patch["default_center"] = [float(center[0]), float(center[1])]
+        longitude = _finite_float(center[0], "defaultCenter[0]")
+        if isinstance(longitude, JsonResponse):
+            return longitude
+        latitude = _finite_float(center[1], "defaultCenter[1]")
+        if isinstance(latitude, JsonResponse):
+            return latitude
+        if longitude < -180 or longitude > 180:
+            return JsonResponse({"detail": "defaultCenter 经度超出范围"}, status=400)
+        if latitude < -90 or latitude > 90:
+            return JsonResponse({"detail": "defaultCenter 纬度超出范围"}, status=400)
+        patch["default_center"] = [longitude, latitude]
     if "defaultZoom" in value:
-        patch["default_zoom"] = float(value["defaultZoom"])
+        default_zoom = _finite_float(value["defaultZoom"], "defaultZoom")
+        if isinstance(default_zoom, JsonResponse):
+            return default_zoom
+        patch["default_zoom"] = default_zoom
     if "defaultBasemap" in value:
         default_basemap = _required_string(value["defaultBasemap"], "defaultBasemap")
         if isinstance(default_basemap, JsonResponse):
@@ -2443,3 +2460,19 @@ def _positive_int(value: Any, key: str) -> int | JsonResponse:
     if not isinstance(value, int) or value <= 0:
         return JsonResponse({"detail": f"{key} 必须是正整数"}, status=400)
     return value
+
+
+def _boolean_value(value: Any, key: str) -> bool | JsonResponse:
+    if not isinstance(value, bool):
+        return JsonResponse({"detail": f"{key} 必须是布尔值"}, status=400)
+    return value
+
+
+def _finite_float(value: Any, key: str) -> float | JsonResponse:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return JsonResponse({"detail": f"{key} 必须是有效数字"}, status=400)
+    if not math.isfinite(number):
+        return JsonResponse({"detail": f"{key} 必须是有效数字"}, status=400)
+    return number

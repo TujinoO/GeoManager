@@ -7,6 +7,7 @@ from apps.audit.models import OperationLog
 from apps.catalog.models import DataResource, DictionaryItem, MapLayer
 from apps.core.config import (
     APP_SUBDIRS,
+    ConfigValidationError,
     RESEARCH_SUBDIRS,
     load_project_config,
     metadata_database_path,
@@ -35,7 +36,7 @@ from apps.core.storage import (
 from apps.raster.models import RasterDataset
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
-from django.test import Client, SimpleTestCase, TestCase
+from django.test import Client, SimpleTestCase, TestCase, override_settings
 from geomanager.settings import _default_csrf_trusted_origins
 
 
@@ -132,6 +133,64 @@ class CsrfSettingsTests(SimpleTestCase):
         self.assertIn("http://127.0.0.1:5173", origins)
         self.assertIn("http://localhost:5173", origins)
         self.assertNotIn("http://*", origins)
+
+
+class AdminSettingsApiTests(TestCase):
+    def test_rejects_invalid_map_numbers_without_writing_config(self):
+        user = get_user_model().objects.create_user(
+            username="settings-admin", password="pass12345"
+        )
+        grant(user, ("core", "manage_system_settings"))
+        self.client.force_login(user)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+            before = config_path.read_text(encoding="utf-8")
+
+            with override_settings(PROJECT_CONFIG=config):
+                center_response = self.client.post(
+                    "/api/admin/settings/",
+                    data=json.dumps({"map": {"defaultCenter": ["east", 41.5]}}),
+                    content_type="application/json",
+                )
+                zoom_response = self.client.post(
+                    "/api/admin/settings/",
+                    data=json.dumps({"map": {"defaultZoom": "far"}}),
+                    content_type="application/json",
+                )
+
+            self.assertEqual(center_response.status_code, 400)
+            self.assertEqual(
+                center_response.json()["detail"],
+                "defaultCenter[0] 必须是有效数字",
+            )
+            self.assertEqual(zoom_response.status_code, 400)
+            self.assertEqual(
+                zoom_response.json()["detail"], "defaultZoom 必须是有效数字"
+            )
+            self.assertEqual(config_path.read_text(encoding="utf-8"), before)
+
+    def test_rejects_non_boolean_registration_flag(self):
+        user = get_user_model().objects.create_user(
+            username="settings-bool-admin", password="pass12345"
+        )
+        grant(user, ("core", "manage_system_settings"))
+        self.client.force_login(user)
+
+        response = self.client.post(
+            "/api/admin/settings/",
+            data=json.dumps({"allowRegistration": "false"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "allowRegistration 必须是布尔值")
 
 
 class ApiJsonErrorTests(TestCase):
@@ -239,7 +298,7 @@ class RegistrationApiTests(TestCase):
         self.assertTrue(user.groups.filter(name=DEFAULT_USER_GROUP_NAME).exists())
         self.assertFalse(user.groups.filter(name=GUEST_GROUP_NAME).exists())
 
-    def test_guest_login_creates_dedicated_guest_user_with_browse_permissions(self):
+    def test_guest_login_creates_dedicated_guest_user_without_default_permissions(self):
         response = self.client.post("/api/auth/guest-login/")
 
         self.assertEqual(response.status_code, 200)
@@ -248,10 +307,10 @@ class RegistrationApiTests(TestCase):
         self.assertEqual(payload["displayName"], "游客")
         self.assertEqual(payload["roles"], [GUEST_GROUP_NAME])
         permissions = payload["permissions"]
-        self.assertTrue(permissions["canBrowseData"])
-        self.assertTrue(permissions["canQueryData"])
-        self.assertTrue(permissions["canLoadVectorLayer"])
-        self.assertTrue(permissions["canLoadRasterLayer"])
+        self.assertFalse(permissions["canBrowseData"])
+        self.assertFalse(permissions["canQueryData"])
+        self.assertFalse(permissions["canLoadVectorLayer"])
+        self.assertFalse(permissions["canLoadRasterLayer"])
         self.assertFalse(permissions["canUploadData"])
         user = get_user_model().objects.get(username="guest")
         self.assertFalse(user.has_usable_password())
@@ -1937,6 +1996,59 @@ class ConfigLoaderTests(TestCase):
             self.assertFalse(
                 metadata_database_path(config).is_relative_to(research_root.resolve())
             )
+
+    def test_loader_rejects_non_boolean_values(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research").replace(
+                    "allow_registration = true",
+                    'allow_registration = "false"',
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ConfigValidationError,
+                "application.system.allow_registration 必须是布尔值",
+            ):
+                load_project_config(config_path, program_root=Path("/opt/app"))
+
+    def test_loader_rejects_invalid_map_numbers(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research").replace(
+                    "default_center = [80.0, 41.5]",
+                    'default_center = ["east", 41.5]',
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ConfigValidationError,
+                r"application\.map\.default_center\[0\] 必须是有效数字",
+            ):
+                load_project_config(config_path, program_root=Path("/opt/app"))
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research").replace(
+                    "default_zoom = 4.5",
+                    'default_zoom = "far"',
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ConfigValidationError,
+                "application.map.default_zoom 必须是有效数字",
+            ):
+                load_project_config(config_path, program_root=Path("/opt/app"))
 
     def test_loader_creates_fixed_data_subdirectories(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -40,6 +40,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260621-001 | Verified | Auth/admin dashboard mock endpoints | mock data | N/A | Done | N/A | Done | Align Prism examples with existing OpenAPI-required fields |
 | API-20260621-002 | Verified | GET /api/users/; GET /api/groups/; GET /api/admin/data/resources/ | mock data | N/A | Done | N/A | Done | Exercise non-superadmin admin responses without superadmin principals |
 | API-20260621-003 | BackendReady | GET /api/admin/data/resources/; POST /api/admin/data/resources/{id}/; POST /api/catalog/import/commit/ | permission behavior | Done | N/A | Done | Done | Hide superadmin from configurable access-role choices for every user |
+| API-20260621-004 | BackendReady | POST /api/auth/guest-login/ | permission behavior | Done | N/A | Done | Done | Clarify that guest starts with no default function permissions |
 
 ## Entry Template
 
@@ -135,6 +136,19 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Use a dedicated selectable-access-role helper for access-scope option lists and request validation. Do not change auth role management visibility.
 - Verification: run focused catalog import/admin data resource tests plus frontend API generation/checks.
 - Result: Backend behavior and generated frontend API descriptions included in this change.
+
+## API-20260621-004 - Guest Login Default Permission Clarification
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `POST /api/auth/guest-login/`
+- Change type: permission behavior
+- OpenAPI change: Corrects the guest-login description to state that the dedicated `游客` role starts without function permissions; administrators may grant guest role permissions later.
+- Mock examples: N/A
+- Frontend reason: Login and authorization UI should not assume public visitors can browse, query, or load layers until the administrator grants those permissions.
+- Backend implementation notes: Existing initialization keeps `guest_permissions=()` and preserves later role permission customization; backend auth tests now assert the no-default-permissions behavior.
+- Verification: run focused backend auth tests plus `cd frontend && pnpm run check:api && pnpm run api:changes:check`.
+- Result: Backend behavior already matches the clarified contract; tests updated to prevent drift.
 
 ## API-20260615-001 - Initial Mock Separation Contract
 
