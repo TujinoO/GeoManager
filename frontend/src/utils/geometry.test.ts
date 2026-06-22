@@ -153,6 +153,28 @@ describe("rasterSourceKey", () => {
     const k2 = rasterSourceKey({ tileUrl: "b/{z}/{x}/{y}.png" });
     expect(k1).not.toBe(k2);
   });
+
+  it("differs for different raster bounds", () => {
+    const k1 = rasterSourceKey({
+      tileUrl: "a/{z}/{x}/{y}.png",
+      imageCoordinates: [
+        [80, 45],
+        [85, 45],
+        [85, 40],
+        [80, 40],
+      ],
+    });
+    const k2 = rasterSourceKey({
+      tileUrl: "a/{z}/{x}/{y}.png",
+      imageCoordinates: [
+        [90, 45],
+        [95, 45],
+        [95, 40],
+        [90, 40],
+      ],
+    });
+    expect(k1).not.toBe(k2);
+  });
 });
 
 describe("delay", () => {

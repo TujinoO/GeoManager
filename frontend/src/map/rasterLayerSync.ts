@@ -1,6 +1,10 @@
-import type { Map as MapboxMap } from "mapbox-gl";
+import type { Map as MapboxMap, RasterSourceSpecification } from "mapbox-gl";
 import type { LoadedRasterLayer } from "../types";
-import { clamp, rasterSourceKey } from "../utils/geometry";
+import {
+  boundsFromImageCoordinates,
+  clamp,
+  rasterSourceKey,
+} from "../utils/geometry";
 import { getMapState } from "./mapState";
 import { upsertLayer } from "./styleHelpers";
 import { removeLoadedLayerGroup } from "./vectorLayerSync";
@@ -18,11 +22,24 @@ export function addRasterLayer(
   if (state.rasterSourceKeys.get(sourceId) !== key) {
     removeLoadedLayerGroup(map, sourceId);
     if (layer.tileUrl) {
+      const bounds = layer.imageCoordinates
+        ? boundsFromImageCoordinates(layer.imageCoordinates)
+        : null;
       map.addSource(sourceId, {
         type: "raster",
         tiles: [layer.tileUrl],
         tileSize: 256,
-      });
+        ...(bounds
+          ? {
+              bounds: [
+                bounds.getWest(),
+                bounds.getSouth(),
+                bounds.getEast(),
+                bounds.getNorth(),
+              ],
+            }
+          : {}),
+      } as RasterSourceSpecification);
     }
     state.rasterSourceKeys.set(sourceId, key);
   }

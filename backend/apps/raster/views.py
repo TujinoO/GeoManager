@@ -17,6 +17,7 @@ from apps.raster.services import (
     RasterImportError,
     RasterJobError,
     RasterRenderError,
+    RasterTileOutsideExtent,
     classify_unique_values,
     get_job,
     import_raster_file,
@@ -326,6 +327,8 @@ def tile(request, dataset_id: int, style_hash: str, z: int, x: int, y: int):
         return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
     try:
         content = render_xyz_tile(dataset_id, style_hash, z, x, y)
+    except RasterTileOutsideExtent:
+        return HttpResponse(status=204)
     except RasterRenderError as exc:
         return JsonResponse({"detail": str(exc)}, status=404)
     return HttpResponse(content, content_type="image/png")

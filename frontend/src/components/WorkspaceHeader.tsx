@@ -2,6 +2,7 @@ import {
   ApartmentOutlined,
   AppstoreOutlined,
   BookOutlined,
+  CloudUploadOutlined,
   DatabaseOutlined,
   FolderOpenOutlined,
   InfoCircleOutlined,
@@ -589,6 +590,14 @@ export default function WorkspaceHeader({
         onClick: () => navigateFromHeader("/admin/settings"),
       });
     }
+    if (user?.permissions.canManageDataBackup) {
+      items.push({
+        key: "admin-backup",
+        label: "数据备份",
+        icon: <CloudUploadOutlined />,
+        onClick: () => navigateFromHeader("/admin/backup"),
+      });
+    }
     if (user?.permissions.canManageAuth) {
       items.push(
         {
@@ -607,6 +616,7 @@ export default function WorkspaceHeader({
   }, [
     navigateFromHeader,
     user?.permissions.canManageAuth,
+    user?.permissions.canManageDataBackup,
     user?.permissions.canManageSystemSettings,
     user?.permissions.canViewOperationLogs,
     user?.permissions.canViewOwnOperationLogs,
@@ -675,7 +685,7 @@ export default function WorkspaceHeader({
       steps.push({
         title: "后台管理",
         description:
-          "进入运行概览、个人设置、操作日志、系统设置以及角色权限等管理功能。",
+          "进入运行概览、个人设置、操作日志、系统设置、数据备份以及角色权限等管理功能。",
         target: () => adminTabRef.current ?? document.body,
         placement: "bottom",
       });

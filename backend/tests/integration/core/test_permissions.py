@@ -157,6 +157,7 @@ class SuperadminInitializationTests(TestCase):
             for permission in group.permissions.select_related("content_type")
         }
         self.assertEqual(group_permissions, set(protected_group_permissions()))
+        self.assertIn("core.manage_data_backup", group_permissions)
 
     def test_ensure_superadmin_defaults_creates_default_user_group_with_data_create_permission(
         self,
@@ -176,6 +177,7 @@ class SuperadminInitializationTests(TestCase):
         self.assertIn("catalog.export_dataresource", group_permissions)
         self.assertIn("core.custom_symbolization", group_permissions)
         self.assertIn("raster.manage_raster_dataset", group_permissions)
+        self.assertNotIn("core.manage_data_backup", group_permissions)
         self.assertNotIn("core.manage_auth", group_permissions)
 
     def test_ensure_superadmin_defaults_creates_guest_group_without_permissions(
@@ -190,6 +192,7 @@ class SuperadminInitializationTests(TestCase):
         }
         self.assertEqual(group_permissions, guest_group_permissions())
         self.assertEqual(group_permissions, set())
+        self.assertNotIn("core.manage_data_backup", group_permissions)
 
     def test_ensure_superadmin_defaults_preserves_guest_group_custom_permissions(
         self,

@@ -15,6 +15,7 @@ import { appTheme } from "../theme";
 import type { Bootstrap, User } from "../types";
 
 import AdminAuthPage from "./AdminAuthPage";
+import AdminDataBackupPage from "./AdminDataBackupPage";
 import AdminDashboardPage from "./AdminDashboardPage";
 import AdminDataImportPage from "./AdminDataImportPage";
 import AdminDataInventoryPage from "./AdminDataInventoryPage";
@@ -102,6 +103,7 @@ const adminUser: User = {
     canViewGroupOperationLogs: true,
     canViewSystemLogs: true,
     canManageSystemSettings: true,
+    canManageDataBackup: true,
     canManageAuth: true,
     canViewDashboardResourceCard: true,
     canViewDashboardLayerCard: true,
@@ -156,6 +158,11 @@ const availablePermissions = [
   {
     id: "core.manage_system_settings",
     label: "修改系统设置",
+    group: "后台权限",
+  },
+  {
+    id: "core.manage_data_backup",
+    label: "管理数据备份",
     group: "后台权限",
   },
   { id: "core.manage_auth", label: "修改认证授权", group: "人员权限" },
@@ -270,6 +277,7 @@ function renderAdminRoute(initialEntry: string, user: User = adminUser) {
             <Route path="profile" element={<AdminProfilePage />} />
             <Route path="logs" element={<AdminOperationLogsPage />} />
             <Route path="settings" element={<AdminSystemSettingsPage />} />
+            <Route path="backup" element={<AdminDataBackupPage />} />
             <Route path="auth" element={<Navigate to="users" replace />} />
             <Route path="auth/users" element={<AdminAuthPage />} />
             <Route path="auth/groups" element={<AdminAuthPage />} />
@@ -680,6 +688,13 @@ describe("admin routes", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "系统设置" }));
 
     expect(await screen.findAllByText("基础配置")).not.toHaveLength(0);
+
+    fireEvent.mouseEnter(adminButton);
+    fireEvent.click(await screen.findByRole("menuitem", { name: "数据备份" }));
+
+    expect(await screen.findByText("数据备份功能暂未实现")).toBeInTheDocument();
+    expect(screen.getByText("科研数据备份")).toBeInTheDocument();
+    expect(screen.getByText("平台数据备份")).toBeInTheDocument();
   });
 
   it("submits the password change form from user settings", async () => {
@@ -725,6 +740,7 @@ describe("admin routes", () => {
         ...adminUser.permissions,
         canViewSystemLogs: false,
         canManageSystemSettings: false,
+        canManageDataBackup: false,
         canManageAuth: false,
       },
     };
@@ -757,6 +773,32 @@ describe("admin routes", () => {
     expect(screen.queryByText("superadmin")).not.toBeInTheDocument();
     expect(mockApi.adminSystemLogs).not.toHaveBeenCalled();
   });
+
+  it("gates data backup separately from system settings", async () => {
+    const settingsOnlyUser: User = {
+      ...adminUser,
+      permissions: {
+        ...adminUser.permissions,
+        canManageDataBackup: false,
+      },
+    };
+
+    renderAdminRoute("/admin/settings", settingsOnlyUser);
+
+    expect(await screen.findAllByText("基础配置")).not.toHaveLength(0);
+    const adminButton = await screen.findByRole("button", {
+      name: /后台管理/,
+    });
+    fireEvent.mouseEnter(adminButton);
+    expect(
+      screen.queryByRole("menuitem", { name: "数据备份" }),
+    ).not.toBeInTheDocument();
+
+    renderAdminRoute("/admin/backup", settingsOnlyUser);
+
+    expect(await screen.findByText("个人信息")).toBeInTheDocument();
+    expect(screen.queryByText("数据备份功能暂未实现")).not.toBeInTheDocument();
+  }, 30000);
 
   it("opens the user detail drawer from auth management", async () => {
     renderWithProviders(

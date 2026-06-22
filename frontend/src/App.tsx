@@ -14,6 +14,7 @@ import {
   RequireDataInventory,
   RequireDataUpload,
   RequireManageAuth,
+  RequireManageDataBackup,
   RequireManageSystemSettings,
   RequireViewOperationLogs,
   RequireWorkspaceInventory,
@@ -21,6 +22,7 @@ import {
 import type { Bootstrap, User } from "./types";
 
 const AdminAuthPage = lazy(() => import("./admin/AdminAuthPage"));
+const AdminDataBackupPage = lazy(() => import("./admin/AdminDataBackupPage"));
 const AdminDashboardPage = lazy(() => import("./admin/AdminDashboardPage"));
 const AdminDataImportPage = lazy(() => import("./admin/AdminDataImportPage"));
 const AdminDataInventoryPage = lazy(
@@ -61,6 +63,8 @@ function RouteLoading() {
   );
 }
 
+const startupRetryDelaysMs = [300, 700, 1200, 2000];
+
 export default function App() {
   const { message } = AntApp.useApp();
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
@@ -87,10 +91,10 @@ export default function App() {
     let mounted = true;
     async function boot() {
       try {
-        const [bootstrapData] = await Promise.all([
-          api.bootstrap(),
-          api.csrf(),
-        ]);
+        const bootstrapData = await retryTransientStartup(async () => {
+          const [data] = await Promise.all([api.bootstrap(), api.csrf()]);
+          return data;
+        });
         let currentUser: User | null = null;
         try {
           const me = await api.me();
@@ -211,6 +215,9 @@ export default function App() {
               <Route element={<RequireManageSystemSettings />}>
                 <Route path="settings" element={<AdminSystemSettingsPage />} />
               </Route>
+              <Route element={<RequireManageDataBackup />}>
+                <Route path="backup" element={<AdminDataBackupPage />} />
+              </Route>
               <Route element={<RequireManageAuth />}>
                 <Route path="auth" element={<Navigate to="users" replace />} />
                 <Route path="auth/users" element={<AdminAuthPage />} />
@@ -231,4 +238,41 @@ function isApiStatus(error: unknown, status: number) {
     "status" in error &&
     error.status === status
   );
+}
+
+async function retryTransientStartup<T>(request: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (const delayMs of [0, ...startupRetryDelaysMs]) {
+    if (delayMs > 0) {
+      await delay(delayMs);
+    }
+    try {
+      return await request();
+    } catch (error) {
+      lastError = error;
+      if (!isTransientStartupError(error)) {
+        throw error;
+      }
+    }
+  }
+  throw lastError;
+}
+
+function isTransientStartupError(error: unknown) {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    typeof error.status === "number"
+  ) {
+    return error.status === 0 || error.status >= 500;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return /ECONNREFUSED|Failed to fetch|NetworkError|network request/i.test(
+    message,
+  );
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }

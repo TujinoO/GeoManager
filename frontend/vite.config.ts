@@ -18,10 +18,20 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target: apiProxyTarget,
           changeOrigin: true,
+          configure(proxy) {
+            proxy.on("error", (_error, _request, response) => {
+              writeBackendUnavailable(response);
+            });
+          },
         },
         "/static": {
           target: apiProxyTarget,
           changeOrigin: true,
+          configure(proxy) {
+            proxy.on("error", (_error, _request, response) => {
+              writeBackendUnavailable(response);
+            });
+          },
         },
       },
     },
@@ -75,3 +85,31 @@ export default defineConfig(({ mode }) => {
     },
   };
 });
+
+function writeBackendUnavailable(response: unknown) {
+  if (!isWritableResponse(response)) {
+    return;
+  }
+  if (!response.headersSent) {
+    response.writeHead(503, {
+      "Content-Type": "application/json; charset=utf-8",
+    });
+  }
+  response.end(JSON.stringify({ detail: "后端服务尚未就绪，请稍后重试" }));
+}
+
+function isWritableResponse(response: unknown): response is {
+  headersSent: boolean;
+  writeHead: (statusCode: number, headers: Record<string, string>) => void;
+  end: (body: string) => void;
+} {
+  return (
+    typeof response === "object" &&
+    response !== null &&
+    "headersSent" in response &&
+    "writeHead" in response &&
+    "end" in response &&
+    typeof response.writeHead === "function" &&
+    typeof response.end === "function"
+  );
+}

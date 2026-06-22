@@ -77,6 +77,13 @@ FEATURE_PERMISSIONS: tuple[FeaturePermissionDef, ...] = (
         "后台权限",
     ),
     FeaturePermissionDef(
+        "core",
+        "FeaturePermission",
+        "manage_data_backup",
+        "管理数据备份",
+        "后台权限",
+    ),
+    FeaturePermissionDef(
         "core", "FeaturePermission", "manage_auth", "修改认证授权", "人员权限"
     ),
     FeaturePermissionDef(

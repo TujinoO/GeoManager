@@ -16,6 +16,7 @@ from apps.raster.services.exceptions import (
     RasterImportError,
     RasterJobError,
     RasterRenderError,
+    RasterTileOutsideExtent,
 )
 from apps.raster.services.gdal_ops import gdalinfo_json, run_gdal_command
 from apps.raster.services.geo_utils import (
@@ -79,6 +80,7 @@ from apps.raster.services.unique_values import classify_unique_values
 __all__ = [
     # exceptions
     "RasterRenderError",
+    "RasterTileOutsideExtent",
     "RasterImportError",
     "RasterJobError",
     # constants

@@ -79,6 +79,7 @@ const emptyPermissions = {
   canViewGroupOperationLogs: false,
   canViewSystemLogs: false,
   canManageSystemSettings: false,
+  canManageDataBackup: false,
   canManageAuth: false,
   canViewDashboardResourceCard: false,
   canViewDashboardLayerCard: false,

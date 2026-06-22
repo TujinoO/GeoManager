@@ -13,12 +13,11 @@ from apps.core.storage import raster_processed_path
 from apps.raster.models import RasterDataset
 from apps.raster.services.color_mapping import array_to_rgba
 from apps.raster.services.constants import DEFAULT_TILE_SIZE
-from apps.raster.services.exceptions import RasterRenderError
+from apps.raster.services.exceptions import RasterRenderError, RasterTileOutsideExtent
 from apps.raster.services.geo_utils import (
     intersects_bounds,
     style_hash_for,
     tile_bounds_3857,
-    transparent_png,
 )
 from apps.raster.services.rules_engine import normalize_rules, read_source_bands
 
@@ -60,7 +59,7 @@ def register_tile_style(
 
 def render_xyz_tile(dataset_id: int, style_hash: str, z: int, x: int, y: int) -> bytes:
     if z < 0 or x < 0 or y < 0 or x >= 2**z or y >= 2**z:
-        return transparent_png()
+        raise RasterTileOutsideExtent("瓦片坐标超出有效范围")
 
     with _TILE_STYLES_LOCK:
         style = _TILE_STYLES.get((dataset_id, style_hash))
@@ -71,12 +70,14 @@ def render_xyz_tile(dataset_id: int, style_hash: str, z: int, x: int, y: int) ->
     )
     raster_path = raster_processed_path(dataset.processed_relative_path)
     bounds = tile_bounds_3857(z, x, y)
+    if dataset.bounds_3857 and not intersects_bounds(bounds, dataset.bounds_3857):
+        raise RasterTileOutsideExtent("瓦片不在栅格空间范围内")
 
     import rasterio
 
     with rasterio.open(raster_path) as src:
         if not intersects_bounds(bounds, src.bounds):
-            return transparent_png()
+            raise RasterTileOutsideExtent("瓦片不在栅格空间范围内")
         rules = style["rules"]
         indexes = read_source_bands(rules)
         window = from_bounds(*bounds, transform=src.transform)

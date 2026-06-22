@@ -48,6 +48,7 @@ class FeaturePermission(models.Model):
             ("view_own_operation_logs", "可查看自己的日志"),
             ("view_group_operation_logs", "可查看指定角色日志"),
             ("manage_system_settings", "可修改系统设置"),
+            ("manage_data_backup", "可管理数据备份"),
             ("manage_auth", "可修改认证授权"),
             ("view_dashboard_resource_card", "可查看 Dashboard 数据资源卡片"),
             ("view_dashboard_layer_card", "可查看 Dashboard 图层数卡片"),

@@ -1043,6 +1043,53 @@ body:has(.login-shell),
   border-radius: 8px;
 }
 
+.admin-backup-page {
+  min-width: 0;
+}
+
+.backup-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 16px;
+  min-width: 0;
+}
+
+.backup-plan-card {
+  min-width: 0;
+}
+
+.backup-control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  min-width: 0;
+}
+
+.backup-target-select {
+  width: min(260px, 100%);
+}
+
+.backup-action-button {
+  margin-top: 18px;
+}
+
+@media (max-width: 760px) {
+  .backup-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .backup-control-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .backup-target-select {
+    width: 100%;
+  }
+}
+
 .admin-table-subtext {
   max-width: 220px;
   display: inline-block;

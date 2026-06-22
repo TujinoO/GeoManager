@@ -373,6 +373,7 @@ else:
 | `core.view_operation_logs` | 后台权限 | 查看操作日志 |
 | `core.view_system_logs` | 后台权限 | 查看系统日志 |
 | `core.manage_system_settings` | 后台权限 | 修改系统设置 |
+| `core.manage_data_backup` | 后台权限 | 管理数据备份；默认仅超级管理员角色具备 |
 | `core.view_all_operation_logs` | 日志权限 | 查看所有用户日志 |
 | `core.view_own_operation_logs` | 日志权限 | 只能查看自己的日志 |
 | `core.view_group_operation_logs` | 日志权限 | 查看已配置角色成员的日志 |
@@ -1519,6 +1520,8 @@ map.addLayer({
   },
 });
 ```
+
+前端加载 XYZ 栅格源时必须传入 `renderResult.bounds4326` 作为 Mapbox source 的 `bounds`，避免在影像范围外反复请求瓦片。后端也会对不在栅格空间范围内的瓦片请求返回 `204 No Content`；样式哈希过期或不存在仍返回 `404`。
 
 ### 自定义符号化
 

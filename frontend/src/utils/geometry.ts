@@ -373,6 +373,12 @@ export function sourceIdFor(layerId: string): string {
   return `loaded-${layerId}`;
 }
 
-export function rasterSourceKey(layer: { tileUrl?: string }): string {
-  return JSON.stringify({ tileUrl: layer.tileUrl });
+export function rasterSourceKey(layer: {
+  tileUrl?: string;
+  imageCoordinates?: number[][];
+}): string {
+  return JSON.stringify({
+    tileUrl: layer.tileUrl,
+    imageCoordinates: layer.imageCoordinates ?? [],
+  });
 }

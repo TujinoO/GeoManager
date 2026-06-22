@@ -42,6 +42,8 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260621-003 | BackendReady | GET /api/admin/data/resources/; POST /api/admin/data/resources/{id}/; POST /api/catalog/import/commit/ | permission behavior | Done | N/A | Done | Done | Hide superadmin from configurable access-role choices for every user |
 | API-20260621-004 | BackendReady | POST /api/auth/guest-login/ | permission behavior | Done | N/A | Done | Done | Clarify that guest starts with no default function permissions |
 | API-20260622-001 | BackendReady | POST /api/raster/import/; GET /api/raster/jobs/{job_id}/ | request body, mock data | Done | Done | Done | Pending | Browser raster upload starts async preprocessing and exposes progress through existing job polling |
+| API-20260622-002 | BackendReady | GET /api/raster/tiles/{dataset_id}/{style_hash}/{z}/{x}/{y}.png | status code | Done | N/A | Done | Pending | Raster tiles outside dataset extent return 204 and frontend constrains Mapbox requests with source bounds |
+| API-20260622-003 | BackendReady | GET /api/auth/me/; admin user/profile auth responses | response fields, permission behavior, mock data | Done | Done | Done | Pending | Add independent data backup permission, defaulting to superadmin only |
 
 ## Entry Template
 
@@ -72,6 +74,32 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Save uploaded source files under the TOML-driven `raster/original/uploaded/` directory, validate raster extensions, start the existing import job, and keep permission checks on `raster.manage_raster_dataset`.
 - Verification: run backend raster API tests plus `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build`.
 - Result: Backend endpoint, frontend upload UI, and browser test are included in this change; full verification pending.
+
+## API-20260622-002 - Raster Tile Extent Boundaries
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `GET /api/raster/tiles/{dataset_id}/{style_hash}/{z}/{x}/{y}.png`
+- Change type: status code
+- OpenAPI change: Tile requests outside the raster dataset extent now return `204 No Content`; successful in-range tiles still return `200 image/png`, and invalid or expired styles still return `404`.
+- Mock examples: N/A
+- Frontend reason: Mapbox must not flood the backend with viewport-wide tile requests for small raster extents, and any unavoidable outside-extent request should be cheap and explicit.
+- Backend implementation notes: Check dataset Web Mercator bounds before opening the raster file; map outside-extent requests to `204`.
+- Verification: run backend raster tests plus `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check`.
+- Result: Backend status handling and frontend source `bounds` are included in this change; full verification pending.
+
+## API-20260622-003 - Data Backup Permission
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `GET /api/auth/me/`, admin user/profile auth responses
+- Change type: response fields, permission behavior, mock data
+- OpenAPI change: `UserPermissions` adds `canManageDataBackup`, backed by `core.manage_data_backup`.
+- Mock examples: `mock/prism/examples/00-public-auth.json`, `mock/prism/examples/10-admin-auth.json`
+- Frontend reason: The new backend data backup page must be gated by an independent permission instead of system settings permission.
+- Backend implementation notes: Register `core.manage_data_backup` as a feature permission, lock it into the superadmin group, and do not add it to default ordinary or guest roles.
+- Verification: run backend core permission/auth tests and frontend API generation/checks.
+- Result: Permission registry, default-role behavior, frontend route guard, and UI menu gating are included in this change; full verification pending.
 
 ## API-20260620-007 - User Permission Disable Overrides And Export Format
 

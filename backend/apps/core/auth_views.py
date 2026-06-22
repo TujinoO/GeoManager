@@ -158,6 +158,7 @@ def serialize_user(user):
         "canManageSystemSettings": has_feature_perm(
             user, "core.manage_system_settings"
         ),
+        "canManageDataBackup": has_feature_perm(user, "core.manage_data_backup"),
         "canManageAuth": has_feature_perm(user, "core.manage_auth"),
         "canViewDashboardResourceCard": has_feature_perm(
             user, "core.view_dashboard_resource_card"

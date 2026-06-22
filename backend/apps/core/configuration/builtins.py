@@ -36,6 +36,7 @@ BUILTIN_GROUPS = BuiltinGroupConfig(
         "core.manage_auth",
         "core.manage_feature_permissions",
         "core.manage_system_settings",
+        "core.manage_data_backup",
     ),
     default_user_permissions=(
         "core.browse_data",

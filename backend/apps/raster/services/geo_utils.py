@@ -77,12 +77,14 @@ def intersects_bounds(
     bounds: tuple[float, float, float, float], dataset_bounds: Any
 ) -> bool:
     minx, miny, maxx, maxy = bounds
-    return not (
-        maxx <= dataset_bounds.left
-        or minx >= dataset_bounds.right
-        or maxy <= dataset_bounds.bottom
-        or miny >= dataset_bounds.top
-    )
+    if isinstance(dataset_bounds, (list, tuple)) and len(dataset_bounds) >= 4:
+        left, bottom, right, top = [float(value) for value in dataset_bounds[:4]]
+    else:
+        left = float(dataset_bounds.left)
+        right = float(dataset_bounds.right)
+        bottom = float(dataset_bounds.bottom)
+        top = float(dataset_bounds.top)
+    return not (maxx <= left or minx >= right or maxy <= bottom or miny >= top)
 
 
 @lru_cache(maxsize=1)

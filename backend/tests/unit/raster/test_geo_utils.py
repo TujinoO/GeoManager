@@ -92,6 +92,11 @@ class IntersectsBoundsTests(SimpleTestCase):
             )
         )
 
+    def test_accepts_stored_bounds_array(self):
+        bounds = (0.0, 0.0, 10.0, 10.0)
+        self.assertTrue(intersects_bounds(bounds, [5, 5, 15, 15]))
+        self.assertFalse(intersects_bounds(bounds, [20, 20, 30, 30]))
+
 
 class TransparentPngTests(SimpleTestCase):
     def test_returns_valid_png_bytes(self):

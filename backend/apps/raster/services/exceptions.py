@@ -5,6 +5,10 @@ class RasterRenderError(RuntimeError):
     pass
 
 
+class RasterTileOutsideExtent(RuntimeError):
+    pass
+
+
 class RasterImportError(RuntimeError):
     pass
 

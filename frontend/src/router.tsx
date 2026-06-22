@@ -80,6 +80,15 @@ export function RequireManageSystemSettings() {
   return <Outlet />;
 }
 
+/** 需要数据备份权限才能访问的路由 */
+export function RequireManageDataBackup() {
+  const { user } = useAppContext();
+  if (!user?.permissions.canManageDataBackup) {
+    return <Navigate to="/admin/profile" replace />;
+  }
+  return <Outlet />;
+}
+
 /** 需要修改认证授权权限才能访问的路由 */
 export function RequireManageAuth() {
   const { user } = useAppContext();

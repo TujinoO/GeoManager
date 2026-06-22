@@ -260,11 +260,14 @@ class RegistrationApiTests(TestCase):
         self.assertTrue(permissions["canViewOwnOperationLogs"])
         self.assertFalse(permissions["canViewOperationLogs"])
         self.assertFalse(permissions["canViewSystemLogs"])
+        self.assertFalse(permissions["canManageDataBackup"])
 
-        grant(user, ("core", "view_system_logs"))
+        grant(user, ("core", "view_system_logs"), ("core", "manage_data_backup"))
         response = self.client.get("/api/auth/me/")
 
-        self.assertTrue(response.json()["user"]["permissions"]["canViewSystemLogs"])
+        permissions = response.json()["user"]["permissions"]
+        self.assertTrue(permissions["canViewSystemLogs"])
+        self.assertTrue(permissions["canManageDataBackup"])
 
     def test_registered_user_after_initialization_is_standard_user(self):
         SystemSetting.objects.update_or_create(

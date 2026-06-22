@@ -1,5 +1,6 @@
 import {
   AuditOutlined,
+  CloudUploadOutlined,
   DashboardOutlined,
   SettingOutlined,
   TeamOutlined,
@@ -61,6 +62,13 @@ function adminRouteFor(user: User | null) {
       icon: <SettingOutlined />,
     });
   }
+  if (user?.permissions.canManageDataBackup) {
+    routes.push({
+      path: "/admin/backup",
+      name: "数据备份",
+      icon: <CloudUploadOutlined />,
+    });
+  }
   if (user?.permissions.canManageAuth) {
     routes.push(authRoute);
   }
@@ -88,6 +96,10 @@ const pageMeta: Record<string, { title: string; subTitle: string }> = {
   "/admin/settings": {
     title: "系统设置",
     subTitle: "维护基础配置与平台运行参数",
+  },
+  "/admin/backup": {
+    title: "数据备份",
+    subTitle: "管理科研数据和平台数据的云端备份",
   },
   "/admin/auth": {
     title: "认证授权",

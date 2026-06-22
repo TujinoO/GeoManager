@@ -12,7 +12,7 @@ from apps.audit.models import OperationLog
 from apps.catalog.models import DataResource
 from apps.core.config import load_project_config
 from apps.raster.models import RasterDataset
-from apps.raster.services import scan_unprocessed_source_files
+from apps.raster.services import RasterTileOutsideExtent, scan_unprocessed_source_files
 
 
 class RasterPermissionApiTests(TestCase):
@@ -177,6 +177,28 @@ class RasterPermissionApiTests(TestCase):
             self.assertEqual(saved_path.suffix, ".tif")
             self.assertIn("raster/original/uploaded", saved_path.as_posix())
             self.assertEqual(start_import_job.call_args.kwargs["name"], "NDVI 影像")
+
+    def test_tile_endpoint_returns_no_content_for_tiles_outside_extent(self):
+        grant(self.user, ("core", "load_raster_layer"))
+        resource = DataResource.objects.create(
+            name="栅格资源",
+            code="tile-raster-resource",
+            data_type=DataResource.DataType.RASTER,
+            status=DataResource.Status.ACTIVE,
+            maintainer=self.user,
+        )
+        dataset = self._dataset("tile-dataset", resource)
+
+        with patch(
+            "apps.raster.views.render_xyz_tile",
+            side_effect=RasterTileOutsideExtent("瓦片不在栅格空间范围内"),
+        ):
+            response = self.client.get(
+                f"/api/raster/tiles/{dataset.id}/style-hash/7/96/47.png"
+            )
+
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.content, b"")
 
     def _dataset(self, code: str, resource: DataResource) -> RasterDataset:
         return RasterDataset.objects.create(

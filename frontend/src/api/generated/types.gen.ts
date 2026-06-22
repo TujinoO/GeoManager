@@ -394,6 +394,10 @@ export type UserPermissions = {
      */
     canManageSystemSettings: boolean;
     /**
+     * 是否可管理数据备份，由 `core.manage_data_backup` 权限控制；默认仅超级管理员角色具备
+     */
+    canManageDataBackup: boolean;
+    /**
      * 是否可修改认证授权
      */
     canManageAuth: boolean;
@@ -4965,6 +4969,10 @@ export type GetTileResponses = {
      * PNG 瓦片
      */
     200: Blob | File;
+    /**
+     * 请求瓦片不在栅格空间范围内，无内容返回
+     */
+    204: void;
 };
 
 export type GetTileResponse = GetTileResponses[keyof GetTileResponses];

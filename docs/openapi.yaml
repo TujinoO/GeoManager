@@ -1936,6 +1936,8 @@ paths:
               schema:
                 type: string
                 format: binary
+        '204':
+          description: 请求瓦片不在栅格空间范围内，无内容返回
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2462,6 +2464,7 @@ components:
         - canViewGroupOperationLogs
         - canViewSystemLogs
         - canManageSystemSettings
+        - canManageDataBackup
         - canManageAuth
         - canViewDashboardResourceCard
         - canViewDashboardLayerCard
@@ -2514,6 +2517,9 @@ components:
         canManageSystemSettings:
           type: boolean
           description: 是否可修改系统设置
+        canManageDataBackup:
+          type: boolean
+          description: 是否可管理数据备份，由 `core.manage_data_backup` 权限控制；默认仅超级管理员角色具备
         canManageAuth:
           type: boolean
           description: 是否可修改认证授权
