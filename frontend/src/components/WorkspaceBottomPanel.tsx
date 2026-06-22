@@ -1,6 +1,8 @@
 import {
   AimOutlined,
   BarChartOutlined,
+  BulbOutlined,
+  CameraOutlined,
   ClockCircleOutlined,
   CloseOutlined,
   DownloadOutlined,
@@ -19,7 +21,7 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { DrawMode } from "../map/spatialDraw";
 import type { GeoJsonGeometry, LoadedLayer, SpatialFilter } from "../types";
 import { downloadBlob } from "../utils/download";
@@ -32,9 +34,12 @@ interface Props {
   spatialFilter: SpatialFilter | null;
   exportClipGeometry: GeoJsonGeometry | null;
   activeDraw: { purpose: DrawPurpose; mode: NonNullable<DrawMode> } | null;
+  canUseAiInterpretation: boolean;
+  canExportMap: boolean;
   onStartQueryDraw: (mode: DrawMode | null) => void;
   onClearSpatialFilter: () => void;
   onImportSpatialFilter: (filter: SpatialFilter) => void;
+  onExportMapPng: () => Promise<void>;
 }
 
 export default function WorkspaceBottomPanel({
@@ -42,10 +47,14 @@ export default function WorkspaceBottomPanel({
   spatialFilter,
   exportClipGeometry,
   activeDraw,
+  canUseAiInterpretation,
+  canExportMap,
   onStartQueryDraw,
   onClearSpatialFilter,
   onImportSpatialFilter,
+  onExportMapPng,
 }: Props) {
+  const currentGeometry = spatialFilter?.geometry ?? exportClipGeometry;
   return (
     <Tabs
       className="workspace-bottom-tabs"
@@ -61,7 +70,6 @@ export default function WorkspaceBottomPanel({
           ),
           children: (
             <SpatialQueryPanel
-              selectedLayer={selectedLayer}
               spatialFilter={spatialFilter}
               exportClipGeometry={exportClipGeometry}
               activeDraw={activeDraw}
@@ -116,6 +124,44 @@ export default function WorkspaceBottomPanel({
           ),
           children: <LegendPlaceholderPanel />,
         },
+        ...(canUseAiInterpretation
+          ? [
+              {
+                key: "ai",
+                label: (
+                  <span className="tab-label">
+                    <BulbOutlined style={{ fontSize: 14 }} />
+                    AI智能解译
+                  </span>
+                ),
+                children: (
+                  <BottomPlaceholderPanel
+                    title="AI智能解译"
+                    description="后续在这里接入模型选择、解译任务和结果回写。"
+                  />
+                ),
+              },
+            ]
+          : []),
+        ...(canExportMap
+          ? [
+              {
+                key: "map-export",
+                label: (
+                  <span className="tab-label">
+                    <CameraOutlined style={{ fontSize: 14 }} />
+                    地图导出
+                  </span>
+                ),
+                children: (
+                  <MapExportPanel
+                    hasRange={Boolean(currentGeometry)}
+                    onExportMapPng={onExportMapPng}
+                  />
+                ),
+              },
+            ]
+          : []),
       ]}
     />
   );
@@ -128,7 +174,10 @@ function SpatialQueryPanel({
   onStartQueryDraw,
   onClearSpatialFilter,
   onImportSpatialFilter,
-}: Props) {
+}: Omit<
+  Props,
+  "selectedLayer" | "canUseAiInterpretation" | "canExportMap" | "onExportMapPng"
+>) {
   const currentGeometry = spatialFilter?.geometry ?? exportClipGeometry;
   const rangeLabel = spatialFilter
     ? `已绘制${spatialModeName(spatialFilter.mode)}`
@@ -269,7 +318,10 @@ function DrawingPanel({
   onStartQueryDraw,
   onClearSpatialFilter,
   onImportSpatialFilter,
-}: Omit<Props, "selectedLayer">) {
+}: Omit<
+  Props,
+  "selectedLayer" | "canUseAiInterpretation" | "canExportMap" | "onExportMapPng"
+>) {
   const { message } = App.useApp();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const currentGeometry = spatialFilter?.geometry ?? exportClipGeometry;
@@ -426,6 +478,50 @@ function LegendPlaceholderPanel() {
           风险区域
         </span>
       </div>
+    </section>
+  );
+}
+
+function MapExportPanel({
+  hasRange,
+  onExportMapPng,
+}: {
+  hasRange: boolean;
+  onExportMapPng: () => Promise<void>;
+}) {
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      await onExportMapPng();
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <section className="bottom-placeholder-panel map-export-panel">
+      <div className="map-export-copy">
+        <Typography.Text strong>导出当前视角 2D 地图</Typography.Text>
+        <Typography.Text type="secondary">
+          使用“空间查询”中的范围工具划定导出范围，导出结果保存为 PNG。
+        </Typography.Text>
+      </div>
+      <Space size={8} wrap>
+        <Tag color={hasRange ? "green" : "default"}>
+          {hasRange ? "已划定范围" : "未划定范围"}
+        </Tag>
+        <Button
+          type="primary"
+          icon={<DownloadOutlined style={{ fontSize: 13 }} />}
+          loading={exporting}
+          disabled={!hasRange}
+          onClick={() => void handleExport()}
+        >
+          导出 PNG
+        </Button>
+      </Space>
     </section>
   );
 }

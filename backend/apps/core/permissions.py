@@ -155,6 +155,13 @@ FEATURE_PERMISSIONS: tuple[FeaturePermissionDef, ...] = (
         "数据权限",
     ),
     FeaturePermissionDef(
+        "core",
+        "FeaturePermission",
+        "ai_interpretation",
+        "AI智能解译",
+        "数据权限",
+    ),
+    FeaturePermissionDef(
         "catalog", "DataResource", "export_dataresource", "导出数据资源", "数据权限"
     ),
     FeaturePermissionDef(

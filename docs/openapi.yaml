@@ -2483,6 +2483,7 @@ components:
         - canLoadVectorLayer
         - canLoadRasterLayer
         - canUseCustomSymbolization
+        - canUseAiInterpretation
         - canExportData
         - canViewWorkspaces
         - canCreateWorkspaces
@@ -2574,9 +2575,12 @@ components:
         canUseCustomSymbolization:
           type: boolean
           description: 是否可提交自定义符号化规则
+        canUseAiInterpretation:
+          type: boolean
+          description: 是否可使用 AI 智能解译功能，对应 `core.ai_interpretation`
         canExportData:
           type: boolean
-          description: 是否可导出数据
+          description: 是否可导出数据和当前视角地图 PNG，对应 `catalog.export_dataresource`
         canViewWorkspaces:
           type: boolean
           description: 是否可查看工程和专题，对应 `catalog.view_workspacescene`

@@ -61,6 +61,7 @@ class FeaturePermission(models.Model):
             ("load_vector_layer", "可加载矢量图层"),
             ("load_raster_layer", "可加载栅格图层"),
             ("custom_symbolization", "可自定义符号化"),
+            ("ai_interpretation", "可使用 AI 智能解译"),
         ]
 
 

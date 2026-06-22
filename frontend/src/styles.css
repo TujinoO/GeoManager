@@ -6611,6 +6611,19 @@ body:has(.login-shell),
   gap: 12px;
 }
 
+.map-export-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.map-export-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
 .layer-table-modal-content {
   display: flex;
   flex-direction: column;

@@ -35,6 +35,7 @@ import { useLayerGroups } from "../hooks/useLayerGroups";
 import { useRasterRender } from "../hooks/useRasterRender";
 import { useWorkspaceScenes } from "../hooks/useWorkspaceScenes";
 import { clearFeatureState, getMapState } from "../map/mapState";
+import { exportCurrentMapViewPng } from "../map/mapExport";
 import type { DrawMode } from "../map/spatialDraw";
 import { workspacePanelTheme } from "../theme";
 import type {
@@ -98,6 +99,7 @@ const emptyPermissions = {
   canLoadVectorLayer: false,
   canLoadRasterLayer: false,
   canUseCustomSymbolization: false,
+  canUseAiInterpretation: false,
   canExportData: false,
   canViewWorkspaces: false,
   canCreateWorkspaces: false,
@@ -694,6 +696,42 @@ export default function MapPage() {
     [message, permissionDeniedMessage, permissions.canExportData],
   );
 
+  const exportCurrentMapPng = useCallback(async () => {
+    if (!permissions.canExportData) {
+      message.warning(permissionDeniedMessage);
+      return;
+    }
+    const map = mapInstanceRef.current;
+    if (!map) {
+      message.warning("地图尚未准备好");
+      return;
+    }
+    if (!sharedSpatialGeometry) {
+      message.warning("请先使用范围工具划定导出范围");
+      return;
+    }
+    try {
+      const blob = await exportCurrentMapViewPng(map, sharedSpatialGeometry);
+      downloadBlob(
+        blob,
+        `map-2d-${new Date()
+          .toISOString()
+          .slice(0, 19)
+          .replace(/[-:T]/g, "")}.png`,
+      );
+      message.success("地图 PNG 已导出");
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : "地图 PNG 导出失败",
+      );
+    }
+  }, [
+    message,
+    permissionDeniedMessage,
+    permissions.canExportData,
+    sharedSpatialGeometry,
+  ]);
+
   useEffect(() => {
     const sceneIdText = searchParams.get("sceneId")?.trim();
     if (!sceneIdText) {
@@ -928,9 +966,12 @@ export default function MapPage() {
               exportClipGeometry={sharedSpatialGeometry}
               spatialFilter={spatialFilter}
               activeDraw={activeDraw}
+              canUseAiInterpretation={permissions.canUseAiInterpretation}
+              canExportMap={permissions.canExportData}
               onStartQueryDraw={setQueryDrawMode}
               onClearSpatialFilter={() => setSpatialFilter(null)}
               onImportSpatialFilter={setSpatialFilter}
+              onExportMapPng={exportCurrentMapPng}
             />
           </ConfigProvider>
         </aside>

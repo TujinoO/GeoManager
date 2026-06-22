@@ -42,6 +42,7 @@ BUILTIN_GROUPS = BuiltinGroupConfig(
         "core.browse_data",
         "core.query_data",
         "core.custom_symbolization",
+        "core.ai_interpretation",
         "catalog.export_dataresource",
         "catalog.add_dataresource",
         "catalog.view_dataresource",

@@ -389,6 +389,7 @@ else:
 | `core.load_vector_layer` | 数据权限 | 加载矢量图层 |
 | `core.load_raster_layer` | 数据权限 | 加载栅格图层 |
 | `core.custom_symbolization` | 数据权限 | 自定义符号化规则 |
+| `core.ai_interpretation` | 数据权限 | 使用 AI 智能解译 |
 | `catalog.export_dataresource` | 数据权限 | 导出数据资源 |
 | `catalog.add_dataresource` | 数据权限 | 新增数据资源和提交导入 |
 | `catalog.view_dataresource` | 数据权限 | 查看存量数据资源清单 |

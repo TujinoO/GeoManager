@@ -44,6 +44,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260622-001 | BackendReady | POST /api/raster/import/; GET /api/raster/jobs/{job_id}/ | request body, mock data | Done | Done | Done | Pending | Browser raster upload starts async preprocessing and exposes progress through existing job polling |
 | API-20260622-002 | BackendReady | GET /api/raster/tiles/{dataset_id}/{style_hash}/{z}/{x}/{y}.png | status code | Done | N/A | Done | Pending | Raster tiles outside dataset extent return 204 and frontend constrains Mapbox requests with source bounds |
 | API-20260622-003 | BackendReady | GET /api/auth/me/; admin user/profile auth responses | response fields, permission behavior, mock data | Done | Done | Done | Pending | Add independent data backup permission, defaulting to superadmin only |
+| API-20260622-004 | BackendReady | GET /api/auth/me/ | response fields, permission behavior, mock data | Done | Done | Done | Pending | Gate AI interpretation with a new feature permission and map PNG export with existing data export permission |
 
 ## Entry Template
 
@@ -346,6 +347,19 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Existing Django views already validate JPG/PNG, cap upload size, compress to JPEG, store image bytes on `UserProfile`, and return `/api/users/{userId}/avatar/` through profile serialization.
 - Verification: run `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check`, plus backend core avatar tests if this behavior changes.
 - Result: Contract added for existing backend behavior.
+
+## API-20260622-004 - AI Interpretation Permission
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `GET /api/auth/me/`
+- Change type: response field, permission behavior
+- OpenAPI change: Adds `UserPermissions.canUseAiInterpretation`, backed by the new `core.ai_interpretation` feature permission. `UserPermissions.canExportData` now explicitly also gates current-view map PNG export because it reuses the existing export capability.
+- Mock examples: `mock/prism/examples/10-admin-auth.json`
+- Frontend reason: The map workspace bottom-panel `AI智能解译` and `地图导出` tabs must be permission-gated instead of always visible.
+- Backend implementation notes: Register `core.ai_interpretation` in feature permission metadata and Django model permissions; grant it to the default 普通用户 role alongside existing data permissions. Existing `catalog.export_dataresource` remains the authority for map PNG export.
+- Verification: run `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check`, frontend checks/tests, and backend core tests.
+- Result: Implemented in backend contract metadata and frontend gating.
 
 ## API-20260620-006 - Remove Previous Catalog Compatibility Surface
 

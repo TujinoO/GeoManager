@@ -470,7 +470,11 @@ export type UserPermissions = {
      */
     canUseCustomSymbolization: boolean;
     /**
-     * 是否可导出数据
+     * 是否可使用 AI 智能解译功能，对应 `core.ai_interpretation`
+     */
+    canUseAiInterpretation: boolean;
+    /**
+     * 是否可导出数据和当前视角地图 PNG，对应 `catalog.export_dataresource`
      */
     canExportData: boolean;
     /**

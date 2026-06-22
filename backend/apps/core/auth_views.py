@@ -191,6 +191,7 @@ def serialize_user(user):
         "canUseCustomSymbolization": has_feature_perm(
             user, "core.custom_symbolization"
         ),
+        "canUseAiInterpretation": has_feature_perm(user, "core.ai_interpretation"),
         "canExportData": has_feature_perm(user, "catalog.export_dataresource"),
         "canViewWorkspaces": can_view_workspace,
         "canCreateWorkspaces": can_create_workspace,

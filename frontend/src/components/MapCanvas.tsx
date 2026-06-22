@@ -130,6 +130,7 @@ export default function MapCanvas({
       localIdeographFontFamily: '"Microsoft YaHei", "PingFang SC", sans-serif',
       attributionControl: false,
       performanceMetricsCollection: false,
+      preserveDrawingBuffer: true,
     };
     if (mapboxToken) {
       mapOptions.accessToken = mapboxToken;
