@@ -4673,25 +4673,6 @@ body:has(.login-shell),
   pointer-events: none;
 }
 
-.right-map-mini::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(
-      rgb(var(--c-workspace-text-rgb) / 0.08) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      rgb(var(--c-workspace-text-rgb) / 0.08) 1px,
-      transparent 1px
-    );
-  background-size: 42px 42px;
-  mix-blend-mode: screen;
-}
-
 .right-map-mini-empty {
   position: absolute;
   inset: 0;
