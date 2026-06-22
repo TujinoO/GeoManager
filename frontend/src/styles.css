@@ -3036,7 +3036,13 @@ body:has(.login-shell),
 }
 
 .import-actions {
+  display: flex;
   justify-content: flex-end;
+  width: 100%;
+}
+
+.import-actions-top {
+  padding-bottom: 2px;
 }
 
 .import-validation-actions {
@@ -6640,10 +6646,7 @@ body:has(.login-shell),
 }
 
 .spatial-range-control-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(160px, 0.26fr);
-  gap: 8px;
-  align-items: stretch;
+  display: block;
   min-width: 0;
 }
 
@@ -6732,23 +6735,6 @@ body:has(.login-shell),
   background: rgb(var(--c-workspace-panel-rgb) / 0.46);
   border: 1px solid rgb(var(--c-workspace-border-rgb) / 0.14);
   border-radius: 8px;
-}
-
-.spatial-layer-switch {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  color: rgb(var(--c-workspace-text-rgb) / 0.7);
-  font-size: 12px;
-}
-
-.spatial-range-layer-switch {
-  padding: 7px 8px;
-  background: rgb(var(--c-workspace-panel-rgb) / 0.46);
-  border: 1px solid rgb(var(--c-workspace-border-rgb) / 0.14);
-  border-radius: 8px;
-  white-space: nowrap;
 }
 
 .spatial-hit-preview {

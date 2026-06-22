@@ -21,6 +21,7 @@ import FeatureDetailPanel from "./FeatureDetailPanel";
 const thumbnailZoomOffset = 3.5;
 const thumbnailMinZoom = 0;
 const thumbnailMaxZoom = 17;
+const thumbnailMinIndicatorSizePx = 18;
 const thumbnailExtentSourceId = "thumbnail-current-view-extent";
 const thumbnailExtentLayerId = "thumbnail-current-view-extent-line";
 type ThumbnailExtentGeoJson = {
@@ -284,10 +285,12 @@ function updateThumbnailExtent(map: MapboxMap, bounds: MapViewState["bounds"]) {
   const centerLat = (south + north) / 2;
   const halfWidth = ((east - west) * 0.75) / 2;
   const halfHeight = ((north - south) * 0.75) / 2;
-  const insetWest = centerLng - halfWidth;
-  const insetEast = centerLng + halfWidth;
-  const insetSouth = centerLat - halfHeight;
-  const insetNorth = centerLat + halfHeight;
+  const extent = ensureMinimumThumbnailExtent(map, {
+    west: centerLng - halfWidth,
+    east: centerLng + halfWidth,
+    south: centerLat - halfHeight,
+    north: centerLat + halfHeight,
+  });
   const data: ThumbnailExtentGeoJson = {
     type: "FeatureCollection",
     features: [
@@ -298,11 +301,11 @@ function updateThumbnailExtent(map: MapboxMap, bounds: MapViewState["bounds"]) {
           type: "Polygon",
           coordinates: [
             [
-              [insetWest, insetSouth],
-              [insetEast, insetSouth],
-              [insetEast, insetNorth],
-              [insetWest, insetNorth],
-              [insetWest, insetSouth],
+              [extent.west, extent.south],
+              [extent.east, extent.south],
+              [extent.east, extent.north],
+              [extent.west, extent.north],
+              [extent.west, extent.south],
             ],
           ],
         },
@@ -332,6 +335,44 @@ function updateThumbnailExtent(map: MapboxMap, bounds: MapViewState["bounds"]) {
       },
     });
   }
+}
+
+function ensureMinimumThumbnailExtent(
+  map: MapboxMap,
+  extent: { west: number; east: number; south: number; north: number },
+) {
+  const centerLng = (extent.west + extent.east) / 2;
+  const centerLat = (extent.south + extent.north) / 2;
+  const westPoint = map.project([extent.west, centerLat]);
+  const eastPoint = map.project([extent.east, centerLat]);
+  const southPoint = map.project([centerLng, extent.south]);
+  const northPoint = map.project([centerLng, extent.north]);
+  const widthPx = Math.abs(eastPoint.x - westPoint.x);
+  const heightPx = Math.abs(southPoint.y - northPoint.y);
+  if (
+    widthPx >= thumbnailMinIndicatorSizePx &&
+    heightPx >= thumbnailMinIndicatorSizePx
+  ) {
+    return extent;
+  }
+
+  const centerPoint = map.project([centerLng, centerLat]);
+  const halfWidthPx = Math.max(widthPx, thumbnailMinIndicatorSizePx) / 2;
+  const halfHeightPx = Math.max(heightPx, thumbnailMinIndicatorSizePx) / 2;
+  const southwest = map.unproject([
+    centerPoint.x - halfWidthPx,
+    centerPoint.y + halfHeightPx,
+  ]);
+  const northeast = map.unproject([
+    centerPoint.x + halfWidthPx,
+    centerPoint.y - halfHeightPx,
+  ]);
+  return {
+    west: Math.max(-180, southwest.lng),
+    east: Math.min(180, northeast.lng),
+    south: Math.max(-85, southwest.lat),
+    north: Math.min(85, northeast.lat),
+  };
 }
 
 function EcologyOverviewPanel() {

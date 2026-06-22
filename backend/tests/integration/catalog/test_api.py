@@ -493,7 +493,7 @@ class CatalogScanTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
-    def test_scan_endpoint_returns_no_temporary_layers(self):
+    def test_scan_endpoint_registers_vector_geopackage_layers(self):
         response = self.client.post(
             "/api/catalog/scan/", data={}, content_type="application/json"
         )
@@ -502,6 +502,15 @@ class CatalogScanTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["count"], 0)
         self.assertEqual(payload["items"], [])
+        resource = DataResource.objects.get(storage_path=self.layer_name)
+        self.assertEqual(resource.name, self.layer_name)
+        self.assertEqual(resource.data_type, DataResource.DataType.VECTOR)
+        self.assertEqual(resource.source, "矢量数据目录扫描")
+        self.assertEqual(resource.item_count, 1)
+        layer = MapLayer.objects.get(source_path=self.layer_name)
+        self.assertEqual(layer.data_resource, resource)
+        self.assertEqual(layer.geometry_type, MapLayer.GeometryType.POINT)
+        self.assertEqual(layer.bounds, [87.6, 43.8, 87.6, 43.8])
         self.assertFalse(
             OperationLog.objects.filter(
                 module="数据管理", action="扫描数据目录"

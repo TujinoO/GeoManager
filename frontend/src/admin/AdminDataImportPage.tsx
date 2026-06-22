@@ -50,6 +50,8 @@ interface ImportFormValues {
 
 type IssueAction = "continue" | "import";
 const selfAccessScopeId = "__self__";
+const unfinishedImportWarning =
+  "当前导入尚未完成，离开页面会丢失已选择的文件、导入配置、校验结果和字段元数据。";
 type AccessScopeId = number | typeof selfAccessScopeId;
 
 export default function AdminDataImportPage() {
@@ -171,7 +173,7 @@ export default function AdminDataImportPage() {
     }
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
-      event.returnValue = "";
+      event.returnValue = unfinishedImportWarning;
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
@@ -217,7 +219,7 @@ export default function AdminDataImportPage() {
       return originalReplaceState.call(this, data, unused, url);
     };
 
-    const handlePopState = () => {
+    const handlePopState = (event: PopStateEvent) => {
       if (allowNavigationRef.current) {
         return;
       }
@@ -226,6 +228,7 @@ export default function AdminDataImportPage() {
       if (nextPath === currentPath) {
         return;
       }
+      event.stopImmediatePropagation();
       setPendingNavigationPath(nextPath);
       originalPushState.call(
         window.history,
@@ -270,12 +273,12 @@ export default function AdminDataImportPage() {
       event.stopPropagation();
       setPendingNavigationPath(nextPath);
     };
-    window.addEventListener("popstate", handlePopState);
+    window.addEventListener("popstate", handlePopState, { capture: true });
     document.addEventListener("click", handleDocumentClick, true);
     return () => {
       window.history.pushState = originalPushState;
       window.history.replaceState = originalReplaceState;
-      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("popstate", handlePopState, { capture: true });
       document.removeEventListener("click", handleDocumentClick, true);
     };
   }, [hasUnfinishedImport, location.hash, location.pathname, location.search]);
@@ -547,6 +550,18 @@ export default function AdminDataImportPage() {
 
           {currentStep === 1 && preview && (
             <div className="import-config-form">
+              <Space className="import-actions import-actions-top">
+                <Button onClick={resetImportState}>重新选择文件</Button>
+                <Button
+                  type="primary"
+                  icon={<CheckCircleOutlined style={{ fontSize: 16 }} />}
+                  loading={validating}
+                  onClick={handleValidateAndContinue}
+                >
+                  数据校验并继续
+                </Button>
+              </Space>
+
               <Alert
                 type="info"
                 showIcon
@@ -709,18 +724,6 @@ export default function AdminDataImportPage() {
                   confirmed={duplicateNameConfirmed}
                 />
               )}
-
-              <Space className="import-actions">
-                <Button onClick={resetImportState}>重新选择文件</Button>
-                <Button
-                  type="primary"
-                  icon={<CheckCircleOutlined style={{ fontSize: 16 }} />}
-                  loading={validating}
-                  onClick={handleValidateAndContinue}
-                >
-                  数据校验并继续
-                </Button>
-              </Space>
             </div>
           )}
 
@@ -744,6 +747,18 @@ export default function AdminDataImportPage() {
                 />
               ) : (
                 <>
+                  <Space className="import-actions import-actions-top">
+                    <Button onClick={() => setCurrentStep(1)}>上一步</Button>
+                    <Button
+                      type="primary"
+                      icon={<CheckCircleOutlined style={{ fontSize: 16 }} />}
+                      loading={importing}
+                      onClick={handleImport}
+                    >
+                      提交导入
+                    </Button>
+                  </Space>
+
                   <section className="import-section">
                     <Typography.Title level={5}>数据预览</Typography.Title>
                     {duplicateTarget && (
@@ -816,18 +831,6 @@ export default function AdminDataImportPage() {
                       ]}
                     />
                   </section>
-
-                  <Space className="import-actions">
-                    <Button onClick={() => setCurrentStep(1)}>上一步</Button>
-                    <Button
-                      type="primary"
-                      icon={<CheckCircleOutlined style={{ fontSize: 16 }} />}
-                      loading={importing}
-                      onClick={handleImport}
-                    >
-                      提交导入
-                    </Button>
-                  </Space>
                 </>
               )}
             </section>
@@ -973,7 +976,7 @@ export default function AdminDataImportPage() {
           type="warning"
           showIcon
           title="当前导入尚未完成"
-          description="离开页面会丢失已选择的文件、导入配置、校验结果和字段元数据。"
+          description={unfinishedImportWarning}
         />
       </Modal>
     </div>

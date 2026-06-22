@@ -858,6 +858,13 @@ describe("admin routes", () => {
 
     expect(await screen.findByText("导入配置")).toBeInTheDocument();
     expect(screen.getByLabelText("数据名称")).toHaveValue("样地调查点位");
+    const validateButton = screen.getByRole("button", {
+      name: /数据校验并继续/,
+    });
+    expect(
+      validateButton.compareDocumentPosition(screen.getByText("导入限制")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(screen.getByText("我自己可见")).toBeInTheDocument();
     expect(screen.queryByText("超级管理员可见")).not.toBeInTheDocument();
     expect(
@@ -876,6 +883,11 @@ describe("admin routes", () => {
     });
     const previewTitle = await screen.findByText("数据预览");
     const metadataTitle = screen.getByText("字段元数据");
+    const submitButton = screen.getByRole("button", { name: /提交导入/ });
+    expect(
+      submitButton.compareDocumentPosition(previewTitle) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(previewTitle).toBeInTheDocument();
     expect(metadataTitle).toBeInTheDocument();
     expect(
@@ -957,6 +969,26 @@ describe("admin routes", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "确认离开" }));
     expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
+  }, 30000);
+
+  it("blocks browser unload while an import is unfinished", async () => {
+    renderAdminRoute("/resources/data/import");
+
+    const input = document.querySelector(
+      "input[type='file']",
+    ) as HTMLInputElement;
+    const file = new File(["plot_id,longitude,latitude\nP001,87.6,41.7"], {
+      type: "text/csv",
+    });
+
+    fireEvent.change(input, { target: { files: [file] } });
+    expect(await screen.findByText("导入配置")).toBeInTheDocument();
+
+    const unloadEvent = new Event("beforeunload", {
+      cancelable: true,
+    }) as BeforeUnloadEvent;
+    expect(window.dispatchEvent(unloadEvent)).toBe(false);
+    expect(unloadEvent.defaultPrevented).toBe(true);
   }, 30000);
 
   it("warns before programmatic navigation leaves an unfinished data import", async () => {

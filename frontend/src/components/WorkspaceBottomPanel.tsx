@@ -15,7 +15,6 @@ import {
   Empty,
   Segmented,
   Space,
-  Switch,
   Tabs,
   Tag,
   Typography,
@@ -32,10 +31,8 @@ interface Props {
   selectedLayer: LoadedLayer | null;
   spatialFilter: SpatialFilter | null;
   exportClipGeometry: GeoJsonGeometry | null;
-  layerExtentVisible: boolean;
   activeDraw: { purpose: DrawPurpose; mode: NonNullable<DrawMode> } | null;
   onStartQueryDraw: (mode: DrawMode | null) => void;
-  onLayerExtentVisibleChange: (visible: boolean) => void;
   onClearSpatialFilter: () => void;
   onImportSpatialFilter: (filter: SpatialFilter) => void;
 }
@@ -44,10 +41,8 @@ export default function WorkspaceBottomPanel({
   selectedLayer,
   spatialFilter,
   exportClipGeometry,
-  layerExtentVisible,
   activeDraw,
   onStartQueryDraw,
-  onLayerExtentVisibleChange,
   onClearSpatialFilter,
   onImportSpatialFilter,
 }: Props) {
@@ -69,10 +64,8 @@ export default function WorkspaceBottomPanel({
               selectedLayer={selectedLayer}
               spatialFilter={spatialFilter}
               exportClipGeometry={exportClipGeometry}
-              layerExtentVisible={layerExtentVisible}
               activeDraw={activeDraw}
               onStartQueryDraw={onStartQueryDraw}
-              onLayerExtentVisibleChange={onLayerExtentVisibleChange}
               onClearSpatialFilter={onClearSpatialFilter}
               onImportSpatialFilter={onImportSpatialFilter}
             />
@@ -129,13 +122,10 @@ export default function WorkspaceBottomPanel({
 }
 
 function SpatialQueryPanel({
-  selectedLayer,
   spatialFilter,
   exportClipGeometry,
-  layerExtentVisible,
   activeDraw,
   onStartQueryDraw,
-  onLayerExtentVisibleChange,
   onClearSpatialFilter,
   onImportSpatialFilter,
 }: Props) {
@@ -157,13 +147,10 @@ function SpatialQueryPanel({
           <Tag color={currentGeometry ? "green" : "default"}>{rangeLabel}</Tag>
         </div>
         <DrawingPanel
-          selectedLayer={selectedLayer}
           spatialFilter={spatialFilter}
           exportClipGeometry={exportClipGeometry}
-          layerExtentVisible={layerExtentVisible}
           activeDraw={activeDraw}
           onStartQueryDraw={onStartQueryDraw}
-          onLayerExtentVisibleChange={onLayerExtentVisibleChange}
           onClearSpatialFilter={onClearSpatialFilter}
           onImportSpatialFilter={onImportSpatialFilter}
         />
@@ -276,16 +263,13 @@ function MetadataPanel({ layer }: { layer: LoadedLayer | null }) {
 }
 
 function DrawingPanel({
-  selectedLayer,
   spatialFilter,
   exportClipGeometry,
-  layerExtentVisible,
   activeDraw,
   onStartQueryDraw,
-  onLayerExtentVisibleChange,
   onClearSpatialFilter,
   onImportSpatialFilter,
-}: Props) {
+}: Omit<Props, "selectedLayer">) {
   const { message } = App.useApp();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const currentGeometry = spatialFilter?.geometry ?? exportClipGeometry;
@@ -358,15 +342,6 @@ function DrawingPanel({
               )
             }
           />
-          <div className="spatial-layer-switch spatial-range-layer-switch">
-            <span>显示当前图层范围</span>
-            <Switch
-              size="small"
-              checked={layerExtentVisible}
-              disabled={!selectedLayer}
-              onChange={onLayerExtentVisibleChange}
-            />
-          </div>
         </div>
         <input
           ref={fileInputRef}

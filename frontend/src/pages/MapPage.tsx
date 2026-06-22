@@ -242,19 +242,6 @@ export default function MapPage() {
     });
   }, [allLayers]);
 
-  const selectedLayerExtentVisible = selectedLayer
-    ? visibleLayerExtentIds.has(selectedLayer.id)
-    : false;
-
-  const setSelectedLayerExtentVisible = useCallback(
-    (visible: boolean) => {
-      if (selectedLayer) {
-        setLayerExtentVisibility(selectedLayer.id, visible);
-      }
-    },
-    [selectedLayer, setLayerExtentVisibility],
-  );
-
   const layerExtentOverlays = useMemo(() => {
     return allLayers.flatMap((layer) => {
       if (!visibleLayerExtentIds.has(layer.id)) {
@@ -939,10 +926,8 @@ export default function MapPage() {
               selectedLayer={selectedLayer}
               exportClipGeometry={sharedSpatialGeometry}
               spatialFilter={spatialFilter}
-              layerExtentVisible={selectedLayerExtentVisible}
               activeDraw={activeDraw}
               onStartQueryDraw={setQueryDrawMode}
-              onLayerExtentVisibleChange={setSelectedLayerExtentVisible}
               onClearSpatialFilter={() => setSpatialFilter(null)}
               onImportSpatialFilter={setSpatialFilter}
             />

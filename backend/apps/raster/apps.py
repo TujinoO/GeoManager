@@ -22,13 +22,9 @@ class RasterConfig(AppConfig):
 
         if settings.PROJECT_CONFIG.runtime.disable_raster_startup_scan:
             return
-        if len(sys.argv) > 1 and sys.argv[1] not in {"runserver"}:
+        if not _server_startup_command(sys.argv):
             return
-        if (
-            len(sys.argv) > 1
-            and sys.argv[1] == "runserver"
-            and os.environ.get("RUN_MAIN") != "true"
-        ):
+        if _runserver_autoreload_parent(sys.argv, os.environ):
             return
 
         def run_scan() -> None:
@@ -39,3 +35,18 @@ class RasterConfig(AppConfig):
         threading.Thread(
             target=run_scan, name="raster-startup-scan", daemon=True
         ).start()
+
+
+def _server_startup_command(argv: list[str]) -> bool:
+    if "test" in argv or "migrate" in argv or "collectstatic" in argv:
+        return False
+    if len(argv) > 1 and argv[1] == "runserver":
+        return True
+    command_text = " ".join(argv)
+    return any(name in command_text for name in ("waitress", "uvicorn", "daphne"))
+
+
+def _runserver_autoreload_parent(argv: list[str], environ) -> bool:
+    return (
+        len(argv) > 1 and argv[1] == "runserver" and environ.get("RUN_MAIN") != "true"
+    )
