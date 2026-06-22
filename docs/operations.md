@@ -146,6 +146,25 @@ Docker 配置中的数据目录应直接使用容器内路径 `/data/app` 和 `/
 
 如果容器前面有 Nginx、Caddy、云负载均衡或 CDN，反向代理必须把源头客户端 IP 通过 `X-Forwarded-For`、`X-Real-IP`、`CF-Connecting-IP`、`True-Client-IP` 或标准 `Forwarded` 请求头传给后端。操作日志会优先从这些请求头中选择公网 IP；只有没有有效公网 IP 时才回退到 `REMOTE_ADDR`，此时 Docker 网桥环境可能显示为 `172.19.x.x` 之类的内网地址。
 
+### Mapbox GL JS CSP
+
+如部署侧启用 `Content-Security-Policy`，需要允许 Mapbox GL JS 的 worker、瓦片、glyph、sprite、样式和导出图片资源。当前前端使用依赖包中的 ESM 版 `mapbox-gl`，并已禁用 Mapbox events 采集，因此 CSP 至少应包含：
+
+```text
+worker-src 'self' blob:;
+img-src 'self' data: blob: https://api.mapbox.com;
+connect-src 'self'
+  https://api.mapbox.com
+  https://api.mapbox.com/v4/
+  https://api.mapbox.com/styles/v1/mapbox/
+  https://api.mapbox.com/fonts/v1/mapbox/
+  https://api.mapbox.com/models/v1/mapbox/
+  https://api.mapbox.com/mapbox-gl-js/
+  https://api.mapbox.com/map-sessions/v1/;
+```
+
+如果后续使用非 Mapbox 官方账号的自定义样式或字体，需要同步把对应的 `/styles/v1/{username}/`、`/fonts/v1/{username}/` 端点加入 `connect-src`。只有重新启用 Mapbox events 采集时，才需要额外允许 `https://events.mapbox.com`。
+
 默认数据卷名称为 `huyang-data`。如需改名，直接创建并挂载新的 Docker volume：
 
 ```bash

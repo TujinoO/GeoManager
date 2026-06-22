@@ -29,6 +29,7 @@ export interface MapInternalState {
   popup: Popup | undefined;
   loadedSourceIds: Set<string>;
   sourceDataRefs: Map<string, unknown>;
+  vectorSourceKeys: Map<string, string>;
   rasterSourceKeys: Map<string, string>;
 }
 
@@ -45,6 +46,7 @@ export function getMapState(map: MapboxMap): MapInternalState {
       popup: undefined,
       loadedSourceIds: new Set(),
       sourceDataRefs: new Map(),
+      vectorSourceKeys: new Map(),
       rasterSourceKeys: new Map(),
     };
     mapStates.set(map, state);

@@ -64,13 +64,7 @@ export function bindGeometryDraw(
     if (mode === "polygon") {
       polygonPoints = [...polygonPoints, point];
       if (polygonPoints.length >= 2) {
-        const firstPoint = polygonPoints[0];
-        const secondPoint = polygonPoints[1];
-        if (!firstPoint || !secondPoint) return;
-        showDrawPreview(
-          map,
-          geometryFromPoints("polygon", firstPoint, secondPoint),
-        );
+        showDrawPreview(map, polygonPreviewGeometry(polygonPoints));
       }
       return;
     }
@@ -86,10 +80,7 @@ export function bindGeometryDraw(
   const handleMouseMove = (event: MapMouseEvent) => {
     const point: [number, number] = [event.lngLat.lng, event.lngLat.lat];
     if (mode === "polygon" && polygonPoints.length > 0) {
-      showDrawPreview(map, {
-        type: "Polygon",
-        coordinates: [[...polygonPoints, point, polygonPoints[0]]],
-      });
+      showDrawPreview(map, polygonPreviewGeometry(polygonPoints, point));
     } else if (start) {
       showDrawPreview(map, geometryFromPoints(mode, start, point));
     }
@@ -144,6 +135,7 @@ export function upsertPolygonLayer(
       id: fillId,
       type: "fill",
       source: sourceId,
+      filter: ["==", ["geometry-type"], "Polygon"],
       paint: {
         "fill-color": style.fillColor,
         "fill-opacity": style.fillOpacity,
@@ -157,6 +149,13 @@ export function upsertPolygonLayer(
       id: lineId,
       type: "line",
       source: sourceId,
+      filter: [
+        "match",
+        ["geometry-type"],
+        ["LineString", "Polygon"],
+        true,
+        false,
+      ],
       paint: {
         "line-color": style.lineColor,
         "line-width": style.lineWidth,
@@ -171,6 +170,9 @@ function upsertStyledLayer(map: MapboxMap, layer: AnyLayer, beforeId?: string) {
   if (!map.getLayer(layer.id)) {
     map.addLayer(layer, beforeId);
   } else {
+    if ("filter" in layer) {
+      map.setFilter(layer.id, layer.filter);
+    }
     const writableMap = map as unknown as {
       setPaintProperty: (
         layerId: string,
@@ -185,4 +187,18 @@ function upsertStyledLayer(map: MapboxMap, layer: AnyLayer, beforeId?: string) {
   if (beforeId && map.getLayer(beforeId) && map.getLayer(layer.id)) {
     map.moveLayer(layer.id, beforeId);
   }
+}
+
+function polygonPreviewGeometry(
+  points: Array<[number, number]>,
+  cursor?: [number, number],
+): GeoJsonGeometry {
+  const coordinates = cursor ? [...points, cursor] : points;
+  if (coordinates.length < 3) {
+    return { type: "LineString", coordinates };
+  }
+  return {
+    type: "Polygon",
+    coordinates: [[...coordinates, coordinates[0]]],
+  };
 }

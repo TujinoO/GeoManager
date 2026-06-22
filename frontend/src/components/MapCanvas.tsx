@@ -38,6 +38,10 @@ import {
   removeLoadedLayerGroup,
   reorderLoadedStyleLayers,
 } from "../map/vectorLayerSync";
+import {
+  vectorGeojsonSourceOptions,
+  vectorSourceKey,
+} from "../map/vectorSourceOptions";
 import { fitBoundsOptions, readMapViewState } from "../map/mapViewport";
 import { getMapState } from "../map/mapState";
 import type {
@@ -92,6 +96,7 @@ interface Props {
   onFeatureSelect?: (feature: FeatureInfo | null) => void;
   onMapReady?: (map: MapboxMap) => void;
   onMapDestroy?: () => void;
+  onMapError?: (message: string) => void;
   onViewStateChange?: (view: MapViewState) => void;
 }
 
@@ -105,6 +110,7 @@ export default function MapCanvas({
   onFeatureSelect,
   onMapReady,
   onMapDestroy,
+  onMapError,
   onViewStateChange,
 }: Props) {
   const mapRef = useRef<MapboxMap | null>(null);
@@ -131,7 +137,6 @@ export default function MapCanvas({
       localIdeographFontFamily: '"Microsoft YaHei", "PingFang SC", sans-serif',
       attributionControl: false,
       performanceMetricsCollection: false,
-      preserveDrawingBuffer: true,
     };
     if (mapboxToken) {
       mapOptions.accessToken = mapboxToken;
@@ -156,6 +161,10 @@ export default function MapCanvas({
       }
     };
     map.on("style.load", handleStyleLoad);
+    const handleMapError = (event: { error?: unknown }) => {
+      onMapError?.(mapboxErrorMessage(event.error));
+    };
+    map.on("error", handleMapError);
     map.addControl(
       new mapboxgl.ScaleControl({ unit: "metric" }),
       "bottom-left",
@@ -213,6 +222,7 @@ export default function MapCanvas({
       map.off("rotateend", emitViewState);
       map.off("pitchend", emitViewState);
       map.off("style.load", handleStyleLoad);
+      map.off("error", handleMapError);
       unbindPlatformSymbolImageFallback();
       window.removeEventListener("resize", resizeAndEmitViewState);
       map.off("mousemove", updatePointer);
@@ -233,6 +243,7 @@ export default function MapCanvas({
     mapConfig,
     mapboxToken,
     onMapDestroy,
+    onMapError,
     onMapReady,
     onViewStateChange,
     shouldUseMapboxStyle,
@@ -457,12 +468,15 @@ function syncLoadedLayers(
       continue;
     }
     const isNew = !map.getSource(sourceId);
-    if (isNew) {
-      map.addSource(sourceId, {
-        type: "geojson",
-        data: layer.geojson as never,
-        generateId: true,
-      });
+    const nextSourceKey = vectorSourceKey(layer);
+    if (!isNew && state.vectorSourceKeys.get(sourceId) !== nextSourceKey) {
+      removeLoadedLayerGroup(map, sourceId);
+      state.sourceDataRefs.delete(sourceId);
+    }
+    const shouldCreateSource = !map.getSource(sourceId);
+    if (shouldCreateSource) {
+      map.addSource(sourceId, vectorGeojsonSourceOptions(layer));
+      state.vectorSourceKeys.set(sourceId, nextSourceKey);
       state.sourceDataRefs.set(sourceId, layer.geojson);
       const bounds = combinedFeatureBounds([layer.geojson]);
       if (bounds) newVectorBounds.push(bounds);
@@ -524,4 +538,17 @@ function hideAdministrativeBoundaries(map: MapboxMap) {
       map.setLayoutProperty(layer.id, "visibility", "none");
     }
   }
+}
+
+function mapboxErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+  }
+  return "地图资源加载失败";
 }

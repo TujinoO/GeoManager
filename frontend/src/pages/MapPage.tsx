@@ -153,6 +153,9 @@ export default function MapPage() {
   const mapInstanceRef = useRef<MapboxMap | null>(null);
   const startupScanStartedRef = useRef(false);
   const loadedSceneIdRef = useRef<number | null>(null);
+  const lastMapErrorRef = useRef<{ message: string; timestamp: number } | null>(
+    null,
+  );
   const permissions = user?.permissions ?? emptyPermissions;
   const userRoles = user?.roles ?? [];
 
@@ -545,6 +548,22 @@ export default function MapPage() {
     setMapInstance(null);
   }, [setMapInstance]);
 
+  const handleMapError = useCallback(
+    (errorMessage: string) => {
+      const now = Date.now();
+      const previous = lastMapErrorRef.current;
+      if (
+        previous?.message === errorMessage &&
+        now - previous.timestamp < 5000
+      ) {
+        return;
+      }
+      lastMapErrorRef.current = { message: errorMessage, timestamp: now };
+      message.error(`地图加载异常：${errorMessage}`);
+    },
+    [message],
+  );
+
   useEffect(() => {
     if (!mapObject) return;
     const sync = () => syncExportTileZoomRange(mapObject);
@@ -919,6 +938,7 @@ export default function MapPage() {
               onFeatureSelect={setSelectedFeature}
               onMapReady={handleMapReady}
               onMapDestroy={handleMapDestroy}
+              onMapError={handleMapError}
               onViewStateChange={setCurrentMapView}
             />
           </Suspense>

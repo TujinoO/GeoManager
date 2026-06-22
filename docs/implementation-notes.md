@@ -169,6 +169,10 @@ frontend/src/
 - Mapbox 公共 token 从 TOML 的 `[application.map].mapbox_access_token` 读取，经后端 bootstrap 下发，前端不硬编码默认 token。
 - Mapbox 底图标注语言使用 `zh-Hans`，并在样式加载后优先读取中文名称字段。
 - 前端初始化 Mapbox GL JS 时禁用 `EVENTS_URL` 和性能指标采集，避免浏览器插件拦截 `events.mapbox.com` 后产生控制台噪声；样式、瓦片和业务接口请求不受影响。
+- 主交互地图保持 Mapbox GL JS 默认的 `preserveDrawingBuffer=false`，避免持续拖慢 WebGL 渲染；仅地图图片导出的离屏 Mapbox 实例启用绘图缓冲。
+- 前端矢量 GeoJSON source 选项按图层 `geometryType` 和要素数量确定：点图层使用 `buffer: 0` 和较低 `maxzoom`，密集非热力点图层启用 Mapbox source clustering，大型线/面图层启用 source `tolerance`，避免在每次同步时重扫 GeoJSON。
+- 空间范围绘制的多边形预览在点数不足 3 个时使用 `LineString`，点数满足闭合条件后再切换为 `Polygon`；预览填充层和线层都带几何类型过滤，避免向 Mapbox 图层传入不匹配几何导致运行时异常。
+- Mapbox `error` 事件通过地图页统一转成中文消息提示，并对相同错误做短时间去重；底图、sprite、glyph、瓦片和业务图层加载异常不再只停留在控制台。
 - 鼠标经纬度面板先用 Mapbox `map.isPointOnSurface(event.point)` 判断鼠标是否落在地球表面；不在地球表面时清空显示，在表面时使用 `event.lngLat.wrap()` 并限制到合法经纬度范围。不从屏幕像素、瓦片坐标或墨卡托坐标自行换算。
 
 ## 管理后台实现约定

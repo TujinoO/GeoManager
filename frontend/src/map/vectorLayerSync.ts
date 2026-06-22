@@ -1,4 +1,8 @@
-import type { ExpressionSpecification, Map as MapboxMap } from "mapbox-gl";
+import type {
+  ExpressionSpecification,
+  FilterSpecification,
+  Map as MapboxMap,
+} from "mapbox-gl";
 import type { LoadedLayer, LoadedVectorLayer } from "../types";
 import { clamp, sourceIdFor } from "../utils/geometry";
 import { removeVectorInteraction } from "./featureInteraction";
@@ -16,6 +20,7 @@ import {
   isPlatformSymbolImage,
   platformSymbolImageId,
 } from "./symbolImages";
+import { shouldClusterVectorLayer } from "./vectorSourceOptions";
 
 type StyleProperties = Record<string, unknown>;
 
@@ -34,6 +39,7 @@ export function addLoadedStyleLayers(
     lineOpacity,
     fillOpacity,
   } = buildVectorPaintProperties(style, layerOpacity);
+  const pointFilter = pointFeatureFilter();
 
   upsertLayer(map, {
     id: `${sourceId}-fill`,
@@ -94,13 +100,20 @@ export function addLoadedStyleLayers(
     },
   });
 
+  if (shouldClusterVectorLayer(layer)) {
+    addClusterStyleLayers(map, sourceId, layer, layerOpacity);
+  } else {
+    removeStyleLayer(map, `${sourceId}-cluster`);
+    removeStyleLayer(map, `${sourceId}-cluster-count`);
+  }
+
   if (style.pointMode === "heatmap") {
     removeStyleLayer(map, `${sourceId}-symbol`);
     upsertLayer(map, {
       id: `${sourceId}-heatmap`,
       type: "heatmap",
       source: sourceId,
-      filter: ["==", ["geometry-type"], "Point"],
+      filter: pointFilter,
       paint: {
         "heatmap-weight": buildHeatmapWeight(style),
         "heatmap-intensity": buildHeatmapIntensity(style),
@@ -113,7 +126,7 @@ export function addLoadedStyleLayers(
       id: `${sourceId}-point`,
       type: "circle",
       source: sourceId,
-      filter: ["==", ["geometry-type"], "Point"],
+      filter: pointFilter,
       layout: { "circle-sort-key": style.circle.circleSortKey },
       paint: {
         "circle-color": stateColor(style.circle.circleColor),
@@ -145,7 +158,7 @@ export function addLoadedStyleLayers(
       id: `${sourceId}-point`,
       type: "circle",
       source: sourceId,
-      filter: ["==", ["geometry-type"], "Point"],
+      filter: pointFilter,
       layout: { "circle-sort-key": style.circle.circleSortKey },
       paint: {
         "circle-color": stateColor(style.circle.circleColor),
@@ -215,11 +228,76 @@ export function addLoadedStyleLayers(
       id: symbolLayerId,
       type: "symbol",
       source: sourceId,
-      filter: ["==", ["geometry-type"], "Point"],
+      filter: pointFilter,
       layout: symbolLayout,
       paint: symbolPaint,
     });
   }
+}
+
+function pointFeatureFilter(): FilterSpecification {
+  return [
+    "all",
+    ["==", ["geometry-type"], "Point"],
+    ["!", ["has", "point_count"]],
+  ];
+}
+
+function addClusterStyleLayers(
+  map: MapboxMap,
+  sourceId: string,
+  layer: LoadedVectorLayer,
+  layerOpacity: number,
+) {
+  const style = layer.symbolization;
+  const baseColor =
+    style.pointMode === "symbol"
+      ? style.symbol.iconColor
+      : style.circle.circleColor;
+  const opacity = clamp(layerOpacity * 0.86, 0, 1);
+  upsertLayer(map, {
+    id: `${sourceId}-cluster`,
+    type: "circle",
+    source: sourceId,
+    filter: ["has", "point_count"],
+    paint: {
+      "circle-color": [
+        "step",
+        ["get", "point_count"],
+        baseColor,
+        100,
+        "#f2c36d",
+        750,
+        "#e4582b",
+      ],
+      "circle-opacity": opacity,
+      "circle-radius": ["step", ["get", "point_count"], 14, 100, 20, 750, 28],
+      "circle-stroke-color": "#ffffff",
+      "circle-stroke-opacity": opacity,
+      "circle-stroke-width": 1.2,
+    },
+  });
+  if (!mapStyleSupportsGlyphs(map)) {
+    removeStyleLayer(map, `${sourceId}-cluster-count`);
+    return;
+  }
+  upsertLayer(map, {
+    id: `${sourceId}-cluster-count`,
+    type: "symbol",
+    source: sourceId,
+    filter: ["has", "point_count"],
+    layout: {
+      "text-field": "{point_count_abbreviated}",
+      "text-font": style.symbol.textFont,
+      "text-size": 12,
+      "text-allow-overlap": true,
+    },
+    paint: {
+      "text-color": "#ffffff",
+      "text-halo-color": "rgba(0, 0, 0, 0.28)",
+      "text-halo-width": 1,
+    },
+  });
 }
 
 function buildHeatmapWeight(style: LoadedVectorLayer["symbolization"]) {
@@ -462,6 +540,8 @@ export function removeLoadedLayerGroup(map: MapboxMap, sourceId: string) {
     `${sourceId}-heatmap`,
     `${sourceId}-fill`,
     `${sourceId}-line`,
+    `${sourceId}-cluster`,
+    `${sourceId}-cluster-count`,
     `${sourceId}-point`,
     `${sourceId}-symbol`,
   ]);
@@ -480,6 +560,7 @@ export function removeLayerGroup(
     if (map.getLayer(id)) map.removeLayer(id);
   });
   if (map.getSource(sourceId)) map.removeSource(sourceId);
+  if (cleanInteraction) getMapState(map).vectorSourceKeys.delete(sourceId);
   if (cleanInteraction) getMapState(map).rasterSourceKeys.delete(sourceId);
 }
 
@@ -495,6 +576,8 @@ export function reorderLoadedStyleLayers(
       `${sourceId}-heatmap`,
       `${sourceId}-fill`,
       `${sourceId}-line`,
+      `${sourceId}-cluster`,
+      `${sourceId}-cluster-count`,
       `${sourceId}-point`,
       `${sourceId}-symbol`,
     ]) {
