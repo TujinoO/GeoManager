@@ -74,7 +74,7 @@ const pageMeta: Record<string, { title: string; subTitle: string }> = {
   "/resources/dashboard": defaultPageMeta,
   "/resources/data/import": {
     title: "数据导入",
-    subTitle: "按文件选择、导入配置、数据预览三个步骤完成入库",
+    subTitle: "上传文件后自动识别数据类型，并进入对应导入流程",
   },
   "/resources/data/inventory": {
     title: "存量数据管理",

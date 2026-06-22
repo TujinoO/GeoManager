@@ -909,9 +909,7 @@ describe("admin routes", () => {
   it("runs the admin data import step flow through preview and validation", async () => {
     renderAdminRoute("/resources/data/import");
 
-    expect(
-      await screen.findByText("选择 Excel 或 CSV 文件"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("选择或拖拽数据文件")).toBeInTheDocument();
     expect(screen.getAllByText("数据管理").length).toBeGreaterThan(0);
     const input = document.querySelector(
       "input[type='file']",
@@ -1040,15 +1038,17 @@ describe("admin routes", () => {
   it("uploads a raster file and shows preprocessing progress", async () => {
     renderAdminRoute("/resources/data/import");
 
-    expect(await screen.findByText("栅格数据导入")).toBeInTheDocument();
-    const fileInputs = document.querySelectorAll("input[type='file']");
-    const rasterInput = fileInputs[1] as HTMLInputElement;
+    expect(await screen.findByText("选择或拖拽数据文件")).toBeInTheDocument();
+    const rasterInput = document.querySelector(
+      "input[type='file']",
+    ) as HTMLInputElement;
     const rasterFile = new File(["fake-raster"], "poplar-2026.tif", {
       type: "image/tiff",
     });
 
     fireEvent.change(rasterInput, { target: { files: [rasterFile] } });
 
+    expect(await screen.findByText("已识别为栅格数据")).toBeInTheDocument();
     expect(screen.getByLabelText("栅格数据名称")).toHaveValue("poplar-2026");
     fireEvent.click(screen.getByRole("button", { name: /上传并预处理/ }));
 
@@ -1068,6 +1068,26 @@ describe("admin routes", () => {
       { timeout: 5000 },
     );
     expect(screen.getByText(/gdalwarp 预处理完成/)).toBeInTheDocument();
+  }, 30000);
+
+  it("shows an unsupported state for files without an available import flow", async () => {
+    renderAdminRoute("/resources/data/import");
+
+    const input = document.querySelector(
+      "input[type='file']",
+    ) as HTMLInputElement;
+    const file = new File(["plain"], "readme.txt", {
+      type: "text/plain",
+    });
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(
+      await screen.findByText("暂不支持自动导入该文件类型"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/readme\.txt/)).toBeInTheDocument();
+    expect(mockApi.importPreview).not.toHaveBeenCalled();
+    expect(mockApi.importRaster).not.toHaveBeenCalled();
   }, 30000);
 
   it("blocks browser unload while an import is unfinished", async () => {

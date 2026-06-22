@@ -179,7 +179,7 @@ frontend/src/
 - 后台“数据备份”入口使用独立功能权限 `core.manage_data_backup`，默认且锁定授予 `超级管理员` 角色，不随系统设置权限开放给普通角色。当前页面仅为云端备份 UI 占位，实际备份任务和接口尚未实现。
 - 用户设置和系统设置默认只读，点击编辑后进入编辑态；后台创建用户不受自助注册开关影响，但必须具备 `core.create_user` 权限。
 - 用户组权限配置复用 Django `Group`/`Permission`，必须具备 `core.manage_feature_permissions` 权限；超级管理员用户组不能删除，初始化的 `admin` 用户不能从该组移除。
-- 数据导入复用 `/api/catalog/import/preview/`、`/api/catalog/import/validate/` 和 `/api/catalog/import/commit/`，流程为文件预检、导入配置校验、数据预览和字段元数据维护。
+- 数据导入入口统一为单个任意文件上传区，前端按扩展名自动分流：CSV/Excel 复用 `/api/catalog/import/preview/`、`/api/catalog/import/validate/` 和 `/api/catalog/import/commit/`，流程为文件预检、导入配置校验、数据预览和字段元数据维护；GeoTIFF/IMG/VRT 复用 `/api/raster/import/` 和栅格任务轮询；尚无后端导入流程的文件类型必须显示“暂不支持自动导入”，不得误调用表格或栅格接口。
 - 应用只使用 TOML 配置。后端通过 `--config /path/to/app.toml` 接收源配置，启动、迁移和后台设置都以该源配置文件作为读写目标。
 
 ## 数据管理与图层管理

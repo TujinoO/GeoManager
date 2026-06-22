@@ -2,6 +2,7 @@ import {
   CheckCircleOutlined,
   CloudUploadOutlined,
   DatabaseOutlined,
+  FileSearchOutlined,
   QuestionCircleOutlined,
   ReloadOutlined,
 } from "@ant-design/icons";
@@ -51,6 +52,7 @@ interface ImportFormValues {
 }
 
 type IssueAction = "continue" | "import";
+type ImportKind = "tabular" | "raster" | "unsupported";
 const selfAccessScopeId = "__self__";
 const unfinishedImportWarning =
   "当前导入尚未完成，离开页面会丢失已选择的文件、导入配置、校验结果和字段元数据。";
@@ -65,6 +67,7 @@ export default function AdminDataImportPage() {
   const currentPathRef = useRef("");
   const [form] = Form.useForm<ImportFormValues>();
   const [currentStep, setCurrentStep] = useState(0);
+  const [importKind, setImportKind] = useState<ImportKind | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [fieldMetadata, setFieldMetadata] = useState<Record<string, string>>(
@@ -103,6 +106,7 @@ export default function AdminDataImportPage() {
   const [rasterName, setRasterName] = useState("");
   const [rasterUploading, setRasterUploading] = useState(false);
   const [rasterJob, setRasterJob] = useState<RasterJob | null>(null);
+  const [unsupportedFile, setUnsupportedFile] = useState<File | null>(null);
   const hasUnfinishedImport = Boolean(
     (file && !result) ||
     (rasterFile && !rasterJob) ||
@@ -150,6 +154,26 @@ export default function AdminDataImportPage() {
   );
   const hasGuestVisible = selectedGroups.some(isGuestGroup);
   const selectableAccessGroups = availableAccessGroups;
+  const stepItems = useMemo(() => {
+    if (importKind === "raster") {
+      return [
+        { title: "选择文件", icon: <CloudUploadOutlined /> },
+        { title: "栅格配置", icon: <DatabaseOutlined /> },
+        { title: "预处理进度", icon: <CheckCircleOutlined /> },
+      ];
+    }
+    if (importKind === "unsupported") {
+      return [
+        { title: "选择文件", icon: <CloudUploadOutlined /> },
+        { title: "类型识别", icon: <FileSearchOutlined /> },
+      ];
+    }
+    return [
+      { title: "选择文件", icon: <CloudUploadOutlined /> },
+      { title: "导入配置", icon: <DatabaseOutlined /> },
+      { title: "预览提交", icon: <CheckCircleOutlined /> },
+    ];
+  }, [importKind]);
 
   useEffect(() => {
     currentPathRef.current = `${location.pathname}${location.search}${location.hash}`;
@@ -331,6 +355,7 @@ export default function AdminDataImportPage() {
   }
 
   function resetImportState() {
+    setImportKind(null);
     setFile(null);
     setPreview(null);
     setFieldMetadata({});
@@ -346,8 +371,35 @@ export default function AdminDataImportPage() {
     setIssuesOpen(false);
     setResult(null);
     setImportConfig({});
+    setRasterFile(null);
+    setRasterName("");
+    setRasterJob(null);
+    setRasterUploading(false);
+    setUnsupportedFile(null);
     setCurrentStep(0);
     form.resetFields();
+  }
+
+  function handleFileSelected(selectedFile: File) {
+    const kind = detectImportKind(selectedFile);
+    resetImportState();
+    if (kind === "raster") {
+      setImportKind("raster");
+      setRasterFile(selectedFile);
+      setRasterName(fileStem(selectedFile.name));
+      setCurrentStep(1);
+      message.success("已识别为栅格数据，请确认名称后启动预处理");
+      return;
+    }
+    if (kind === "tabular") {
+      setImportKind("tabular");
+      void handlePreview(selectedFile);
+      return;
+    }
+    setImportKind("unsupported");
+    setUnsupportedFile(selectedFile);
+    setCurrentStep(1);
+    message.warning("暂不支持该文件类型的自动导入");
   }
 
   async function handlePreview(selectedFile: File) {
@@ -449,6 +501,7 @@ export default function AdminDataImportPage() {
     try {
       const job = await api.importRaster(rasterFile, rasterName);
       setRasterJob(job);
+      setCurrentStep(2);
       message.success("栅格导入任务已提交，后台正在预处理");
     } catch (error) {
       message.error(error instanceof Error ? error.message : "栅格导入失败");
@@ -458,10 +511,7 @@ export default function AdminDataImportPage() {
   }
 
   function resetRasterImportState() {
-    setRasterFile(null);
-    setRasterName("");
-    setRasterJob(null);
-    setRasterUploading(false);
+    resetImportState();
   }
 
   async function submitImport(ignoreUncertainty: boolean) {
@@ -550,14 +600,7 @@ export default function AdminDataImportPage() {
   return (
     <div className="admin-page-stack admin-import-page">
       <ProCard className="admin-section-card">
-        <Steps
-          current={currentStep}
-          items={[
-            { title: "选择文件", icon: <CloudUploadOutlined /> },
-            { title: "导入配置", icon: <DatabaseOutlined /> },
-            { title: "预览提交", icon: <CheckCircleOutlined /> },
-          ]}
-        />
+        <Steps current={currentStep} items={stepItems} />
       </ProCard>
 
       <ProCard className="admin-section-card">
@@ -587,10 +630,9 @@ export default function AdminDataImportPage() {
           {currentStep === 0 && (
             <section className="import-step-pane">
               <Upload.Dragger
-                accept=".csv,.xls,.xlsx"
                 disabled={previewing}
                 beforeUpload={(selectedFile) => {
-                  void handlePreview(selectedFile);
+                  handleFileSelected(selectedFile);
                   return false;
                 }}
                 maxCount={1}
@@ -598,10 +640,11 @@ export default function AdminDataImportPage() {
               >
                 <CloudUploadOutlined style={{ fontSize: 34 }} />
                 <Typography.Title level={4}>
-                  选择 Excel 或 CSV 文件
+                  选择或拖拽数据文件
                 </Typography.Title>
                 <Typography.Text type="secondary">
-                  选择文件后自动预检，并进入导入配置步骤。
+                  支持 CSV、Excel 表格和 GeoTIFF、IMG、VRT
+                  栅格文件；系统会根据文件类型自动进入后续流程。
                 </Typography.Text>
                 <div className="import-selected-file">
                   {previewing ? (
@@ -616,7 +659,7 @@ export default function AdminDataImportPage() {
             </section>
           )}
 
-          {currentStep === 1 && preview && (
+          {currentStep === 1 && importKind === "tabular" && preview && (
             <div className="import-config-form">
               <Space className="import-actions import-actions-top">
                 <Button onClick={resetImportState}>重新选择文件</Button>
@@ -795,7 +838,80 @@ export default function AdminDataImportPage() {
             </div>
           )}
 
-          {currentStep === 2 && preview && (
+          {currentStep === 1 && importKind === "raster" && rasterFile && (
+            <div className="import-config-form">
+              <Space className="import-actions import-actions-top">
+                <Button onClick={resetRasterImportState}>重新选择文件</Button>
+                <Button
+                  type="primary"
+                  icon={<CloudUploadOutlined style={{ fontSize: 16 }} />}
+                  loading={rasterUploading}
+                  disabled={!rasterFile}
+                  onClick={handleRasterImport}
+                >
+                  上传并预处理
+                </Button>
+              </Space>
+
+              <Alert
+                type="info"
+                showIcon
+                title="已识别为栅格数据"
+                description="上传后后台会自动预处理为 EPSG:3857 COG，并实时显示任务进度。"
+              />
+
+              <Descriptions
+                size="small"
+                bordered
+                column={2}
+                className="import-stats"
+              >
+                <Descriptions.Item label="文件名">
+                  {rasterFile.name}
+                </Descriptions.Item>
+                <Descriptions.Item label="文件类型">
+                  {rasterFileExtensionLabel(rasterFile.name)}
+                </Descriptions.Item>
+              </Descriptions>
+
+              <section className="import-section">
+                <Typography.Title level={5}>栅格数据名称</Typography.Title>
+                <Input
+                  aria-label="栅格数据名称"
+                  value={rasterName}
+                  onChange={(event) => setRasterName(event.target.value)}
+                  placeholder="栅格数据名称，默认取文件名"
+                  disabled={rasterUploading}
+                />
+              </section>
+            </div>
+          )}
+
+          {currentStep === 1 && importKind === "unsupported" && (
+            <section className="import-step-pane">
+              <Result
+                status="warning"
+                title="暂不支持自动导入该文件类型"
+                subTitle={
+                  unsupportedFile
+                    ? `${unsupportedFile.name} 未匹配到当前可用的表格或栅格导入流程。`
+                    : "未匹配到当前可用的表格或栅格导入流程。"
+                }
+                extra={[
+                  <Button
+                    key="again"
+                    type="primary"
+                    icon={<ReloadOutlined />}
+                    onClick={resetImportState}
+                  >
+                    重新选择文件
+                  </Button>,
+                ]}
+              />
+            </section>
+          )}
+
+          {currentStep === 2 && importKind === "tabular" && preview && (
             <section className="import-step-pane">
               {result ? (
                 <Result
@@ -903,116 +1019,70 @@ export default function AdminDataImportPage() {
               )}
             </section>
           )}
-        </Form>
-      </ProCard>
 
-      <ProCard title="栅格数据导入" className="admin-section-card">
-        <section className="import-step-pane raster-import-pane">
-          <Upload.Dragger
-            accept=".tif,.tiff,.img,.vrt"
-            disabled={
-              rasterUploading ||
-              Boolean(rasterJob && isActiveRasterJob(rasterJob))
-            }
-            beforeUpload={(selectedFile) => {
-              setRasterFile(selectedFile);
-              setRasterJob(null);
-              setRasterName(
-                (current) => current || fileStem(selectedFile.name),
-              );
-              return false;
-            }}
-            maxCount={1}
-            showUploadList={false}
-          >
-            <CloudUploadOutlined style={{ fontSize: 34 }} />
-            <Typography.Title level={4}>选择栅格文件</Typography.Title>
-            <Typography.Text type="secondary">
-              支持 GeoTIFF、IMG 和 VRT；上传后后台自动预处理为 EPSG:3857 COG。
-            </Typography.Text>
-            <div className="import-selected-file">
-              {rasterFile ? (
-                <Tag color="green">{rasterFile.name}</Tag>
+          {currentStep === 2 && importKind === "raster" && (
+            <section className="import-step-pane">
+              {rasterJob ? (
+                <section className="raster-import-progress">
+                  <Space>
+                    <Tag color={rasterJobTagColor(rasterJob)}>
+                      {rasterJobStatusText(rasterJob)}
+                    </Tag>
+                    <Typography.Text type="secondary">
+                      任务 ID：{rasterJob.id}
+                    </Typography.Text>
+                  </Space>
+                  <Progress
+                    percent={rasterJob.progressPercent}
+                    status={rasterJobProgressStatus(rasterJob)}
+                  />
+                  {rasterJob.status === "ready" && (
+                    <Alert
+                      type="success"
+                      showIcon
+                      title="栅格预处理完成"
+                      description="数据资源和地图图层已在后台登记，可在存量数据或地图数据目录中查看。"
+                    />
+                  )}
+                  {rasterJob.status === "failed" && (
+                    <Alert
+                      type="error"
+                      showIcon
+                      title="栅格预处理失败"
+                      description={rasterJob.error || "后台任务执行失败"}
+                    />
+                  )}
+                  {rasterJob.messages.length > 0 && (
+                    <pre className="raster-import-log">
+                      {rasterJob.messages.slice(-12).join("\n")}
+                    </pre>
+                  )}
+                  {!isActiveRasterJob(rasterJob) && (
+                    <Space className="import-actions import-actions-top">
+                      <Button
+                        type="primary"
+                        icon={<ReloadOutlined />}
+                        onClick={resetImportState}
+                      >
+                        继续导入
+                      </Button>
+                    </Space>
+                  )}
+                </section>
               ) : (
-                <Tag>尚未选择栅格文件</Tag>
-              )}
-            </div>
-          </Upload.Dragger>
-
-          <div className="raster-import-controls">
-            <Input
-              aria-label="栅格数据名称"
-              value={rasterName}
-              onChange={(event) => setRasterName(event.target.value)}
-              placeholder="栅格数据名称，默认取文件名"
-              disabled={
-                rasterUploading ||
-                Boolean(rasterJob && isActiveRasterJob(rasterJob))
-              }
-            />
-            <Space className="import-actions">
-              <Button
-                disabled={
-                  rasterUploading ||
-                  Boolean(rasterJob && isActiveRasterJob(rasterJob))
-                }
-                onClick={resetRasterImportState}
-              >
-                重新选择
-              </Button>
-              <Button
-                type="primary"
-                icon={<CloudUploadOutlined style={{ fontSize: 16 }} />}
-                loading={rasterUploading}
-                disabled={
-                  !rasterFile ||
-                  Boolean(rasterJob && isActiveRasterJob(rasterJob))
-                }
-                onClick={handleRasterImport}
-              >
-                上传并预处理
-              </Button>
-            </Space>
-          </div>
-
-          {rasterJob && (
-            <section className="raster-import-progress">
-              <Space>
-                <Tag color={rasterJobTagColor(rasterJob)}>
-                  {rasterJobStatusText(rasterJob)}
-                </Tag>
-                <Typography.Text type="secondary">
-                  任务 ID：{rasterJob.id}
-                </Typography.Text>
-              </Space>
-              <Progress
-                percent={rasterJob.progressPercent}
-                status={rasterJobProgressStatus(rasterJob)}
-              />
-              {rasterJob.status === "ready" && (
-                <Alert
-                  type="success"
-                  showIcon
-                  title="栅格预处理完成"
-                  description="数据资源和地图图层已在后台登记，可在存量数据或地图数据目录中查看。"
+                <Result
+                  status="info"
+                  title="尚未提交栅格预处理任务"
+                  extra={[
+                    <Button key="back" onClick={() => setCurrentStep(1)}>
+                      返回配置
+                    </Button>,
+                  ]}
                 />
-              )}
-              {rasterJob.status === "failed" && (
-                <Alert
-                  type="error"
-                  showIcon
-                  title="栅格预处理失败"
-                  description={rasterJob.error || "后台任务执行失败"}
-                />
-              )}
-              {rasterJob.messages.length > 0 && (
-                <pre className="raster-import-log">
-                  {rasterJob.messages.slice(-12).join("\n")}
-                </pre>
               )}
             </section>
           )}
-        </section>
+        </Form>
       </ProCard>
 
       <Modal
@@ -1212,6 +1282,37 @@ function rasterJobProgressStatus(job: RasterJob) {
 
 function fileStem(name: string) {
   return name.replace(/\.[^.]+$/, "");
+}
+
+function fileExtension(name: string) {
+  const dotIndex = name.lastIndexOf(".");
+  return dotIndex >= 0 ? name.slice(dotIndex).toLowerCase() : "";
+}
+
+function detectImportKind(file: File): ImportKind {
+  const extension = fileExtension(file.name);
+  if ([".csv", ".xls", ".xlsx"].includes(extension)) {
+    return "tabular";
+  }
+  if ([".tif", ".tiff", ".img", ".vrt"].includes(extension)) {
+    return "raster";
+  }
+  return "unsupported";
+}
+
+function rasterFileExtensionLabel(name: string) {
+  const extension = fileExtension(name);
+  switch (extension) {
+    case ".tif":
+    case ".tiff":
+      return "GeoTIFF";
+    case ".img":
+      return "IMG";
+    case ".vrt":
+      return "VRT";
+    default:
+      return extension || "未知";
+  }
 }
 
 function DuplicateTargetAlert({
