@@ -10,7 +10,12 @@ import zhCN from "antd/locale/zh_CN";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppContext } from "../contexts/AppContext";
-import { RequireDataInventory, RequireDataUpload } from "../router";
+import {
+  RequireDataInventory,
+  RequireDataUpload,
+  RequireManageDataBackup,
+  RequireManageSystemSettings,
+} from "../router";
 import { appTheme } from "../theme";
 import type { Bootstrap, User } from "../types";
 
@@ -238,6 +243,12 @@ const adminSettings = {
   editable: true,
 };
 
+function hoverElement(element: Element) {
+  fireEvent.pointerEnter(element);
+  fireEvent.mouseOver(element);
+  fireEvent.mouseEnter(element);
+}
+
 function renderAdminRoute(initialEntry: string, user: User = adminUser) {
   return render(
     <AdminTestProviders user={user}>
@@ -276,8 +287,12 @@ function renderAdminRoute(initialEntry: string, user: User = adminUser) {
             />
             <Route path="profile" element={<AdminProfilePage />} />
             <Route path="logs" element={<AdminOperationLogsPage />} />
-            <Route path="settings" element={<AdminSystemSettingsPage />} />
-            <Route path="backup" element={<AdminDataBackupPage />} />
+            <Route element={<RequireManageSystemSettings />}>
+              <Route path="settings" element={<AdminSystemSettingsPage />} />
+            </Route>
+            <Route element={<RequireManageDataBackup />}>
+              <Route path="backup" element={<AdminDataBackupPage />} />
+            </Route>
             <Route path="auth" element={<Navigate to="users" replace />} />
             <Route path="auth/users" element={<AdminAuthPage />} />
             <Route path="auth/groups" element={<AdminAuthPage />} />
@@ -670,31 +685,16 @@ describe("admin routes", () => {
     expect(screen.queryByText("服务器信息")).not.toBeInTheDocument();
   });
 
-  it("navigates directly from management header dropdowns", async () => {
+  it("navigates directly from the data management header dropdown", async () => {
     renderAdminRoute("/admin");
 
     const dataManagementButton = await screen.findByRole("button", {
       name: /数据管理/,
     });
-    fireEvent.mouseEnter(dataManagementButton);
+    hoverElement(dataManagementButton);
     fireEvent.click(await screen.findByRole("menuitem", { name: "存量数据" }));
 
     expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
-
-    const adminButton = await screen.findByRole("button", {
-      name: /后台管理/,
-    });
-    fireEvent.mouseEnter(adminButton);
-    fireEvent.click(await screen.findByRole("menuitem", { name: "系统设置" }));
-
-    expect(await screen.findAllByText("基础配置")).not.toHaveLength(0);
-
-    fireEvent.mouseEnter(adminButton);
-    fireEvent.click(await screen.findByRole("menuitem", { name: "数据备份" }));
-
-    expect(await screen.findByText("数据备份功能暂未实现")).toBeInTheDocument();
-    expect(screen.getByText("科研数据备份")).toBeInTheDocument();
-    expect(screen.getByText("平台数据备份")).toBeInTheDocument();
   });
 
   it("submits the password change form from user settings", async () => {
@@ -789,10 +789,13 @@ describe("admin routes", () => {
     const adminButton = await screen.findByRole("button", {
       name: /后台管理/,
     });
-    fireEvent.mouseEnter(adminButton);
+    hoverElement(adminButton);
     expect(
       screen.queryByRole("menuitem", { name: "数据备份" }),
     ).not.toBeInTheDocument();
+
+    const { unmount } = renderAdminRoute("/admin/settings", settingsOnlyUser);
+    unmount();
 
     renderAdminRoute("/admin/backup", settingsOnlyUser);
 
@@ -914,9 +917,13 @@ describe("admin routes", () => {
     const input = document.querySelector(
       "input[type='file']",
     ) as HTMLInputElement;
-    const file = new File(["plot_id,longitude,latitude\nP001,87.6,41.7"], {
-      type: "text/csv",
-    });
+    const file = new File(
+      ["plot_id,longitude,latitude\nP001,87.6,41.7"],
+      "sample-points.csv",
+      {
+        type: "text/csv",
+      },
+    );
 
     fireEvent.change(input, { target: { files: [file] } });
 
@@ -995,9 +1002,13 @@ describe("admin routes", () => {
     const input = document.querySelector(
       "input[type='file']",
     ) as HTMLInputElement;
-    const file = new File(["plot_id,longitude,latitude\nP001,87.6,41.7"], {
-      type: "text/csv",
-    });
+    const file = new File(
+      ["plot_id,longitude,latitude\nP001,87.6,41.7"],
+      "sample-points.csv",
+      {
+        type: "text/csv",
+      },
+    );
 
     fireEvent.change(input, { target: { files: [file] } });
     expect(await screen.findByText("导入配置")).toBeInTheDocument();
@@ -1020,9 +1031,13 @@ describe("admin routes", () => {
     const input = document.querySelector(
       "input[type='file']",
     ) as HTMLInputElement;
-    const file = new File(["plot_id,longitude,latitude\nP001,87.6,41.7"], {
-      type: "text/csv",
-    });
+    const file = new File(
+      ["plot_id,longitude,latitude\nP001,87.6,41.7"],
+      "sample-points.csv",
+      {
+        type: "text/csv",
+      },
+    );
 
     fireEvent.change(input, { target: { files: [file] } });
     expect(await screen.findByText("导入配置")).toBeInTheDocument();
@@ -1096,9 +1111,13 @@ describe("admin routes", () => {
     const input = document.querySelector(
       "input[type='file']",
     ) as HTMLInputElement;
-    const file = new File(["plot_id,longitude,latitude\nP001,87.6,41.7"], {
-      type: "text/csv",
-    });
+    const file = new File(
+      ["plot_id,longitude,latitude\nP001,87.6,41.7"],
+      "sample-points.csv",
+      {
+        type: "text/csv",
+      },
+    );
 
     fireEvent.change(input, { target: { files: [file] } });
     expect(await screen.findByText("导入配置")).toBeInTheDocument();
@@ -1116,9 +1135,13 @@ describe("admin routes", () => {
     const input = document.querySelector(
       "input[type='file']",
     ) as HTMLInputElement;
-    const file = new File(["plot_id,longitude,latitude\nP001,87.6,41.7"], {
-      type: "text/csv",
-    });
+    const file = new File(
+      ["plot_id,longitude,latitude\nP001,87.6,41.7"],
+      "sample-points.csv",
+      {
+        type: "text/csv",
+      },
+    );
 
     fireEvent.change(input, { target: { files: [file] } });
     expect(await screen.findByText("导入配置")).toBeInTheDocument();

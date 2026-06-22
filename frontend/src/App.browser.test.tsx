@@ -1,10 +1,4 @@
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { App as AntApp, ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { MemoryRouter } from "react-router-dom";
@@ -326,30 +320,21 @@ describe("application critical flows", () => {
   });
 
   it("retries app startup while the backend is still becoming ready", async () => {
-    vi.useFakeTimers();
     mockApi.bootstrap
       .mockRejectedValueOnce(new MockApiError("后端服务尚未就绪", 503))
       .mockResolvedValue(bootstrap);
 
-    try {
-      renderApp("/");
+    renderApp("/");
 
-      await waitFor(() => {
-        expect(mockApi.bootstrap).toHaveBeenCalledTimes(1);
-      });
+    await waitFor(() => {
+      expect(mockApi.bootstrap).toHaveBeenCalledTimes(1);
+    });
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(300);
-      });
-
-      expect(
-        await screen.findByRole("heading", { name: "用户登录" }),
-      ).toBeInTheDocument();
-      expect(mockApi.bootstrap).toHaveBeenCalledTimes(2);
-      expect(mockApi.csrf).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(
+      await screen.findByRole("heading", { name: "用户登录" }),
+    ).toBeInTheDocument();
+    expect(mockApi.bootstrap).toHaveBeenCalledTimes(2);
+    expect(mockApi.csrf).toHaveBeenCalledTimes(2);
   });
 
   it("allows visitors to enter the geographic workspace through guest login", async () => {
