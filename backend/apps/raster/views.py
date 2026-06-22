@@ -203,10 +203,12 @@ def import_raster(request):
     uploaded_file = request.FILES.get("file")
     if uploaded_file is not None:
         try:
-            source_path = store_uploaded_source_file(uploaded_file)
-            job = start_import_job(
-                str(source_path), name=str(request.POST.get("name") or "")
+            display_name = (
+                str(request.POST.get("name") or "").strip()
+                or Path(uploaded_file.name or "uploaded-raster").stem
             )
+            source_path = store_uploaded_source_file(uploaded_file)
+            job = start_import_job(str(source_path), name=display_name)
         except (RasterImportError, OSError) as exc:
             log_operation(
                 request.user,

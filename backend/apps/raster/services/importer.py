@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import shutil
 import uuid
 from pathlib import Path
@@ -28,9 +27,6 @@ from apps.raster.services.geo_utils import (
 )
 from apps.raster.services.progress import normalize_progress_text
 from apps.raster.services.rules_engine import default_raster_rules
-
-
-UPLOADED_SOURCE_NAME_PATTERN = re.compile(r"^[0-9a-fA-F]{32}-(?P<name>.+)$")
 
 
 def is_raster_file(path: Path) -> bool:
@@ -73,18 +69,6 @@ def store_uploaded_source_file(uploaded_file) -> Path:
 def processed_relative_path(source_relative: str) -> str:
     source = Path(source_relative)
     return (source.parent / f"{source.stem}.cog.tif").as_posix()
-
-
-def raster_display_name(name: str, input_path: Path, source_relative: str) -> str:
-    explicit_name = name.strip()
-    if explicit_name:
-        return explicit_name
-    stem = input_path.stem
-    if source_relative.startswith("uploaded/"):
-        match = UPLOADED_SOURCE_NAME_PATTERN.fullmatch(stem)
-        if match:
-            return match.group("name")
-    return stem
 
 
 def metadata_relative_path(kind: str, raster_relative: str) -> str:
@@ -197,7 +181,7 @@ def import_raster_file(
     dataset, _ = RasterDataset.objects.update_or_create(
         source_relative_path=source_relative,
         defaults={
-            "name": raster_display_name(name, input_path, source_relative),
+            "name": name.strip() or input_path.stem,
             "code": stable_code("raster", source_relative),
             "processed_relative_path": processed_relative,
             "source_metadata_relative_path": source_metadata_relative,

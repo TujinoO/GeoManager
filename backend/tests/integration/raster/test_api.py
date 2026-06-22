@@ -178,6 +178,44 @@ class RasterPermissionApiTests(TestCase):
             self.assertIn("raster/original/uploaded", saved_path.as_posix())
             self.assertEqual(start_import_job.call_args.kwargs["name"], "NDVI 影像")
 
+    def test_import_endpoint_uses_original_upload_stem_when_name_is_empty(self):
+        grant(self.user, ("raster", "manage_raster_dataset"))
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            job = SimpleNamespace(
+                id="import-job-2",
+                as_dict=lambda: {
+                    "id": "import-job-2",
+                    "kind": "import",
+                    "status": "queued",
+                    "progressPercent": 0,
+                    "messages": [],
+                    "result": None,
+                    "error": "",
+                    "startedAt": 1,
+                    "finishedAt": None,
+                },
+            )
+            with override_settings(PROJECT_CONFIG=config):
+                with patch(
+                    "apps.raster.views.start_import_job", return_value=job
+                ) as start_import_job:
+                    response = self.client.post(
+                        "/api/raster/import/",
+                        data={
+                            "file": SimpleUploadedFile(
+                                "Traim.tif",
+                                b"fake raster bytes",
+                                content_type="image/tiff",
+                            ),
+                        },
+                    )
+
+            self.assertEqual(response.status_code, 202)
+            self.assertEqual(start_import_job.call_args.kwargs["name"], "Traim")
+            saved_path = Path(start_import_job.call_args.args[0])
+            self.assertRegex(saved_path.name, r"^[0-9a-f]{32}-Traim\.tif$")
+
     def test_tile_endpoint_returns_no_content_for_tiles_outside_extent(self):
         grant(self.user, ("core", "load_raster_layer"))
         resource = DataResource.objects.create(
