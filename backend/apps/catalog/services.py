@@ -6,7 +6,10 @@ import logging
 from django.db import OperationalError, ProgrammingError
 
 from apps.catalog.models import DataResource, MapLayer
-from apps.catalog.vector_store import geometry_type
+from apps.catalog.vector_store import (
+    geopackage_layer_metadata,
+    geopackage_layer_names,
+)
 from apps.core.initialization import ensure_superadmin_defaults
 from apps.core.storage import gene_data_path, table_data_path, vector_geopackage_path
 
@@ -51,12 +54,7 @@ def scan_vector_geopackage_layers() -> list[DataResource]:
     if not path.exists():
         return []
     try:
-        import geopandas as gpd
-
-        layers = gpd.list_layers(path)
-        if not hasattr(layers, "columns") or "name" not in layers.columns:
-            return []
-        layer_names = sorted(layers["name"].astype(str).tolist())
+        layer_names = geopackage_layer_names(path)
     except Exception:
         logger.exception("读取统一 GeoPackage 图层列表失败：%s", path)
         return []
@@ -88,18 +86,9 @@ def scan_catalog_sources_safely() -> list[DataResource]:
 
 
 def upsert_vector_catalog_record(path, layer_name: str) -> DataResource:
-    import geopandas as gpd
-
-    gdf = gpd.read_file(path, layer=layer_name)
-    if gdf.crs and gdf.crs.to_epsg() != 4326:
-        gdf = gdf.to_crs(4326)
-    bounds = (
-        [round(float(value), 6) for value in gdf.total_bounds.tolist()]
-        if len(gdf)
-        else []
-    )
+    metadata = geopackage_layer_metadata(path, layer_name)
+    bounds = metadata.bounds
     spatial_extent = ",".join(f"{value:.6f}" for value in bounds) if bounds else ""
-    coordinate_system = f"EPSG:{gdf.crs.to_epsg()}" if gdf.crs else ""
     code = stable_catalog_code("vector", layer_name)
     resource, _ = DataResource.objects.update_or_create(
         code=code,
@@ -109,13 +98,13 @@ def upsert_vector_catalog_record(path, layer_name: str) -> DataResource:
             "source": "矢量数据目录扫描",
             "provider": "",
             "spatial_extent": spatial_extent,
-            "coordinate_system": coordinate_system,
+            "coordinate_system": metadata.coordinate_system,
             "file_format": "GPKG",
             "storage_path": layer_name,
             "description": f"自动扫描统一 GeoPackage 图层：{layer_name}",
             "quality_note": "",
             "size_bytes": path.stat().st_size,
-            "item_count": len(gdf),
+            "item_count": metadata.feature_count,
             "status": DataResource.Status.ACTIVE,
         },
     )
@@ -124,7 +113,7 @@ def upsert_vector_catalog_record(path, layer_name: str) -> DataResource:
         defaults={
             "name": layer_name,
             "layer_type": MapLayer.LayerType.VECTOR,
-            "geometry_type": _map_geometry_type(geometry_type(gdf)),
+            "geometry_type": _map_geometry_type(metadata.geometry_type),
             "data_resource": resource,
             "source_path": layer_name,
             "default_visible": False,

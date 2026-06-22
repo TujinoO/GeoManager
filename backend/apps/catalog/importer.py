@@ -19,6 +19,7 @@ from shapely.geometry import Point
 
 from apps.catalog.models import DataResource
 from apps.catalog.services import stable_catalog_code
+from apps.catalog.vector_store import geopackage_layer_exists
 from apps.core.initialization import ensure_superadmin_defaults
 from apps.core.principal_visibility import selectable_access_groups_for
 from apps.core.storage import table_data_path, vector_geopackage_path
@@ -561,15 +562,7 @@ def _storage_target_exists(table_name: str, import_mode: str) -> bool:
     if not path.exists():
         return False
     if geographic:
-        import geopandas as gpd
-
-        layers = gpd.list_layers(path)
-        existing_names = (
-            set(layers["name"].astype(str).tolist())
-            if hasattr(layers, "columns") and "name" in layers.columns
-            else set()
-        )
-        return table_name in existing_names
+        return geopackage_layer_exists(path, table_name)
     with sqlite3.connect(path) as connection:
         exists = connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
@@ -912,15 +905,7 @@ def _ensure_table_can_be_written(
     if not path.exists():
         return
     if geographic:
-        import geopandas as gpd
-
-        layers = gpd.list_layers(path)
-        existing_names = (
-            set(layers["name"].astype(str).tolist())
-            if hasattr(layers, "columns") and "name" in layers.columns
-            else set()
-        )
-        if table_name in existing_names:
+        if geopackage_layer_exists(path, table_name):
             raise ImportDataError("后台存储标识已存在，请重新预检后导入")
         return
     with sqlite3.connect(path) as connection:

@@ -2,6 +2,7 @@ import io
 import json
 import sqlite3
 import zipfile
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
@@ -494,9 +495,13 @@ class CatalogScanTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_scan_endpoint_registers_vector_geopackage_layers(self):
-        response = self.client.post(
-            "/api/catalog/scan/", data={}, content_type="application/json"
-        )
+        with patch("geopandas.read_file") as read_file:
+            read_file.side_effect = AssertionError(
+                "目录扫描应通过 SQLite 读取 GeoPackage 元数据"
+            )
+            response = self.client.post(
+                "/api/catalog/scan/", data={}, content_type="application/json"
+            )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()

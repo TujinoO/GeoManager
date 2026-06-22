@@ -80,7 +80,7 @@ backend/apps/
 - 非地理数据统一放在非地理数据根目录下：基因数据放在 `gene/`，表格数据放在 `table/`。后端目录扫描会登记 `gene` 和 `table` 类型的 `DataResource`，不创建地图图层。
 - 栅格导入预处理固定使用 `gdalwarp` 将源文件转换为 EPSG:3857 的 COG 格式，导入记录保存源文件、预处理文件、两份 GDAL 元数据、导入时间、处理日志、错误信息、默认符号化规则、范围和关联数据资源/地图图层。
 - 后端启动 `runserver` 或 WSGI/ASGI 进程时会异步扫描 `vector/vector.gpkg`、非地理数据 `gene/`、`table/` 和 `raster/original/` 下已有数据；矢量图层会登记为 `DataResource/MapLayer`，非地理文件登记为 `DataResource`，栅格源文件会完成预处理并登记目录。迁移、测试等管理命令不触发扫描。可在 TOML 的 `[runtime]` 段设置 `disable_catalog_startup_scan` 或 `disable_raster_startup_scan` 关闭启动扫描。
-- 启动扫描的服务命令判断必须覆盖 `runserver`、`waitress`、`uvicorn` 和 `daphne`；Docker 的 `waitress-serve geomanager.wsgi:application` 是生产启动路径，不能被当成普通管理命令跳过。目录扫描会枚举统一 GeoPackage 的全部图层，并为每个图层同步 `DataResource` 与 `MapLayer`。
+- 启动扫描的服务命令判断必须覆盖 `runserver`、`waitress`、`uvicorn` 和 `daphne`；Docker 的 `waitress-serve geomanager.wsgi:application` 是生产启动路径，不能被当成普通管理命令跳过。目录扫描会通过 SQLite 读取统一 GeoPackage 元数据并枚举全部图层，为每个图层同步 `DataResource` 与 `MapLayer`；空间查询优先使用 GeoPackage RTree 表做 bbox 候选集预筛选，再由 GeoPandas 对候选要素执行精确几何过滤和 GeoJSON 输出。
 
 ## 统一功能权限
 

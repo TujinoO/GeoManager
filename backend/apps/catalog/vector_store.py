@@ -23,6 +23,9 @@ class DataQueryError(ValueError):
     pass
 
 
+MAX_RTREE_WHERE_IDS = 5000
+
+
 @dataclass(frozen=True)
 class ResourceProfile:
     fields: list[dict[str, Any]]
@@ -30,6 +33,120 @@ class ResourceProfile:
     geometry_type: str
     bounds: list[float]
     raster: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class GeopackageLayerMetadata:
+    name: str
+    feature_count: int
+    geometry_type: str
+    bounds: list[float]
+    coordinate_system: str
+
+
+def geopackage_layer_names(path: Path) -> list[str]:
+    with sqlite3.connect(path) as connection:
+        rows = connection.execute(
+            """
+            SELECT table_name
+            FROM gpkg_contents
+            WHERE data_type = 'features'
+            ORDER BY table_name
+            """
+        ).fetchall()
+    return [str(row[0]) for row in rows]
+
+
+def geopackage_layer_exists(path: Path, layer_name: str) -> bool:
+    if not path.exists():
+        return False
+    with sqlite3.connect(path) as connection:
+        row = connection.execute(
+            "SELECT 1 FROM gpkg_contents WHERE data_type = 'features' AND table_name = ?",
+            (layer_name,),
+        ).fetchone()
+    return bool(row)
+
+
+def geopackage_layer_metadata(path: Path, layer_name: str) -> GeopackageLayerMetadata:
+    with sqlite3.connect(path) as connection:
+        row = connection.execute(
+            """
+            SELECT
+              c.min_x,
+              c.min_y,
+              c.max_x,
+              c.max_y,
+              g.geometry_type_name,
+              s.organization,
+              s.organization_coordsys_id,
+              g.srs_id
+            FROM gpkg_contents AS c
+            LEFT JOIN gpkg_geometry_columns AS g
+              ON g.table_name = c.table_name
+            LEFT JOIN gpkg_spatial_ref_sys AS s
+              ON s.srs_id = g.srs_id
+            WHERE c.data_type = 'features' AND c.table_name = ?
+            """,
+            (layer_name,),
+        ).fetchone()
+        if row is None:
+            raise DataQueryError(f"GeoPackage 图层不存在：{layer_name}")
+        feature_count = connection.execute(
+            f"SELECT COUNT(*) FROM {_quote_sql_identifier(layer_name)}"
+        ).fetchone()[0]
+    min_x, min_y, max_x, max_y, geom_type, org, org_code, srs_id = row
+    bounds = (
+        [
+            round(float(min_x), 6),
+            round(float(min_y), 6),
+            round(float(max_x), 6),
+            round(float(max_y), 6),
+        ]
+        if None not in (min_x, min_y, max_x, max_y)
+        else []
+    )
+    return GeopackageLayerMetadata(
+        name=layer_name,
+        feature_count=int(feature_count),
+        geometry_type=str(geom_type or ""),
+        bounds=bounds,
+        coordinate_system=_coordinate_system_label(org, org_code, srs_id),
+    )
+
+
+def geopackage_layer_epsg(path: Path, layer_name: str) -> int | None:
+    with sqlite3.connect(path) as connection:
+        row = connection.execute(
+            """
+            SELECT s.organization, s.organization_coordsys_id, g.srs_id
+            FROM gpkg_geometry_columns AS g
+            LEFT JOIN gpkg_spatial_ref_sys AS s
+              ON s.srs_id = g.srs_id
+            WHERE g.table_name = ?
+            """,
+            (layer_name,),
+        ).fetchone()
+    if row is None:
+        return None
+    org, org_code, srs_id = row
+    if str(org or "").upper() == "EPSG" and org_code:
+        return int(org_code)
+    if srs_id and int(srs_id) > 0:
+        return int(srs_id)
+    return None
+
+
+def _coordinate_system_label(org, org_code, srs_id) -> str:
+    if org and org_code:
+        return f"{org}:{org_code}"
+    if srs_id:
+        return f"SRS:{srs_id}"
+    return ""
+
+
+def _quote_sql_identifier(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
 
 
 def resource_profile(resource: DataResource) -> ResourceProfile:
@@ -121,23 +238,101 @@ def _read_geopackage_layer(gpd, path: Path, layer_name: str, *, bbox=None):
     read_bbox = _bbox_for_layer_crs(gpd, path, layer_name, bbox)
     if read_bbox is None:
         return gpd.read_file(path, layer=layer_name)
+    candidate_ids = _rtree_candidate_feature_ids(path, layer_name, read_bbox)
+    if candidate_ids == []:
+        return gpd.read_file(path, layer=layer_name, rows=0)
+    if candidate_ids is not None and len(candidate_ids) <= MAX_RTREE_WHERE_IDS:
+        where_clause = _feature_id_where_clause(path, layer_name, candidate_ids)
+        if where_clause:
+            try:
+                return gpd.read_file(path, layer=layer_name, where=where_clause)
+            except Exception:
+                pass
     return gpd.read_file(path, layer=layer_name, bbox=read_bbox)
 
 
 def _bbox_for_layer_crs(
     gpd, path: Path, layer_name: str, bbox: tuple[float, float, float, float]
 ):
-    try:
-        metadata = gpd.read_file(path, layer=layer_name, rows=0)
-    except Exception:
+    epsg = geopackage_layer_epsg(path, layer_name)
+    if epsg is None:
         return None
-    crs = getattr(metadata, "crs", None)
-    if not crs:
-        return None
-    if crs.to_epsg() == 4326:
+    if epsg == 4326:
         return bbox
-    projected = gpd.GeoSeries([box(*bbox)], crs="EPSG:4326").to_crs(crs)
+    projected = gpd.GeoSeries([box(*bbox)], crs="EPSG:4326").to_crs(f"EPSG:{epsg}")
     return tuple(float(value) for value in projected.total_bounds.tolist())
+
+
+def _rtree_candidate_feature_ids(
+    path: Path,
+    layer_name: str,
+    bbox: tuple[float, float, float, float],
+) -> list[int] | None:
+    minx, miny, maxx, maxy = bbox
+    with sqlite3.connect(path) as connection:
+        geometry_column = _geometry_column_name(connection, layer_name)
+        if geometry_column is None:
+            return None
+        rtree_name = f"rtree_{layer_name}_{geometry_column}"
+        if not _sqlite_table_exists(connection, rtree_name):
+            return None
+        rows = connection.execute(
+            f"""
+            SELECT id
+            FROM {_quote_sql_identifier(rtree_name)}
+            WHERE maxx >= ? AND minx <= ? AND maxy >= ? AND miny <= ?
+            LIMIT ?
+            """,
+            (minx, maxx, miny, maxy, MAX_RTREE_WHERE_IDS + 1),
+        ).fetchall()
+    if len(rows) > MAX_RTREE_WHERE_IDS:
+        return None
+    return [int(row[0]) for row in rows]
+
+
+def _feature_id_where_clause(
+    path: Path,
+    layer_name: str,
+    feature_ids: list[int],
+) -> str:
+    if not feature_ids:
+        return ""
+    with sqlite3.connect(path) as connection:
+        fid_column = _primary_key_column_name(connection, layer_name)
+    if fid_column is None:
+        return ""
+    joined_ids = ",".join(str(feature_id) for feature_id in feature_ids)
+    return f"{_quote_sql_identifier(fid_column)} IN ({joined_ids})"
+
+
+def _geometry_column_name(
+    connection: sqlite3.Connection, layer_name: str
+) -> str | None:
+    row = connection.execute(
+        "SELECT column_name FROM gpkg_geometry_columns WHERE table_name = ?",
+        (layer_name,),
+    ).fetchone()
+    return str(row[0]) if row else None
+
+
+def _primary_key_column_name(
+    connection: sqlite3.Connection, table_name: str
+) -> str | None:
+    rows = connection.execute(
+        f"PRAGMA table_info({_quote_sql_identifier(table_name)})"
+    ).fetchall()
+    for row in rows:
+        if int(row[5]) > 0:
+            return str(row[1])
+    return None
+
+
+def _sqlite_table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
+    row = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table_name,),
+    ).fetchone()
+    return bool(row)
 
 
 def read_field_metadata(path: Path, table_name: str) -> dict[str, str]:

@@ -13,7 +13,11 @@ from apps.catalog.vector_store import (
     _coerce_value,
     _json_value,
     _limit,
+    _rtree_candidate_feature_ids,
     geometry_type,
+    geopackage_layer_exists,
+    geopackage_layer_metadata,
+    geopackage_layer_names,
     normalize_for_geojson,
     read_field_metadata,
 )
@@ -97,6 +101,56 @@ class FieldMetadataTests(SimpleTestCase):
             self.assertEqual(
                 read_field_metadata(path, "sample_layer"),
                 {"height": "树高"},
+            )
+
+
+class GeopackageSqliteMetadataTests(SimpleTestCase):
+    def test_reads_layer_metadata_without_geopandas_layer_scan(self):
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "vector.gpkg"
+            gdf = gpd.GeoDataFrame(
+                [
+                    {"name": "inside", "geometry": Point(87.6, 43.8)},
+                    {"name": "outside", "geometry": Point(88.2, 44.1)},
+                ],
+                geometry="geometry",
+                crs="EPSG:4326",
+            )
+            gdf.to_file(path, layer="sample_points", driver="GPKG")
+
+            self.assertEqual(geopackage_layer_names(path), ["sample_points"])
+            self.assertTrue(geopackage_layer_exists(path, "sample_points"))
+            self.assertFalse(geopackage_layer_exists(path, "missing"))
+            metadata = geopackage_layer_metadata(path, "sample_points")
+            self.assertEqual(metadata.feature_count, 2)
+            self.assertEqual(metadata.geometry_type, "POINT")
+            self.assertEqual(metadata.coordinate_system, "EPSG:4326")
+            self.assertEqual(metadata.bounds, [87.6, 43.8, 88.2, 44.1])
+
+    def test_reads_rtree_candidates_for_bbox_prefilter(self):
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "vector.gpkg"
+            gdf = gpd.GeoDataFrame(
+                [
+                    {"name": "inside", "geometry": Point(87.6, 43.8)},
+                    {"name": "outside", "geometry": Point(88.2, 44.1)},
+                ],
+                geometry="geometry",
+                crs="EPSG:4326",
+            )
+            gdf.to_file(path, layer="sample_points", driver="GPKG")
+
+            self.assertEqual(
+                _rtree_candidate_feature_ids(
+                    path, "sample_points", (87.5, 43.7, 87.7, 43.9)
+                ),
+                [1],
             )
 
 
