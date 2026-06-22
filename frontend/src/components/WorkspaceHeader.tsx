@@ -719,10 +719,10 @@ export default function WorkspaceHeader({
       <Button
         ref={resourcesTabRef}
         type="text"
-        className={tabClass(
+        className={`${tabClass(
           activeTab === "resources",
           expandedTabId === "resource",
-        )}
+        )} workspace-switch-card-data-management`}
         onClick={handleResourceCenter}
         onMouseEnter={() => scheduleTabHoverExpand("resource")}
         onMouseLeave={collapseTabHover}
