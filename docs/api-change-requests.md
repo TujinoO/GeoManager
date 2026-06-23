@@ -18,11 +18,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 
 | ID | Status | Endpoint | Change Type | OpenAPI | Mock | Backend | Tests | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| API-20260615-001 | ContractReady | Multiple API endpoints | mock separation and JSON errors | Done | Done | Pending | Pending | Initial frontend/backend split contract |
-| API-20260615-002 | ContractReady | GET /api/login/overview/ | new endpoint | Done | Done | Pending | Pending | Login page public overview contract |
-| API-20260616-001 | Implementing | Multiple catalog/admin/auth endpoints | new endpoints, response fields, permission behavior | Done | Updating | Implementing | Pending | Layer workspace snapshots, upload duplicate detection, data overview stats |
 | API-20260618-001 | Blocked | Non-geographic analytics workspace | endpoint design paused | Removed | Demo only | N/A | Pending | Non-geographic backend contract is not finalized; `/nongeo` remains frontend demo only |
-| API-20260619-001 | Implementing | POST /api/catalog/import/commit/; GET /api/admin/data/resources/; POST /api/admin/data/resources/{id}/ | request body, response fields, permission behavior, mock data | Done | Updating | Implementing | Pending | Uploaded data visibility scope |
 
 ## Entry Template
 
@@ -40,58 +36,6 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Verification: commands or response checks required before marking implemented
 - Result: current backend/frontend verification result
 ```
-
-## API-20260615-001 - Initial Mock Separation Contract
-
-- Status: ContractReady
-- Owner: Frontend / Backend
-- Endpoints: multiple endpoints in `docs/openapi.yaml`
-- Change type: mock data, status code, permission behavior
-- OpenAPI change: APIs must return JSON error bodies for unauthenticated and CSRF failures; response examples define representative auth, admin, catalog, vector, and raster data.
-- Mock examples: `mock/prism/examples/*.json`
-- Frontend reason: support frontend development against Prism without a running backend.
-- Backend implementation notes: ensure real Django responses conform to `docs/openapi.yaml`, especially `401 {"detail":"请先登录"}` and `403 {"detail":"CSRF 验证失败"}` for API requests.
-- Verification: run backend API tests plus `cd frontend && pnpm run check:api && pnpm run mock:build`.
-- Result: backend implementation pending final owner verification.
-
-## API-20260615-002 - Login Page Public Overview
-
-- Status: ContractReady
-- Owner: Frontend / Backend
-- Endpoints: `GET /api/login/overview/`
-- Change type: new endpoint, response fields, mock data
-- OpenAPI change: Adds a public login overview response containing platform brand text, hero copy, capability tags, four metric cards, service status summary, node legend, and footer statistics notice.
-- Mock examples: `mock/prism/examples/05-login-overview.json`
-- Frontend reason: The rebuilt login page currently preserves the approved visual design with static display values, but the data structure must be contract-ready so future frontend work can replace static values with generated OpenAPI types after backend implementation.
-- Backend implementation notes: Implement a no-auth Django API endpoint that returns only public overview data. Do not expose internal paths, user records, permission group details, server resource internals, or private data inventory. Recommended cache TTL is 60 seconds to 5 minutes.
-- Verification: run backend API tests for `GET /api/login/overview/`, then run `cd frontend && pnpm run check:api && pnpm run mock:build`.
-- Result: Backend implementation pending; frontend login UI remains visually unchanged and does not directly modify backend code.
-
-## API-20260616-001 - Workspace Snapshots, Upload Stats, and Data Overview
-
-- Status: Implementing
-- Owner: Frontend / Backend
-- Endpoints: `GET/POST /api/catalog/workspaces/`, `GET/POST /api/catalog/workspaces/{workspaceId}/`, `POST /api/catalog/import/preview/`, `POST /api/catalog/import/validate/`, `POST /api/catalog/import/commit/`, `GET /api/auth/me/`, `GET /api/users/`, `GET /api/admin/dashboard/`, `GET /api/admin/data/resources/`
-- Change type: new endpoint, response fields, request body, permission behavior, mock data
-- OpenAPI change: Adds private workspace scene APIs for `project` and `topic`; import preview/validate responses include duplicate target metadata; import endpoints use current CRUD permissions; user permissions include `canUploadData`, `canViewDataOverview`, and `groupPermissions`; Dashboard may include `dataOverview`; data resources include `sizeBytes`, `itemCount`, and structured `uploader`.
-- Mock examples: `mock/prism/examples/10-admin-auth.json`, `mock/prism/examples/20-admin-dashboard-data.json`, `mock/prism/examples/30-catalog-vector.json`
-- Frontend reason: Support one-step query-and-load, blocking duplicate upload warnings, local layer autosave with explicit server save as 工程/专题, Dashboard data overview, and clearer inherited-vs-direct permission display.
-- Backend implementation notes: Add `WorkspaceScene`; persist `DataResource.size_bytes` and `item_count`; treat `DataResource.maintainer` as uploader; enforce workspace ownership; reject duplicate import targets when duplicate names are not confirmed; initialize default `普通用户` group with upload/load/query permissions.
-- Verification: run `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build`, plus backend workspace/import/dashboard/auth tests.
-- Result: Backend and frontend implementation in progress.
-
-## API-20260619-001 - Uploaded Data Visibility Scope
-
-- Status: Implementing
-- Owner: Frontend / Backend
-- Endpoints: `POST /api/catalog/import/commit/`, `GET /api/admin/data/resources/`, `POST /api/admin/data/resources/{id}/`
-- Change type: request body, response fields, permission behavior, mock data
-- OpenAPI change: Import commit payload may include `accessGroupIds`; admin data resources return access group metadata with `isGuest`/`isSuperadmin` and per-resource `canManageAccess`; admin resource update allows uploaders to execute `updateAccess` for their own resources while other maintenance actions require current CRUD permissions.
-- Mock examples: `mock/prism/examples/20-admin-dashboard-data.json`
-- Frontend reason: Upload and inventory flows must let users choose data visibility: uploader always visible, superadmin always visible, optional user groups, with an explicit warning when the guest group is selected.
-- Backend implementation notes: Store visibility in `DataResource.access_groups`, force-add the `超级管理员` group, and treat `DataResource.maintainer` as uploader ownership.
-- Verification: run `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build`, plus backend catalog/admin permission tests.
-- Result: Implementation in progress.
 
 ## API-20260618-001 - Non-Geographic Table Analytics
 
