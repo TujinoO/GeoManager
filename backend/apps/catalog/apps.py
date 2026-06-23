@@ -28,9 +28,15 @@ class CatalogConfig(AppConfig):
             return
 
         def run_scan() -> None:
+            from django.db import close_old_connections, connection
+
             from apps.catalog.services import scan_catalog_sources_safely
 
-            scan_catalog_sources_safely()
+            close_old_connections()
+            try:
+                scan_catalog_sources_safely()
+            finally:
+                connection.close()
 
         threading.Thread(
             target=run_scan, name="catalog-startup-scan", daemon=True

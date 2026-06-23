@@ -2608,7 +2608,7 @@ export type RasterImportRequest = {
      */
     sourcePath: string;
     /**
-     * 前端显示的数据集名称；为空时默认取源文件名，不包含后端复制存储时追加的唯一前缀
+     * 前端显示的数据集名称；为空时默认取源文件名，不包含后端后台唯一存储文件名
      */
     name?: string;
     /**
@@ -2623,7 +2623,7 @@ export type RasterImportUploadRequest = {
      */
     file: Blob | File;
     /**
-     * 前端显示的数据集名称；为空时默认取上传文件名，不展示后端保存到 uploaded/ 目录时追加的唯一前缀
+     * 前端显示的数据集名称；为空时默认取上传文件名，不展示后端保存到 uploaded/ 目录的唯一存储文件名
      */
     name?: string;
 };

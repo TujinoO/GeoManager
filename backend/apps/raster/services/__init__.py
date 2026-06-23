@@ -29,7 +29,6 @@ from apps.raster.services.geo_utils import (
     transparent_png,
 )
 from apps.raster.services.importer import (
-    append_dataset_progress,
     dataset_for_layer,
     handle_import_progress,
     import_raster_file,
@@ -115,7 +114,6 @@ __all__ = [
     "save_metadata",
     "run_gdal_command",
     "handle_import_progress",
-    "append_dataset_progress",
     "upsert_catalog_records",
     # renderer
     "register_tile_style",

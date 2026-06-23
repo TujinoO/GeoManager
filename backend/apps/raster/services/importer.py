@@ -92,7 +92,7 @@ def store_uploaded_source_file(uploaded_file) -> Path:
     if suffix not in RASTER_EXTENSIONS:
         raise RasterImportError(f"不支持的栅格文件格式：{suffix or source_name}")
     validate_raster_upload_size(uploaded_file)
-    target_relative = f"uploaded/{uuid.uuid4().hex}-{source_name}"
+    target_relative = f"uploaded/{uuid.uuid4().hex}{suffix}"
     target_path = raster_source_path(target_relative)
     target_path.parent.mkdir(parents=True, exist_ok=True)
     with target_path.open("wb") as output:
@@ -154,24 +154,13 @@ def save_metadata(relative_path: str, metadata: dict[str, Any]) -> None:
 
 
 def handle_import_progress(
-    dataset: RasterDataset, text: str, progress: Callable[[str], None] | None = None
+    text: str, progress: Callable[[str], None] | None = None
 ) -> None:
     cleaned = normalize_progress_text(text)
     if not cleaned:
         return
-    append_dataset_progress(dataset, cleaned)
     if progress:
         progress(cleaned)
-
-
-def append_dataset_progress(dataset: RasterDataset, text: str) -> None:
-    cleaned = normalize_progress_text(text)
-    if not cleaned:
-        return
-    dataset.progress_log = "\n".join(
-        [*(dataset.progress_log.splitlines()[-160:]), cleaned]
-    ).strip()
-    dataset.save(update_fields=("progress_log", "updated_at"))
 
 
 def scan_unprocessed_source_files(
@@ -258,7 +247,6 @@ def import_raster_file(
         },
     )
     try:
-        append_dataset_progress(dataset, "开始读取源文件元数据")
         if progress:
             progress("gdalinfo -json 源文件")
         source_info = gdalinfo_json(source_path)
@@ -269,7 +257,6 @@ def import_raster_file(
         if processed_path.exists():
             processed_path.unlink()
 
-        append_dataset_progress(dataset, "开始 gdalwarp 预处理到 EPSG:3857 COG")
         if progress:
             progress(
                 "gdalwarp -t_srs EPSG:3857 -r nearest -co COMPRESS=DEFLATE -of COG"
@@ -288,10 +275,11 @@ def import_raster_file(
                 str(source_path),
                 str(processed_path),
             ],
-            progress=lambda text: handle_import_progress(dataset, text, progress),
+            progress=lambda text: handle_import_progress(text, progress),
         )
+        if progress:
+            progress("gdalwarp 预处理完成")
 
-        append_dataset_progress(dataset, "开始读取预处理文件元数据")
         if progress:
             progress("gdalinfo -json 预处理文件")
         processed_info = gdalinfo_json(processed_path)
@@ -322,16 +310,16 @@ def import_raster_file(
         dataset.status = RasterDataset.Status.READY
         dataset.error_message = ""
         dataset.processed_at = timezone.now()
-        append_dataset_progress(dataset, "导入完成")
+        if progress:
+            progress("导入完成")
         dataset.save()
         return dataset
     except Exception as exc:
         dataset.status = RasterDataset.Status.FAILED
         dataset.error_message = str(exc)
-        append_dataset_progress(dataset, f"导入失败：{exc}")
-        dataset.save(
-            update_fields=("status", "error_message", "progress_log", "updated_at")
-        )
+        if progress:
+            progress(f"导入失败：{exc}")
+        dataset.save(update_fields=("status", "error_message", "updated_at"))
         raise
 
 

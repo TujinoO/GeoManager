@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from django.db import close_old_connections, connection
+
 from apps.raster.services.progress import (
     normalize_progress_text,
     parse_progress_percent,
@@ -108,6 +110,14 @@ def get_job(job_id: str) -> RasterJob:
         return job
 
 
+def _run_with_database_connection(target) -> None:
+    close_old_connections()
+    try:
+        target()
+    finally:
+        connection.close()
+
+
 def start_import_job(
     source_path: str, name: str = "", cleanup_upload_on_failure: bool = False
 ) -> RasterJob:
@@ -135,7 +145,11 @@ def start_import_job(
                 cleanup_uploaded_import_files(source)
             _fail_job(job.id, str(exc))
 
-    threading.Thread(target=runner, name=f"raster-import-{job.id}", daemon=True).start()
+    threading.Thread(
+        target=lambda: _run_with_database_connection(runner),
+        name=f"raster-import-{job.id}",
+        daemon=True,
+    ).start()
     return job
 
 
@@ -164,7 +178,11 @@ def start_scan_job() -> RasterJob:
         except Exception as exc:
             _fail_job(job.id, str(exc))
 
-    threading.Thread(target=runner, name=f"raster-scan-{job.id}", daemon=True).start()
+    threading.Thread(
+        target=lambda: _run_with_database_connection(runner),
+        name=f"raster-scan-{job.id}",
+        daemon=True,
+    ).start()
     return job
 
 
@@ -205,7 +223,11 @@ def start_render_job(
         except Exception as exc:
             _fail_job(job.id, str(exc))
 
-    threading.Thread(target=runner, name=f"raster-render-{job.id}", daemon=True).start()
+    threading.Thread(
+        target=lambda: _run_with_database_connection(runner),
+        name=f"raster-render-{job.id}",
+        daemon=True,
+    ).start()
     return job
 
 
@@ -252,7 +274,9 @@ def start_export_job(
             _fail_job(job.id, str(exc))
 
     threading.Thread(
-        target=runner, name=f"catalog-export-{job.id}", daemon=True
+        target=lambda: _run_with_database_connection(runner),
+        name=f"catalog-export-{job.id}",
+        daemon=True,
     ).start()
     return job
 

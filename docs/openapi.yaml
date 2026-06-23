@@ -4990,7 +4990,7 @@ components:
           description: 源文件相对路径（相对于科研数据根目录）
         name:
           type: string
-          description: 前端显示的数据集名称；为空时默认取源文件名，不包含后端复制存储时追加的唯一前缀
+          description: 前端显示的数据集名称；为空时默认取源文件名，不包含后端后台唯一存储文件名
         async:
           type: boolean
           default: true
@@ -5006,7 +5006,7 @@ components:
           description: 上传的栅格源文件，支持 GeoTIFF、IMG 和 VRT。文件大小不得超过系统配置的 upload_max_mb，单边像素长度不得超过 max_raster_side_pixels。后端保存到科研数据根目录的 raster/original/uploaded/ 后异步预处理。
         name:
           type: string
-          description: 前端显示的数据集名称；为空时默认取上传文件名，不展示后端保存到 uploaded/ 目录时追加的唯一前缀
+          description: 前端显示的数据集名称；为空时默认取上传文件名，不展示后端保存到 uploaded/ 目录的唯一存储文件名
 
     RasterRenderRequest:
       type: object

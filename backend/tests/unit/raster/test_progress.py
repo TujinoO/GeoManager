@@ -1,5 +1,6 @@
 from django.test import SimpleTestCase
 
+from apps.raster.services.importer import handle_import_progress
 from apps.raster.services.progress import (
     normalize_progress_text,
     parse_progress_percent,
@@ -47,3 +48,19 @@ class ParseProgressPercentTests(SimpleTestCase):
 
     def test_parses_gdal_dot_progress(self):
         self.assertEqual(parse_progress_percent("0...10...20..."), 20)
+
+
+class HandleImportProgressTests(SimpleTestCase):
+    def test_normalizes_and_forwards_progress_to_callback(self):
+        messages: list[str] = []
+
+        handle_import_progress("  0...\r10...  ", messages.append)
+
+        self.assertEqual(messages, ["0... 10..."])
+
+    def test_ignores_empty_progress(self):
+        messages: list[str] = []
+
+        handle_import_progress("  \r  ", messages.append)
+
+        self.assertEqual(messages, [])

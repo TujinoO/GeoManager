@@ -103,6 +103,10 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": metadata_database_path(PROJECT_CONFIG),
+        "OPTIONS": {
+            "timeout": 30,
+            "init_command": "PRAGMA journal_mode=WAL;PRAGMA busy_timeout=30000",
+        },
     }
 }
 

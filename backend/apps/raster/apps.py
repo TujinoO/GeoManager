@@ -28,9 +28,15 @@ class RasterConfig(AppConfig):
             return
 
         def run_scan() -> None:
+            from django.db import close_old_connections, connection
+
             from apps.raster.services import scan_unprocessed_source_files_safely
 
-            scan_unprocessed_source_files_safely()
+            close_old_connections()
+            try:
+                scan_unprocessed_source_files_safely()
+            finally:
+                connection.close()
 
         threading.Thread(
             target=run_scan, name="raster-startup-scan", daemon=True

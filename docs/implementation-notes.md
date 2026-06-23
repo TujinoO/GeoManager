@@ -83,6 +83,7 @@ backend/apps/
 - Docker 入口脚本不得硬编码 `.pixi/envs/default/bin` 或具体 Python 路径；启动时先通过 `pixi shell-hook --no-completions --manifest-path /opt/app/backend/pixi.toml` 激活 Pixi 环境，再执行普通 `python manage.py ...`、`waitress-serve` 等命令。
 - 后台数据导入页支持直接上传栅格源文件；后端必须先保存到 TOML 驱动的科研数据根目录 `raster/original/uploaded/`，再复用现有异步导入任务执行 GDAL 预处理。前端只负责上传、轮询 `/api/raster/jobs/{job_id}/` 和展示进度，不做栅格解析、重投影、COG 生成或符号化。
 - 浏览器上传的栅格只有完整预处理并登记成功后才保留；异步导入失败时必须删除本次 `uploaded/` 源文件、预处理文件和两份 GDAL 元数据。服务端已有 `sourcePath` 导入和目录扫描失败时不得删除原始研究数据。
+- 栅格导入、扫描、渲染和导出等后台线程必须在任务线程内建立并关闭自己的 Django 数据库连接。SQLite 元数据库启用 WAL 和 30 秒 busy timeout；导入进度属于临时任务态，只更新内存任务消息，不写入 `RasterDataset.progress_log`，避免上传预处理期间频繁写库导致 `database is locked`。
 - 系统设置页更新运行期配置后，后端必须同步刷新运行中的 `settings.PROJECT_CONFIG`；业务运行期可变配置统一通过 `apps.core.runtime_config` 从当前 TOML 读取，包括系统名称、注册开关、查询结果上限、栅格上传大小和栅格单边像素上限，避免手工改配置或设置页保存后继续使用旧值。前端也必须同步刷新应用 `bootstrap.limits`，避免栅格上传前校验继续使用旧上限。栅格导入界面分开展示浏览器文件上传进度和后端 GDAL 预处理进度。
 - 前端加载栅格 XYZ 瓦片源时必须用数据集 `imageCoordinates`/`bounds4326` 约束 Mapbox source 的 `bounds`，避免按整个地图视窗请求无关瓦片；后端对栅格空间范围外的瓦片请求返回 `204 No Content`，并且应在打开栅格文件前优先用 `RasterDataset.bounds_3857` 快速判断。
 - 后端启动 `runserver` 或 WSGI/ASGI 进程时会异步扫描 `vector/vector.gpkg`、非地理数据 `gene/`、`table/` 和 `raster/original/` 下已有数据；矢量图层会登记为 `DataResource/MapLayer`，非地理文件登记为 `DataResource`，栅格源文件会完成预处理并登记目录。迁移、测试等管理命令不触发扫描。可在 TOML 的 `[runtime]` 段设置 `disable_catalog_startup_scan` 或 `disable_raster_startup_scan` 关闭启动扫描。
@@ -193,7 +194,7 @@ frontend/src/
 ## 数据管理与图层管理
 
 - 数据管理负责浏览、按元数据筛选、读取字段与元信息、配置空间查询和属性查询。
-- 栅格上传的显示名和后台存储标识必须分离：`RasterDataset.name`、`DataResource.name`、`MapLayer.name` 使用用户填写的 `name` 或原始上传文件名；`uploaded/<uuid>-filename.tif`、预处理路径和 `RasterDataset.code` 仅作为后台唯一存储/任务标识，不在数据资源、图层或工作台显示名称中展示。
+- 栅格上传的显示名和后台存储标识必须分离：`RasterDataset.name`、`DataResource.name`、`MapLayer.name` 使用用户填写的 `name` 或原始上传文件名；上传源文件保存为 `uploaded/<uuid><suffix>`，预处理路径和 `RasterDataset.code` 仅作为后台唯一存储/任务标识，不包含原始文件名，也不在数据资源、图层或工作台显示名称中展示。
 - 地图工作台左侧保留数据面板，负责当前地图会话内的数据筛选、选择、快速加载和查询加载；顶栏“数据管理”进入 `/resources/` 面板，负责数据概览、存量数据管理和数据导入。
 - 图层管理只管理已经加载到地图上的查询结果，不直接承担数据检索职责。
 - 数据加载流程固定为：工作台打开后自动扫描数据目录并刷新资源列表 -> 自动加载已有可查询/可渲染资源到地图；用户也可筛选或选择数据资源 -> 后端返回字段与元信息 -> 执行空间/属性查询 -> 将查询结果加载为临时图层。
@@ -211,7 +212,7 @@ frontend/src/
 - 用户导入、目录扫描和栅格导入数据的可见范围由 `DataResource.access_groups` 和 `DataResource.maintainer` 共同控制：上传者本人强制可见，`超级管理员` 用户组强制写入访问组，用户选择的 `accessGroupIds` 表示额外可见用户组。选择 `游客` 用户组表示无需账号即可通过游客会话访问，前端上传和存量数据管理都必须提示。
 - 存量数据可见范围可由上传者本人或具备 `catalog.change_dataresource` 的用户修改；上传者只能执行 `updateAccess`，启停和默认可视化需要 `catalog.change_dataresource`，删除需要 `catalog.delete_dataresource`。`GET /api/admin/data/resources/` 对仅具备 `catalog.add_dataresource` 的上传用户开放时只返回其本人上传的数据。
 - 存量数据管理表格使用嵌套子表格按内容分组展示：父表展示“默认分组”和后端持久化自定义组别，子表复用原资源清单列。`DataResourceGroup` 保存组别名称，`DataResource.inventory_group` 保存资源所属组别；默认分组由 `inventory_group = null` 表示。删除组别时后端通过 `SET_NULL` 使组内数据进入默认分组且数据本身不删除。组别启停通过现有 `setStatus` 对组内资源逐条同步启用/禁用状态。
-- 操作日志中的模块、动作和说明统一使用中文，只记录用户主动发起的关键行为。认证、用户组、用户、系统配置、存量数据管理、导入预览/校验/提交、数据查询、已加载图层导出、异步导出发起/下载、个人资料更新、个人权限开关更新、栅格渲染样式注册、栅格渲染任务发起、栅格唯一值统计和栅格导入写入 `OperationLog`。目录扫描、启动扫描、后台数据发现和异步任务内部执行进度不写入操作日志，应保留在系统日志、任务消息或 `RasterDataset.progress_log` 中。
+- 操作日志中的模块、动作和说明统一使用中文，只记录用户主动发起的关键行为。认证、用户组、用户、系统配置、存量数据管理、导入预览/校验/提交、数据查询、已加载图层导出、异步导出发起/下载、个人资料更新、个人权限开关更新、栅格渲染样式注册、栅格渲染任务发起、栅格唯一值统计和栅格导入写入 `OperationLog`。目录扫描、启动扫描、后台数据发现和异步任务内部执行进度不写入操作日志，应保留在系统日志或异步任务消息中。
 - 系统日志查看复用日志入口权限 `core.view_operation_logs`，接口只读取业务数据根目录 `logs/` 下的 `.log` 与轮转 `.log.N` 文件，按文件名选择并返回尾部文本内容，不暴露服务器绝对路径，也不提供跨目录或整文件下载能力。
 - 操作日志 IP 记录优先识别反向代理传入的 `CF-Connecting-IP`、`True-Client-IP`、`X-Real-IP`、`X-Forwarded-For` 和 `Forwarded` 头，并在候选链路中优先选择公网 IP；没有有效公网 IP 时才回退到首个可识别地址或 `REMOTE_ADDR`。公网部署必须由前置代理传递真实客户端 IP，否则容器内只能看到 Docker 网桥地址。
 

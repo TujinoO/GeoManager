@@ -41,9 +41,15 @@ class CoreConfig(AppConfig):
             return
 
         def run_print():
+            from django.db import close_old_connections, connection
+
             from apps.core.initialization import print_superadmin_credentials_on_startup
 
-            print_superadmin_credentials_on_startup()
+            close_old_connections()
+            try:
+                print_superadmin_credentials_on_startup()
+            finally:
+                connection.close()
 
         threading.Thread(
             target=run_print, name="core-startup-credentials", daemon=True

@@ -187,6 +187,7 @@ class RasterPermissionApiTests(TestCase):
             self.assertEqual(saved_path.read_bytes(), b"fake raster bytes")
             self.assertEqual(saved_path.suffix, ".tif")
             self.assertIn("raster/original/uploaded", saved_path.as_posix())
+            self.assertNotIn("ndvi", saved_path.name)
             self.assertEqual(start_import_job.call_args.kwargs["name"], "NDVI 影像")
             self.assertTrue(
                 start_import_job.call_args.kwargs["cleanup_upload_on_failure"]
@@ -237,7 +238,8 @@ class RasterPermissionApiTests(TestCase):
                 start_import_job.call_args.kwargs["cleanup_upload_on_failure"]
             )
             saved_path = Path(start_import_job.call_args.args[0])
-            self.assertRegex(saved_path.name, r"^[0-9a-f]{32}-Traim\.tif$")
+            self.assertRegex(saved_path.name, r"^[0-9a-f]{32}\.tif$")
+            self.assertNotIn("Traim", saved_path.name)
 
     def test_import_endpoint_rejects_uploaded_raster_over_size_limit(self):
         grant(self.user, ("raster", "manage_raster_dataset"))
