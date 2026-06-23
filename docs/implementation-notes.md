@@ -96,7 +96,7 @@ backend/apps/
 - 数据资源和图层的 `access_groups` 继续控制“能看见哪些对象”；功能权限控制“能对可见对象做什么”。
 - 首批平台功能权限包括：功能权限配置、数据浏览、数据查询、矢量加载、栅格加载、自定义符号化等后台内部功能权限。
 - 数据和工程/专题的增删查改均使用 Django 模型 CRUD 权限并纳入同一用户组配置入口：`catalog.add/view/change/delete_dataresource`、`catalog.add/view/change/delete_workspacescene`。`catalog.add_dataresource` 控制后台导入，`catalog.change_dataresource` 控制存量数据启停、默认可视化和访问范围配置，`catalog.delete_dataresource` 控制删除确认。
-- `core.view_data_overview` 独立控制 Dashboard 总数据情况卡片；卡片包含资源总数、启用资源数、数据大小、条目数和类型聚合，超级管理员额外看到按 `DataResource.maintainer` 聚合的上传用户统计。
+- Dashboard 数据概览卡片始终返回当前用户自己的上传统计 `ownUploads`，无需额外功能权限；`core.view_data_overview` 只控制“我可见”范围 `visibleResources`、兼容旧版的系统总量字段，以及超级管理员按 `DataResource.maintainer` 聚合的上传用户统计。
 - 前后端无权限提示统一为 `当前角色“xxxx”无权限`；无角色时显示 `未分配角色`。
 - 用户级权限关闭统一写入 `UserProfile.disabled_permissions`。后台认证授权页可以关闭角色继承权限或单独授予权限，但不修改角色本身；后端保存前会把关闭列表裁剪到该用户已授予权限集合。
 - `core.load_raster_layer` 控制按默认规则加载栅格和访问 XYZ；`core.custom_symbolization` 只控制用户打开符号化编辑器并提交自定义规则。

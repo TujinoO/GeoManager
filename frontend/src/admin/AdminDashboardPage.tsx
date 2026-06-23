@@ -19,6 +19,7 @@ import {
   Space,
   Statistic,
   Tag,
+  Tabs,
   Typography,
 } from "antd";
 import type { ReactNode } from "react";
@@ -134,6 +135,10 @@ export default function AdminDashboardPage({
       (dashboard?.cards.users || dashboard?.cards.activeUsers),
     );
   const hasAnyAuthorizedCard = hasDashboardCards || canViewServerCards;
+  const dataOverview = dashboard?.cards.dataOverview;
+  const canViewVisibleDataOverview = Boolean(
+    user?.permissions.canViewDataOverview && dataOverview?.visibleResources,
+  );
 
   if (dashboardLoading || !dashboard) {
     return (
@@ -192,48 +197,51 @@ export default function AdminDashboardPage({
                 description={`栅格数据集 ${dashboard.cards.rasters.datasets} 个，栅格图层 ${dashboard.cards.rasters.layers} 个`}
               />
             )}
-            {dashboard.cards.dataOverview && (
+            {dataOverview && (
               <>
                 <MetricCard
                   title="我上传的数据大小"
-                  value={formatBytes(
-                    dashboard.cards.dataOverview.ownUploads.totalSizeBytes,
-                  )}
+                  value={formatBytes(dataOverview.ownUploads.totalSizeBytes)}
                   suffix=""
                   icon={<CloudUploadOutlined />}
-                  description={`启用 ${dashboard.cards.dataOverview.ownUploads.activeResources} / ${dashboard.cards.dataOverview.ownUploads.totalResources} 项`}
+                  description={`启用 ${dataOverview.ownUploads.activeResources} / ${dataOverview.ownUploads.totalResources} 项`}
                 />
                 <MetricCard
                   title="我上传的数据条目"
-                  value={dashboard.cards.dataOverview.ownUploads.totalItemCount}
+                  value={dataOverview.ownUploads.totalItemCount}
                   suffix="条"
                   icon={<DatabaseOutlined />}
                   description="按导入行数、栅格数据集和扫描文件统计"
                 />
-                <MetricCard
-                  title="我可见的数据大小"
-                  value={formatBytes(
-                    dashboard.cards.dataOverview.visibleResources
-                      .totalSizeBytes,
+                {canViewVisibleDataOverview &&
+                  dataOverview.visibleResources && (
+                    <>
+                      <MetricCard
+                        title="我可见的数据大小"
+                        value={formatBytes(
+                          dataOverview.visibleResources.totalSizeBytes,
+                        )}
+                        suffix=""
+                        icon={<HddOutlined />}
+                        description={`启用 ${dataOverview.visibleResources.activeResources} / ${dataOverview.visibleResources.totalResources} 项`}
+                      />
+                      <MetricCard
+                        title="我可见的数据条目"
+                        value={dataOverview.visibleResources.totalItemCount}
+                        suffix="条"
+                        icon={<DatabaseOutlined />}
+                        description="按当前账号可访问数据统计"
+                      />
+                    </>
                   )}
-                  suffix=""
-                  icon={<HddOutlined />}
-                  description={`启用 ${dashboard.cards.dataOverview.visibleResources.activeResources} / ${dashboard.cards.dataOverview.visibleResources.totalResources} 项`}
-                />
-                <MetricCard
-                  title="我可见的数据条目"
-                  value={
-                    dashboard.cards.dataOverview.visibleResources.totalItemCount
-                  }
-                  suffix="条"
-                  icon={<DatabaseOutlined />}
-                  description="按当前账号可访问数据统计"
-                />
               </>
             )}
           </Row>
-          {dashboard.cards.dataOverview && (
-            <DataOverviewDetail overview={dashboard.cards.dataOverview} />
+          {dataOverview && (
+            <DataOverviewDetail
+              overview={dataOverview}
+              canViewVisible={canViewVisibleDataOverview}
+            />
           )}
         </section>
       )}
@@ -479,28 +487,34 @@ function MetricCard({
   );
 }
 
-function DataOverviewDetail({ overview }: { overview: DataOverviewCard }) {
-  return (
-    <BorderBeam color={oceanBorderBeam}>
-      <Card
-        className="admin-dashboard-card admin-data-overview-detail"
-        variant="borderless"
-      >
-        <Row gutter={[16, 16]}>
-          <Col xs={24} xl={12}>
-            <DataOverviewScopeList
-              title="我上传的"
-              scope={overview.ownUploads}
-            />
-          </Col>
-          <Col xs={24} xl={12}>
-            <DataOverviewScopeList
-              title="我可见的"
-              scope={overview.visibleResources}
-            />
-          </Col>
+function DataOverviewDetail({
+  overview,
+  canViewVisible,
+}: {
+  overview: DataOverviewCard;
+  canViewVisible: boolean;
+}) {
+  const items = [
+    {
+      key: "ownUploads",
+      label: "我上传的",
+      children: (
+        <DataOverviewScopeList title="我上传的" scope={overview.ownUploads} />
+      ),
+    },
+  ];
+  if (canViewVisible && overview.visibleResources) {
+    items.push({
+      key: "visibleResources",
+      label: "我可见的",
+      children: (
+        <>
+          <DataOverviewScopeList
+            title="我可见的"
+            scope={overview.visibleResources}
+          />
           {overview.uploaders && overview.uploaders.length > 0 && (
-            <Col xs={24}>
+            <div className="admin-data-overview-uploaders">
               <Typography.Title level={5}>上传用户统计</Typography.Title>
               <div className="admin-data-overview-list">
                 {overview.uploaders.map((item) => (
@@ -523,9 +537,19 @@ function DataOverviewDetail({ overview }: { overview: DataOverviewCard }) {
                   </div>
                 ))}
               </div>
-            </Col>
+            </div>
           )}
-        </Row>
+        </>
+      ),
+    });
+  }
+  return (
+    <BorderBeam color={oceanBorderBeam}>
+      <Card
+        className="admin-dashboard-card admin-data-overview-detail"
+        variant="borderless"
+      >
+        <Tabs items={items} />
       </Card>
     </BorderBeam>
   );

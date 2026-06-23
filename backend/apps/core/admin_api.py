@@ -1071,10 +1071,12 @@ def admin_dashboard(request):
             "series": _active_user_series(login_logs, period, period_start),
             "ranking": _active_user_ranking(login_logs),
         }
-    if has_feature_perm(request.user, "core.view_data_overview"):
-        cards["dataOverview"] = _data_overview_card(
-            request.user, include_uploaders=is_superadmin_user(request.user)
-        )
+    can_view_data_overview = has_feature_perm(request.user, "core.view_data_overview")
+    cards["dataOverview"] = _data_overview_card(
+        request.user,
+        include_visible=can_view_data_overview,
+        include_uploaders=can_view_data_overview and is_superadmin_user(request.user),
+    )
 
     return JsonResponse(
         {
@@ -1157,16 +1159,22 @@ def _active_user_ranking(login_logs) -> list[dict[str, Any]]:
     ]
 
 
-def _data_overview_card(user, *, include_uploaders: bool) -> dict[str, Any]:
-    all_resources = DataResource.objects.all()
+def _data_overview_card(
+    user, *, include_visible: bool, include_uploaders: bool
+) -> dict[str, Any]:
     own_uploads = DataResource.objects.filter(maintainer=user)
-    visible_resources = filter_accessible(DataResource.objects.all(), user)
-    aggregate = _data_overview_scope(all_resources)
     card: dict[str, Any] = {
-        **aggregate,
         "ownUploads": _data_overview_scope(own_uploads),
-        "visibleResources": _data_overview_scope(visible_resources),
     }
+    if include_visible:
+        all_resources = DataResource.objects.all()
+        visible_resources = filter_accessible(DataResource.objects.all(), user)
+        card.update(
+            {
+                **_data_overview_scope(all_resources),
+                "visibleResources": _data_overview_scope(visible_resources),
+            }
+        )
     if include_uploaders:
         card["uploaders"] = _uploader_stats()
     return card

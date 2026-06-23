@@ -7887,7 +7887,7 @@
           },
           "canViewDataOverview": {
             "type": "boolean",
-            "description": "是否可查看总数据情况，包括数据大小、条目数和上传用户统计"
+            "description": "是否可查看数据概览中的“我可见”范围、兼容旧版的全局统计字段，以及超级管理员上传用户统计；当前用户自己的上传概览无需此权限"
           },
           "canBrowseData": {
             "type": "boolean",
@@ -8298,7 +8298,7 @@
             "$ref": "#/components/schemas/AdminDashboardActiveUsers"
           }
         },
-        "description": "按当前用户卡片权限返回的概览卡片数据；未授权卡片字段会被省略。"
+        "description": "按当前用户卡片权限返回的概览卡片数据；未授权卡片字段会被省略。dataOverview 始终包含当前用户自己的上传概览，其他范围由权限控制。"
       },
       "AdminDashboardResourceCard": {
         "type": "object",
@@ -8359,49 +8359,43 @@
       "AdminDashboardDataOverviewCard": {
         "type": "object",
         "required": [
-          "totalResources",
-          "activeResources",
-          "totalSizeBytes",
-          "totalItemCount",
-          "typeBreakdown",
-          "ownUploads",
-          "visibleResources"
+          "ownUploads"
         ],
         "properties": {
           "totalResources": {
             "type": "integer",
-            "description": "系统数据资源总数，用于兼容旧版概览卡片；新版界面优先展示分组统计"
+            "description": "系统数据资源总数，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计"
           },
           "activeResources": {
             "type": "integer",
-            "description": "系统启用状态数据资源数量，用于兼容旧版概览卡片；新版界面优先展示分组统计"
+            "description": "系统启用状态数据资源数量，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计"
           },
           "totalSizeBytes": {
             "type": "integer",
-            "description": "系统数据总大小，单位字节，用于兼容旧版概览卡片；新版界面优先展示分组统计"
+            "description": "系统数据总大小，单位字节，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计"
           },
           "totalItemCount": {
             "type": "integer",
-            "description": "系统数据条目总数，用于兼容旧版概览卡片；新版界面优先展示分组统计"
+            "description": "系统数据条目总数，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计"
           },
           "typeBreakdown": {
             "type": "array",
-            "description": "系统按数据类型聚合的数据情况，用于兼容旧版概览卡片；新版界面优先展示分组统计",
+            "description": "系统按数据类型聚合的数据情况，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计",
             "items": {
               "$ref": "#/components/schemas/AdminDashboardDataTypeOverview"
             }
           },
           "ownUploads": {
             "$ref": "#/components/schemas/AdminDashboardDataOverviewScope",
-            "description": "当前用户上传的数据资源聚合统计"
+            "description": "当前用户上传的数据资源聚合统计；登录用户无需额外功能权限即可查看"
           },
           "visibleResources": {
             "$ref": "#/components/schemas/AdminDashboardDataOverviewScope",
-            "description": "当前用户可见的数据资源聚合统计；后端按数据可见范围和上传者本人规则裁剪"
+            "description": "当前用户可见的数据资源聚合统计；仅具备 `core.view_data_overview` 权限时返回，后端按数据可见范围和上传者本人规则裁剪"
           },
           "uploaders": {
             "type": "array",
-            "description": "超级管理员主体可见的上传用户统计；普通用户无该字段",
+            "description": "具备 `core.view_data_overview` 权限的超级管理员主体可见的上传用户统计；普通用户无该字段",
             "items": {
               "$ref": "#/components/schemas/AdminDashboardUploaderOverview"
             }

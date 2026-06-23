@@ -1786,6 +1786,10 @@ body:has(.login-shell),
   gap: 8px;
 }
 
+.admin-data-overview-uploaders {
+  margin-top: 18px;
+}
+
 .admin-data-overview-row {
   display: flex;
   align-items: center;

@@ -426,7 +426,7 @@ export type UserPermissions = {
      */
     canViewDashboardSystemCard: boolean;
     /**
-     * 是否可查看总数据情况，包括数据大小、条目数和上传用户统计
+     * 是否可查看数据概览中的“我可见”范围、兼容旧版的全局统计字段，以及超级管理员上传用户统计；当前用户自己的上传概览无需此权限
      */
     canViewDataOverview: boolean;
     /**
@@ -696,7 +696,7 @@ export type AdminDashboardResponse = {
 };
 
 /**
- * 按当前用户卡片权限返回的概览卡片数据；未授权卡片字段会被省略。
+ * 按当前用户卡片权限返回的概览卡片数据；未授权卡片字段会被省略。dataOverview 始终包含当前用户自己的上传概览，其他范围由权限控制。
  */
 export type AdminDashboardCards = {
     resources?: AdminDashboardResourceCard;
@@ -746,35 +746,35 @@ export type AdminDashboardRasterCard = {
 
 export type AdminDashboardDataOverviewCard = {
     /**
-     * 系统数据资源总数，用于兼容旧版概览卡片；新版界面优先展示分组统计
+     * 系统数据资源总数，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计
      */
-    totalResources: number;
+    totalResources?: number;
     /**
-     * 系统启用状态数据资源数量，用于兼容旧版概览卡片；新版界面优先展示分组统计
+     * 系统启用状态数据资源数量，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计
      */
-    activeResources: number;
+    activeResources?: number;
     /**
-     * 系统数据总大小，单位字节，用于兼容旧版概览卡片；新版界面优先展示分组统计
+     * 系统数据总大小，单位字节，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计
      */
-    totalSizeBytes: number;
+    totalSizeBytes?: number;
     /**
-     * 系统数据条目总数，用于兼容旧版概览卡片；新版界面优先展示分组统计
+     * 系统数据条目总数，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计
      */
-    totalItemCount: number;
+    totalItemCount?: number;
     /**
-     * 系统按数据类型聚合的数据情况，用于兼容旧版概览卡片；新版界面优先展示分组统计
+     * 系统按数据类型聚合的数据情况，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计
      */
-    typeBreakdown: Array<AdminDashboardDataTypeOverview>;
+    typeBreakdown?: Array<AdminDashboardDataTypeOverview>;
     /**
-     * 当前用户上传的数据资源聚合统计
+     * 当前用户上传的数据资源聚合统计；登录用户无需额外功能权限即可查看
      */
     ownUploads: AdminDashboardDataOverviewScope;
     /**
-     * 当前用户可见的数据资源聚合统计；后端按数据可见范围和上传者本人规则裁剪
+     * 当前用户可见的数据资源聚合统计；仅具备 `core.view_data_overview` 权限时返回，后端按数据可见范围和上传者本人规则裁剪
      */
-    visibleResources: AdminDashboardDataOverviewScope;
+    visibleResources?: AdminDashboardDataOverviewScope;
     /**
-     * 超级管理员主体可见的上传用户统计；普通用户无该字段
+     * 具备 `core.view_data_overview` 权限的超级管理员主体可见的上传用户统计；普通用户无该字段
      */
     uploaders?: Array<AdminDashboardUploaderOverview>;
 };

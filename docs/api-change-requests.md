@@ -45,6 +45,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260622-002 | BackendReady | GET /api/raster/tiles/{dataset_id}/{style_hash}/{z}/{x}/{y}.png | status code | Done | N/A | Done | Pending | Raster tiles outside dataset extent return 204 and frontend constrains Mapbox requests with source bounds |
 | API-20260622-003 | BackendReady | GET /api/auth/me/; admin user/profile auth responses | response fields, permission behavior, mock data | Done | Done | Done | Pending | Add independent data backup permission, defaulting to superadmin only |
 | API-20260622-004 | BackendReady | GET /api/auth/me/ | response fields, permission behavior, mock data | Done | Done | Done | Pending | Gate AI interpretation with a new feature permission and map PNG export with existing data export permission |
+| API-20260623-001 | BackendReady | GET /api/admin/dashboard/ | response fields, permission behavior | Done | N/A | Done | Done | Own upload dashboard overview no longer requires data overview permission |
 
 ## Entry Template
 
@@ -62,6 +63,19 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Verification: commands or response checks required before marking implemented
 - Result: current backend/frontend verification result
 ```
+
+## API-20260623-001 - Dashboard Own Upload Overview Permission Split
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `GET /api/admin/dashboard/`
+- Change type: response fields, permission behavior
+- OpenAPI change: `AdminDashboardDataOverviewCard` now only requires `ownUploads`; `visibleResources`, compatibility top-level totals, and `uploaders` are optional permission-gated fields.
+- Mock examples: N/A; existing dashboard mock keeps the authorized shape with both overview tabs.
+- Frontend reason: 数据概览需要拆成“我上传的”和“我可见的”两个标签页，其中“我上传的”不应依赖 `core.view_data_overview`。
+- Backend implementation notes: Always return `dataOverview.ownUploads` for authenticated dashboard requests. Only add `visibleResources`, top-level system totals, and superadmin uploader statistics when `core.view_data_overview` is granted.
+- Verification: Run backend dashboard API tests, regenerate/check frontend API types, and run frontend dashboard tests.
+- Result: Backend and frontend implementation included in this change; verification recorded in completion report.
 
 ## API-20260622-001 - Browser Raster Upload With Async Preprocessing
 
@@ -147,7 +161,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Owner: Frontend
 - Endpoints: `POST /api/auth/login/`, `POST /api/auth/register/`, `GET /api/auth/me/`, admin auth user/profile endpoints, `GET /api/admin/dashboard/`, `GET /api/admin/data/resources/`
 - Change type: mock data
-- OpenAPI change: None. Existing schemas already require `UserPermissions.canViewSystemLogs`, `AdminDashboardDataOverviewCard.ownUploads`, `AdminDashboardDataOverviewCard.visibleResources`, and structured `DictionaryItem` category values.
+- OpenAPI change: None. At the time of this mock alignment, schemas required `UserPermissions.canViewSystemLogs`, `AdminDashboardDataOverviewCard.ownUploads`, `AdminDashboardDataOverviewCard.visibleResources`, and structured `DictionaryItem` category values. `API-20260623-001` later made `visibleResources` permission-gated and optional.
 - Mock examples: `mock/prism/examples/00-public-auth.json`, `mock/prism/examples/10-admin-auth.json`, `mock/prism/examples/20-admin-dashboard-data.json`, `mock/prism/examples/30-catalog-vector.json`
 - Frontend reason: Prism-backed browser and performance checks should run without response validation errors from stale mock fixtures.
 - Backend implementation notes: No backend implementation required; real backend contract is unchanged.

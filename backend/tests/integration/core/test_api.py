@@ -1889,6 +1889,41 @@ class FeaturePermissionTests(TestCase):
             3,
         )
 
+    def test_admin_dashboard_data_overview_own_uploads_without_permission(self):
+        manager = get_user_model().objects.create_user(
+            username="own-overview-manager", password="pass12345"
+        )
+        visible_group = Group.objects.create(name="无权限概览可见组")
+        manager.groups.add(visible_group)
+        DataResource.objects.create(
+            name="本人无需权限上传",
+            code="own-overview-upload",
+            data_type=DataResource.DataType.TABLE,
+            size_bytes=64,
+            item_count=6,
+            maintainer=manager,
+        )
+        visible_resource = DataResource.objects.create(
+            name="可见但需权限统计",
+            code="permission-overview-visible",
+            data_type=DataResource.DataType.VECTOR,
+            size_bytes=128,
+            item_count=12,
+        )
+        visible_resource.access_groups.add(visible_group)
+        self.client.force_login(manager)
+
+        response = self.client.get("/api/admin/dashboard/")
+
+        self.assertEqual(response.status_code, 200)
+        overview = response.json()["cards"]["dataOverview"]
+        self.assertEqual(overview["ownUploads"]["totalResources"], 1)
+        self.assertEqual(overview["ownUploads"]["totalSizeBytes"], 64)
+        self.assertEqual(overview["ownUploads"]["totalItemCount"], 6)
+        self.assertNotIn("visibleResources", overview)
+        self.assertNotIn("totalResources", overview)
+        self.assertNotIn("uploaders", overview)
+
     def test_admin_dashboard_omits_unauthorized_cards(self):
         manager = get_user_model().objects.create_user(
             username="resource-card-manager", password="pass12345"

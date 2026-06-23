@@ -681,8 +681,51 @@ describe("admin routes", () => {
     expect(screen.getAllByText("栅格数量").length).toBeGreaterThan(0);
     expect(screen.getByText("我上传的数据大小")).toBeInTheDocument();
     expect(screen.getByText("我可见的数据大小")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "我上传的" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "我可见的" })).toBeInTheDocument();
     expect(screen.queryByText("用户信息")).not.toBeInTheDocument();
     expect(screen.queryByText("服务器信息")).not.toBeInTheDocument();
+  });
+
+  it("shows own upload overview without data overview permission", async () => {
+    const uploadOnlyUser = {
+      ...adminUser,
+      permissions: {
+        ...adminUser.permissions,
+        canViewDataOverview: false,
+      },
+    };
+    mockApi.adminDashboard.mockResolvedValueOnce({
+      generatedAt: "2026-06-23T09:00:00+08:00",
+      cards: {
+        resources: { total: 2, active: 2 },
+        layers: { total: 1, active: 1 },
+        rasters: { resources: 1, datasets: 1, layers: 1 },
+        dataOverview: {
+          ownUploads: {
+            totalResources: 1,
+            activeResources: 1,
+            totalSizeBytes: 1024,
+            totalItemCount: 8,
+            typeBreakdown: [
+              { dataType: "vector", count: 1, sizeBytes: 1024, itemCount: 8 },
+            ],
+          },
+        },
+      },
+    });
+
+    renderAdminRoute("/resources", uploadOnlyUser);
+
+    expect(await screen.findByText("我上传的数据大小")).toBeInTheDocument();
+    expect(screen.getByText("我上传的数据条目")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("tab", { name: "我上传的" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "我可见的" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("我可见的数据大小")).not.toBeInTheDocument();
   });
 
   it("navigates directly from the data management header dropdown", async () => {
