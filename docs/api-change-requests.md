@@ -25,7 +25,6 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260617-002 | BackendReady | POST /api/catalog/workspaces/; POST /api/catalog/workspaces/{workspaceId}/ | request body, status code | Done | N/A | Done | Done | Workspace snapshots store references, not raw data |
 | API-20260618-001 | Blocked | Non-geographic analytics workspace | endpoint design paused | Removed | Demo only | N/A | Pending | Non-geographic backend contract is not finalized; `/nongeo` remains frontend demo only |
 | API-20260619-001 | Implementing | POST /api/catalog/import/commit/; GET /api/admin/data/resources/; POST /api/admin/data/resources/{id}/ | request body, response fields, permission behavior, mock data | Done | Updating | Implementing | Pending | Uploaded data visibility scope |
-| API-20260619-002 | Verified | Multiple mock example endpoints | mock data consistency | N/A | Done | N/A | Done | Align representative auth, vector, raster, and non-geographic mock data |
 | API-20260619-003 | BackendReady | POST /api/catalog/import/preview/; POST /api/catalog/import/validate/; POST /api/catalog/import/commit/ | request body, response semantics, mock data | Done | Done | Done | Done | Import storage IDs unique; duplicate detection uses display name |
 | API-20260620-001 | BackendReady | GET /api/admin/system-logs/ | new endpoint, response fields, permission behavior, mock data | Done | Done | Done | Pending | System log file selector for admin logs page |
 | API-20260620-002 | BackendReady | Data/workspace CRUD endpoints | permission behavior, response fields, new endpoint, request body | Done | N/A | Done | Done | Fine-grained CRUD permissions for data and workspace scenes |
@@ -37,8 +36,6 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260620-008 | BackendReady | GET /api/admin/dashboard/ | response fields | Done | N/A | Done | Pending | Split data overview into own uploads and visible resources |
 | API-20260620-009 | BackendReady | GET /api/admin/data/resources/; GET /api/admin/data/resources/export/; POST /api/admin/data/resources/{id}/; GET /api/layers/; GET /api/catalog/directories/ | permission behavior | Done | N/A | Done | Done | Admin inventory and catalog object visibility scope |
 | API-20260620-010 | BackendReady | Auth/admin principal endpoints and operation logs | response fields, permission behavior | Done | N/A | Done | Done | Hide superadmin principals from non-superadmin users and always allow own operation logs |
-| API-20260621-001 | Verified | Auth/admin dashboard mock endpoints | mock data | N/A | Done | N/A | Done | Align Prism examples with existing OpenAPI-required fields |
-| API-20260621-002 | Verified | GET /api/users/; GET /api/groups/; GET /api/admin/data/resources/ | mock data | N/A | Done | N/A | Done | Exercise non-superadmin admin responses without superadmin principals |
 | API-20260621-003 | BackendReady | GET /api/admin/data/resources/; POST /api/admin/data/resources/{id}/; POST /api/catalog/import/commit/ | permission behavior | Done | N/A | Done | Done | Hide superadmin from configurable access-role choices for every user |
 | API-20260621-004 | BackendReady | POST /api/auth/guest-login/ | permission behavior | Done | N/A | Done | Done | Clarify that guest starts with no default function permissions |
 | API-20260622-001 | BackendReady | POST /api/raster/import/; GET /api/raster/jobs/{job_id}/ | request body, mock data | Done | Done | Done | Pending | Browser raster upload starts async preprocessing, exposes progress, and keeps display names separate from storage IDs |
@@ -169,32 +166,6 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Verification: run backend core/catalog API tests and frontend API generation/type checks.
 - Result: Backend and frontend implementation included in this change.
 
-## API-20260621-001 - Prism Mock Schema Alignment
-
-- Status: Verified
-- Owner: Frontend
-- Endpoints: `POST /api/auth/login/`, `POST /api/auth/register/`, `GET /api/auth/me/`, admin auth user/profile endpoints, `GET /api/admin/dashboard/`, `GET /api/admin/data/resources/`
-- Change type: mock data
-- OpenAPI change: None. At the time of this mock alignment, schemas required `UserPermissions.canViewSystemLogs`, `AdminDashboardDataOverviewCard.ownUploads`, `AdminDashboardDataOverviewCard.visibleResources`, and structured `DictionaryItem` category values. `API-20260623-001` later made `visibleResources` permission-gated and optional.
-- Mock examples: `mock/prism/examples/00-public-auth.json`, `mock/prism/examples/10-admin-auth.json`, `mock/prism/examples/20-admin-dashboard-data.json`, `mock/prism/examples/30-catalog-vector.json`
-- Frontend reason: Prism-backed browser and performance checks should run without response validation errors from stale mock fixtures.
-- Backend implementation notes: No backend implementation required; real backend contract is unchanged.
-- Verification: run `cd frontend && pnpm run mock:build && pnpm run api:changes:check && pnpm test -- src/test/mockExamples.test.ts && pnpm run perf:mock -- --label codex-e2e-check`.
-- Result: Mock fixtures updated to match the current OpenAPI contract; verification completed in this change.
-
-## API-20260621-002 - Non-Superadmin Principal Mock Isolation
-
-- Status: Verified
-- Owner: Frontend
-- Endpoints: `GET /api/users/`, `GET /api/groups/`, `GET /api/admin/data/resources/`
-- Change type: mock data
-- OpenAPI change: None. Existing schemas already allow filtered user, role, uploader, maintainer, and access-role responses.
-- Mock examples: `mock/prism/examples/10-admin-auth.json`, `mock/prism/examples/20-admin-dashboard-data.json`
-- Frontend reason: Browser and Prism-backed permission checks need default admin-auth/data examples that represent a non-superadmin manager and therefore contain no superadmin user, role, log-role, uploader, or access-role principals.
-- Backend implementation notes: No backend implementation required; real backend filtering is implemented by principal visibility helpers.
-- Verification: run `cd frontend && pnpm run mock:build && pnpm run api:changes:check`.
-- Result: Mock fixtures demonstrate non-superadmin responses with superadmin principals omitted before frontend rendering.
-
 ## API-20260621-003 - Configurable Access Role Options Exclude Superadmin
 
 - Status: BackendReady
@@ -271,19 +242,6 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Store visibility in `DataResource.access_groups`, force-add the `超级管理员` group, and treat `DataResource.maintainer` as uploader ownership.
 - Verification: run `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build`, plus backend catalog/admin permission tests.
 - Result: Implementation in progress.
-
-## API-20260619-002 - Mock Example Business Consistency
-
-- Status: Verified
-- Owner: Frontend
-- Endpoints: `POST /api/auth/register/`, `GET /api/catalog/resources/`, `POST /api/catalog/scan/`, `GET /api/catalog/resources/{id}/profile/`, `POST /api/catalog/resources/{id}/query/`, `GET /api/layers/`
-- Change type: mock data
-- OpenAPI change: None; endpoint shapes, status codes, permissions, and generated frontend API types are unchanged.
-- Mock examples: `mock/prism/examples/00-public-auth.json`, `mock/prism/examples/30-catalog-vector.json`, `mock/prism/examples/35-catalog-nongeo.json`
-- Frontend reason: Representative Prism data must use one coherent business scenario so tests and local UI development can exercise realistic interactions across login, resource listing, vector querying, raster layer references, and non-geographic table analysis.
-- Backend implementation notes: No backend implementation required. Existing backend behavior already controls real data; this entry only documents mock fixture corrections.
-- Verification: run `cd frontend && pnpm run check:api && pnpm run api:changes:check && pnpm run mock:build && pnpm test`, plus the mock consistency test in `frontend/src/test/mockExamples.test.ts`.
-- Result: Mock examples aligned and verified by automated consistency checks.
 
 ## API-20260619-003 - Import Display Name Duplicate Detection
 
