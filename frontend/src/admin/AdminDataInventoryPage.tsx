@@ -1,5 +1,6 @@
 import {
   DeleteOutlined,
+  EditOutlined,
   EyeOutlined,
   PlusOutlined,
   StopOutlined,
@@ -7,6 +8,7 @@ import {
 import {
   App as AntApp,
   Button,
+  Checkbox,
   Form,
   Input,
   Modal,
@@ -26,6 +28,7 @@ import { useAppContext } from "../contexts/AppContext";
 import type {
   AdminDataResource,
   AdminDataResourceFilters,
+  AdminDataResourceGroup,
   AdminDataResourceList,
 } from "../types";
 import { downloadBlob } from "../utils/download";
@@ -64,11 +67,13 @@ const initialList: AdminDataResourceList = {
   items: [],
   total: 0,
   availableAccessGroups: [],
+  inventoryGroups: [],
 };
 
 const defaultInventoryGroupId = "__default__";
 
-type InventoryGroupId = string;
+type InventoryGroupId = number | typeof defaultInventoryGroupId;
+type GroupModalState = { kind: "create" } | null;
 
 interface InventoryGroup {
   id: InventoryGroupId;
@@ -77,6 +82,7 @@ interface InventoryGroup {
   sizeBytes: number;
   itemCount: number;
   enabled: boolean;
+  partiallyEnabled: boolean;
   isDefault: boolean;
 }
 
@@ -91,6 +97,9 @@ const defaultInventoryGroup: InventoryGroupDefinition = {
   name: "默认分组",
   isDefault: true,
 };
+
+const inventoryNameColumnWidth = 144;
+const inventoryActionColumnWidth = 112;
 
 const filterFields: FilterField[] = [
   {
@@ -126,17 +135,20 @@ export default function AdminDataInventoryPage() {
   });
   const [data, setData] = useState<AdminDataResourceList>(initialList);
   const [loading, setLoading] = useState(false);
-  const [groupDefinitions, setGroupDefinitions] = useState<
-    InventoryGroupDefinition[]
-  >([defaultInventoryGroup]);
-  const [resourceGroupIds, setResourceGroupIds] = useState<
-    Record<number, InventoryGroupId>
-  >({});
-  const [newGroupName, setNewGroupName] = useState("");
-  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [groupModal, setGroupModal] = useState<GroupModalState>(null);
+  const [savingGroup, setSavingGroup] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<InventoryGroupId | null>(
+    null,
+  );
+  const [editingGroupName, setEditingGroupName] = useState("");
+  const [savingGroupId, setSavingGroupId] = useState<InventoryGroupId | null>(
+    null,
+  );
   const [draggingResourceId, setDraggingResourceId] = useState<number | null>(
     null,
   );
+  const [movingResourceId, setMovingResourceId] = useState<number | null>(null);
   const [updatingGroupId, setUpdatingGroupId] =
     useState<InventoryGroupId | null>(null);
 
@@ -160,8 +172,8 @@ export default function AdminDataInventoryPage() {
   }, [data.items]);
 
   const inventoryGroups = useMemo(
-    () => buildInventoryGroups(data.items, groupDefinitions, resourceGroupIds),
-    [data.items, groupDefinitions, resourceGroupIds],
+    () => buildInventoryGroups(data.items, data.inventoryGroups ?? []),
+    [data.inventoryGroups, data.items],
   );
 
   const loadResources = useCallback(
@@ -316,27 +328,85 @@ export default function AdminDataInventoryPage() {
     }));
   }
 
-  function addInventoryGroup() {
-    const trimmedName = newGroupName.trim();
+  function openCreateGroupModal() {
+    setGroupName("");
+    setGroupModal({ kind: "create" });
+  }
+
+  function startInlineEditGroup(group: InventoryGroup) {
+    setEditingGroupId(group.id);
+    setEditingGroupName(group.name);
+  }
+
+  async function saveGroupModal() {
+    const trimmedName = groupName.trim();
     if (!trimmedName) {
       message.warning("请输入组别名称");
       return;
     }
-    if (groupDefinitions.some((group) => group.name === trimmedName)) {
+    if (inventoryGroups.some((group) => group.name === trimmedName)) {
       message.warning("组别名称已存在");
       return;
     }
-    setGroupDefinitions((current) => [
-      ...current,
-      {
-        id: `custom-${Date.now()}`,
+    setSavingGroup(true);
+    try {
+      const created = await api.createAdminDataResourceGroup({
         name: trimmedName,
-        isDefault: false,
-      },
-    ]);
-    setNewGroupName("");
-    setGroupModalOpen(false);
-    message.success(`已新增组别：${trimmedName}`);
+      });
+      setData((current) => ({
+        ...current,
+        inventoryGroups: [...(current.inventoryGroups ?? []), created],
+      }));
+      message.success(`已新增组别：${trimmedName}`);
+      setGroupName("");
+      setGroupModal(null);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "组别保存失败");
+    } finally {
+      setSavingGroup(false);
+    }
+  }
+
+  async function saveInlineGroupName(group: InventoryGroup) {
+    if (group.isDefault || savingGroupId === group.id) {
+      return;
+    }
+    const trimmedName = editingGroupName.trim();
+    if (!trimmedName) {
+      message.warning("请输入组别名称");
+      setEditingGroupName(group.name);
+      setEditingGroupId(null);
+      return;
+    }
+    if (trimmedName === group.name) {
+      setEditingGroupId(null);
+      return;
+    }
+    if (
+      inventoryGroups.some(
+        (currentGroup) =>
+          currentGroup.id !== group.id && currentGroup.name === trimmedName,
+      )
+    ) {
+      message.warning("组别名称已存在");
+      return;
+    }
+    setSavingGroupId(group.id);
+    try {
+      const updated = await api.updateAdminDataResourceGroup(Number(group.id), {
+        action: "update",
+        name: trimmedName,
+      });
+      if ("id" in updated) {
+        replaceInventoryGroup(updated);
+        message.success("组别名称已更新");
+      }
+      setEditingGroupId(null);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "组别保存失败");
+    } finally {
+      setSavingGroupId(null);
+    }
   }
 
   async function toggleGroupStatus(group: InventoryGroup, checked: boolean) {
@@ -371,55 +441,67 @@ export default function AdminDataInventoryPage() {
     }
   }
 
-  function renameInventoryGroup(group: InventoryGroup, nextName: string) {
-    if (group.isDefault) {
+  async function moveResourceToGroup(
+    resourceId: number,
+    group: InventoryGroup,
+  ) {
+    if (!canChange) {
+      message.warning("当前用户无数据编辑权限");
       return;
     }
-    const trimmedName = nextName.trim();
-    if (!trimmedName) {
-      message.warning("组别名称不能为空");
+    const resource = data.items.find((item) => item.id === resourceId);
+    if (!resource) {
       return;
     }
-    if (
-      groupDefinitions.some(
-        (definition) =>
-          definition.id !== group.id && definition.name === trimmedName,
-      )
-    ) {
-      message.warning("组别名称已存在");
+    const nextGroupId = group.isDefault ? null : Number(group.id);
+    if (resource.inventoryGroupId === nextGroupId) {
       return;
     }
-    setGroupDefinitions((current) =>
-      current.map((definition) =>
-        definition.id === group.id
-          ? { ...definition, name: trimmedName }
-          : definition,
-      ),
-    );
-  }
-
-  function moveResourceToGroup(resourceId: number, groupId: InventoryGroupId) {
-    setResourceGroupIds((current) => ({
-      ...current,
-      [resourceId]: groupId,
-    }));
-  }
-
-  function deleteInventoryGroup(group: InventoryGroup) {
-    if (group.isDefault) {
-      return;
-    }
-    setResourceGroupIds((current) => {
-      const next = { ...current };
-      group.resources.forEach((resource) => {
-        next[resource.id] = defaultInventoryGroupId;
+    setMovingResourceId(resourceId);
+    try {
+      const updated = await api.updateAdminDataResource(resource.id, {
+        action: "updateInventoryGroup",
+        inventoryGroupId: nextGroupId,
       });
-      return next;
-    });
-    setGroupDefinitions((current) =>
-      current.filter((definition) => definition.id !== group.id),
-    );
-    message.success(`已删除组别：${group.name}，组内数据已进入默认分组`);
+      if ("id" in updated) {
+        replaceResource(updated);
+      }
+      message.success(`已移动到${group.name}`);
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : "数据组别更新失败",
+      );
+    } finally {
+      setMovingResourceId(null);
+    }
+  }
+
+  async function deleteInventoryGroup(group: InventoryGroup) {
+    if (group.isDefault) {
+      return;
+    }
+    setUpdatingGroupId(group.id);
+    try {
+      await api.updateAdminDataResourceGroup(Number(group.id), {
+        action: "delete",
+      });
+      setData((current) => ({
+        ...current,
+        inventoryGroups: (current.inventoryGroups ?? []).filter(
+          (item) => item.id !== group.id,
+        ),
+        items: current.items.map((item) =>
+          item.inventoryGroupId === group.id
+            ? { ...item, inventoryGroupId: null }
+            : item,
+        ),
+      }));
+      message.success(`已删除组别：${group.name}，组内数据已进入默认分组`);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "删除组别失败");
+    } finally {
+      setUpdatingGroupId(null);
+    }
   }
 
   function replaceResources(resources: AdminDataResource[]) {
@@ -430,6 +512,15 @@ export default function AdminDataInventoryPage() {
     setData((current) => ({
       ...current,
       items: current.items.map((item) => byId.get(item.id) ?? item),
+    }));
+  }
+
+  function replaceInventoryGroup(group: AdminDataResourceGroup) {
+    setData((current) => ({
+      ...current,
+      inventoryGroups: (current.inventoryGroups ?? []).map((item) =>
+        item.id === group.id ? group : item,
+      ),
     }));
   }
 
@@ -521,72 +612,55 @@ export default function AdminDataInventoryPage() {
     loading: tableLoading,
     pagination,
   }: ManagedCollectionTableRenderArgs<AdminDataResource>) => {
+    const nestedTableColumns = prepareNestedTableColumns(tableColumns);
     const groupColumns: ColumnsType<InventoryGroup> = [
       {
         title: "组名",
         dataIndex: "name",
         key: "name",
-        width: 260,
+        width: inventoryNameColumnWidth,
         render: (_, group) => (
-          <Space>
-            {group.isDefault ? (
-              <Typography.Text strong>{group.name}</Typography.Text>
-            ) : (
+          <Space size={6} className="inventory-group-name-cell">
+            {editingGroupId === group.id ? (
               <Input
-                aria-label={`${group.name}组名`}
-                defaultValue={group.name}
-                onPressEnter={(event) =>
-                  renameInventoryGroup(group, event.currentTarget.value)
-                }
-                onBlur={(event) =>
-                  renameInventoryGroup(group, event.currentTarget.value)
-                }
+                autoFocus
+                size="small"
+                aria-label={`编辑组别名称${group.name}`}
+                className="inventory-group-name-input"
+                value={editingGroupName}
+                disabled={savingGroupId === group.id}
+                onChange={(event) => setEditingGroupName(event.target.value)}
+                onBlur={() => {
+                  void saveInlineGroupName(group);
+                }}
+                onPressEnter={(event) => event.currentTarget.blur()}
               />
+            ) : (
+              <>
+                <Typography.Text strong ellipsis={{ tooltip: group.name }}>
+                  {group.name}
+                </Typography.Text>
+                {!group.isDefault && (
+                  <Tooltip title="编辑组名">
+                    <Button
+                      type="text"
+                      size="small"
+                      aria-label={`编辑组别${group.name}`}
+                      className="inventory-group-edit-button"
+                      icon={<EditOutlined />}
+                      onClick={() => startInlineEditGroup(group)}
+                    />
+                  </Tooltip>
+                )}
+              </>
             )}
-            {group.isDefault && <Tag>默认分组</Tag>}
           </Space>
         ),
-      },
-      {
-        title: "总数据规模",
-        key: "groupSize",
-        width: 180,
-        render: (_, group) => (
-          <Space orientation="vertical" size={0}>
-            <span>{formatBytes(group.sizeBytes)}</span>
-            <Typography.Text type="secondary" className="admin-table-subtext">
-              {group.itemCount} 条，{group.resources.length} 项数据
-            </Typography.Text>
-          </Space>
-        ),
-      },
-      {
-        title: "启用状态",
-        key: "groupAccess",
-        width: 150,
-        render: (_, group) => {
-          const disabled =
-            group.resources.length === 0 ||
-            (!canChange &&
-              !group.resources.every((resource) => resource.canManageAccess));
-          return (
-            <Switch
-              size="small"
-              aria-label={`${group.name}组别状态`}
-              checked={group.enabled}
-              loading={updatingGroupId === group.id}
-              checkedChildren="启用"
-              unCheckedChildren="禁用"
-              disabled={disabled}
-              onChange={(checked) => toggleGroupStatus(group, checked)}
-            />
-          );
-        },
       },
       {
         title: "操作",
         key: "groupActions",
-        width: 96,
+        width: inventoryActionColumnWidth,
         render: (_, group) =>
           group.isDefault ? (
             <Tooltip title="默认分组不可删除">
@@ -613,6 +687,48 @@ export default function AdminDataInventoryPage() {
             </Popconfirm>
           ),
       },
+      {
+        title: "总数据规模",
+        key: "groupSize",
+        width: 180,
+        render: (_, group) => (
+          <Space orientation="vertical" size={0}>
+            <span>{formatBytes(group.sizeBytes)}</span>
+            <Typography.Text type="secondary" className="admin-table-subtext">
+              {group.itemCount} 条，{group.resources.length} 项数据
+            </Typography.Text>
+          </Space>
+        ),
+      },
+      {
+        title: "启用状态",
+        key: "groupAccess",
+        width: 150,
+        render: (_, group) => {
+          const disabled =
+            group.resources.length === 0 ||
+            (!canChange &&
+              !group.resources.every((resource) => resource.canManageAccess));
+          return (
+            <Checkbox
+              className="inventory-group-status-checkbox"
+              aria-label={`${group.name}组别状态`}
+              checked={group.enabled}
+              indeterminate={group.partiallyEnabled}
+              disabled={disabled || updatingGroupId === group.id}
+              onChange={(event) =>
+                toggleGroupStatus(group, event.target.checked)
+              }
+            >
+              {group.partiallyEnabled
+                ? "部分启用"
+                : group.enabled
+                  ? "启用"
+                  : "禁用"}
+            </Checkbox>
+          );
+        },
+      },
     ];
 
     const groupPagination = {
@@ -621,13 +737,10 @@ export default function AdminDataInventoryPage() {
         <Space size={12} wrap>
           <span>共 {nextTotal} 条</span>
           <Button
-            size="small"
-            type="primary"
             icon={<PlusOutlined />}
-            onClick={() => {
-              setNewGroupName("");
-              setGroupModalOpen(true);
-            }}
+            className="inventory-add-group-button"
+            disabled={!canChange}
+            onClick={openCreateGroupModal}
           >
             新增组别
           </Button>
@@ -648,7 +761,7 @@ export default function AdminDataInventoryPage() {
             onDragOver: (event) => event.preventDefault(),
             onDrop: () => {
               if (draggingResourceId !== null) {
-                moveResourceToGroup(draggingResourceId, group.id);
+                void moveResourceToGroup(draggingResourceId, group);
                 setDraggingResourceId(null);
               }
             },
@@ -660,7 +773,7 @@ export default function AdminDataInventoryPage() {
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => {
                   if (draggingResourceId !== null) {
-                    moveResourceToGroup(draggingResourceId, group.id);
+                    void moveResourceToGroup(draggingResourceId, group);
                     setDraggingResourceId(null);
                   }
                 }}
@@ -668,14 +781,18 @@ export default function AdminDataInventoryPage() {
                 <Table<AdminDataResource>
                   rowKey="id"
                   size="small"
-                  columns={tableColumns}
+                  columns={nestedTableColumns}
                   dataSource={group.resources}
                   pagination={false}
                   scroll={{ x: 1280 }}
                   onRow={(resource) => ({
-                    draggable: true,
+                    draggable: canChange,
                     onDragStart: () => setDraggingResourceId(resource.id),
                     onDragEnd: () => setDraggingResourceId(null),
+                    className:
+                      movingResourceId === resource.id
+                        ? "inventory-resource-moving-row"
+                        : undefined,
                   })}
                 />
               </div>
@@ -793,23 +910,102 @@ export default function AdminDataInventoryPage() {
       />
       <Modal
         title="新增组别"
-        open={groupModalOpen}
+        open={Boolean(groupModal)}
         okText="新建"
         cancelText="取消"
-        onOk={addInventoryGroup}
-        onCancel={() => setGroupModalOpen(false)}
+        confirmLoading={savingGroup}
+        onOk={saveGroupModal}
+        onCancel={() => setGroupModal(null)}
       >
         <Input
           autoFocus
           allowClear
-          value={newGroupName}
+          value={groupName}
           placeholder="输入组别名称"
-          onChange={(event) => setNewGroupName(event.target.value)}
-          onPressEnter={addInventoryGroup}
+          onChange={(event) => setGroupName(event.target.value)}
+          onPressEnter={saveGroupModal}
         />
       </Modal>
     </>
   );
+}
+
+function prepareNestedTableColumns(
+  columns: ColumnsType<AdminDataResource>,
+): ColumnsType<AdminDataResource> {
+  const sortableColumns = columns.map(addResourceColumnSorter);
+  const actionIndex = sortableColumns.findIndex(
+    (column) => column.key === "actions",
+  );
+  const nameIndex = sortableColumns.findIndex(
+    (column) => column.key === "name",
+  );
+  if (actionIndex < 0 || nameIndex < 0 || actionIndex === nameIndex + 1) {
+    return sortableColumns;
+  }
+
+  const nextColumns = [...sortableColumns];
+  const [actionColumn] = nextColumns.splice(actionIndex, 1);
+  if (!actionColumn) {
+    return sortableColumns;
+  }
+  const currentNameIndex = nextColumns.findIndex(
+    (column) => column.key === "name",
+  );
+  nextColumns.splice(currentNameIndex + 1, 0, actionColumn);
+  return nextColumns;
+}
+
+function addResourceColumnSorter(
+  column: ColumnsType<AdminDataResource>[number],
+): ColumnsType<AdminDataResource>[number] {
+  if ("children" in column) {
+    return column;
+  }
+  if (column.key === "name") {
+    return {
+      ...column,
+      width: inventoryNameColumnWidth,
+      sorter: resourceColumnSorters.name,
+    };
+  }
+  if (column.key === "actions") {
+    return {
+      ...column,
+      width: inventoryActionColumnWidth,
+    };
+  }
+  const sorter = resourceColumnSorters[String(column.key ?? "")];
+  return sorter ? { ...column, sorter } : column;
+}
+
+const resourceColumnSorters: Record<
+  string,
+  (left: AdminDataResource, right: AdminDataResource) => number
+> = {
+  name: (left, right) => compareText(left.name, right.name),
+  dataType: (left, right) =>
+    compareText(dataTypeLabels[left.dataType], dataTypeLabels[right.dataType]),
+  dataSize: (left, right) =>
+    left.sizeBytes - right.sizeBytes || left.itemCount - right.itemCount,
+  status: (left, right) =>
+    compareText(
+      statusLabels[left.status].text,
+      statusLabels[right.status].text,
+    ),
+  source: (left, right) =>
+    compareText(left.source, right.source) ||
+    compareText(left.provider, right.provider),
+  uploader: (left, right) =>
+    compareText(uploaderDisplayName(left), uploaderDisplayName(right)),
+  dataDate: (left, right) =>
+    compareText(left.dataDate ?? "", right.dataDate ?? ""),
+  updatedAt: (left, right) =>
+    Date.parse(left.updatedAt) - Date.parse(right.updatedAt),
+};
+
+function compareText(left: string, right: string): number {
+  return left.localeCompare(right, "zh-CN");
 }
 
 function uploaderDisplayName(resource: AdminDataResource): string {
@@ -853,15 +1049,22 @@ function initialVisualizationValues(
 
 function buildInventoryGroups(
   resources: AdminDataResource[],
-  groupDefinitions: InventoryGroupDefinition[],
-  resourceGroupIds: Record<number, InventoryGroupId>,
+  persistedGroups: AdminDataResourceGroup[],
 ): InventoryGroup[] {
+  const groupDefinitions: InventoryGroupDefinition[] = [
+    defaultInventoryGroup,
+    ...persistedGroups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      isDefault: false,
+    })),
+  ];
   const validGroupIds = new Set(groupDefinitions.map((group) => group.id));
   return groupDefinitions.map((group) =>
     createInventoryGroup({
       ...group,
       resources: resources.filter((resource) => {
-        const assignedGroupId = resourceGroupIds[resource.id];
+        const assignedGroupId = resource.inventoryGroupId;
         return group.id === normalizeGroupId(assignedGroupId, validGroupIds);
       }),
     }),
@@ -879,13 +1082,15 @@ function createInventoryGroup({
   resources: AdminDataResource[];
   isDefault: boolean;
 }): InventoryGroup {
+  const activeCount = resources.filter(
+    (resource) => resource.status === "active",
+  ).length;
   return {
     id,
     name,
     resources,
-    enabled:
-      resources.length > 0 &&
-      resources.every((resource) => resource.status === "active"),
+    enabled: resources.length > 0 && activeCount === resources.length,
+    partiallyEnabled: activeCount > 0 && activeCount < resources.length,
     isDefault,
     sizeBytes: resources.reduce(
       (total, resource) => total + (resource.sizeBytes ?? 0),
@@ -899,7 +1104,7 @@ function createInventoryGroup({
 }
 
 function normalizeGroupId(
-  groupId: InventoryGroupId | undefined,
+  groupId: InventoryGroupId | null | undefined,
   validGroupIds: Set<InventoryGroupId>,
 ) {
   return groupId && validGroupIds.has(groupId)

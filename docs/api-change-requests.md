@@ -46,6 +46,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260622-003 | BackendReady | GET /api/auth/me/; admin user/profile auth responses | response fields, permission behavior, mock data | Done | Done | Done | Pending | Add independent data backup permission, defaulting to superadmin only |
 | API-20260622-004 | BackendReady | GET /api/auth/me/ | response fields, permission behavior, mock data | Done | Done | Done | Pending | Gate AI interpretation with a new feature permission and map PNG export with existing data export permission |
 | API-20260623-001 | BackendReady | GET /api/admin/dashboard/ | response fields, permission behavior | Done | N/A | Done | Done | Own upload dashboard overview no longer requires data overview permission |
+| API-20260623-002 | BackendReady | GET /api/admin/data/resources/; POST /api/admin/data/resource-groups/; POST /api/admin/data/resource-groups/{groupId}/; POST /api/admin/data/resources/{id}/ | new endpoint, response fields, request body | Done | N/A | Done | Pending | Persist admin inventory content groups and resource group membership |
 
 ## Entry Template
 
@@ -76,6 +77,19 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Always return `dataOverview.ownUploads` for authenticated dashboard requests. Only add `visibleResources`, top-level system totals, and superadmin uploader statistics when `core.view_data_overview` is granted.
 - Verification: Run backend dashboard API tests, regenerate/check frontend API types, and run frontend dashboard tests.
 - Result: Backend and frontend implementation included in this change; verification recorded in completion report.
+
+## API-20260623-002 - Persistent Admin Inventory Content Groups
+
+- Status: BackendReady
+- Owner: Frontend / Backend
+- Endpoints: `GET /api/admin/data/resources/`, `POST /api/admin/data/resource-groups/`, `POST /api/admin/data/resource-groups/{groupId}/`, `POST /api/admin/data/resources/{id}/`
+- Change type: new endpoint, response fields, request body
+- OpenAPI change: `AdminDataResourceListResponse` now returns `inventoryGroups`; `AdminDataResource` now returns nullable `inventoryGroupId`; `AdminDataResourceUpdateRequest.action` adds `updateInventoryGroup`; new group create/update/delete endpoints manage persistent content groups.
+- Mock examples: N/A; this workflow is covered by frontend API mocks and backend integration tests.
+- Frontend reason: 存量数据管理的嵌套表格组别必须刷新后保留，且拖动资源到不同组别需要持久化。
+- Backend implementation notes: Add `DataResourceGroup` and nullable `DataResource.inventory_group`. Deleting a group must not delete resources; resources return to the default group by setting the FK to null.
+- Verification: Run backend admin data resource tests, regenerate/check frontend API types, and run frontend admin route tests.
+- Result: Backend model/API/tests and frontend persistence calls are included in this change; verification recorded in completion report.
 
 ## API-20260622-001 - Browser Raster Upload With Async Preprocessing
 

@@ -1508,6 +1508,10 @@ export type AdminDataResource = {
      */
     status: 'active' | 'inactive';
     /**
+     * 存量数据内容组别 ID；为 null 时表示默认分组
+     */
+    inventoryGroupId: number | null;
+    /**
      * 允许访问该数据资源且对当前主体可见的用户组；用户导入、目录扫描和栅格导入会在后台强制包含超级管理员用户组，上传者本人不依赖用户组也始终可见。
      */
     accessGroups: Array<AdminDataResourceAccessGroup>;
@@ -1565,6 +1569,40 @@ export type AdminDataResourceListResponse = {
      * 可用于配置数据访问范围的额外用户组列表；该列表不会返回超级管理员用户组，后端仍会强制保留超级管理员访问范围
      */
     availableAccessGroups: Array<AdminDataResourceAccessGroup>;
+    /**
+     * 可用于存量数据管理内容分组的持久化组别列表；默认分组不在该数组中，资源 `inventoryGroupId` 为 null 时属于默认分组
+     */
+    inventoryGroups: Array<AdminDataResourceGroup>;
+};
+
+export type AdminDataResourceGroup = {
+    /**
+     * 存量数据组别 ID
+     */
+    id: number;
+    /**
+     * 存量数据组别名称
+     */
+    name: string;
+    /**
+     * 创建时间
+     */
+    createdAt: string;
+    /**
+     * 最后更新时间
+     */
+    updatedAt: string;
+};
+
+export type AdminDataResourceGroupUpdateRequest = {
+    /**
+     * 组别操作类型；新建接口忽略该字段，组别详情接口默认 update
+     */
+    action?: 'update' | 'delete';
+    /**
+     * 新建或改名时写入的组别名称
+     */
+    name?: string;
 };
 
 export type AdminDataResourceVisualization = {
@@ -1598,7 +1636,7 @@ export type AdminDataResourceUpdateRequest = {
     /**
      * 操作类型
      */
-    action: 'update' | 'setStatus' | 'saveVisualization' | 'updateAccess' | 'delete';
+    action: 'update' | 'setStatus' | 'saveVisualization' | 'updateAccess' | 'updateInventoryGroup' | 'delete';
     /**
      * setStatus 或 update 时写入的数据资源状态
      */
@@ -1608,6 +1646,10 @@ export type AdminDataResourceUpdateRequest = {
      * updateAccess 或 update 时写入的额外可见用户组 ID 列表；调用方不能选择超级管理员用户组，后端会强制补齐超级管理员用户组，上传者本人不依赖用户组也始终可见。包含游客用户组时表示未登录用户可通过游客会话访问该数据。
      */
     accessGroupIds?: Array<number>;
+    /**
+     * updateInventoryGroup 或 update 时写入的存量数据内容组别 ID；为 null 时表示移入默认分组
+     */
+    inventoryGroupId?: number | null;
     /**
      * delete 操作要求传入与数据资源名称完全一致的确认文本
      */
@@ -3853,6 +3895,81 @@ export type ListAdminDataResourcesResponses = {
 };
 
 export type ListAdminDataResourcesResponse = ListAdminDataResourcesResponses[keyof ListAdminDataResourcesResponses];
+
+export type CreateAdminDataResourceGroupData = {
+    body: AdminDataResourceGroupUpdateRequest;
+    path?: never;
+    query?: never;
+    url: '/api/admin/data/resource-groups/';
+};
+
+export type CreateAdminDataResourceGroupErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type CreateAdminDataResourceGroupError = CreateAdminDataResourceGroupErrors[keyof CreateAdminDataResourceGroupErrors];
+
+export type CreateAdminDataResourceGroupResponses = {
+    /**
+     * 新建成功
+     */
+    201: AdminDataResourceGroup;
+};
+
+export type CreateAdminDataResourceGroupResponse = CreateAdminDataResourceGroupResponses[keyof CreateAdminDataResourceGroupResponses];
+
+export type UpdateAdminDataResourceGroupData = {
+    body: AdminDataResourceGroupUpdateRequest;
+    path: {
+        /**
+         * 存量数据组别 ID
+         */
+        groupId: number;
+    };
+    query?: never;
+    url: '/api/admin/data/resource-groups/{groupId}/';
+};
+
+export type UpdateAdminDataResourceGroupErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateAdminDataResourceGroupError = UpdateAdminDataResourceGroupErrors[keyof UpdateAdminDataResourceGroupErrors];
+
+export type UpdateAdminDataResourceGroupResponses = {
+    /**
+     * 操作成功
+     */
+    200: AdminDataResourceGroup | DetailResponse;
+};
+
+export type UpdateAdminDataResourceGroupResponse = UpdateAdminDataResourceGroupResponses[keyof UpdateAdminDataResourceGroupResponses];
 
 export type ExportAdminDataResourcesData = {
     body?: never;

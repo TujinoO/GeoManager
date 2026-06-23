@@ -1151,6 +1151,44 @@ body:has(.login-shell),
 .inventory-group-table {
   width: 100%;
   min-width: 0;
+
+  & .ant-pagination-total-text {
+    order: 99;
+    margin-inline-start: auto;
+  }
+}
+
+.inventory-add-group-button.ant-btn {
+  height: 32px;
+  margin-inline-start: 8px;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.inventory-group-name-cell {
+  max-width: 100%;
+
+  & .ant-typography {
+    max-width: 84px;
+  }
+}
+
+.inventory-group-name-input.ant-input {
+  width: 104px;
+}
+
+.inventory-group-edit-button.ant-btn,
+.inventory-group-edit-button.ant-btn:hover,
+.inventory-group-edit-button.ant-btn:focus,
+.inventory-group-edit-button.ant-btn:focus-visible,
+.inventory-group-edit-button.ant-btn:active {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.inventory-resource-moving-row {
+  opacity: 0.52;
 }
 
 .drawer-stack {

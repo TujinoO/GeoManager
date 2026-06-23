@@ -11,7 +11,13 @@ from django.test import TestCase
 from shapely.geometry import Point
 
 from apps.audit.models import OperationLog
-from apps.catalog.models import DataCatalog, DataResource, MapLayer, WorkspaceScene
+from apps.catalog.models import (
+    DataCatalog,
+    DataResource,
+    DataResourceGroup,
+    MapLayer,
+    WorkspaceScene,
+)
 from apps.catalog.services import scan_catalog_sources, stable_catalog_code
 from apps.core.initialization import (
     GUEST_GROUP_NAME,
@@ -1660,6 +1666,55 @@ class AdminDataResourceApiTests(TestCase):
         self.assertEqual(payload["total"], 1)
         self.assertEqual(payload["items"][0]["name"], "存量样地数据")
         self.assertEqual(payload["items"][0]["status"], "inactive")
+
+    def test_admin_data_resource_groups_persist_and_clear_on_delete(self):
+        create_response = self.client.post(
+            "/api/admin/data/resource-groups/",
+            data=json.dumps({"name": "植被调查"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(create_response.status_code, 201)
+        group_id = create_response.json()["id"]
+        move_response = self.client.post(
+            f"/api/admin/data/resources/{self.resource.id}/",
+            data=json.dumps(
+                {"action": "updateInventoryGroup", "inventoryGroupId": group_id}
+            ),
+            content_type="application/json",
+        )
+        list_response = self.client.get("/api/admin/data/resources/")
+
+        self.assertEqual(move_response.status_code, 200)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.inventory_group_id, group_id)
+        payload = list_response.json()
+        self.assertIn(
+            {"id": group_id, "name": "植被调查"},
+            [
+                {"id": item["id"], "name": item["name"]}
+                for item in payload["inventoryGroups"]
+            ],
+        )
+        self.assertEqual(payload["items"][0]["inventoryGroupId"], group_id)
+
+        rename_response = self.client.post(
+            f"/api/admin/data/resource-groups/{group_id}/",
+            data=json.dumps({"action": "update", "name": "样地调查"}),
+            content_type="application/json",
+        )
+        delete_response = self.client.post(
+            f"/api/admin/data/resource-groups/{group_id}/",
+            data=json.dumps({"action": "delete"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(rename_response.status_code, 200)
+        self.assertEqual(rename_response.json()["name"], "样地调查")
+        self.assertEqual(delete_response.status_code, 200)
+        self.resource.refresh_from_db()
+        self.assertIsNone(self.resource.inventory_group_id)
+        self.assertFalse(DataResourceGroup.objects.filter(pk=group_id).exists())
 
     def test_status_toggle_hides_resource_from_regular_catalog(self):
         response = self.client.post(

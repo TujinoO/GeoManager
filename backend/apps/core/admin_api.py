@@ -27,7 +27,7 @@ from django.views.decorators.http import require_GET, require_http_methods
 
 from apps.audit.models import OperationLog
 from apps.audit.service import log_operation
-from apps.catalog.models import DataResource, MapLayer
+from apps.catalog.models import DataResource, DataResourceGroup, MapLayer
 from apps.catalog.importer import ImportDataError, set_resource_access_groups
 from apps.catalog.permissions import filter_accessible, user_can_access
 from apps.core.api import (
@@ -782,6 +782,7 @@ def admin_data_resources(request):
         return feature_denied_response(request.user)
     queryset = _filter_admin_data_resources(
         DataResource.objects.select_related("category", "maintainer")
+        .select_related("inventory_group")
         .prefetch_related("access_groups", "map_layers")
         .order_by("-updated_at", "name"),
         request.GET,
@@ -817,8 +818,81 @@ def admin_data_resources(request):
                     Group.objects.order_by("name"), request.user
                 )
             ],
+            "inventoryGroups": [
+                _serialize_data_resource_group(group)
+                for group in DataResourceGroup.objects.order_by("sort_order", "id")
+            ],
         }
     )
+
+
+@require_http_methods(["POST"])
+@api_permission_required("catalog.change_dataresource")
+def admin_data_resource_groups(request):
+    payload = _json_payload(request)
+    if isinstance(payload, JsonResponse):
+        return payload
+    name = _clean_resource_group_name(payload.get("name"))
+    if isinstance(name, JsonResponse):
+        return name
+    try:
+        group = DataResourceGroup.objects.create(name=name)
+    except IntegrityError:
+        return JsonResponse({"detail": "组别名称已存在"}, status=400)
+    log_operation(
+        request.user,
+        "数据管理",
+        "新增数据组别",
+        "success",
+        group.name,
+        request,
+    )
+    return JsonResponse(_serialize_data_resource_group(group), status=201)
+
+
+@require_http_methods(["POST"])
+@api_permission_required("catalog.change_dataresource")
+def admin_data_resource_group_detail(request, group_id: int):
+    payload = _json_payload(request)
+    if isinstance(payload, JsonResponse):
+        return payload
+    try:
+        group = DataResourceGroup.objects.get(pk=group_id)
+    except DataResourceGroup.DoesNotExist:
+        return JsonResponse({"detail": "数据组别不存在"}, status=404)
+    action = str(payload.get("action", "update")).strip()
+    if action == "delete":
+        name = group.name
+        affected_count = group.resources.count()
+        group.delete()
+        log_operation(
+            request.user,
+            "数据管理",
+            "删除数据组别",
+            "success",
+            f"{name}；{affected_count} 项数据进入默认分组",
+            request,
+        )
+        return JsonResponse({"detail": "数据组别已删除"})
+    if action != "update":
+        return JsonResponse({"detail": "不支持的数据组别操作"}, status=400)
+    name = _clean_resource_group_name(payload.get("name"))
+    if isinstance(name, JsonResponse):
+        return name
+    group.name = name
+    try:
+        group.save(update_fields=["name", "updated_at"])
+    except IntegrityError:
+        return JsonResponse({"detail": "组别名称已存在"}, status=400)
+    log_operation(
+        request.user,
+        "数据管理",
+        "更新数据组别",
+        "success",
+        group.name,
+        request,
+    )
+    return JsonResponse(_serialize_data_resource_group(group))
 
 
 @require_http_methods(["POST"])
@@ -830,6 +904,7 @@ def admin_data_resource_detail(request, resource_id: int):
     try:
         resource = (
             DataResource.objects.select_related("category", "maintainer")
+            .select_related("inventory_group")
             .prefetch_related("access_groups", "map_layers")
             .get(pk=resource_id)
         )
@@ -846,7 +921,13 @@ def admin_data_resource_detail(request, resource_id: int):
         if not can_delete:
             return feature_denied_response(request.user)
         return _delete_admin_data_resource(request, resource, payload)
-    if action not in {"update", "setStatus", "saveVisualization", "updateAccess"}:
+    if action not in {
+        "update",
+        "setStatus",
+        "saveVisualization",
+        "updateAccess",
+        "updateInventoryGroup",
+    }:
         return JsonResponse({"detail": "不支持的数据资源操作"}, status=400)
     if action == "updateAccess":
         if not can_update_access:
@@ -858,6 +939,7 @@ def admin_data_resource_detail(request, resource_id: int):
 
     update_fields = []
     changed_access = False
+    changed_inventory_group = False
     if action in {"update", "setStatus"} and "status" in payload:
         status = str(payload.get("status", "")).strip()
         if status not in DataResource.Status.values:
@@ -880,6 +962,20 @@ def admin_data_resource_detail(request, resource_id: int):
             return JsonResponse({"detail": str(exc)}, status=400)
         changed_access = True
 
+    if action in {"update", "updateInventoryGroup"} and "inventoryGroupId" in payload:
+        inventory_group_id = payload.get("inventoryGroupId")
+        if inventory_group_id is None:
+            resource.inventory_group = None
+        else:
+            try:
+                resource.inventory_group = DataResourceGroup.objects.get(
+                    pk=int(inventory_group_id)
+                )
+            except (TypeError, ValueError, DataResourceGroup.DoesNotExist):
+                return JsonResponse({"detail": "数据组别不存在"}, status=400)
+        update_fields.append("inventory_group")
+        changed_inventory_group = True
+
     if action in {"update", "saveVisualization"} and "visualization" in payload:
         visualization = payload.get("visualization")
         if not isinstance(visualization, dict):
@@ -896,7 +992,7 @@ def admin_data_resource_detail(request, resource_id: int):
         update_fields.append("updated_at")
         resource.save(update_fields=sorted(set(update_fields)))
 
-    if not update_fields and not changed_access:
+    if not update_fields and not changed_access and not changed_inventory_group:
         return JsonResponse({"detail": "没有可更新的数据资源字段"}, status=400)
 
     log_operation(
@@ -914,6 +1010,7 @@ def admin_data_resource_detail(request, resource_id: int):
     resource.refresh_from_db()
     updated_resource = (
         DataResource.objects.select_related("category", "maintainer")
+        .select_related("inventory_group")
         .prefetch_related("access_groups", "map_layers")
         .get(pk=resource.id)
     )
@@ -1319,6 +1416,7 @@ def _serialize_admin_data_resource(
         "sizeBytes": resource.size_bytes,
         "itemCount": resource.item_count,
         "status": resource.status,
+        "inventoryGroupId": resource.inventory_group_id,
         "accessGroups": [
             _serialize_access_group(group)
             for group in visible_groups_for(resource.access_groups.all(), request_user)
@@ -1333,6 +1431,24 @@ def _serialize_admin_data_resource(
         "updatedAt": timezone.localtime(resource.updated_at).isoformat(),
         "defaultLayer": _serialize_admin_resource_layer(layer),
     }
+
+
+def _serialize_data_resource_group(group: DataResourceGroup) -> dict[str, Any]:
+    return {
+        "id": group.id,
+        "name": group.name,
+        "createdAt": timezone.localtime(group.created_at).isoformat(),
+        "updatedAt": timezone.localtime(group.updated_at).isoformat(),
+    }
+
+
+def _clean_resource_group_name(value: Any) -> str | JsonResponse:
+    name = str(value or "").strip()
+    if not name:
+        return JsonResponse({"detail": "组别名称不能为空"}, status=400)
+    if len(name) > 120:
+        return JsonResponse({"detail": "组别名称不能超过 120 个字符"}, status=400)
+    return name
 
 
 def _serialize_access_group(group: Group) -> dict[str, Any]:
@@ -1573,6 +1689,8 @@ def _admin_resource_action_label(action: str, payload: dict[str, Any]) -> str:
         return "保存默认可视化方案"
     if action == "updateAccess":
         return "配置数据访问权限"
+    if action == "updateInventoryGroup":
+        return "配置数据组别"
     changed = []
     if "status" in payload:
         changed.append("状态")
@@ -1580,6 +1698,8 @@ def _admin_resource_action_label(action: str, payload: dict[str, Any]) -> str:
         changed.append("默认可视化")
     if "accessGroupIds" in payload:
         changed.append("访问权限")
+    if "inventoryGroupId" in payload:
+        changed.append("组别")
     return f"更新存量数据{'、'.join(changed)}" if changed else "更新存量数据"
 
 

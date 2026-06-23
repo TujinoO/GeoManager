@@ -34,6 +34,21 @@ class DictionaryItem(models.Model):
         return self.name
 
 
+class DataResourceGroup(models.Model):
+    name = models.CharField(max_length=120, unique=True, verbose_name="组别名称")
+    sort_order = models.PositiveIntegerField(default=100, verbose_name="排序")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
+
+    class Meta:
+        verbose_name = "数据资源组别"
+        verbose_name_plural = "数据资源组别"
+        ordering = ("sort_order", "id")
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class DataResource(models.Model):
     class DataType(models.TextChoices):
         VECTOR = "vector", "矢量空间数据"
@@ -85,6 +100,14 @@ class DataResource(models.Model):
     item_count = models.PositiveBigIntegerField(default=0, verbose_name="数据条目数")
     access_groups = models.ManyToManyField(
         Group, blank=True, related_name="data_resources", verbose_name="访问角色"
+    )
+    inventory_group = models.ForeignKey(
+        DataResourceGroup,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="resources",
+        verbose_name="存量数据组别",
     )
     maintainer = models.ForeignKey(
         settings.AUTH_USER_MODEL,

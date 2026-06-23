@@ -3545,7 +3545,7 @@
           "管理后台"
         ],
         "summary": "获取存量数据管理列表",
-        "description": "返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组和默认可视化方案查看。具备 `catalog.view_dataresource`、`catalog.change_dataresource`、`catalog.delete_dataresource` 或 `catalog.export_dataresource` 时，仅返回当前用户可见或本人上传且符合筛选条件的资源；超级管理员可查看全部资源；仅具备 `catalog.add_dataresource` 时只返回当前用户上传的数据资源，用于管理自己的数据可见范围。可手动配置的数据访问角色列表不会返回超级管理员角色，后端仍会强制保留超级管理员访问范围。",
+        "description": "返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组、存量数据内容分组和默认可视化方案查看。具备 `catalog.view_dataresource`、`catalog.change_dataresource`、`catalog.delete_dataresource` 或 `catalog.export_dataresource` 时，仅返回当前用户可见或本人上传且符合筛选条件的资源；超级管理员可查看全部资源；仅具备 `catalog.add_dataresource` 时只返回当前用户上传的数据资源，用于管理自己的数据可见范围。可手动配置的数据访问角色列表不会返回超级管理员角色，后端仍会强制保留超级管理员访问范围。",
         "operationId": "listAdminDataResources",
         "security": [
           {
@@ -3684,6 +3684,7 @@
                         "layerName": "样地监测点",
                         "defaultVisible": true
                       },
+                      "inventoryGroupId": 1,
                       "status": "active",
                       "accessGroups": [
                         {
@@ -3740,6 +3741,7 @@
                         "defaultVisible": false,
                         "defaultOpacity": 90
                       },
+                      "inventoryGroupId": 2,
                       "status": "active",
                       "accessGroups": [
                         {
@@ -3807,6 +3809,7 @@
                       "description": "样地胸径、冠幅、健康等级和地下水位观测表。",
                       "qualityNote": "非空间表，字段完整率 96%。",
                       "defaultVisualization": {},
+                      "inventoryGroupId": null,
                       "status": "inactive",
                       "accessGroups": [
                         {
@@ -3856,6 +3859,20 @@
                       "isGuest": true,
                       "isSuperadmin": false
                     }
+                  ],
+                  "inventoryGroups": [
+                    {
+                      "id": 1,
+                      "name": "野外样地数据",
+                      "createdAt": "2026-06-01T10:00:00+08:00",
+                      "updatedAt": "2026-06-01T10:00:00+08:00"
+                    },
+                    {
+                      "id": 2,
+                      "name": "遥感影像数据",
+                      "createdAt": "2026-06-01T10:05:00+08:00",
+                      "updatedAt": "2026-06-01T10:05:00+08:00"
+                    }
                   ]
                 }
               }
@@ -3866,6 +3883,119 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/data/resource-groups/": {
+      "post": {
+        "tags": [
+          "管理后台"
+        ],
+        "summary": "新建存量数据组别",
+        "description": "新建用于存量数据管理嵌套表格展示的内容组别。该组别不影响数据访问权限；需要 `catalog.change_dataresource`，成功操作会写入审计日志。",
+        "operationId": "createAdminDataResourceGroup",
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminDataResourceGroupUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "新建成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDataResourceGroup"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/data/resource-groups/{groupId}/": {
+      "post": {
+        "tags": [
+          "管理后台"
+        ],
+        "summary": "操作存量数据组别",
+        "description": "更新或删除存量数据内容组别。删除组别时，后端会将组内数据的 `inventoryGroupId` 置为 null，使其回到默认分组，数据本身不会被删除。需要 `catalog.change_dataresource`，成功操作会写入审计日志。",
+        "operationId": "updateAdminDataResourceGroup",
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "groupId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "存量数据组别 ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminDataResourceGroupUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "操作成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AdminDataResourceGroup"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DetailResponse"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -9498,6 +9628,7 @@
           "sizeBytes",
           "itemCount",
           "status",
+          "inventoryGroupId",
           "accessGroups",
           "canManageAccess",
           "maintainer",
@@ -9603,6 +9734,13 @@
             ],
             "description": "数据资源状态"
           },
+          "inventoryGroupId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "存量数据内容组别 ID；为 null 时表示默认分组"
+          },
           "accessGroups": {
             "type": "array",
             "description": "允许访问该数据资源且对当前主体可见的用户组；用户导入、目录扫描和栅格导入会在后台强制包含超级管理员用户组，上传者本人不依赖用户组也始终可见。",
@@ -9679,7 +9817,8 @@
         "required": [
           "items",
           "total",
-          "availableAccessGroups"
+          "availableAccessGroups",
+          "inventoryGroups"
         ],
         "properties": {
           "items": {
@@ -9699,6 +9838,59 @@
             "items": {
               "$ref": "#/components/schemas/AdminDataResourceAccessGroup"
             }
+          },
+          "inventoryGroups": {
+            "type": "array",
+            "description": "可用于存量数据管理内容分组的持久化组别列表；默认分组不在该数组中，资源 `inventoryGroupId` 为 null 时属于默认分组",
+            "items": {
+              "$ref": "#/components/schemas/AdminDataResourceGroup"
+            }
+          }
+        }
+      },
+      "AdminDataResourceGroup": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "存量数据组别 ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "存量数据组别名称"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "创建时间"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "最后更新时间"
+          }
+        }
+      },
+      "AdminDataResourceGroupUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "update",
+              "delete"
+            ],
+            "description": "组别操作类型；新建接口忽略该字段，组别详情接口默认 update"
+          },
+          "name": {
+            "type": "string",
+            "description": "新建或改名时写入的组别名称"
           }
         }
       },
@@ -9744,6 +9936,7 @@
               "setStatus",
               "saveVisualization",
               "updateAccess",
+              "updateInventoryGroup",
               "delete"
             ],
             "description": "操作类型"
@@ -9765,6 +9958,13 @@
             "items": {
               "type": "integer"
             }
+          },
+          "inventoryGroupId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "updateInventoryGroup 或 update 时写入的存量数据内容组别 ID；为 null 时表示移入默认分组"
           },
           "confirmationName": {
             "type": "string",

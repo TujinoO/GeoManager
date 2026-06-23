@@ -84,6 +84,16 @@ urlpatterns = [
         name="admin-data-resources",
     ),
     path(
+        "admin/data/resource-groups/",
+        admin_api.admin_data_resource_groups,
+        name="admin-data-resource-groups",
+    ),
+    path(
+        "admin/data/resource-groups/<int:group_id>/",
+        admin_api.admin_data_resource_group_detail,
+        name="admin-data-resource-group-detail",
+    ),
+    path(
         "admin/data/resources/export/",
         admin_api.admin_data_resources_export,
         name="admin-data-resources-export",

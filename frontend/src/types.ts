@@ -2,6 +2,7 @@ import type {
   AdminDashboardResponse,
   AdminDashboardServerResponse,
   AdminDataResourceListResponse,
+  AdminDataResourceGroupUpdateRequest,
   AdminDataResourceUpdateRequest,
   AdminProfilePasswordRequest,
   AdminProfilePermissionsRequest,
@@ -52,6 +53,7 @@ import type {
 
 export type {
   AdminDataResource,
+  AdminDataResourceGroup,
   AdminOperationLog,
   AdminPermissionItem,
   AdminSystemLogFile,
@@ -103,6 +105,7 @@ export type AdminSettings = AdminSettingsResponse;
 export type AdminSettingsUpdate = AdminSettingsUpdateRequest;
 export type AdminDataResourceList = AdminDataResourceListResponse;
 export type AdminDataResourceUpdate = AdminDataResourceUpdateRequest;
+export type AdminDataResourceGroupUpdate = AdminDataResourceGroupUpdateRequest;
 export type AdminDataResourceFilters = NonNullable<
   ListAdminDataResourcesData["query"]
 >;

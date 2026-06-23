@@ -300,6 +300,7 @@
             "layerName": "样地监测点",
             "defaultVisible": true
           },
+          "inventoryGroupId": 1,
           "status": "active",
           "accessGroups": [
             {
@@ -356,6 +357,7 @@
             "defaultVisible": false,
             "defaultOpacity": 90
           },
+          "inventoryGroupId": 2,
           "status": "active",
           "accessGroups": [
             {
@@ -423,6 +425,7 @@
           "description": "样地胸径、冠幅、健康等级和地下水位观测表。",
           "qualityNote": "非空间表，字段完整率 96%。",
           "defaultVisualization": {},
+          "inventoryGroupId": null,
           "status": "inactive",
           "accessGroups": [
             {
@@ -471,6 +474,20 @@
           "name": "游客",
           "isGuest": true,
           "isSuperadmin": false
+        }
+      ],
+      "inventoryGroups": [
+        {
+          "id": 1,
+          "name": "野外样地数据",
+          "createdAt": "2026-06-01T10:00:00+08:00",
+          "updatedAt": "2026-06-01T10:00:00+08:00"
+        },
+        {
+          "id": 2,
+          "name": "遥感影像数据",
+          "createdAt": "2026-06-01T10:05:00+08:00",
+          "updatedAt": "2026-06-01T10:05:00+08:00"
         }
       ]
     }

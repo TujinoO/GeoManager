@@ -2,6 +2,8 @@ import type {
   AdminDashboard,
   AdminDashboardServer,
   AdminDataResource,
+  AdminDataResourceGroup,
+  AdminDataResourceGroupUpdate,
   AdminDataResourceExportFilters,
   AdminDataResourceFilters,
   AdminDataResourceList,
@@ -376,6 +378,22 @@ export const api = {
     unwrap<AdminDataResource | { detail: string }>(
       sdk.updateAdminDataResource({
         path: { id: resourceId },
+        body: payload,
+      }),
+    ),
+  createAdminDataResourceGroup: (payload: AdminDataResourceGroupUpdate) =>
+    unwrap<AdminDataResourceGroup>(
+      sdk.createAdminDataResourceGroup({
+        body: payload,
+      }),
+    ),
+  updateAdminDataResourceGroup: (
+    groupId: number,
+    payload: AdminDataResourceGroupUpdate,
+  ) =>
+    unwrap<AdminDataResourceGroup | { detail: string }>(
+      sdk.updateAdminDataResourceGroup({
+        path: { groupId },
         body: payload,
       }),
     ),

@@ -58,6 +58,8 @@ const mockApi = vi.hoisted(() => ({
   rasterJob: vi.fn(),
   adminDataResources: vi.fn(),
   updateAdminDataResource: vi.fn(),
+  createAdminDataResourceGroup: vi.fn(),
+  updateAdminDataResourceGroup: vi.fn(),
   exportAdminDataResources: vi.fn(),
   adminWorkspaces: vi.fn(),
   updateAdminWorkspace: vi.fn(),
@@ -604,6 +606,25 @@ describe("admin routes", () => {
         updatedAt: "2026-06-01T10:00:00+08:00",
         defaultLayer: null,
       }),
+    );
+    mockApi.createAdminDataResourceGroup.mockResolvedValue({
+      id: 9,
+      name: "植被调查",
+      createdAt: "2026-06-01T10:00:00+08:00",
+      updatedAt: "2026-06-01T10:00:00+08:00",
+    });
+    mockApi.updateAdminDataResourceGroup.mockImplementation(
+      (groupId, payload) =>
+        Promise.resolve(
+          payload.action === "delete"
+            ? { detail: "数据组别已删除" }
+            : {
+                id: groupId,
+                name: payload.name ?? "样地调查",
+                createdAt: "2026-06-01T10:00:00+08:00",
+                updatedAt: "2026-06-01T10:00:00+08:00",
+              },
+        ),
     );
     mockApi.exportAdminDataResources.mockResolvedValue({
       blob: new Blob(["数据名称\n胡杨林样地点"], { type: "text/csv" }),
@@ -1220,7 +1241,7 @@ describe("admin routes", () => {
     expect(screen.queryByText("populus_plots")).not.toBeInTheDocument();
   });
 
-  it("syncs data status from inventory group switches", async () => {
+  it("syncs data status from inventory group checkboxes", async () => {
     const groupedResource = {
       id: 7,
       name: "科研共享样地",
@@ -1265,17 +1286,84 @@ describe("admin routes", () => {
     renderAdminRoute("/resources/data/inventory");
 
     expect(await screen.findByText("默认分组")).toBeInTheDocument();
-    const groupSwitch = screen.getByRole("switch", {
+    const groupCheckbox = screen.getByRole("checkbox", {
       name: "默认分组组别状态",
     });
-    expect(groupSwitch).toBeChecked();
+    expect(groupCheckbox).toBeChecked();
 
-    fireEvent.click(groupSwitch);
+    fireEvent.click(groupCheckbox);
 
     await waitFor(() => {
       expect(mockApi.updateAdminDataResource).toHaveBeenCalledWith(7, {
         action: "setStatus",
         status: "inactive",
+      });
+    });
+  });
+
+  it("shows mixed enabled state for inventory groups", async () => {
+    const activeResource = {
+      id: 7,
+      name: "科研共享样地",
+      code: "research-plots",
+      dataType: "vector",
+      category: null,
+      source: "用户导入",
+      provider: "平台组",
+      dataDate: "2026-06-01",
+      spatialExtent: "87.600000,41.700000,87.800000,41.900000",
+      coordinateSystem: "EPSG:4326",
+      fileFormat: "GPKG",
+      storagePath: "research_plots",
+      description: "科研共享样地数据",
+      qualityNote: "",
+      defaultVisualization: {},
+      sizeBytes: 2048,
+      itemCount: 12,
+      status: "active",
+      accessGroups: [],
+      canManageAccess: true,
+      maintainer: "系统管理员",
+      uploader: {
+        id: 1,
+        username: "admin",
+        displayName: "系统管理员",
+      },
+      createdAt: "2026-06-01T10:00:00+08:00",
+      updatedAt: "2026-06-01T10:00:00+08:00",
+      defaultLayer: null,
+    };
+    const inactiveResource = {
+      ...activeResource,
+      id: 8,
+      name: "监测样线",
+      code: "monitor-lines",
+      status: "inactive",
+    };
+    mockApi.adminDataResources.mockResolvedValueOnce({
+      items: [activeResource, inactiveResource],
+      total: 2,
+      availableAccessGroups: [],
+    });
+    mockApi.updateAdminDataResource.mockResolvedValueOnce({
+      ...inactiveResource,
+      status: "active",
+    });
+
+    renderAdminRoute("/resources/data/inventory");
+
+    expect(await screen.findByText("部分启用")).toBeInTheDocument();
+    const groupCheckbox = screen.getByRole("checkbox", {
+      name: "默认分组组别状态",
+    });
+    expect(groupCheckbox).toBePartiallyChecked();
+
+    fireEvent.click(groupCheckbox);
+
+    await waitFor(() => {
+      expect(mockApi.updateAdminDataResource).toHaveBeenCalledWith(8, {
+        action: "setStatus",
+        status: "active",
       });
     });
   });
@@ -1291,11 +1379,15 @@ describe("admin routes", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "新建" }));
 
-    const groupNameInput = await screen.findByLabelText("植被调查组名");
-    fireEvent.change(groupNameInput, { target: { value: "样地调查" } });
+    expect(await screen.findByText("植被调查")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "编辑组别植被调查" }));
+    const groupNameInput = await screen.findByLabelText("编辑组别名称植被调查");
+    fireEvent.change(groupNameInput, {
+      target: { value: "样地调查" },
+    });
     fireEvent.blur(groupNameInput);
 
-    expect(await screen.findByDisplayValue("样地调查")).toBeInTheDocument();
+    expect(await screen.findByText("样地调查")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "删除组别样地调查" }));
 
