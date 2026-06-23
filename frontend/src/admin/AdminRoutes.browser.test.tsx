@@ -677,12 +677,18 @@ describe("admin routes", () => {
     expect(await screen.findByRole("button", { name: /数据管理/ })).toHaveClass(
       "workspace-switch-card-active",
     );
-    expect(await screen.findByText("图层数")).toBeInTheDocument();
-    expect(screen.getAllByText("栅格数量").length).toBeGreaterThan(0);
-    expect(screen.getByText("我上传的数据大小")).toBeInTheDocument();
-    expect(screen.getByText("我可见的数据大小")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "我上传的" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("tab", { name: "我上传的" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "我可见的" })).toBeInTheDocument();
+    expect(screen.getByText("我上传的数据概览")).toBeInTheDocument();
+    expect(screen.getByText("数据资源")).toBeInTheDocument();
+    expect(screen.getByText("数据大小")).toBeInTheDocument();
+    expect(screen.getByText("数据条目")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "我可见的" }));
+
+    expect(await screen.findByText("我可见的数据概览")).toBeInTheDocument();
     expect(screen.queryByText("用户信息")).not.toBeInTheDocument();
     expect(screen.queryByText("服务器信息")).not.toBeInTheDocument();
   });
@@ -717,15 +723,16 @@ describe("admin routes", () => {
 
     renderAdminRoute("/resources", uploadOnlyUser);
 
-    expect(await screen.findByText("我上传的数据大小")).toBeInTheDocument();
-    expect(screen.getByText("我上传的数据条目")).toBeInTheDocument();
     expect(
       await screen.findByRole("tab", { name: "我上传的" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("我上传的数据概览")).toBeInTheDocument();
+    expect(screen.getByText("数据大小")).toBeInTheDocument();
+    expect(screen.getByText("数据条目")).toBeInTheDocument();
     expect(
       screen.queryByRole("tab", { name: "我可见的" }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("我可见的数据大小")).not.toBeInTheDocument();
+    expect(screen.queryByText("我可见的数据概览")).not.toBeInTheDocument();
   });
 
   it("navigates directly from the data management header dropdown", async () => {
@@ -1199,6 +1206,7 @@ describe("admin routes", () => {
     renderAdminRoute("/resources/data/inventory");
 
     expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
+    expect(screen.getAllByText("默认分组").length).toBeGreaterThan(0);
     expect(screen.getByText("CSV")).toBeInTheDocument();
     expect(screen.getByText("本页启用")).toBeInTheDocument();
     expect(screen.queryByText("populus-plots")).not.toBeInTheDocument();
@@ -1210,6 +1218,92 @@ describe("admin routes", () => {
     expect(screen.queryByText("超级管理员可见")).not.toBeInTheDocument();
     expect(screen.queryByText("存储位置")).not.toBeInTheDocument();
     expect(screen.queryByText("populus_plots")).not.toBeInTheDocument();
+  });
+
+  it("syncs data status from inventory group switches", async () => {
+    const groupedResource = {
+      id: 7,
+      name: "科研共享样地",
+      code: "research-plots",
+      dataType: "vector",
+      category: null,
+      source: "用户导入",
+      provider: "平台组",
+      dataDate: "2026-06-01",
+      spatialExtent: "87.600000,41.700000,87.800000,41.900000",
+      coordinateSystem: "EPSG:4326",
+      fileFormat: "GPKG",
+      storagePath: "research_plots",
+      description: "科研共享样地数据",
+      qualityNote: "",
+      defaultVisualization: {},
+      sizeBytes: 2048,
+      itemCount: 12,
+      status: "active",
+      accessGroups: [],
+      canManageAccess: true,
+      maintainer: "系统管理员",
+      uploader: {
+        id: 1,
+        username: "admin",
+        displayName: "系统管理员",
+      },
+      createdAt: "2026-06-01T10:00:00+08:00",
+      updatedAt: "2026-06-01T10:00:00+08:00",
+      defaultLayer: null,
+    };
+    mockApi.adminDataResources.mockResolvedValueOnce({
+      items: [groupedResource],
+      total: 1,
+      availableAccessGroups: [],
+    });
+    mockApi.updateAdminDataResource.mockResolvedValueOnce({
+      ...groupedResource,
+      status: "inactive",
+    });
+
+    renderAdminRoute("/resources/data/inventory");
+
+    expect(await screen.findByText("默认分组")).toBeInTheDocument();
+    const groupSwitch = screen.getByRole("switch", {
+      name: "默认分组组别状态",
+    });
+    expect(groupSwitch).toBeChecked();
+
+    fireEvent.click(groupSwitch);
+
+    await waitFor(() => {
+      expect(mockApi.updateAdminDataResource).toHaveBeenCalledWith(7, {
+        action: "setStatus",
+        status: "inactive",
+      });
+    });
+  });
+
+  it("creates renames and warns before deleting inventory groups", async () => {
+    renderAdminRoute("/resources/data/inventory");
+
+    expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "新增组别" }));
+    fireEvent.change(await screen.findByPlaceholderText("输入组别名称"), {
+      target: { value: "植被调查" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "新建" }));
+
+    const groupNameInput = await screen.findByLabelText("植被调查组名");
+    fireEvent.change(groupNameInput, { target: { value: "样地调查" } });
+    fireEvent.blur(groupNameInput);
+
+    expect(await screen.findByDisplayValue("样地调查")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "删除组别样地调查" }));
+
+    expect(
+      await screen.findByText(
+        "删除后该组内数据会进入默认分组，数据本身不会被删除。",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("does not render hidden superadmin uploader identity in data management", async () => {

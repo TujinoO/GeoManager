@@ -22,6 +22,7 @@ import {
   Tabs,
   Typography,
 } from "antd";
+import type { TabsProps } from "antd";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
@@ -118,12 +119,18 @@ export default function AdminDashboardPage({
       count: item.count,
     }));
   }, [dashboard]);
+  const dataOverview = dashboard?.cards.dataOverview;
+  const canViewVisibleDataOverview = Boolean(
+    user?.permissions.canViewDataOverview && dataOverview?.visibleResources,
+  );
   const hasMetricCards = Boolean(
     showDataCards &&
-    (dashboard?.cards.resources ||
-      dashboard?.cards.layers ||
-      dashboard?.cards.rasters ||
-      dashboard?.cards.dataOverview),
+    (scope === "data"
+      ? dataOverview
+      : dashboard?.cards.resources ||
+        dashboard?.cards.layers ||
+        dashboard?.cards.rasters ||
+        dataOverview),
   );
   const hasServerCards = Boolean(
     server?.cards.cpu || server?.cards.memory || server?.cards.disks,
@@ -135,10 +142,6 @@ export default function AdminDashboardPage({
       (dashboard?.cards.users || dashboard?.cards.activeUsers),
     );
   const hasAnyAuthorizedCard = hasDashboardCards || canViewServerCards;
-  const dataOverview = dashboard?.cards.dataOverview;
-  const canViewVisibleDataOverview = Boolean(
-    user?.permissions.canViewDataOverview && dataOverview?.visibleResources,
-  );
 
   if (dashboardLoading || !dashboard) {
     return (
@@ -164,7 +167,14 @@ export default function AdminDashboardPage({
         </ProCard>
       )}
 
-      {hasMetricCards && (
+      {scope === "data" && dataOverview && (
+        <DataOverviewTabs
+          overview={dataOverview}
+          canViewVisible={canViewVisibleDataOverview}
+        />
+      )}
+
+      {scope !== "data" && hasMetricCards && (
         <section className="admin-dashboard-section">
           <div className="admin-dashboard-section-heading">
             <Typography.Title level={4}>数据概览</Typography.Title>
@@ -237,12 +247,6 @@ export default function AdminDashboardPage({
               </>
             )}
           </Row>
-          {dataOverview && (
-            <DataOverviewDetail
-              overview={dataOverview}
-              canViewVisible={canViewVisibleDataOverview}
-            />
-          )}
         </section>
       )}
 
@@ -487,19 +491,23 @@ function MetricCard({
   );
 }
 
-function DataOverviewDetail({
+function DataOverviewTabs({
   overview,
   canViewVisible,
 }: {
   overview: DataOverviewCard;
   canViewVisible: boolean;
 }) {
-  const items = [
+  const items: TabsProps["items"] = [
     {
       key: "ownUploads",
       label: "我上传的",
       children: (
-        <DataOverviewScopeList title="我上传的" scope={overview.ownUploads} />
+        <DataOverviewScopePanel
+          title="我上传的数据概览"
+          scope={overview.ownUploads}
+          itemDescription="按当前账号上传的数据统计"
+        />
       ),
     },
   ];
@@ -508,67 +516,129 @@ function DataOverviewDetail({
       key: "visibleResources",
       label: "我可见的",
       children: (
-        <>
-          <DataOverviewScopeList
-            title="我可见的"
-            scope={overview.visibleResources}
-          />
-          {overview.uploaders && overview.uploaders.length > 0 && (
-            <div className="admin-data-overview-uploaders">
-              <Typography.Title level={5}>上传用户统计</Typography.Title>
-              <div className="admin-data-overview-list">
-                {overview.uploaders.map((item) => (
-                  <div
-                    key={`${item.user.id}-${item.user.username}`}
-                    className="admin-data-overview-row"
-                  >
-                    <Space orientation="vertical" size={0}>
-                      <Typography.Text strong>
-                        {item.user.displayName}
-                      </Typography.Text>
-                      <Typography.Text type="secondary">
-                        {item.user.username || "未记录"}
-                      </Typography.Text>
-                    </Space>
-                    <Typography.Text type="secondary">
-                      {item.resourceCount} 项 / {formatBytes(item.sizeBytes)} /{" "}
-                      {item.itemCount} 条
-                    </Typography.Text>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
+        <DataOverviewScopePanel
+          title="我可见的数据概览"
+          scope={overview.visibleResources}
+          itemDescription="按当前账号可访问数据统计"
+          footer={
+            overview.uploaders && overview.uploaders.length > 0 ? (
+              <DataOverviewUploaders uploaders={overview.uploaders} />
+            ) : undefined
+          }
+        />
       ),
     });
   }
+  return <Tabs className="admin-dashboard-tabs" items={items} />;
+}
+
+function DataOverviewScopePanel({
+  title,
+  scope,
+  itemDescription,
+  footer,
+}: {
+  title: string;
+  scope: DataOverviewScope;
+  itemDescription: string;
+  footer?: ReactNode;
+}) {
   return (
-    <BorderBeam color={oceanBorderBeam}>
-      <Card
-        className="admin-dashboard-card admin-data-overview-detail"
-        variant="borderless"
-      >
-        <Tabs items={items} />
-      </Card>
-    </BorderBeam>
+    <div className="admin-page-stack">
+      <section className="admin-dashboard-section">
+        <div className="admin-dashboard-section-heading">
+          <Typography.Title level={4}>{title}</Typography.Title>
+        </div>
+        <Row gutter={[16, 16]}>
+          <MetricCard
+            title="数据资源"
+            value={scope.totalResources}
+            suffix="项"
+            icon={<DatabaseOutlined />}
+            description={`启用 ${scope.activeResources} 项`}
+          />
+          <MetricCard
+            title="数据大小"
+            value={formatBytes(scope.totalSizeBytes)}
+            suffix=""
+            icon={<HddOutlined />}
+            description="按已登记数据文件大小统计"
+          />
+          <MetricCard
+            title="数据条目"
+            value={scope.totalItemCount}
+            suffix="条"
+            icon={<DatabaseOutlined />}
+            description={itemDescription}
+          />
+        </Row>
+        <BorderBeam color={oceanBorderBeam}>
+          <Card
+            className="admin-dashboard-card admin-data-overview-detail"
+            variant="borderless"
+          >
+            <DataOverviewScopeList
+              title="数据类型分布"
+              scope={scope}
+              showSummary={false}
+            />
+            {footer}
+          </Card>
+        </BorderBeam>
+      </section>
+    </div>
+  );
+}
+
+function DataOverviewUploaders({
+  uploaders,
+}: {
+  uploaders: NonNullable<DataOverviewCard["uploaders"]>;
+}) {
+  return (
+    <div className="admin-data-overview-uploaders">
+      <Typography.Title level={5}>上传用户统计</Typography.Title>
+      <div className="admin-data-overview-list">
+        {uploaders.map((item) => (
+          <div
+            key={`${item.user.id}-${item.user.username}`}
+            className="admin-data-overview-row"
+          >
+            <Space orientation="vertical" size={0}>
+              <Typography.Text strong>{item.user.displayName}</Typography.Text>
+              <Typography.Text type="secondary">
+                {item.user.username || "未记录"}
+              </Typography.Text>
+            </Space>
+            <Typography.Text type="secondary">
+              {item.resourceCount} 项 / {formatBytes(item.sizeBytes)} /{" "}
+              {item.itemCount} 条
+            </Typography.Text>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
 function DataOverviewScopeList({
   title,
   scope,
+  showSummary = true,
 }: {
   title: string;
   scope: DataOverviewScope;
+  showSummary?: boolean;
 }) {
   return (
     <>
       <Typography.Title level={5}>{title}</Typography.Title>
-      <Typography.Text type="secondary">
-        共 {scope.totalResources} 项，启用 {scope.activeResources} 项，
-        {formatBytes(scope.totalSizeBytes)} / {scope.totalItemCount} 条
-      </Typography.Text>
+      {showSummary && (
+        <Typography.Text type="secondary">
+          共 {scope.totalResources} 项，启用 {scope.activeResources} 项，
+          {formatBytes(scope.totalSizeBytes)} / {scope.totalItemCount} 条
+        </Typography.Text>
+      )}
       <div className="admin-data-overview-list">
         {scope.typeBreakdown.map((item) => (
           <div key={item.dataType} className="admin-data-overview-row">

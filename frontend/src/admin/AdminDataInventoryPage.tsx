@@ -1,12 +1,21 @@
-import { EyeOutlined, StopOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  EyeOutlined,
+  PlusOutlined,
+  StopOutlined,
+} from "@ant-design/icons";
 import {
   App as AntApp,
   Button,
   Form,
   Input,
+  Modal,
+  Popconfirm,
   Space,
   Switch,
+  Table,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -23,6 +32,7 @@ import { downloadBlob } from "../utils/download";
 import ManagedCollectionPage, {
   type AccessScopeId,
   type FilterField,
+  type ManagedCollectionTableRenderArgs,
   type ManagedFormValues,
   realAccessGroupIds,
   withFixedAccessScopes,
@@ -54,6 +64,32 @@ const initialList: AdminDataResourceList = {
   items: [],
   total: 0,
   availableAccessGroups: [],
+};
+
+const defaultInventoryGroupId = "__default__";
+
+type InventoryGroupId = string;
+
+interface InventoryGroup {
+  id: InventoryGroupId;
+  name: string;
+  resources: AdminDataResource[];
+  sizeBytes: number;
+  itemCount: number;
+  enabled: boolean;
+  isDefault: boolean;
+}
+
+interface InventoryGroupDefinition {
+  id: InventoryGroupId;
+  name: string;
+  isDefault: boolean;
+}
+
+const defaultInventoryGroup: InventoryGroupDefinition = {
+  id: defaultInventoryGroupId,
+  name: "默认分组",
+  isDefault: true,
 };
 
 const filterFields: FilterField[] = [
@@ -90,6 +126,19 @@ export default function AdminDataInventoryPage() {
   });
   const [data, setData] = useState<AdminDataResourceList>(initialList);
   const [loading, setLoading] = useState(false);
+  const [groupDefinitions, setGroupDefinitions] = useState<
+    InventoryGroupDefinition[]
+  >([defaultInventoryGroup]);
+  const [resourceGroupIds, setResourceGroupIds] = useState<
+    Record<number, InventoryGroupId>
+  >({});
+  const [newGroupName, setNewGroupName] = useState("");
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [draggingResourceId, setDraggingResourceId] = useState<number | null>(
+    null,
+  );
+  const [updatingGroupId, setUpdatingGroupId] =
+    useState<InventoryGroupId | null>(null);
 
   const canView = Boolean(user?.permissions.canViewDataResources);
   const canChange = Boolean(user?.permissions.canChangeDataResources);
@@ -109,6 +158,11 @@ export default function AdminDataInventoryPage() {
     ).length;
     return { active, inactive, restricted };
   }, [data.items]);
+
+  const inventoryGroups = useMemo(
+    () => buildInventoryGroups(data.items, groupDefinitions, resourceGroupIds),
+    [data.items, groupDefinitions, resourceGroupIds],
+  );
 
   const loadResources = useCallback(
     async (nextFilters: AdminDataResourceFilters) => {
@@ -262,6 +316,123 @@ export default function AdminDataInventoryPage() {
     }));
   }
 
+  function addInventoryGroup() {
+    const trimmedName = newGroupName.trim();
+    if (!trimmedName) {
+      message.warning("请输入组别名称");
+      return;
+    }
+    if (groupDefinitions.some((group) => group.name === trimmedName)) {
+      message.warning("组别名称已存在");
+      return;
+    }
+    setGroupDefinitions((current) => [
+      ...current,
+      {
+        id: `custom-${Date.now()}`,
+        name: trimmedName,
+        isDefault: false,
+      },
+    ]);
+    setNewGroupName("");
+    setGroupModalOpen(false);
+    message.success(`已新增组别：${trimmedName}`);
+  }
+
+  async function toggleGroupStatus(group: InventoryGroup, checked: boolean) {
+    const manageableResources = group.resources.filter(
+      (resource) => canChange && resource.status !== groupStatus(checked),
+    );
+    if (manageableResources.length === 0) {
+      message.warning("当前组别没有需要同步状态的数据");
+      return;
+    }
+    setUpdatingGroupId(group.id);
+    const updatedResources: AdminDataResource[] = [];
+    try {
+      for (const resource of manageableResources) {
+        const updated = await api.updateAdminDataResource(resource.id, {
+          action: "setStatus",
+          status: groupStatus(checked),
+        });
+        if ("id" in updated) {
+          updatedResources.push(updated);
+        }
+      }
+      replaceResources(updatedResources);
+      message.success(`已${checked ? "启用" : "禁用"} ${group.name} 组内数据`);
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : "组别状态同步失败",
+      );
+      void loadResources(filters);
+    } finally {
+      setUpdatingGroupId(null);
+    }
+  }
+
+  function renameInventoryGroup(group: InventoryGroup, nextName: string) {
+    if (group.isDefault) {
+      return;
+    }
+    const trimmedName = nextName.trim();
+    if (!trimmedName) {
+      message.warning("组别名称不能为空");
+      return;
+    }
+    if (
+      groupDefinitions.some(
+        (definition) =>
+          definition.id !== group.id && definition.name === trimmedName,
+      )
+    ) {
+      message.warning("组别名称已存在");
+      return;
+    }
+    setGroupDefinitions((current) =>
+      current.map((definition) =>
+        definition.id === group.id
+          ? { ...definition, name: trimmedName }
+          : definition,
+      ),
+    );
+  }
+
+  function moveResourceToGroup(resourceId: number, groupId: InventoryGroupId) {
+    setResourceGroupIds((current) => ({
+      ...current,
+      [resourceId]: groupId,
+    }));
+  }
+
+  function deleteInventoryGroup(group: InventoryGroup) {
+    if (group.isDefault) {
+      return;
+    }
+    setResourceGroupIds((current) => {
+      const next = { ...current };
+      group.resources.forEach((resource) => {
+        next[resource.id] = defaultInventoryGroupId;
+      });
+      return next;
+    });
+    setGroupDefinitions((current) =>
+      current.filter((definition) => definition.id !== group.id),
+    );
+    message.success(`已删除组别：${group.name}，组内数据已进入默认分组`);
+  }
+
+  function replaceResources(resources: AdminDataResource[]) {
+    if (resources.length === 0) {
+      return;
+    }
+    const byId = new Map(resources.map((resource) => [resource.id, resource]));
+    setData((current) => ({
+      ...current,
+      items: current.items.map((item) => byId.get(item.id) ?? item),
+    }));
+  }
+
   const columns: ColumnsType<AdminDataResource> = [
     {
       title: "数据资源",
@@ -345,109 +516,299 @@ export default function AdminDataInventoryPage() {
     },
   ];
 
-  return (
-    <ManagedCollectionPage<AdminDataResource>
-      items={data.items}
-      total={data.total}
-      accessGroups={data.availableAccessGroups}
-      loading={loading}
-      filters={filters}
-      filterFields={filterFields}
-      columns={columns}
-      stats={[
-        { title: "当前结果", value: data.total },
-        { title: "本页启用", value: metrics.active, prefix: <EyeOutlined /> },
-        {
-          title: "本页禁用",
-          value: metrics.inactive,
-          prefix: <StopOutlined />,
-        },
-        { title: "本页受限访问", value: metrics.restricted },
-      ]}
-      rowName={(item) => item.name}
-      drawerTitle={canChange ? "存量数据配置" : "数据可见范围"}
-      deleteTitle="删除存量数据"
-      deleteDescription="删除会移除数据资源登记和关联图层；用户导入的表或矢量图层会同步清理。请输入数据名称确认。"
-      ownerScopeLabel="上传者本人可见"
-      canMaintain={canChange}
-      canDelete={canDelete}
-      canExport={canExport}
-      exportFormats={["csv", "xlsx"]}
-      detailItems={(resource) => [
-        { label: "数据名称", value: resource.name },
-        { label: "类型", value: dataTypeLabels[resource.dataType] },
-        {
-          label: "状态",
-          value: (
-            <Tag color={statusLabels[resource.status].color}>
-              {statusLabels[resource.status].text}
-            </Tag>
-          ),
-        },
-        {
-          label: "上传用户",
-          value: uploaderDisplayName(resource),
-        },
-        { label: "数据大小", value: formatBytes(resource.sizeBytes ?? 0) },
-        { label: "数据条目数", value: resource.itemCount ?? 0 },
-      ]}
-      formInitialValues={(resource) => initialVisualizationValues(resource)}
-      renderFormItems={(resource, maintainable) => (
-        <>
-          <Typography.Title level={5}>默认可视化方案</Typography.Title>
-          <Form.Item
-            name="layerName"
-            label="默认图层名称"
-            rules={[{ required: true, message: "请输入默认图层名称" }]}
-          >
-            <Input disabled={!maintainable} />
-          </Form.Item>
-          <Form.Item
-            name="defaultVisible"
-            label="默认显示"
-            valuePropName="checked"
-          >
+  const renderGroupedTable = ({
+    tableColumns,
+    loading: tableLoading,
+    pagination,
+  }: ManagedCollectionTableRenderArgs<AdminDataResource>) => {
+    const groupColumns: ColumnsType<InventoryGroup> = [
+      {
+        title: "组名",
+        dataIndex: "name",
+        key: "name",
+        width: 260,
+        render: (_, group) => (
+          <Space>
+            {group.isDefault ? (
+              <Typography.Text strong>{group.name}</Typography.Text>
+            ) : (
+              <Input
+                aria-label={`${group.name}组名`}
+                defaultValue={group.name}
+                onPressEnter={(event) =>
+                  renameInventoryGroup(group, event.currentTarget.value)
+                }
+                onBlur={(event) =>
+                  renameInventoryGroup(group, event.currentTarget.value)
+                }
+              />
+            )}
+            {group.isDefault && <Tag>默认分组</Tag>}
+          </Space>
+        ),
+      },
+      {
+        title: "总数据规模",
+        key: "groupSize",
+        width: 180,
+        render: (_, group) => (
+          <Space orientation="vertical" size={0}>
+            <span>{formatBytes(group.sizeBytes)}</span>
+            <Typography.Text type="secondary" className="admin-table-subtext">
+              {group.itemCount} 条，{group.resources.length} 项数据
+            </Typography.Text>
+          </Space>
+        ),
+      },
+      {
+        title: "启用状态",
+        key: "groupAccess",
+        width: 150,
+        render: (_, group) => {
+          const disabled =
+            group.resources.length === 0 ||
+            (!canChange &&
+              !group.resources.every((resource) => resource.canManageAccess));
+          return (
             <Switch
-              checkedChildren="显示"
-              unCheckedChildren="隐藏"
-              disabled={!maintainable}
+              size="small"
+              aria-label={`${group.name}组别状态`}
+              checked={group.enabled}
+              loading={updatingGroupId === group.id}
+              checkedChildren="启用"
+              unCheckedChildren="禁用"
+              disabled={disabled}
+              onChange={(checked) => toggleGroupStatus(group, checked)}
             />
-          </Form.Item>
-          {resource.dataType === "vector" && (
-            <Form.Item name="pointColor" label="点位/主色">
-              <Input type="color" disabled={!maintainable} />
+          );
+        },
+      },
+      {
+        title: "操作",
+        key: "groupActions",
+        width: 96,
+        render: (_, group) =>
+          group.isDefault ? (
+            <Tooltip title="默认分组不可删除">
+              <Button
+                icon={<DeleteOutlined />}
+                disabled
+                aria-label="删除默认分组"
+              />
+            </Tooltip>
+          ) : (
+            <Popconfirm
+              title="删除组别"
+              description="删除后该组内数据会进入默认分组，数据本身不会被删除。"
+              okText="删除"
+              cancelText="取消"
+              onConfirm={() => deleteInventoryGroup(group)}
+            >
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                loading={updatingGroupId === group.id}
+                aria-label={`删除组别${group.name}`}
+              />
+            </Popconfirm>
+          ),
+      },
+    ];
+
+    const groupPagination = {
+      ...pagination,
+      showTotal: (nextTotal: number) => (
+        <Space size={12} wrap>
+          <span>共 {nextTotal} 条</span>
+          <Button
+            size="small"
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              setNewGroupName("");
+              setGroupModalOpen(true);
+            }}
+          >
+            新增组别
+          </Button>
+        </Space>
+      ),
+    };
+
+    return (
+      <Space orientation="vertical" size={12} className="inventory-group-table">
+        <Table<InventoryGroup>
+          rowKey={(group) => String(group.id)}
+          loading={tableLoading}
+          columns={groupColumns}
+          dataSource={inventoryGroups}
+          scroll={{ x: 1280 }}
+          pagination={groupPagination}
+          onRow={(group) => ({
+            onDragOver: (event) => event.preventDefault(),
+            onDrop: () => {
+              if (draggingResourceId !== null) {
+                moveResourceToGroup(draggingResourceId, group.id);
+                setDraggingResourceId(null);
+              }
+            },
+          })}
+          expandable={{
+            defaultExpandAllRows: true,
+            expandedRowRender: (group) => (
+              <div
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => {
+                  if (draggingResourceId !== null) {
+                    moveResourceToGroup(draggingResourceId, group.id);
+                    setDraggingResourceId(null);
+                  }
+                }}
+              >
+                <Table<AdminDataResource>
+                  rowKey="id"
+                  size="small"
+                  columns={tableColumns}
+                  dataSource={group.resources}
+                  pagination={false}
+                  scroll={{ x: 1280 }}
+                  onRow={(resource) => ({
+                    draggable: true,
+                    onDragStart: () => setDraggingResourceId(resource.id),
+                    onDragEnd: () => setDraggingResourceId(null),
+                  })}
+                />
+              </div>
+            ),
+          }}
+        />
+      </Space>
+    );
+  };
+
+  return (
+    <>
+      <ManagedCollectionPage<AdminDataResource>
+        items={data.items}
+        total={data.total}
+        accessGroups={data.availableAccessGroups}
+        loading={loading}
+        filters={filters}
+        filterFields={filterFields}
+        columns={columns}
+        stats={[
+          { title: "当前结果", value: data.total },
+          { title: "本页启用", value: metrics.active, prefix: <EyeOutlined /> },
+          {
+            title: "本页禁用",
+            value: metrics.inactive,
+            prefix: <StopOutlined />,
+          },
+          { title: "本页受限访问", value: metrics.restricted },
+        ]}
+        rowName={(item) => item.name}
+        drawerTitle={canChange ? "存量数据配置" : "数据可见范围"}
+        deleteTitle="删除存量数据"
+        deleteDescription="删除会移除数据资源登记和关联图层；用户导入的表或矢量图层会同步清理。请输入数据名称确认。"
+        ownerScopeLabel="上传者本人可见"
+        canMaintain={canChange}
+        canDelete={canDelete}
+        canExport={canExport}
+        exportFormats={["csv", "xlsx"]}
+        renderTable={renderGroupedTable}
+        detailItems={(resource) => [
+          { label: "数据名称", value: resource.name },
+          { label: "类型", value: dataTypeLabels[resource.dataType] },
+          {
+            label: "状态",
+            value: (
+              <Tag color={statusLabels[resource.status].color}>
+                {statusLabels[resource.status].text}
+              </Tag>
+            ),
+          },
+          {
+            label: "上传用户",
+            value: uploaderDisplayName(resource),
+          },
+          { label: "数据大小", value: formatBytes(resource.sizeBytes ?? 0) },
+          { label: "数据条目数", value: resource.itemCount ?? 0 },
+        ]}
+        formInitialValues={(resource) => initialVisualizationValues(resource)}
+        renderFormItems={(resource, maintainable) => (
+          <>
+            <Typography.Title level={5}>默认可视化方案</Typography.Title>
+            <Form.Item
+              name="layerName"
+              label="默认图层名称"
+              rules={[{ required: true, message: "请输入默认图层名称" }]}
+            >
+              <Input disabled={!maintainable} />
             </Form.Item>
-          )}
-          <Form.Item name="symbolizationJson" label="矢量符号 JSON">
-            <Input.TextArea
-              rows={6}
-              spellCheck={false}
-              disabled={!maintainable}
-            />
-          </Form.Item>
-          <Form.Item name="rasterRulesJson" label="栅格规则 JSON">
-            <Input.TextArea
-              rows={6}
-              spellCheck={false}
-              disabled={!maintainable}
-            />
-          </Form.Item>
-        </>
-      )}
-      onFilterChange={(nextFilters) =>
-        setFilters(nextFilters as AdminDataResourceFilters)
-      }
-      onPageChange={(current, pageSize) =>
-        setFilters((currentFilters) => ({
-          ...currentFilters,
-          current,
-          pageSize,
-        }))
-      }
-      onSave={saveResourceSettings}
-      onDelete={deleteResource}
-      onExport={exportInventory}
-    />
+            <Form.Item
+              name="defaultVisible"
+              label="默认显示"
+              valuePropName="checked"
+            >
+              <Switch
+                checkedChildren="显示"
+                unCheckedChildren="隐藏"
+                disabled={!maintainable}
+              />
+            </Form.Item>
+            {resource.dataType === "vector" && (
+              <Form.Item name="pointColor" label="点位/主色">
+                <Input type="color" disabled={!maintainable} />
+              </Form.Item>
+            )}
+            <Form.Item name="symbolizationJson" label="矢量符号 JSON">
+              <Input.TextArea
+                rows={6}
+                spellCheck={false}
+                disabled={!maintainable}
+              />
+            </Form.Item>
+            <Form.Item name="rasterRulesJson" label="栅格规则 JSON">
+              <Input.TextArea
+                rows={6}
+                spellCheck={false}
+                disabled={!maintainable}
+              />
+            </Form.Item>
+          </>
+        )}
+        onFilterChange={(nextFilters) =>
+          setFilters(nextFilters as AdminDataResourceFilters)
+        }
+        onPageChange={(current, pageSize) =>
+          setFilters((currentFilters) => ({
+            ...currentFilters,
+            current,
+            pageSize,
+          }))
+        }
+        onSave={saveResourceSettings}
+        onDelete={deleteResource}
+        onExport={exportInventory}
+      />
+      <Modal
+        title="新增组别"
+        open={groupModalOpen}
+        okText="新建"
+        cancelText="取消"
+        onOk={addInventoryGroup}
+        onCancel={() => setGroupModalOpen(false)}
+      >
+        <Input
+          autoFocus
+          allowClear
+          value={newGroupName}
+          placeholder="输入组别名称"
+          onChange={(event) => setNewGroupName(event.target.value)}
+          onPressEnter={addInventoryGroup}
+        />
+      </Modal>
+    </>
   );
 }
 
@@ -488,6 +849,66 @@ function initialVisualizationValues(
       resource.accessGroups.map((group) => group.id as AccessScopeId),
     ),
   };
+}
+
+function buildInventoryGroups(
+  resources: AdminDataResource[],
+  groupDefinitions: InventoryGroupDefinition[],
+  resourceGroupIds: Record<number, InventoryGroupId>,
+): InventoryGroup[] {
+  const validGroupIds = new Set(groupDefinitions.map((group) => group.id));
+  return groupDefinitions.map((group) =>
+    createInventoryGroup({
+      ...group,
+      resources: resources.filter((resource) => {
+        const assignedGroupId = resourceGroupIds[resource.id];
+        return group.id === normalizeGroupId(assignedGroupId, validGroupIds);
+      }),
+    }),
+  );
+}
+
+function createInventoryGroup({
+  id,
+  name,
+  resources,
+  isDefault,
+}: {
+  id: InventoryGroupId;
+  name: string;
+  resources: AdminDataResource[];
+  isDefault: boolean;
+}): InventoryGroup {
+  return {
+    id,
+    name,
+    resources,
+    enabled:
+      resources.length > 0 &&
+      resources.every((resource) => resource.status === "active"),
+    isDefault,
+    sizeBytes: resources.reduce(
+      (total, resource) => total + (resource.sizeBytes ?? 0),
+      0,
+    ),
+    itemCount: resources.reduce(
+      (total, resource) => total + (resource.itemCount ?? 0),
+      0,
+    ),
+  };
+}
+
+function normalizeGroupId(
+  groupId: InventoryGroupId | undefined,
+  validGroupIds: Set<InventoryGroupId>,
+) {
+  return groupId && validGroupIds.has(groupId)
+    ? groupId
+    : defaultInventoryGroupId;
+}
+
+function groupStatus(enabled: boolean): AdminDataResource["status"] {
+  return enabled ? "active" : "inactive";
 }
 
 function exportFilters(filters: AdminDataResourceFilters) {

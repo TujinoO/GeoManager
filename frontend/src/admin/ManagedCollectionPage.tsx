@@ -22,6 +22,7 @@ import {
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import type { TablePaginationConfig } from "antd/es/table/interface";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import type { AdminDataResourceList } from "../types";
@@ -58,6 +59,15 @@ export interface ManagedStat {
   prefix?: ReactNode;
 }
 
+export interface ManagedCollectionTableRenderArgs<
+  TItem extends ManagedItemBase,
+> {
+  items: TItem[];
+  loading: boolean;
+  tableColumns: ColumnsType<TItem>;
+  pagination: TablePaginationConfig;
+}
+
 interface ManagedCollectionPageProps<TItem extends ManagedItemBase> {
   className?: string;
   items: TItem[];
@@ -80,6 +90,7 @@ interface ManagedCollectionPageProps<TItem extends ManagedItemBase> {
   detailItems: (item: TItem) => { label: string; value: ReactNode }[];
   formInitialValues: (item: TItem) => ManagedFormValues;
   renderFormItems: (item: TItem, canMaintain: boolean) => ReactNode;
+  renderTable?: (args: ManagedCollectionTableRenderArgs<TItem>) => ReactNode;
   onFilterChange: (filters: Record<string, unknown>) => void;
   onPageChange: (current: number, pageSize: number) => void;
   onSave: (item: TItem, values: ManagedFormValues) => Promise<TItem | void>;
@@ -109,6 +120,7 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
   detailItems,
   formInitialValues,
   renderFormItems,
+  renderTable,
   onFilterChange,
   onPageChange,
   onSave,
@@ -164,6 +176,15 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
     ],
     [canDelete, canMaintain, columns, rowName],
   );
+
+  const tablePagination: TablePaginationConfig = {
+    current: Number(filters.current ?? 1),
+    pageSize: Number(filters.pageSize ?? 10),
+    total,
+    showSizeChanger: true,
+    showTotal: (nextTotal) => `共 ${nextTotal} 条`,
+    onChange: onPageChange,
+  };
 
   function submitFilters(values: Record<string, unknown>) {
     onFilterChange({
@@ -282,21 +303,23 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
 
       <ProCard className="admin-section-card inventory-table-card">
         <div className="inventory-table-scroll">
-          <Table<TItem>
-            rowKey="id"
-            loading={loading}
-            columns={tableColumns}
-            dataSource={items}
-            scroll={{ x: 1280 }}
-            pagination={{
-              current: Number(filters.current ?? 1),
-              pageSize: Number(filters.pageSize ?? 10),
-              total,
-              showSizeChanger: true,
-              showTotal: (nextTotal) => `共 ${nextTotal} 条`,
-              onChange: onPageChange,
-            }}
-          />
+          {renderTable ? (
+            renderTable({
+              items,
+              loading,
+              tableColumns,
+              pagination: tablePagination,
+            })
+          ) : (
+            <Table<TItem>
+              rowKey="id"
+              loading={loading}
+              columns={tableColumns}
+              dataSource={items}
+              scroll={{ x: 1280 }}
+              pagination={tablePagination}
+            />
+          )}
         </div>
       </ProCard>
 

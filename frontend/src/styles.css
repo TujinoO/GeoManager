@@ -1148,6 +1148,11 @@ body:has(.login-shell),
   }
 }
 
+.inventory-group-table {
+  width: 100%;
+  min-width: 0;
+}
+
 .drawer-stack {
   width: 100%;
 }
@@ -1616,6 +1621,10 @@ body:has(.login-shell),
 }
 
 .admin-logs-tabs {
+  min-width: 0;
+}
+
+.admin-dashboard-tabs {
   min-width: 0;
 }
 
