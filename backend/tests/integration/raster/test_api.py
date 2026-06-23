@@ -15,6 +15,7 @@ from apps.raster.models import RasterDataset
 from apps.raster.services import (
     RasterTileOutsideExtent,
     scan_unprocessed_source_files,
+    validate_raster_pixel_size,
     validate_raster_upload_size,
 )
 
@@ -296,6 +297,17 @@ class RasterPermissionApiTests(TestCase):
             self.assertEqual(response.status_code, 400)
             self.assertIn("栅格单边长度不能超过 9000 像素", response.json()["detail"])
             start_import_job.assert_not_called()
+
+    def test_pixel_size_validation_uses_latest_toml_limit(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir), max_raster_side_pixels=1000)
+            updated_text = config.config_path.read_text(encoding="utf-8").replace(
+                "max_raster_side_pixels = 1000", "max_raster_side_pixels = 2000"
+            )
+            config.config_path.write_text(updated_text, encoding="utf-8")
+
+            with override_settings(PROJECT_CONFIG=config):
+                validate_raster_pixel_size({"size": [1500, 1000]})
 
     def test_tile_endpoint_returns_no_content_for_tiles_outside_extent(self):
         grant(self.user, ("core", "load_raster_layer"))

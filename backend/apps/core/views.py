@@ -11,6 +11,7 @@ from apps.catalog.models import DataResource, DictionaryItem, MapLayer
 from apps.core.config import APP_SUBDIRS, RESEARCH_SUBDIRS
 from apps.core.config import load_runtime_config_document
 from apps.core.models import SystemSetting
+from apps.core.runtime_config import runtime_allow_registration, runtime_system_name
 
 PLATFORM_ENGLISH_NAME = "Central Asia Poplar Forest Ecosystem Data Platform"
 PLATFORM_ABBREVIATION = "CAPFED"
@@ -22,7 +23,7 @@ def registration_allowed() -> bool:
         SystemSetting.objects.filter(pk=1).only("allow_registration").first()
     )
     if system_setting is None:
-        return settings.PROJECT_CONFIG.allow_registration
+        return runtime_allow_registration()
     return system_setting.allow_registration
 
 
@@ -63,7 +64,7 @@ def login_overview(request):
         {
             "generatedAt": generated_at,
             "platform": {
-                "chineseName": settings.PROJECT_CONFIG.system_name,
+                "chineseName": runtime_system_name(),
                 "englishName": PLATFORM_ENGLISH_NAME,
                 "abbreviation": PLATFORM_ABBREVIATION,
                 "edition": PLATFORM_EDITION,

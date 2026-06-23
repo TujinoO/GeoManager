@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from django.conf import settings
 from shapely.geometry import box, shape
 
 from apps.catalog.models import DataResource
+from apps.core.runtime_config import runtime_query_result_limit
 from apps.core.storage import (
     StoragePathError,
     validate_vector_layer_name,
@@ -489,11 +489,12 @@ def normalize_for_geojson(gdf):
 
 
 def _limit(value: Any) -> int:
+    max_limit = runtime_query_result_limit()
     try:
-        limit = int(value or settings.PROJECT_CONFIG.limits.query_result_limit)
+        limit = int(value or max_limit)
     except (TypeError, ValueError):
-        limit = settings.PROJECT_CONFIG.limits.query_result_limit
-    return min(max(limit, 1), settings.PROJECT_CONFIG.limits.query_result_limit)
+        limit = max_limit
+    return min(max(limit, 1), max_limit)
 
 
 def _coerce_value(series, value: Any):

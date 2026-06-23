@@ -55,6 +55,28 @@ class BootstrapApiTests(TestCase):
         self.assertFalse(payload["allowRegistration"])
         self.assertIn("map", payload)
 
+    def test_bootstrap_registration_fallback_uses_latest_toml(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    "allow_registration = true", "allow_registration = false"
+                ),
+                encoding="utf-8",
+            )
+
+            with override_settings(PROJECT_CONFIG=config):
+                response = self.client.get("/api/bootstrap/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["allowRegistration"])
+
 
 class LoginOverviewApiTests(TestCase):
     def test_login_overview_returns_public_platform_summary_without_auth(self):
@@ -113,6 +135,28 @@ class LoginOverviewApiTests(TestCase):
         self.assertNotIn("storage_path", encoded_payload)
         self.assertNotIn("private/vector.gpkg", encoded_payload)
         self.assertNotIn("private-layer", encoded_payload)
+
+    def test_login_overview_system_name_uses_latest_toml(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'name = "测试系统"', 'name = "运行期更新系统"'
+                ),
+                encoding="utf-8",
+            )
+
+            with override_settings(PROJECT_CONFIG=config):
+                response = self.client.get("/api/login/overview/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["platform"]["chineseName"], "运行期更新系统")
 
     def test_login_overview_reports_warning_when_catalog_is_empty(self):
         response = self.client.get("/api/login/overview/")

@@ -47,24 +47,20 @@ class GeometryTypeTests(SimpleTestCase):
 
 
 class LimitTests(SimpleTestCase):
-    @patch("apps.catalog.vector_store.settings")
-    def test_returns_default_limit_when_none(self, mock_settings):
-        mock_settings.PROJECT_CONFIG.limits.query_result_limit = 30000
+    @patch("apps.catalog.vector_store.runtime_query_result_limit", return_value=30000)
+    def test_returns_default_limit_when_none(self, _runtime_limit):
         self.assertEqual(_limit(None), 30000)
 
-    @patch("apps.catalog.vector_store.settings")
-    def test_returns_default_limit_when_zero(self, mock_settings):
-        mock_settings.PROJECT_CONFIG.limits.query_result_limit = 30000
+    @patch("apps.catalog.vector_store.runtime_query_result_limit", return_value=30000)
+    def test_returns_default_limit_when_zero(self, _runtime_limit):
         self.assertEqual(_limit(0), 30000)
 
-    @patch("apps.catalog.vector_store.settings")
-    def test_clamps_to_max_limit(self, mock_settings):
-        mock_settings.PROJECT_CONFIG.limits.query_result_limit = 30000
+    @patch("apps.catalog.vector_store.runtime_query_result_limit", return_value=30000)
+    def test_clamps_to_max_limit(self, _runtime_limit):
         self.assertEqual(_limit(50000), 30000)
 
-    @patch("apps.catalog.vector_store.settings")
-    def test_returns_valid_limit(self, mock_settings):
-        mock_settings.PROJECT_CONFIG.limits.query_result_limit = 30000
+    @patch("apps.catalog.vector_store.runtime_query_result_limit", return_value=30000)
+    def test_returns_valid_limit(self, _runtime_limit):
         self.assertEqual(_limit(100), 100)
 
 
