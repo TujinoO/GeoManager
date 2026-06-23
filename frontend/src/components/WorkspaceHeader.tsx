@@ -2,7 +2,6 @@ import {
   ApartmentOutlined,
   AppstoreOutlined,
   BookOutlined,
-  CloudUploadOutlined,
   DatabaseOutlined,
   FolderOpenOutlined,
   InfoCircleOutlined,
@@ -594,7 +593,6 @@ export default function WorkspaceHeader({
       items.push({
         key: "admin-backup",
         label: "数据备份",
-        icon: <CloudUploadOutlined />,
         onClick: () => navigateFromHeader("/admin/backup"),
       });
     }
