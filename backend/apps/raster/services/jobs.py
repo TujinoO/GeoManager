@@ -108,23 +108,31 @@ def get_job(job_id: str) -> RasterJob:
         return job
 
 
-def start_import_job(source_path: str, name: str = "") -> RasterJob:
-    from apps.raster.services.importer import import_raster_file
+def start_import_job(
+    source_path: str, name: str = "", cleanup_upload_on_failure: bool = False
+) -> RasterJob:
+    from apps.raster.services.importer import (
+        cleanup_uploaded_import_files,
+        import_raster_file,
+    )
     from apps.raster.services.serializers import serialize_raster_dataset
     from pathlib import Path
 
     job = _create_job("import")
+    source = Path(source_path)
 
     def runner() -> None:
         try:
             _set_job_running(job.id, "开始导入栅格文件", 2)
             dataset = import_raster_file(
-                Path(source_path),
+                source,
                 name=name,
                 progress=lambda text: _append_job(job.id, text),
             )
             _finish_job(job.id, serialize_raster_dataset(dataset), "ready")
         except Exception as exc:
+            if cleanup_upload_on_failure:
+                cleanup_uploaded_import_files(source)
             _fail_job(job.id, str(exc))
 
     threading.Thread(target=runner, name=f"raster-import-{job.id}", daemon=True).start()

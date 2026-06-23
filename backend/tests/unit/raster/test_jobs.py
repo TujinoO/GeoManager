@@ -1,4 +1,6 @@
 from pathlib import Path
+from time import sleep
+from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
@@ -12,6 +14,7 @@ from apps.raster.services.jobs import (
     _fail_job,
     _finish_job,
     _set_job_artifact,
+    start_import_job,
     get_job,
     get_job_artifact_path,
 )
@@ -83,3 +86,45 @@ class RasterJobStateTests(SimpleTestCase):
         _set_job_artifact(job.id, Path("/tmp/export.zip"))
 
         self.assertEqual(get_job_artifact_path(job.id), Path("/tmp/export.zip"))
+
+    def test_import_job_cleans_uploaded_file_when_import_fails(self):
+        with (
+            patch(
+                "apps.raster.services.importer.import_raster_file",
+                side_effect=RuntimeError("预处理失败"),
+            ),
+            patch(
+                "apps.raster.services.importer.cleanup_uploaded_import_files"
+            ) as cleanup,
+        ):
+            job = start_import_job(
+                "/tmp/uploaded-raster.tif", cleanup_upload_on_failure=True
+            )
+            stored = self._wait_for_job(job.id)
+
+        self.assertEqual(stored.status, "failed")
+        cleanup.assert_called_once_with(Path("/tmp/uploaded-raster.tif"))
+
+    def test_import_job_keeps_source_file_when_non_upload_import_fails(self):
+        with (
+            patch(
+                "apps.raster.services.importer.import_raster_file",
+                side_effect=RuntimeError("预处理失败"),
+            ),
+            patch(
+                "apps.raster.services.importer.cleanup_uploaded_import_files"
+            ) as cleanup,
+        ):
+            job = start_import_job("/tmp/existing-raster.tif")
+            stored = self._wait_for_job(job.id)
+
+        self.assertEqual(stored.status, "failed")
+        cleanup.assert_not_called()
+
+    def _wait_for_job(self, job_id: str) -> RasterJob:
+        for _ in range(50):
+            job = get_job(job_id)
+            if job.status in {"ready", "failed"}:
+                return job
+            sleep(0.01)
+        return get_job(job_id)

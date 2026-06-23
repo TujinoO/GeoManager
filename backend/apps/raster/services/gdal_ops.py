@@ -5,12 +5,13 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
+from apps.core.cli import popen_cli, run_cli_capture
 from apps.raster.services.exceptions import RasterImportError
 
 
 def gdalinfo_json(path: Path) -> dict[str, Any]:
-    result = subprocess.run(
-        ["gdalinfo", "-json", str(path)], capture_output=True, text=True, check=False
+    result = run_cli_capture(
+        ["gdalinfo", "-json", str(path)],
     )
     if result.returncode != 0:
         raise RasterImportError(result.stderr.strip() or "gdalinfo 执行失败")
@@ -23,7 +24,7 @@ def gdalinfo_json(path: Path) -> dict[str, Any]:
 def run_gdal_command(
     command: list[str], progress: Callable[[str], None] | None = None
 ) -> str:
-    process = subprocess.Popen(
+    process = popen_cli(
         command,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

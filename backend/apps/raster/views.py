@@ -208,7 +208,11 @@ def import_raster(request):
                 or Path(uploaded_file.name or "uploaded-raster").stem
             )
             source_path = store_uploaded_source_file(uploaded_file)
-            job = start_import_job(str(source_path), name=display_name)
+            job = start_import_job(
+                str(source_path),
+                name=display_name,
+                cleanup_upload_on_failure=True,
+            )
         except (RasterImportError, OSError) as exc:
             log_operation(
                 request.user,

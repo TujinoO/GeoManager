@@ -106,6 +106,31 @@ def store_uploaded_source_file(uploaded_file) -> Path:
     return target_path
 
 
+def cleanup_uploaded_import_files(source_path: Path) -> None:
+    source_root = raster_source_path("")
+    source_path = source_path.expanduser().resolve()
+    try:
+        source_relative = source_path.relative_to(source_root).as_posix()
+    except ValueError:
+        return
+    if not source_relative.startswith("uploaded/"):
+        return
+
+    processed_relative = processed_relative_path(source_relative)
+    source_metadata_relative = metadata_relative_path("source", source_relative)
+    processed_metadata_relative = metadata_relative_path(
+        "preprocessed", processed_relative
+    )
+    for path in (
+        source_path,
+        raster_processed_path(processed_relative),
+        raster_metadata_path(source_metadata_relative),
+        raster_metadata_path(processed_metadata_relative),
+    ):
+        path.unlink(missing_ok=True)
+    RasterDataset.objects.filter(source_relative_path=source_relative).delete()
+
+
 def processed_relative_path(source_relative: str) -> str:
     source = Path(source_relative)
     return (source.parent / f"{source.stem}.cog.tif").as_posix()

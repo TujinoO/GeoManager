@@ -188,6 +188,9 @@ class RasterPermissionApiTests(TestCase):
             self.assertEqual(saved_path.suffix, ".tif")
             self.assertIn("raster/original/uploaded", saved_path.as_posix())
             self.assertEqual(start_import_job.call_args.kwargs["name"], "NDVI 影像")
+            self.assertTrue(
+                start_import_job.call_args.kwargs["cleanup_upload_on_failure"]
+            )
 
     def test_import_endpoint_uses_original_upload_stem_when_name_is_empty(self):
         grant(self.user, ("raster", "manage_raster_dataset"))
@@ -230,6 +233,9 @@ class RasterPermissionApiTests(TestCase):
 
             self.assertEqual(response.status_code, 202)
             self.assertEqual(start_import_job.call_args.kwargs["name"], "Traim")
+            self.assertTrue(
+                start_import_job.call_args.kwargs["cleanup_upload_on_failure"]
+            )
             saved_path = Path(start_import_job.call_args.args[0])
             self.assertRegex(saved_path.name, r"^[0-9a-f]{32}-Traim\.tif$")
 
