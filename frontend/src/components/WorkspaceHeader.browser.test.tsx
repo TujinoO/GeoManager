@@ -239,7 +239,16 @@ describe("WorkspaceHeader", () => {
     );
   });
 
-  it("does not show a standalone data import shortcut for upload-capable users", () => {
+  it("hides the standalone data import shortcut without upload permission", () => {
+    renderHeader();
+
+    expect(
+      screen.queryByRole("button", { name: "数据导入" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/");
+  });
+
+  it("opens the data import page from the highlighted shortcut", () => {
     const uploadUser: User = {
       ...user,
       permissions: {
@@ -247,10 +256,13 @@ describe("WorkspaceHeader", () => {
         canUploadData: true,
       },
     };
-    const { container } = renderHeader({}, uploadUser);
+    renderHeader({}, uploadUser);
 
-    expect(container.querySelector(".data-import-shortcut")).toBeNull();
-    expect(screen.getByTestId("location-path")).toHaveTextContent("/");
+    fireEvent.click(screen.getByRole("button", { name: "数据导入" }));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent(
+      "/resources/data/import",
+    );
   });
 
   it("clears cached layer state when the user logs out", async () => {

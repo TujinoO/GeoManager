@@ -11,6 +11,12 @@ import FeatureDetailPanel from "./FeatureDetailPanel";
 const thumbnailMinIndicatorSizePx = 10;
 const thumbnailTileSize = 256;
 const thumbnailMaxMercatorLat = 85.05112878;
+const thumbnailContextPaddingRatio = 1.85;
+const thumbnailMinTileScale = 0.12;
+const thumbnailMaxTileScale = 1;
+const thumbnailMinZoom = 1;
+const thumbnailMaxZoom = 10;
+const thumbnailZoomOffset = 2;
 const osmTileSubdomains = ["a", "b", "c"] as const;
 
 export interface ThumbnailMapTile {
@@ -45,6 +51,10 @@ interface ThumbnailViewport {
   left: number;
   top: number;
   scale: number;
+}
+interface ThumbnailMapView {
+  zoom: number;
+  viewport: ThumbnailViewport;
 }
 const trendMonths = [
   "7",
@@ -273,11 +283,16 @@ export function buildThumbnail(
       extent: null as ThumbnailExtentBox | null,
     };
   }
-  const viewport = thumbnailViewportForMapTile(mapTile, width, height);
+  const overview = currentView
+    ? thumbnailViewportForMapView(currentView, width, height)
+    : {
+        zoom: mapTile.tileZoom,
+        viewport: thumbnailViewportForMapTile(mapTile, width, height),
+      };
   return {
     tiles: thumbnailTiles(
-      mapTile.tileZoom,
-      viewport,
+      overview.zoom,
+      overview.viewport,
       width,
       height,
       mapTile.tileUrlTemplate,
@@ -285,8 +300,8 @@ export function buildThumbnail(
     extent: currentView
       ? thumbnailExtentBox(
           currentView.bounds,
-          mapTile.tileZoom,
-          viewport,
+          overview.zoom,
+          overview.viewport,
           width,
           height,
         )
@@ -305,6 +320,54 @@ export function thumbnailViewportForMapTile(
     left: center.x - width / (2 * scale),
     top: center.y - height / (2 * scale),
     scale,
+  };
+}
+
+export function thumbnailViewportForMapView(
+  currentView: MapViewState,
+  width: number,
+  height: number,
+): ThumbnailMapView {
+  const targetZoom = clamp(
+    Math.floor(currentView.zoom) - thumbnailZoomOffset,
+    thumbnailMinZoom,
+    thumbnailMaxZoom,
+  );
+  const normalizedBounds = normalizeThumbnailBounds(currentView);
+  let selectedZoom = targetZoom;
+  let selectedMetrics = thumbnailFitMetrics(
+    normalizedBounds,
+    selectedZoom,
+    width,
+    height,
+  );
+
+  while (
+    selectedZoom > thumbnailMinZoom &&
+    selectedMetrics.fitScale < thumbnailMinTileScale
+  ) {
+    selectedZoom -= 1;
+    selectedMetrics = thumbnailFitMetrics(
+      normalizedBounds,
+      selectedZoom,
+      width,
+      height,
+    );
+  }
+
+  const scale = clamp(
+    selectedMetrics.fitScale,
+    thumbnailMinTileScale,
+    thumbnailMaxTileScale,
+  );
+  const center = lngLatToWorldPixel(normalizedBounds.center, selectedZoom);
+  return {
+    zoom: selectedZoom,
+    viewport: {
+      left: center.x - width / (2 * scale),
+      top: center.y - height / (2 * scale),
+      scale,
+    },
   };
 }
 
@@ -475,6 +538,58 @@ function ensureMinimumThumbnailExtent(
     east: Math.min(180, northeast[0]),
     south: Math.max(-85, southwest[1]),
     north: Math.min(85, northeast[1]),
+  };
+}
+
+function normalizeThumbnailBounds(currentView: MapViewState) {
+  const [rawWest, rawSouth, rawEast, rawNorth] = currentView.bounds;
+  const west = clamp(rawWest, -180, 180);
+  const east = clamp(rawEast, -180, 180);
+  const south = clamp(
+    rawSouth,
+    -thumbnailMaxMercatorLat,
+    thumbnailMaxMercatorLat,
+  );
+  const north = clamp(
+    rawNorth,
+    -thumbnailMaxMercatorLat,
+    thumbnailMaxMercatorLat,
+  );
+  const center: [number, number] = [
+    clamp(currentView.center[0], -180, 180),
+    clamp(
+      currentView.center[1],
+      -thumbnailMaxMercatorLat,
+      thumbnailMaxMercatorLat,
+    ),
+  ];
+
+  return {
+    west: Math.min(west, east),
+    east: Math.max(west, east),
+    south: Math.min(south, north),
+    north: Math.max(south, north),
+    center,
+  };
+}
+
+function thumbnailFitMetrics(
+  bounds: ReturnType<typeof normalizeThumbnailBounds>,
+  zoom: number,
+  width: number,
+  height: number,
+) {
+  const westPoint = lngLatToWorldPixel([bounds.west, bounds.center[1]], zoom);
+  const eastPoint = lngLatToWorldPixel([bounds.east, bounds.center[1]], zoom);
+  const southPoint = lngLatToWorldPixel([bounds.center[0], bounds.south], zoom);
+  const northPoint = lngLatToWorldPixel([bounds.center[0], bounds.north], zoom);
+  const boundsWidth = Math.max(1, Math.abs(eastPoint.x - westPoint.x));
+  const boundsHeight = Math.max(1, Math.abs(southPoint.y - northPoint.y));
+  return {
+    fitScale: Math.min(
+      width / (boundsWidth * thumbnailContextPaddingRatio),
+      height / (boundsHeight * thumbnailContextPaddingRatio),
+    ),
   };
 }
 

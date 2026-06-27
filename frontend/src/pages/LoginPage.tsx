@@ -76,9 +76,6 @@ const stationStatuses = Array.from({ length: 24 }, (_, index) => {
   if (position === 8 || position === 19) {
     state = "warning";
   }
-  if (position === 14) {
-    state = "risk";
-  }
   return { id: `station-${position}`, state };
 });
 
@@ -178,10 +175,6 @@ export default function LoginPage() {
           <span className="login-mark">生态保护数据共享平台</span>
           <Typography.Title level={1}>{platformChineseName}</Typography.Title>
           <strong className="login-english-title">{platformEnglishName}</strong>
-          <p>
-            平台集成遥感影像、空间矢量、野外样方、长期监测与保护专题数据，
-            提供统一编目、三维地理可视化、综合查询分析和共享服务。
-          </p>
           <div className="login-capability-tags">
             {capabilityTags.map((tag) => (
               <span key={tag}>{tag}</span>

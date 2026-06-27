@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildThumbnail,
   thumbnailExtentBox,
   thumbnailTiles,
+  thumbnailViewportForMapView,
   thumbnailViewportForMapTile,
 } from "./RightSidePanel";
+import type { MapViewState } from "../types";
 
 const mapTile = {
   center: [82, 42] as [number, number],
@@ -76,5 +79,55 @@ describe("thumbnailTiles", () => {
         ).toBeLessThanOrEqual(0);
       }
     }
+  });
+});
+
+describe("thumbnailViewportForMapView", () => {
+  const currentView: MapViewState = {
+    center: [86, 40],
+    bounds: [82, 37, 90, 43],
+    zoom: 5.8,
+    bearing: 0,
+    pitch: 0,
+  };
+
+  it("centers the thumbnail on the current map viewport instead of a fixed crop", () => {
+    const overview = thumbnailViewportForMapView(currentView, 290, 174);
+    const thumbnail = buildThumbnail(currentView, 290, 174);
+
+    expect(overview.zoom).toBe(3);
+    expect(overview.viewport.scale).toBeGreaterThanOrEqual(0.12);
+    expect(thumbnail.extent).not.toBeNull();
+    expect(thumbnail.extent?.left).toBeGreaterThan(0);
+    expect(thumbnail.extent?.top).toBeGreaterThan(0);
+    expect(thumbnail.extent?.left + (thumbnail.extent?.width ?? 0)).toBeLessThan(
+      290,
+    );
+    expect(
+      thumbnail.extent?.top + (thumbnail.extent?.height ?? 0),
+    ).toBeLessThan(174);
+  });
+
+  it("zooms the thumbnail out when the main map covers a wide region", () => {
+    const wideView: MapViewState = {
+      center: [88, 38],
+      bounds: [45, 18, 131, 56],
+      zoom: 3.4,
+      bearing: 0,
+      pitch: 0,
+    };
+    const overview = thumbnailViewportForMapView(wideView, 290, 174);
+    const thumbnail = buildThumbnail(wideView, 290, 174);
+
+    expect(overview.zoom).toBe(1);
+    expect(thumbnail.extent).not.toBeNull();
+    expect(thumbnail.extent?.left).toBeGreaterThanOrEqual(0);
+    expect(thumbnail.extent?.top).toBeGreaterThanOrEqual(0);
+    expect(thumbnail.extent?.left + (thumbnail.extent?.width ?? 0)).toBeLessThanOrEqual(
+      290,
+    );
+    expect(
+      thumbnail.extent?.top + (thumbnail.extent?.height ?? 0),
+    ).toBeLessThanOrEqual(174);
   });
 });

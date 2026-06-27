@@ -2,9 +2,9 @@ import { type ThemeConfig, theme } from "antd";
 
 const appColors = {
   primary: "#2f7d62",
-  primaryDark: "#173f39",
-  pageBg: "#eef3ef",
-  siderBg: "#f7faf8",
+  primaryDark: "#225c52",
+  pageBg: "#f4f8f5",
+  siderBg: "#fbfdfb",
 };
 
 const workspaceColors = {
@@ -16,12 +16,12 @@ const workspaceColors = {
   accentMid: "#62ead7",
   accentSoft: "rgba(34, 197, 143, 0.16)",
   accentActive: "rgba(34, 197, 143, 0.22)",
-  controlBg: "rgba(8, 32, 42, 0.62)",
-  controlBgSubtle: "rgba(8, 32, 42, 0.38)",
-  controlBgDisabled: "rgba(8, 32, 42, 0.24)",
-  elevatedBg: "rgba(7, 30, 38, 0.94)",
-  border: "rgba(95, 231, 221, 0.24)",
-  borderSubtle: "rgba(95, 231, 221, 0.14)",
+  controlBg: "rgba(18, 58, 66, 0.58)",
+  controlBgSubtle: "rgba(18, 58, 66, 0.34)",
+  controlBgDisabled: "rgba(18, 58, 66, 0.22)",
+  elevatedBg: "rgba(18, 58, 66, 0.94)",
+  border: "rgba(111, 235, 226, 0.26)",
+  borderSubtle: "rgba(111, 235, 226, 0.16)",
   borderHover: "rgba(116, 243, 221, 0.48)",
   outline: "rgba(116, 243, 221, 0.12)",
 };
@@ -97,7 +97,7 @@ export const workspacePanelTheme: ThemeConfig = {
       defaultGhostBorderColor: "rgba(116, 243, 221, 0.5)",
       defaultGhostColor: workspaceColors.accent,
       defaultShadow: "none",
-      ghostBg: "rgba(8, 32, 42, 0.28)",
+      ghostBg: "rgba(18, 58, 66, 0.26)",
       primaryShadow: "none",
     },
     DatePicker: {
@@ -106,13 +106,13 @@ export const workspacePanelTheme: ThemeConfig = {
       cellActiveWithRangeBg: workspaceColors.accentActive,
       cellHoverWithRangeBg: "rgba(34, 197, 143, 0.28)",
       cellRangeBorderColor: workspaceColors.accent,
-      multipleItemBg: "rgba(8, 32, 42, 0.46)",
+      multipleItemBg: "rgba(18, 58, 66, 0.42)",
       multipleItemBorderColor: workspaceColors.border,
     },
     Descriptions: {
       contentColor: workspaceColors.text,
       extraColor: workspaceColors.textMuted,
-      labelBg: "rgba(7, 30, 38, 0.46)",
+      labelBg: "rgba(18, 58, 66, 0.42)",
       labelColor: workspaceColors.text,
       titleColor: workspaceColors.textStrong,
     },
@@ -145,14 +145,14 @@ export const workspacePanelTheme: ThemeConfig = {
       itemHoverColor: workspaceColors.textStrong,
       itemSelectedBg: workspaceColors.controlBg,
       itemSelectedColor: workspaceColors.accent,
-      trackBg: "rgba(7, 30, 38, 0.48)",
+      trackBg: "rgba(18, 58, 66, 0.44)",
     },
     Select: {
       activeBorderColor: workspaceColors.accent,
       activeOutlineColor: workspaceColors.outline,
       clearBg: workspaceColors.controlBg,
       hoverBorderColor: workspaceColors.borderHover,
-      multipleItemBg: "rgba(8, 32, 42, 0.46)",
+      multipleItemBg: "rgba(18, 58, 66, 0.42)",
       multipleItemBorderColor: workspaceColors.border,
       optionActiveBg: workspaceColors.accentSoft,
       optionSelectedBg: workspaceColors.accentActive,
@@ -178,7 +178,7 @@ export const workspacePanelTheme: ThemeConfig = {
       itemSelectedColor: workspaceColors.accent,
     },
     Tag: {
-      defaultBg: "rgba(8, 32, 42, 0.46)",
+      defaultBg: "rgba(18, 58, 66, 0.42)",
       defaultColor: workspaceColors.text,
       solidTextColor: workspaceColors.text,
     },

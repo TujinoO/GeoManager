@@ -22,15 +22,120 @@ type LineJoin = "bevel" | "round" | "miter" | "none";
 
 export const platformSymbolIconIds = [
   "gm-marker",
-  "gm-station",
+  "gm-point",
   "gm-sample",
   "gm-plot",
+  "gm-transect",
+  "gm-collection",
+  "gm-revisit",
+  "gm-populus",
+  "gm-tree",
+  "gm-leaf",
+  "gm-seed",
+  "gm-species",
+  "gm-community",
+  "gm-ancient-tree",
+  "gm-station",
   "gm-water",
+  "gm-groundwater",
+  "gm-soil",
+  "gm-salinity",
+  "gm-climate",
+  "gm-sensor",
+  "gm-satellite",
+  "gm-pixel",
+  "gm-ndvi",
+  "gm-npp",
+  "gm-imagery",
+  "gm-zonal",
+  "gm-dna",
+  "gm-tube",
+  "gm-vial",
+  "gm-core-germplasm",
+  "gm-germplasm",
   "gm-alert",
+  "gm-error",
+  "gm-pending",
+  "gm-confirmed",
+  "gm-quality",
   "gm-priority",
 ] as const;
 
 export type PlatformSymbolIconId = (typeof platformSymbolIconIds)[number];
+
+export const platformSymbolIconGroups = [
+  {
+    label: "调查采样",
+    options: [
+      { value: "gm-marker", label: "定位标记" },
+      { value: "gm-point", label: "普通样点" },
+      { value: "gm-sample", label: "调查样点" },
+      { value: "gm-plot", label: "样方" },
+      { value: "gm-transect", label: "样线点" },
+      { value: "gm-collection", label: "采集点" },
+      { value: "gm-revisit", label: "复测点" },
+    ],
+  },
+  {
+    label: "生态植被",
+    options: [
+      { value: "gm-populus", label: "胡杨" },
+      { value: "gm-tree", label: "植株" },
+      { value: "gm-leaf", label: "叶片" },
+      { value: "gm-seed", label: "种子" },
+      { value: "gm-species", label: "物种分布" },
+      { value: "gm-community", label: "群落" },
+      { value: "gm-ancient-tree", label: "古树" },
+    ],
+  },
+  {
+    label: "环境监测",
+    options: [
+      { value: "gm-station", label: "监测站" },
+      { value: "gm-water", label: "水文点" },
+      { value: "gm-groundwater", label: "地下水" },
+      { value: "gm-soil", label: "土壤点" },
+      { value: "gm-salinity", label: "盐分点" },
+      { value: "gm-climate", label: "气候点" },
+      { value: "gm-sensor", label: "传感器" },
+    ],
+  },
+  {
+    label: "遥感栅格",
+    options: [
+      { value: "gm-satellite", label: "卫星" },
+      { value: "gm-pixel", label: "栅格像元" },
+      { value: "gm-ndvi", label: "NDVI" },
+      { value: "gm-npp", label: "NPP" },
+      { value: "gm-imagery", label: "遥感影像点" },
+      { value: "gm-zonal", label: "区域统计" },
+    ],
+  },
+  {
+    label: "DNA 种质",
+    options: [
+      { value: "gm-dna", label: "DNA 样品" },
+      { value: "gm-tube", label: "试管" },
+      { value: "gm-vial", label: "样品瓶" },
+      { value: "gm-core-germplasm", label: "核心种质" },
+      { value: "gm-germplasm", label: "种质资源" },
+    ],
+  },
+  {
+    label: "状态管理",
+    options: [
+      { value: "gm-alert", label: "风险预警" },
+      { value: "gm-error", label: "异常点" },
+      { value: "gm-pending", label: "待核验" },
+      { value: "gm-confirmed", label: "已确认" },
+      { value: "gm-quality", label: "数据质量" },
+      { value: "gm-priority", label: "重点点位" },
+    ],
+  },
+] as const satisfies readonly {
+  label: string;
+  options: readonly { value: PlatformSymbolIconId; label: string }[];
+}[];
 
 export const legacySymbolIconAliases = {
   "marker-15": "gm-marker",

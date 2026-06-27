@@ -8,6 +8,8 @@ import {
   defaultRasterSymbolization,
   defaultVectorSymbolization,
   normalizeSymbolIconImage,
+  platformSymbolIconGroups,
+  platformSymbolIconIds,
   rasterSymbolizationFromRules,
 } from "./symbolization";
 
@@ -58,9 +60,31 @@ describe("normalizeSymbolIconImage", () => {
     expect(normalizeSymbolIconImage("gm-marker")).toBe("gm-marker");
   });
 
+  it("keeps expanded platform icon ids unchanged", () => {
+    expect(normalizeSymbolIconImage("gm-dna")).toBe("gm-dna");
+    expect(normalizeSymbolIconImage("gm-groundwater")).toBe("gm-groundwater");
+    expect(normalizeSymbolIconImage("gm-core-germplasm")).toBe(
+      "gm-core-germplasm",
+    );
+  });
+
   it("maps legacy sprite names to platform icon ids", () => {
     expect(normalizeSymbolIconImage("triangle-15")).toBe("gm-alert");
     expect(normalizeSymbolIconImage("star-15")).toBe("gm-priority");
+  });
+});
+
+describe("platformSymbolIconGroups", () => {
+  it("offers every platform icon exactly once", () => {
+    const groupedIconIds = platformSymbolIconGroups.flatMap((group) =>
+      group.options.map((option) => option.value),
+    );
+    expect(new Set(groupedIconIds)).toEqual(new Set(platformSymbolIconIds));
+    expect(groupedIconIds).toHaveLength(platformSymbolIconIds.length);
+  });
+
+  it("keeps the simplified library at the planned scale", () => {
+    expect(platformSymbolIconIds.length).toBeGreaterThanOrEqual(30);
   });
 });
 
@@ -68,6 +92,12 @@ describe("platformSymbolImageId", () => {
   it("builds color-specific image ids for platform icons", () => {
     expect(platformSymbolImageId("gm-water", "#2F7D62")).toBe(
       "gm-water--2f7d62",
+    );
+  });
+
+  it("builds color-specific image ids for expanded platform icons", () => {
+    expect(platformSymbolImageId("gm-dna", "#2F7D62")).toBe(
+      "gm-dna--2f7d62",
     );
   });
 

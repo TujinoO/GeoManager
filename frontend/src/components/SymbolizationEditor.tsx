@@ -7,6 +7,7 @@ import {
   Divider,
   Input,
   InputNumber,
+  Popover,
   Segmented,
   Select,
   Slider,
@@ -21,6 +22,7 @@ import { api } from "../api/client";
 import {
   defaultVectorSymbolization,
   normalizeSymbolIconImage,
+  platformSymbolIconGroups,
   type Anchor,
   type CircleSymbolization,
   type ClusterSymbolization,
@@ -44,6 +46,11 @@ const anchorOptions: Anchor[] = [
   "bottom-left",
   "bottom-right",
 ];
+
+type IconPickerGroup = {
+  label: string;
+  options: readonly { value: string; label: string }[];
+};
 
 const rgbBandLabels = ["R", "G", "B"] as const;
 const heatmapPalettes = [
@@ -290,6 +297,10 @@ export function VectorSymbolizationEditor({
   onApply?: () => void;
 }) {
   const { message } = App.useApp();
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [activeIconGroupLabel, setActiveIconGroupLabel] = useState<
+    string | null
+  >(null);
 
   const copyJson = useCallback(async () => {
     try {
@@ -465,21 +476,31 @@ export function VectorSymbolizationEditor({
   const geometrySummary = geometryUnknown
     ? "自动识别可用表达方式"
     : geometryType;
-  const iconOptions = [
-    { value: "gm-marker", label: "定位标记" },
-    { value: "gm-station", label: "监测站点" },
-    { value: "gm-sample", label: "调查样点" },
-    { value: "gm-plot", label: "植被样方" },
-    { value: "gm-water", label: "水文点位" },
-    { value: "gm-alert", label: "风险预警" },
-    { value: "gm-priority", label: "重点点位" },
+  const selectedIconImage =
+    normalizeSymbolIconImage(value.symbol.iconImage).trim() ||
+    defaultVectorSymbolization.symbol.iconImage;
+  const selectedIconGroup = platformSymbolIconGroups.find((group) =>
+    group.options.some((option) => option.value === selectedIconImage),
+  );
+  const selectedIconLabel =
+    selectedIconGroup?.options.find((option) => option.value === selectedIconImage)
+      ?.label ?? selectedIconImage;
+  const iconPickerGroups: IconPickerGroup[] = [
+    ...(selectedIconGroup
+      ? []
+      : [
+          {
+            label: "当前图标",
+            options: [{ value: selectedIconImage, label: selectedIconImage }],
+          },
+        ]),
+    ...platformSymbolIconGroups,
   ];
-  const selectedIconImage = normalizeSymbolIconImage(value.symbol.iconImage);
-  const iconImageOptions = iconOptions.some(
-    (option) => option.value === selectedIconImage,
-  )
-    ? iconOptions
-    : [{ value: selectedIconImage, label: selectedIconImage }, ...iconOptions];
+  const resolvedActiveIconGroup =
+    activeIconGroupLabel &&
+    iconPickerGroups.some((group) => group.label === activeIconGroupLabel)
+      ? activeIconGroupLabel
+      : (selectedIconGroup?.label ?? iconPickerGroups[0]?.label ?? "");
   const currentHeatmapColor = JSON.stringify(value.heatmap.heatmapColor);
   const heatmapPaletteOptions: Array<{ label: string; value: string }> =
     heatmapPalettes.map((palette) => ({
@@ -706,13 +727,95 @@ export function VectorSymbolizationEditor({
             {geometry.hasPoint && value.pointMode === "symbol" && (
               <>
                 <ControlRow label="图标类型">
-                  <Select
-                    className="full-width"
-                    showSearch
-                    value={selectedIconImage}
-                    options={iconImageOptions}
-                    onChange={(next) => updateSymbol("iconImage", next)}
-                  />
+                  <Popover
+                    trigger="click"
+                    placement="bottomLeft"
+                    arrow={false}
+                    open={iconPickerOpen}
+                    onOpenChange={(open) => {
+                      setIconPickerOpen(open);
+                      if (open) {
+                        setActiveIconGroupLabel(resolvedActiveIconGroup);
+                      }
+                    }}
+                    overlayClassName="symbol-icon-picker-popover"
+                    content={
+                      <div className="symbol-icon-picker-menu">
+                        {iconPickerGroups.map((group) => {
+                          const isActive =
+                            group.label === resolvedActiveIconGroup;
+                          return (
+                            <div
+                              className={
+                                isActive
+                                  ? "symbol-icon-picker-group is-active"
+                                  : "symbol-icon-picker-group"
+                              }
+                              key={group.label}
+                            >
+                              <button
+                                type="button"
+                                className="symbol-icon-picker-group-button"
+                                aria-expanded={isActive}
+                                onClick={() =>
+                                  setActiveIconGroupLabel(group.label)
+                                }
+                              >
+                                <span>{group.label}</span>
+                                <small>{group.options.length} 个</small>
+                              </button>
+                              {isActive && (
+                                <div className="symbol-icon-picker-options">
+                                  {group.options.map((option) => {
+                                    const isSelected =
+                                      option.value === selectedIconImage;
+                                    return (
+                                      <button
+                                        type="button"
+                                        key={option.value}
+                                        className={
+                                          isSelected
+                                            ? "symbol-icon-picker-option is-selected"
+                                            : "symbol-icon-picker-option"
+                                        }
+                                        aria-pressed={isSelected}
+                                        onClick={() => {
+                                          updateSymbol(
+                                            "iconImage",
+                                            option.value,
+                                          );
+                                          setActiveIconGroupLabel(group.label);
+                                          setIconPickerOpen(false);
+                                        }}
+                                      >
+                                        {option.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    }
+                  >
+                    <button
+                      type="button"
+                      className="symbol-icon-picker-trigger"
+                      aria-haspopup="menu"
+                      aria-expanded={iconPickerOpen}
+                    >
+                      <span className="symbol-icon-picker-value">
+                        {selectedIconGroup
+                          ? `${selectedIconGroup.label} / ${selectedIconLabel}`
+                          : selectedIconLabel}
+                      </span>
+                      <span className="symbol-icon-picker-caret" aria-hidden>
+                        ▾
+                      </span>
+                    </button>
+                  </Popover>
                 </ControlRow>
                 <ColorField
                   label="图标颜色"

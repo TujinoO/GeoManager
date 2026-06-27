@@ -2,6 +2,17 @@
 
 本文档收敛本地环境、常用验证命令、测试约束和 Linux Docker 部署说明。产品与架构约束见 `docs/design-docs.md`，API 契约见 `docs/openapi.yaml`，接口使用说明见 `docs/developer-guide.md`。
 
+## 本机登录凭据
+
+本机已部署网页端的超级管理员账号：
+
+```text
+用户名：admin
+密码：!XpuXrkU
+```
+
+说明：本密码已通过 Django 认证逻辑校验为当前 `admin` 账号的实际可登录密码。业务数据目录中的 `initial_superadmin_password.txt` 只代表初始化记录；如果后台再次修改过密码，以数据库实际认证结果为准。
+
 ## 本地环境
 
 前端使用 Node.js 和 pnpm，禁止使用 npm 运行项目脚本。
