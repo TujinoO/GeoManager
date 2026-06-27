@@ -265,6 +265,14 @@ describe("WorkspaceHeader", () => {
     );
   });
 
+  it("keeps the intelligent interpretation navigation button as a frontend placeholder", () => {
+    renderHeader();
+
+    fireEvent.click(screen.getByRole("button", { name: "智能解译" }));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/");
+  });
+
   it("clears cached layer state when the user logs out", async () => {
     const setUser = vi.fn();
     renderHeader({}, user, setUser);

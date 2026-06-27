@@ -9,6 +9,7 @@ import {
   LogoutOutlined,
   QrcodeOutlined,
   QuestionCircleOutlined,
+  RobotOutlined,
   SearchOutlined,
   SettingOutlined,
   UserOutlined,
@@ -496,6 +497,11 @@ export default function WorkspaceHeader({
     [dismissSearchForNavigation, navigate],
   );
 
+  const handleAiInterpretationPlaceholder = useCallback(() => {
+    dismissSearchForNavigation();
+    message.info("智能解译功能按钮已预留，暂未接入后端服务");
+  }, [dismissSearchForNavigation, message]);
+
   function handleResourceCenter() {
     if (!canBrowseData && !showAdminTab) {
       message.warning("当前账号暂无数据资源浏览权限");
@@ -950,6 +956,17 @@ export default function WorkspaceHeader({
           >
             <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
             <span className="tab-text">非地理数据</span>
+          </Button>
+          <Button
+            type="text"
+            className={tabClass(false, expandedTabId === "ai")}
+            onClick={handleAiInterpretationPlaceholder}
+            onMouseEnter={() => scheduleTabHoverExpand("ai")}
+            onMouseLeave={collapseTabHover}
+            title="智能解译（占位）"
+          >
+            <RobotOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+            <span className="tab-text">智能解译</span>
           </Button>
           {(canBrowseData || showAdminTab) && dataButton}
           {showAdminTab && (
