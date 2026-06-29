@@ -45,6 +45,8 @@ import type { DrawMode } from "../map/spatialDraw";
 import { workspacePanelTheme } from "../theme";
 import type {
   AttributeFilter,
+  DataDomainType,
+  DataSchemaSummary,
   DataResource,
   DataResourceProfile,
   ExportLayerItem,
@@ -113,14 +115,29 @@ const emptyPermissions = {
   canManageRasterData: false,
 };
 
+const fallbackDomainTypeOptions: Array<{
+  value: DataDomainType;
+  label: string;
+}> = [
+  { value: "germplasm", label: "种质数据" },
+  { value: "individual", label: "个体数据" },
+  { value: "community", label: "群落数据" },
+  { value: "population", label: "种群数据" },
+  { value: "field_survey", label: "野外调查数据" },
+  { value: "remote_sensing", label: "遥感影像数据" },
+  { value: "molecular", label: "分子数据" },
+  { value: "genome", label: "基因组数据" },
+];
+
 const MapCanvas = lazy(() => import("../components/MapCanvas"));
 
 export default function MapPage() {
   const { bootstrap, user } = useAppContext();
   const { message, notification } = App.useApp();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [resources, setResources] = useState<ResourceListItem[]>([]);
+  const [dataSchema, setDataSchema] = useState<DataSchemaSummary | null>(null);
   const [resourceSearchKeyword, setResourceSearchKeyword] = useState("");
   const [selectedResource, setSelectedResource] =
     useState<ResourceListItem | null>(null);
@@ -158,6 +175,29 @@ export default function MapPage() {
   );
   const permissions = user?.permissions ?? emptyPermissions;
   const userRoles = user?.roles ?? [];
+  const domainTypeOptions = useMemo(
+    () =>
+      dataSchema?.domains.length
+        ? dataSchema.domains.map((domain) => ({
+            value: domain.code,
+            label: domain.name,
+          }))
+        : fallbackDomainTypeOptions,
+    [dataSchema?.domains],
+  );
+  const selectedDomainType = useMemo(() => {
+    const value = searchParams.get("domainType");
+    return domainTypeOptions.some((option) => option.value === value)
+      ? (value as DataDomainType)
+      : null;
+  }, [domainTypeOptions, searchParams]);
+  const urlResourceFilters = useMemo<ResourceFilters>(() => {
+    const keyword = searchParams.get("resourceQ")?.trim() ?? "";
+    return {
+      ...(keyword ? { q: keyword } : {}),
+      ...(selectedDomainType ? { domainType: selectedDomainType } : {}),
+    };
+  }, [searchParams, selectedDomainType]);
 
   const layerGroups = useLayerGroups(user ? `user-${user.id}` : "anonymous");
   const { startRasterRender, setMapInstance } = useRasterRender(
@@ -309,8 +349,19 @@ export default function MapPage() {
     async (filters: ResourceFilters) => {
       try {
         const response = await api.resources(filters);
-        setResources(response.items);
-        return response.items;
+        const items = response.items;
+        setResources(items);
+        setSelectedResource((current) =>
+          current && !items.some((item) => item.id === current.id)
+            ? null
+            : current,
+        );
+        setResourceProfile((current) =>
+          current && !items.some((item) => item.id === current.resource.id)
+            ? null
+            : current,
+        );
+        return items;
       } catch (error) {
         message.error(
           error instanceof Error ? error.message : "数据资源加载失败",
@@ -322,25 +373,40 @@ export default function MapPage() {
   );
 
   useEffect(() => {
-    if (permissions.canBrowseData) {
-      void loadResources({});
-    }
-  }, [permissions.canBrowseData, loadResources]);
-
-  useEffect(() => {
     void loadWorkspaceScenes();
   }, [loadWorkspaceScenes]);
 
   useEffect(() => {
-    const keyword = searchParams.get("resourceQ")?.trim() ?? "";
+    if (!permissions.canBrowseData) {
+      setDataSchema(null);
+      return;
+    }
+    let ignore = false;
+    api
+      .dataSchemaSummary()
+      .then((result) => {
+        if (!ignore) {
+          setDataSchema(result);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setDataSchema(null);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [permissions.canBrowseData]);
+
+  useEffect(() => {
+    const keyword = urlResourceFilters.q?.trim() ?? "";
     setResourceSearchKeyword(keyword);
     if (!permissions.canBrowseData) {
       return;
     }
-    if (keyword) {
-      void loadResources({ q: keyword });
-    }
-  }, [loadResources, permissions.canBrowseData, searchParams]);
+    void loadResources(urlResourceFilters);
+  }, [loadResources, permissions.canBrowseData, urlResourceFilters]);
 
   const waitForJob = useCallback(async (jobId: string) => {
     while (true) {
@@ -375,12 +441,18 @@ export default function MapPage() {
           error instanceof Error ? error.message : "数据目录自动扫描失败",
         );
       } finally {
-        await loadResources({});
+        await loadResources(urlResourceFilters);
       }
     }
 
     void scanAndRefreshResources();
-  }, [loadResources, message, permissions.canBrowseData, waitForJob]);
+  }, [
+    loadResources,
+    message,
+    permissions.canBrowseData,
+    urlResourceFilters,
+    waitForJob,
+  ]);
 
   async function fetchResourceProfile(resource: ResourceListItem) {
     setSelectedResource(resource);
@@ -403,6 +475,17 @@ export default function MapPage() {
   async function handleSelectResource(resource: ResourceListItem) {
     await fetchResourceProfile(resource);
   }
+
+  const handleSelectDataDomain = useCallback(
+    (domainType: DataDomainType) => {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set("domainType", domainType);
+      nextParams.delete("resourceQ");
+      setSearchParams(nextParams);
+      setResourceSearchKeyword("");
+    },
+    [searchParams, setSearchParams],
+  );
 
   const handleDrawComplete = useCallback(
     (mode: NonNullable<DrawMode>, geometry: GeoJsonGeometry) => {
@@ -890,6 +973,8 @@ export default function MapPage() {
       loadingProfile={loadingProfile}
       querying={querying}
       permissions={permissions}
+      domainTypeOptions={domainTypeOptions}
+      selectedDomainType={selectedDomainType}
       searchKeyword={resourceSearchKeyword}
       onFilterResources={loadResources}
       onSelectResource={handleSelectResource}
@@ -905,10 +990,13 @@ export default function MapPage() {
         canBrowseData={permissions.canBrowseData}
         resources={resources}
         workspaceScenes={workspaceScenes}
+        dataSchema={dataSchema}
+        selectedDomainType={selectedDomainType}
         searchKeyword={resourceSearchKeyword}
         onGlobalSearch={(keyword) => {
           setResourceSearchKeyword(keyword);
         }}
+        onSelectDataDomain={handleSelectDataDomain}
         onQuickLoadResource={(resource) =>
           void handleQuickLoadResource(resource)
         }

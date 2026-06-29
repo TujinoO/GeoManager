@@ -34,6 +34,8 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ApiError, api } from "../api/client";
 import { useAppContext } from "../contexts/AppContext";
 import type {
+  DataDomainType,
+  DataSchemaSummary,
   ImportCommitPayload,
   ImportCommitResult,
   ImportCoordinateStats,
@@ -46,6 +48,7 @@ import type {
 
 interface ImportFormValues {
   name: string;
+  domainType?: DataDomainType;
   importMode: "geographic" | "table";
   longitudeColumn?: string;
   latitudeColumn?: string;
@@ -53,12 +56,128 @@ interface ImportFormValues {
 }
 
 type IssueAction = "continue" | "import";
-type ImportKind = "tabular" | "raster" | "unsupported";
+type ImportKind = "tabular" | "raster" | "vector" | "unsupported";
+type ImportStorageMode = ImportFormValues["importMode"] | "raster";
+type DomainDefinition = DataSchemaSummary["domains"][number];
 type RasterDimensions = { width: number; height: number };
 const selfAccessScopeId = "__self__";
 const unfinishedImportWarning =
   "当前导入尚未完成，离开页面会丢失已选择的文件、导入配置、校验结果和字段元数据。";
 type AccessScopeId = number | typeof selfAccessScopeId;
+
+const spatialClassLabels: Record<string, string> = {
+  spatial: "地理数据",
+  non_spatial: "非地理数据",
+  spatialized_table: "可空间化表格",
+  derived_from_spatial: "空间对象关联",
+};
+
+const domainColors: Record<DataDomainType, string> = {
+  germplasm: "green",
+  genome: "geekblue",
+  individual: "cyan",
+  community: "lime",
+  population: "gold",
+  field_survey: "orange",
+  remote_sensing: "blue",
+  molecular: "purple",
+};
+
+const resourceTypeLabels: Record<string, string> = {
+  vector: "矢量",
+  raster: "栅格",
+  gene: "组学/基因",
+  table: "表格",
+  document: "文档",
+  image: "影像/照片",
+};
+
+const fallbackDomainDefinitions: DomainDefinition[] = [
+  {
+    code: "germplasm",
+    name: "种质数据",
+    spatialClass: "spatialized_table",
+    description:
+      "胡杨、灰杨及伴生植物种质资源，重点管理采集来源、样品编号、核心资源标记和后续分子/基因组数据关联。",
+    recommendedResourceTypes: ["vector", "gene", "table"],
+    coreEntities: ["GermplasmAccession", "BiologicalSample", "Site", "Taxon"],
+  },
+  {
+    code: "genome",
+    name: "基因组数据",
+    spatialClass: "non_spatial",
+    description:
+      "测序、组装、变异、注释等非地理组学成果；通过生物样品追溯采集地、个体或种群空间来源。",
+    recommendedResourceTypes: ["gene", "table"],
+    coreEntities: ["GenomeDataset", "GenomeSequenceFile", "BiologicalSample"],
+  },
+  {
+    code: "individual",
+    name: "个体数据",
+    spatialClass: "spatial",
+    description: "单株或单个植株个体的位置、性别、健康状态和观测指标。",
+    recommendedResourceTypes: ["vector", "table"],
+    coreEntities: ["IndividualOrganism", "TraitObservation", "BiologicalSample"],
+  },
+  {
+    code: "community",
+    name: "群落数据",
+    spatialClass: "spatialized_table",
+    description: "样方、群落组成、多样性指标和功能性状等数据。",
+    recommendedResourceTypes: ["vector", "table"],
+    coreEntities: [
+      "SamplePlot",
+      "CommunitySurvey",
+      "SpeciesComposition",
+      "CommunityMetricValue",
+    ],
+  },
+  {
+    code: "population",
+    name: "种群数据",
+    spatialClass: "spatial",
+    description: "某区域内某物种种群的空间范围、调查事件和种群指标。",
+    recommendedResourceTypes: ["vector", "table"],
+    coreEntities: ["PopulationUnit", "SamplePlot", "RasterSampleValue"],
+  },
+  {
+    code: "field_survey",
+    name: "野外调查数据",
+    spatialClass: "spatialized_table",
+    description: "调查任务、路线、样点、采集记录、野外照片和观察记录。",
+    recommendedResourceTypes: ["vector", "table", "image"],
+    coreEntities: ["SurveyEvent", "FieldObservation", "SurveyRoute", "SpecimenRecord"],
+  },
+  {
+    code: "remote_sensing",
+    name: "遥感影像数据",
+    spatialClass: "spatial",
+    description:
+      "原始遥感影像、无人机影像、NDVI/NPP、生物量、分类和变化检测产品。",
+    recommendedResourceTypes: ["raster", "vector"],
+    coreEntities: ["RasterDataset", "RemoteSensingProduct", "RasterSampleValue"],
+  },
+  {
+    code: "molecular",
+    name: "分子数据",
+    spatialClass: "non_spatial",
+    description:
+      "DNA/RNA 提取、PCR、分子标记、实验批次和实验结果文件；通过生物样品关联空间来源。",
+    recommendedResourceTypes: ["gene", "table", "document"],
+    coreEntities: ["MolecularSample", "MolecularAssay", "MolecularResult", "MolecularFile"],
+  },
+];
+
+const domainFieldHints: Record<DataDomainType, string[]> = {
+  germplasm: ["样品编号", "采集地点", "物种", "经度", "纬度", "海拔", "核心资源标记"],
+  genome: ["样品编号", "测序平台", "数据集类型", "文件角色", "参考组装", "质控状态"],
+  individual: ["个体编号", "物种", "性别", "经度", "纬度", "健康状态", "功能性状"],
+  community: ["样方编号", "群落类型", "物种组成", "盖度", "多样性指数", "调查时间"],
+  population: ["种群编号", "物种", "调查区域", "样方编号", "种群指标", "遥感采样值"],
+  field_survey: ["调查编号", "样点/路线", "采集日期", "调查人员", "经度", "纬度", "观测记录"],
+  remote_sensing: ["产品编号", "产品类型", "传感器", "时间范围", "空间分辨率", "坐标系"],
+  molecular: ["分子样品编号", "核酸类型", "实验类型", "批次编号", "位点/标记", "结果文件"],
+};
 
 export default function AdminDataImportPage() {
   const { message } = AntApp.useApp();
@@ -68,6 +187,7 @@ export default function AdminDataImportPage() {
   const allowNavigationRef = useRef(false);
   const currentPathRef = useRef("");
   const [form] = Form.useForm<ImportFormValues>();
+  const [schema, setSchema] = useState<DataSchemaSummary | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [importKind, setImportKind] = useState<ImportKind | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -119,6 +239,25 @@ export default function AdminDataImportPage() {
     (file && !result) ||
     (rasterFile && !rasterJob) ||
     (rasterJob && isActiveRasterJob(rasterJob)),
+  );
+
+  const domainDefinitions = useMemo(
+    () => (schema?.domains.length ? schema.domains : fallbackDomainDefinitions),
+    [schema?.domains],
+  );
+  const selectedDomainType =
+    Form.useWatch("domainType", form) ?? importConfig.domainType;
+  const selectedDomain = useMemo(
+    () =>
+      domainDefinitions.find((domain) => domain.code === selectedDomainType) ??
+      domainDefinitions[0],
+    [domainDefinitions, selectedDomainType],
+  );
+  const remoteSensingDomain = useMemo(
+    () =>
+      domainDefinitions.find((domain) => domain.code === "remote_sensing") ??
+      fallbackDomainDefinitions.find((domain) => domain.code === "remote_sensing"),
+    [domainDefinitions],
   );
 
   const columnOptions = useMemo(
@@ -176,6 +315,12 @@ export default function AdminDataImportPage() {
         { title: "类型识别", icon: <FileSearchOutlined /> },
       ];
     }
+    if (importKind === "vector") {
+      return [
+        { title: "选择文件", icon: <CloudUploadOutlined /> },
+        { title: "矢量识别", icon: <FileSearchOutlined /> },
+      ];
+    }
     return [
       { title: "选择文件", icon: <CloudUploadOutlined /> },
       { title: "导入配置", icon: <DatabaseOutlined /> },
@@ -208,6 +353,29 @@ export default function AdminDataImportPage() {
       ignore = true;
     };
   }, [user?.permissions.canUploadData]);
+
+  useEffect(() => {
+    if (!user?.permissions.canUploadData || !user.permissions.canBrowseData) {
+      setSchema(null);
+      return;
+    }
+    let ignore = false;
+    api
+      .dataSchemaSummary()
+      .then((result) => {
+        if (!ignore) {
+          setSchema(result);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setSchema(null);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [user?.permissions.canBrowseData, user?.permissions.canUploadData]);
 
   useEffect(() => {
     let ignore = false;
@@ -439,13 +607,20 @@ export default function AdminDataImportPage() {
       void handlePreview(selectedFile);
       return;
     }
+    if (kind === "vector") {
+      setImportKind("vector");
+      setUnsupportedFile(selectedFile);
+      setCurrentStep(1);
+      message.info("已识别为矢量数据，当前版本请走表格空间化或后续矢量导入流程。");
+      return;
+    }
     setImportKind("unsupported");
     setUnsupportedFile(selectedFile);
     setCurrentStep(1);
     message.warning("暂不支持该文件类型的自动导入");
   }
 
-  async function handlePreview(selectedFile: File) {
+  async function handlePreview(selectedFile: File, sheetName?: string | null) {
     setFile(selectedFile);
     setPreviewing(true);
     setResult(null);
@@ -454,15 +629,17 @@ export default function AdminDataImportPage() {
     setHasValidated(false);
     setIgnoreCoordinateUncertainty(false);
     try {
-      const data = await api.importPreview(selectedFile);
+      const data = await api.importPreview(selectedFile, sheetName);
       setPreview(data);
       setDuplicateTarget(data.duplicateTarget ?? null);
       setFieldMetadata(
         Object.fromEntries(data.columns.map((column) => [column, ""])),
       );
       setIncludedColumns(data.columns);
+      const inferredDomainType = inferDomainTypeFromFile(selectedFile.name, data);
       const nextConfig: ImportFormValues = {
         name: data.suggestedName,
+        domainType: inferredDomainType,
         importMode: data.detected.isGeographic ? "geographic" : "table",
         longitudeColumn: data.detected.longitudeColumn ?? undefined,
         latitudeColumn: data.detected.latitudeColumn ?? undefined,
@@ -474,12 +651,23 @@ export default function AdminDataImportPage() {
         accessGroupIds: withFixedAccessScopes(nextConfig.accessGroupIds),
       });
       setCurrentStep(1);
-      message.success("文件预检完成，请配置导入信息");
+      message.success(
+        data.activeSheetName
+          ? `工作表 ${data.activeSheetName} 预检完成，请配置导入信息`
+          : "文件预检完成，请配置导入信息",
+      );
     } catch (error) {
       message.error(error instanceof Error ? error.message : "预检失败");
     } finally {
       setPreviewing(false);
     }
+  }
+
+  function handleSheetSelected(sheetName: string) {
+    if (!file || preview?.activeSheetName === sheetName) {
+      return;
+    }
+    void handlePreview(file, sheetName);
   }
 
   async function handleValidateAndContinue() {
@@ -492,6 +680,7 @@ export default function AdminDataImportPage() {
       setImportConfig((current) => ({ ...current, ...values }));
       const payload: ImportValidatePayload = {
         name: values.name,
+        sheetName: preview.activeSheetName ?? undefined,
         importMode: values.importMode,
         tableName: preview.suggestedTableName,
         longitudeColumn: values.longitudeColumn,
@@ -588,7 +777,7 @@ export default function AdminDataImportPage() {
         return;
       }
       if (!values.importMode) {
-        message.warning("请选择导入类型");
+        message.warning("请选择入库方式");
         setCurrentStep(1);
         return;
       }
@@ -602,6 +791,8 @@ export default function AdminDataImportPage() {
       );
       const payload: ImportCommitPayload = {
         name: values.name,
+        domainType: values.domainType,
+        sheetName: preview.activeSheetName ?? undefined,
         importMode: values.importMode,
         longitudeColumn: values.longitudeColumn,
         latitudeColumn: values.latitudeColumn,
@@ -723,41 +914,224 @@ export default function AdminDataImportPage() {
                 </Button>
               </Space>
 
-              <Alert
-                type="info"
-                showIcon
-                title="导入限制"
-                description={
-                  <ul className="import-limit-list">
-                    {preview.limitations.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                }
-              />
-
-              <div className="import-config-grid">
-                <Form.Item
-                  name="name"
-                  label="数据名称"
-                  rules={[{ required: true, message: "请输入数据名称" }]}
+              <section className="import-section import-recognition-panel">
+                <Typography.Title level={5}>文件识别结果</Typography.Title>
+                <Descriptions
+                  size="small"
+                  bordered
+                  column={4}
+                  className="import-stats"
                 >
-                  <Input placeholder="例如：样地调查点位" />
+                  <Descriptions.Item label="文件名">
+                    {file?.name ?? "-"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="总行数">
+                    {preview.rowCount}
+                  </Descriptions.Item>
+                  {preview.activeSheetName && (
+                    <Descriptions.Item label="当前工作表">
+                      {preview.activeSheetName}
+                    </Descriptions.Item>
+                  )}
+                  <Descriptions.Item label="字段数">
+                    {preview.columns.length}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="自动识别">
+                    {preview.detected.isGeographic ? "经纬度表格" : "普通表格"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="建议存储标识" span={2}>
+                    {preview.suggestedTableName}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="识别坐标列" span={2}>
+                    {preview.detected.longitudeColumn &&
+                    preview.detected.latitudeColumn
+                      ? `${preview.detected.longitudeColumn} / ${preview.detected.latitudeColumn}`
+                      : "未识别"}
+                  </Descriptions.Item>
+                </Descriptions>
+                {(preview.sheets?.length ?? 0) > 1 && (
+                  <section className="import-section import-sheet-section">
+                    <Typography.Title level={5}>工作表拆分结果</Typography.Title>
+                    <Alert
+                      type="info"
+                      showIcon
+                      title={`已识别 ${preview.sheets?.length ?? 0} 张工作表`}
+                      description="每张工作表会按独立表格预检、校验和导入；请选择当前要导入的工作表，平台会重新推断字段、坐标列和建议入库名称。"
+                    />
+                    <Table
+                      size="small"
+                      rowKey="name"
+                      pagination={false}
+                      dataSource={preview.sheets ?? []}
+                      columns={[
+                        {
+                          title: "工作表",
+                          dataIndex: "name",
+                          ellipsis: true,
+                        },
+                        {
+                          title: "行数",
+                          dataIndex: "rowCount",
+                          width: 96,
+                        },
+                        {
+                          title: "字段",
+                          dataIndex: "columnCount",
+                          width: 96,
+                        },
+                        {
+                          title: "识别类型",
+                          dataIndex: "isGeographic",
+                          width: 140,
+                          render: (_, record) =>
+                            record.isGeographic ? (
+                              <Tag color="cyan">经纬度表格</Tag>
+                            ) : (
+                              <Tag>普通表格</Tag>
+                            ),
+                        },
+                        {
+                          title: "坐标列",
+                          width: 180,
+                          render: (_, record) =>
+                            record.longitudeColumn && record.latitudeColumn
+                              ? `${record.longitudeColumn} / ${record.latitudeColumn}`
+                              : "-",
+                        },
+                        {
+                          title: "操作",
+                          width: 120,
+                          render: (_, record) =>
+                            record.name === preview.activeSheetName ? (
+                              <Tag color="green">当前导入</Tag>
+                            ) : (
+                              <Button
+                                size="small"
+                                loading={previewing}
+                                onClick={() => handleSheetSelected(record.name)}
+                              >
+                                切换
+                              </Button>
+                            ),
+                        },
+                      ]}
+                    />
+                  </section>
+                )}
+                {preview.limitations.length > 0 && (
+                  <Alert
+                    type="info"
+                    showIcon
+                    title="本次导入边界"
+                    description={
+                      <ul className="import-limit-list">
+                        {preview.limitations.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    }
+                  />
+                )}
+              </section>
+
+              <section className="import-section">
+                <Typography.Title level={5}>数据名称</Typography.Title>
+                <div className="import-config-grid import-name-grid">
+                  <Form.Item
+                    name="name"
+                    label="存量数据中显示的资源名称"
+                    rules={[{ required: true, message: "请输入数据名称" }]}
+                  >
+                    <Input placeholder="例如：2024 塔里木胡杨 DNA 样品清单" />
+                  </Form.Item>
+                </div>
+              </section>
+
+              <section className="import-section">
+                <Typography.Title level={5}>业务数据类型</Typography.Title>
+                <Typography.Text type="secondary">
+                  先确定这批数据在平台数据库中的业务归属，后续字段映射和标准化入库会围绕该类型展开。
+                </Typography.Text>
+                <Form.Item
+                  name="domainType"
+                  rules={[{ required: true, message: "请选择业务数据类型" }]}
+                >
+                  <Radio.Group className="import-domain-grid">
+                    {domainDefinitions.map((domain) => (
+                      <Radio
+                        key={domain.code}
+                        value={domain.code}
+                        className="import-domain-card"
+                      >
+                        <Space direction="vertical" size={4}>
+                          <Space size={6} wrap>
+                            <Typography.Text strong>
+                              {domain.name}
+                            </Typography.Text>
+                            <Tag color={domainColors[domain.code]}>
+                              {spatialClassLabels[domain.spatialClass] ??
+                                domain.spatialClass}
+                            </Tag>
+                          </Space>
+                          <Typography.Text type="secondary">
+                            {domain.description}
+                          </Typography.Text>
+                        </Space>
+                      </Radio>
+                    ))}
+                  </Radio.Group>
                 </Form.Item>
+                {selectedDomain && <DomainDetail domain={selectedDomain} />}
+              </section>
+
+              <section className="import-section">
+                <Typography.Title level={5}>入库方式</Typography.Title>
+                <Typography.Text type="secondary">
+                  入库方式决定本次文件先写成地图点图层还是普通属性表；业务类型决定后续应映射到哪些标准实体。
+                </Typography.Text>
                 <Form.Item
                   name="importMode"
-                  label="导入类型"
-                  rules={[{ required: true, message: "请选择导入类型" }]}
+                  rules={[{ required: true, message: "请选择入库方式" }]}
                 >
-                  <Radio.Group
-                    optionType="button"
-                    options={[
-                      { label: "地理数据", value: "geographic" },
-                      { label: "非地理数据", value: "table" },
-                    ]}
-                  />
+                  <Radio.Group className="import-mode-grid">
+                    <Radio value="geographic" className="import-mode-card">
+                      <span className="import-mode-title">
+                        空间点表（有经纬度列）
+                      </span>
+                      <span className="import-mode-desc">
+                        适合样点、样方、采集地、个体位置等数据，会生成可上图的点图层。
+                      </span>
+                    </Radio>
+                    <Radio value="table" className="import-mode-card">
+                      <span className="import-mode-title">
+                        普通属性表（无坐标）
+                      </span>
+                      <span className="import-mode-desc">
+                        适合实验记录、统计指标、文件清单等数据，先作为表格资源管理。
+                      </span>
+                    </Radio>
+                  </Radio.Group>
                 </Form.Item>
-              </div>
+                <Form.Item
+                  noStyle
+                  shouldUpdate={(prev, current) =>
+                    prev.importMode !== current.importMode ||
+                    prev.domainType !== current.domainType
+                  }
+                >
+                  {({ getFieldValue }) => {
+                    const mode = getFieldValue("importMode") as ImportFormValues["importMode"] | undefined;
+                    const domainType = getFieldValue(
+                      "domainType",
+                    ) as DataDomainType | undefined;
+                    const domain =
+                      domainDefinitions.find(
+                        (item) => item.code === domainType,
+                      ) ?? selectedDomain;
+                    return <ImportStorageSummary mode={mode} domain={domain} />;
+                  }}
+                </Form.Item>
+              </section>
 
               <section className="import-section">
                 <Typography.Title level={5}>数据可见权限</Typography.Title>
@@ -875,7 +1249,7 @@ export default function AdminDataImportPage() {
                   type="warning"
                   showIcon
                   title="未自动识别经纬度列"
-                  description="可以手动选择经度列和纬度列后按地理数据导入，也可以保留为非地理数据导入。"
+                  description="可以手动选择经度列和纬度列后按空间点表入库，也可以保留为普通属性表，后续通过样品编号、样方编号或地点字段再做标准化关联。"
                 />
               )}
 
@@ -909,6 +1283,25 @@ export default function AdminDataImportPage() {
                 title="已识别为栅格数据"
                 description={`上传前已校验文件大小不超过 ${bootstrap.limits.uploadMaxMb} MB、单边长度不超过 ${bootstrap.limits.maxRasterSidePixels} 像素；上传后后台会自动预处理为 EPSG:3857 COG，并实时显示任务进度。`}
               />
+
+              <section className="import-section">
+                <Typography.Title level={5}>
+                  业务数据类型与入库去向
+                </Typography.Title>
+                {remoteSensingDomain && (
+                  <DomainDetail domain={remoteSensingDomain} />
+                )}
+                <ImportStorageSummary
+                  mode="raster"
+                  domain={remoteSensingDomain}
+                />
+                <Alert
+                  type="info"
+                  showIcon
+                  title="栅格数据导入后可在存量数据中继续管理"
+                  description="当前流程会先完成文件登记、预处理和地图图层创建；可见权限、默认样式和后续遥感产品标准化关系可在存量数据和后续业务治理模块中维护。"
+                />
+              </section>
 
               <Descriptions
                 size="small"
@@ -961,13 +1354,20 @@ export default function AdminDataImportPage() {
             </div>
           )}
 
-          {currentStep === 1 && importKind === "unsupported" && (
+          {currentStep === 1 &&
+            (importKind === "unsupported" || importKind === "vector") && (
             <section className="import-step-pane">
               <Result
-                status="warning"
-                title="暂不支持自动导入该文件类型"
+                status={importKind === "vector" ? "info" : "warning"}
+                title={
+                  importKind === "vector"
+                    ? "已识别为矢量数据"
+                    : "暂不支持自动导入该文件类型"
+                }
                 subTitle={
-                  unsupportedFile
+                  importKind === "vector" && unsupportedFile
+                    ? `${unsupportedFile.name} 属于矢量原始文件。当前页面已支持表格空间化和栅格预处理；矢量原始文件入库需要接入独立的几何校验、坐标系识别和字段映射流程。`
+                    : unsupportedFile
                     ? `${unsupportedFile.name} 未匹配到当前可用的表格或栅格导入流程。`
                     : "未匹配到当前可用的表格或栅格导入流程。"
                 }
@@ -1039,6 +1439,22 @@ export default function AdminDataImportPage() {
 
                   <section className="import-section">
                     <Typography.Title level={5}>字段元数据</Typography.Title>
+                    {selectedDomain && (
+                      <Alert
+                        type="info"
+                        showIcon
+                        title={`${selectedDomain.name}字段整理建议`}
+                        description={
+                          <Space size={[4, 4]} wrap>
+                            {domainFieldHints[selectedDomain.code].map(
+                              (field) => (
+                                <Tag key={field}>{field}</Tag>
+                              ),
+                            )}
+                          </Space>
+                        }
+                      />
+                    )}
                     <Table
                       size="small"
                       rowKey="column"
@@ -1314,6 +1730,129 @@ export default function AdminDataImportPage() {
   );
 }
 
+function DomainDetail({ domain }: { domain: DomainDefinition }) {
+  return (
+    <div className="import-domain-detail">
+      <div>
+        <Typography.Text strong>推荐资源形态</Typography.Text>
+        <Space size={[4, 4]} wrap>
+          {domain.recommendedResourceTypes.map((type) => (
+            <Tag key={type}>{resourceTypeLabels[type] ?? type}</Tag>
+          ))}
+        </Space>
+      </div>
+      <div>
+        <Typography.Text strong>后续标准化实体</Typography.Text>
+        <Typography.Text type="secondary">
+          {domain.coreEntities.join("、")}
+        </Typography.Text>
+      </div>
+    </div>
+  );
+}
+
+function ImportStorageSummary({
+  mode,
+  domain,
+}: {
+  mode?: ImportStorageMode;
+  domain?: DomainDefinition;
+}) {
+  const steps = storageSteps(mode, domain);
+  return (
+    <div className="import-storage-summary">
+      {steps.map((step) => (
+        <article key={step.title} className="import-storage-item">
+          <Tag color={step.color}>{step.label}</Tag>
+          <Typography.Text strong>{step.title}</Typography.Text>
+          <Typography.Text type="secondary">{step.description}</Typography.Text>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function storageSteps(mode?: ImportStorageMode, domain?: DomainDefinition) {
+  const standardTargets = domain?.coreEntities.length
+    ? domain.coreEntities.join("、")
+    : "待选择业务类型后确定";
+  if (mode === "raster") {
+    return [
+      {
+        label: "资源登记",
+        title: "DataResource.raster",
+        description: "在存量数据中生成栅格资源记录，保留上传者、大小、状态和后续权限维护入口。",
+        color: "blue",
+      },
+      {
+        label: "物理存储",
+        title: "RasterDataset + COG",
+        description: "后台预处理为可切片渲染的栅格文件，并创建可上图的地图图层。",
+        color: "geekblue",
+      },
+      {
+        label: "标准化去向",
+        title: standardTargets,
+        description: "后续可登记为遥感产品，并与样方、种群、群落或地点采样值关联。",
+        color: "green",
+      },
+    ];
+  }
+
+  if (mode === "geographic") {
+    return [
+      {
+        label: "资源登记",
+        title: "DataResource.vector",
+        description: "在存量数据中生成矢量资源记录，可维护权限、状态和默认可视化方案。",
+        color: "blue",
+      },
+      {
+        label: "空间存储",
+        title: "GeoPackage 点图层",
+        description: "经纬度列会生成点几何，进入地图数据目录并支持查询、过滤和上图分析。",
+        color: "cyan",
+      },
+      {
+        label: "标准化去向",
+        title: standardTargets,
+        description: "后续通过字段映射把原始列关联到样点、样方、个体、种质或样品等实体。",
+        color: "green",
+      },
+    ];
+  }
+  if (mode === "table") {
+    return [
+      {
+        label: "资源登记",
+        title: "DataResource.table",
+        description: "在存量数据中生成表格资源记录，保留原始字段和行数信息。",
+        color: "blue",
+      },
+      {
+        label: "表格存储",
+        title: "table/data.sqlite",
+        description: "作为普通属性表保存，可按字段检索、导出和继续补充字段元数据。",
+        color: "purple",
+      },
+      {
+        label: "标准化去向",
+        title: standardTargets,
+        description: "后续依靠样品编号、地点、样方编号或实验批次等字段与标准实体建立关联。",
+        color: "green",
+      },
+    ];
+  }
+  return [
+    {
+      label: "待选择",
+      title: "请选择入库方式",
+      description: "选择后系统会显示本次数据首先写入的资源类型、物理存储和后续标准化目标。",
+      color: "default",
+    },
+  ];
+}
+
 function shouldBlockImport(
   issues: ImportValidationIssue[],
   ignoreCoordinateUncertainty: boolean,
@@ -1368,6 +1907,57 @@ function fileStem(name: string) {
   return name.replace(/\.[^.]+$/, "");
 }
 
+function inferDomainTypeFromFile(
+  fileName: string,
+  preview?: ImportPreview,
+): DataDomainType {
+  if (/\.(tif|tiff|img|vrt)$/i.test(fileName)) {
+    return "remote_sensing";
+  }
+  const text = `${fileName} ${preview?.columns.join(" ") ?? ""}`.toLowerCase();
+  const rules: Array<{ type: DataDomainType; keywords: string[] }> = [
+    {
+      type: "remote_sensing",
+      keywords: ["遥感", "影像", "ndvi", "npp", "landsat", "sentinel", "无人机"],
+    },
+    {
+      type: "genome",
+      keywords: ["基因组", "genome", "sequencing", "sequence", "snp", "vcf", "assembly"],
+    },
+    {
+      type: "molecular",
+      keywords: ["分子", "pcr", "ssr", "rna", "marker", "引物", "实验"],
+    },
+    {
+      type: "germplasm",
+      keywords: ["种质", "dna样品", "dna", "样品清单", "核心资源", "保存材料"],
+    },
+    {
+      type: "community",
+      keywords: ["群落", "样方", "多样性", "盖度", "重要值", "功能性状"],
+    },
+    {
+      type: "population",
+      keywords: ["种群", "population", "群体", "分布区"],
+    },
+    {
+      type: "individual",
+      keywords: ["个体", "单株", "植株", "性别", "胸径", "树高"],
+    },
+    {
+      type: "field_survey",
+      keywords: ["野外", "调查", "样点", "路线", "采集", "观测"],
+    },
+  ];
+  const matched = rules.find((rule) =>
+    rule.keywords.some((keyword) => text.includes(keyword.toLowerCase())),
+  );
+  if (matched) {
+    return matched.type;
+  }
+  return preview?.detected.isGeographic ? "field_survey" : "germplasm";
+}
+
 function fileExtension(name: string) {
   const dotIndex = name.lastIndexOf(".");
   return dotIndex >= 0 ? name.slice(dotIndex).toLowerCase() : "";
@@ -1380,6 +1970,9 @@ function detectImportKind(file: File): ImportKind {
   }
   if ([".tif", ".tiff", ".img", ".vrt"].includes(extension)) {
     return "raster";
+  }
+  if ([".geojson", ".json", ".gpkg", ".kml", ".kmz", ".shp", ".zip"].includes(extension)) {
+    return "vector";
   }
   return "unsupported";
 }

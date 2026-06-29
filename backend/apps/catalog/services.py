@@ -12,6 +12,7 @@ from apps.catalog.vector_store import (
 )
 from apps.core.initialization import ensure_superadmin_defaults
 from apps.core.storage import gene_data_path, table_data_path, vector_geopackage_path
+from apps.standards.models import DataDomainType
 
 
 logger = logging.getLogger(__name__)
@@ -156,6 +157,11 @@ def upsert_nongeographic_catalog_record(
         defaults={
             "name": path.stem,
             "data_type": data_type,
+            "domain_type": (
+                DataDomainType.GENOME
+                if data_type == DataResource.DataType.GENE
+                else ""
+            ),
             "source": "非地理数据目录扫描",
             "provider": "",
             "spatial_extent": "",

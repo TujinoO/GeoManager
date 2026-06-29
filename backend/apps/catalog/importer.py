@@ -23,6 +23,7 @@ from apps.catalog.vector_store import geopackage_layer_exists
 from apps.core.initialization import ensure_superadmin_defaults
 from apps.core.principal_visibility import selectable_access_groups_for
 from apps.core.storage import table_data_path, vector_geopackage_path
+from apps.standards.models import DataDomainType
 
 
 class ImportDataError(ValueError):
@@ -37,6 +38,8 @@ LATITUDE_ALIASES = {
     "lat",
     "latitude",
     "纬度",
+    "北纬",
+    "纬度坐标",
     "y",
     "decimal_latitude",
     "lat_deg",
@@ -48,6 +51,8 @@ LONGITUDE_ALIASES = {
     "long",
     "longitude",
     "经度",
+    "东经",
+    "经度坐标",
     "x",
     "decimal_longitude",
     "lon_deg",
@@ -83,20 +88,37 @@ class ImportValidationIssue:
     target_name: str | None = None
 
 
-def preview_uploaded_table(uploaded_file) -> dict[str, Any]:
-    df = read_uploaded_table(uploaded_file)
+@dataclass(frozen=True)
+class WorkbookSheetSummary:
+    name: str
+    row_count: int
+    column_count: int
+    is_geographic: bool
+    longitude_column: str | None
+    latitude_column: str | None
+
+
+def preview_uploaded_table(
+    uploaded_file, sheet_name: str | None = None
+) -> dict[str, Any]:
+    filename = str(uploaded_file.name or "")
+    raw = _uploaded_file_bytes(uploaded_file)
+    sheets = workbook_sheet_summaries(raw, filename)
+    active_sheet = _selected_sheet_name(sheets, sheet_name)
+    df = read_table_bytes(raw, filename, sheet_name=active_sheet)
     columns = list(df.columns)
     longitude_column, latitude_column = infer_coordinate_columns(df)
-    suggested_table_name = suggest_table_name(Path(uploaded_file.name).stem)
+    suggested_name = _suggested_display_name(Path(filename).stem, active_sheet, sheets)
+    suggested_table_name = suggest_table_name(suggested_name)
     return {
         "columns": columns,
         "rows": _preview_rows(df),
         "rowCount": int(len(df)),
         "suggestedTableName": suggested_table_name,
-        "suggestedName": Path(uploaded_file.name).stem,
-        "duplicateTarget": duplicate_target_for_display_name(
-            Path(uploaded_file.name).stem
-        ),
+        "suggestedName": suggested_name,
+        "activeSheetName": active_sheet,
+        "sheets": [_serialize_workbook_sheet(sheet) for sheet in sheets],
+        "duplicateTarget": duplicate_target_for_display_name(suggested_name),
         "detected": {
             "isGeographic": bool(longitude_column and latitude_column),
             "longitudeColumn": longitude_column,
@@ -105,15 +127,16 @@ def preview_uploaded_table(uploaded_file) -> dict[str, Any]:
             "validationIssues": [],
         },
         "limitations": [
-            "仅支持 Excel 或 CSV 文件，Excel 只读取第一张表。",
+            "支持 Excel 或 CSV 文件；Excel 会自动识别所有工作表，每个工作表可作为独立表格单独导入。",
             "导入时所有字段按文本读取，以保留经纬度记录的小数位数。",
+            "经纬度支持十进制度、度分秒符号格式和 79480913 / 40212444 这类紧凑度分秒格式，导入时统一转换为 EPSG:4326 十进制度。",
             "字段元数据可留空，但建议填写中文名称、单位、计算方式和数据来源。",
         ],
     }
 
 
 def validate_uploaded_table(uploaded_file, payload: dict[str, Any]) -> dict[str, Any]:
-    df = read_uploaded_table(uploaded_file)
+    df = read_uploaded_table(uploaded_file, sheet_name=_payload_sheet_name(payload))
     import_mode = str(payload.get("importMode") or "").strip()
     table_name = str(payload.get("tableName") or "").strip()
     display_name = str(payload.get("name") or "").strip()
@@ -149,7 +172,7 @@ def validate_uploaded_table(uploaded_file, payload: dict[str, Any]) -> dict[str,
 def import_uploaded_table(
     uploaded_file, payload: dict[str, Any], user
 ) -> dict[str, Any]:
-    df = read_uploaded_table(uploaded_file)
+    df = read_uploaded_table(uploaded_file, sheet_name=_payload_sheet_name(payload))
     name = _required_text(payload.get("name"), "数据名称")
     requested_table_name = validate_import_table_name(
         _required_text(payload.get("tableName"), "后台存储标识")
@@ -163,6 +186,7 @@ def import_uploaded_table(
     duplicate_confirmed = bool(payload.get("duplicateConfirmed", False))
     file_size = int(getattr(uploaded_file, "size", 0) or 0)
     access_group_ids = _access_group_ids(payload.get("accessGroupIds"))
+    domain_type = _domain_type(payload.get("domainType"))
 
     if import_mode not in {"geographic", "table"}:
         raise ImportDataError("导入方式必须是 geographic 或 table")
@@ -190,6 +214,7 @@ def import_uploaded_table(
             source_size_bytes=file_size,
             user=user,
             access_group_ids=access_group_ids,
+            domain_type=domain_type,
         )
 
     included_columns = _included_columns(payload.get("includedColumns"), df.columns)
@@ -203,6 +228,7 @@ def import_uploaded_table(
         source_size_bytes=file_size,
         user=user,
         access_group_ids=access_group_ids,
+        domain_type=domain_type,
     )
 
 
@@ -218,6 +244,7 @@ def import_geographic_table(
     source_size_bytes: int,
     user,
     access_group_ids: set[int],
+    domain_type: str,
 ) -> dict[str, Any]:
     stats = coordinate_stats_for(df, longitude_column, latitude_column)
     validation_issues = validate_coordinate_columns(
@@ -245,11 +272,18 @@ def import_geographic_table(
     for index, row in working.iterrows():
         if not bool(valid_mask.loc[index]):
             continue
+        longitude = _coordinate_decimal(row[longitude_column], is_longitude=True)
+        latitude = _coordinate_decimal(row[latitude_column], is_longitude=False)
+        if longitude is None or latitude is None:
+            continue
         geometries.append(
-            Point(float(row[longitude_column]), float(row[latitude_column]))
+            Point(float(longitude), float(latitude))
         )
 
     working = working[valid_mask].copy()
+    working = normalize_coordinate_columns(
+        working, longitude_column=longitude_column, latitude_column=latitude_column
+    )
 
     gdf = gpd.GeoDataFrame(working, geometry=geometries, crs="EPSG:4326")
     path = vector_geopackage_path()
@@ -274,6 +308,7 @@ def import_geographic_table(
         ignore_coordinate_uncertainty=ignore_coordinate_uncertainty,
         source_size_bytes=source_size_bytes,
         user=user,
+        domain_type=domain_type,
     )
     set_resource_access_groups(resource, access_group_ids, viewer=user)
     return {
@@ -299,6 +334,7 @@ def import_plain_table(
     source_size_bytes: int,
     user,
     access_group_ids: set[int],
+    domain_type: str,
 ) -> dict[str, Any]:
     path = table_data_path("data.sqlite")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -312,6 +348,7 @@ def import_plain_table(
         code=code,
         name=name,
         data_type=DataResource.DataType.TABLE,
+        domain_type=domain_type,
         source="用户导入",
         provider="",
         spatial_extent="",
@@ -339,10 +376,16 @@ def import_plain_table(
     }
 
 
-def read_uploaded_table(uploaded_file) -> pd.DataFrame:
+def read_uploaded_table(uploaded_file, sheet_name: str | None = None) -> pd.DataFrame:
     filename = str(uploaded_file.name or "")
+    raw = _uploaded_file_bytes(uploaded_file)
+    return read_table_bytes(raw, filename, sheet_name=sheet_name)
+
+
+def read_table_bytes(
+    raw: bytes, filename: str, *, sheet_name: str | None = None
+) -> pd.DataFrame:
     suffix = Path(filename).suffix.lower()
-    raw = uploaded_file.read()
     if not raw:
         raise ImportDataError("上传文件为空")
 
@@ -352,7 +395,7 @@ def read_uploaded_table(uploaded_file) -> pd.DataFrame:
         elif suffix in {".xls", ".xlsx"}:
             df = pd.read_excel(
                 BytesIO(raw),
-                sheet_name=0,
+                sheet_name=sheet_name or 0,
                 dtype=str,
                 keep_default_na=False,
                 na_filter=False,
@@ -369,6 +412,41 @@ def read_uploaded_table(uploaded_file) -> pd.DataFrame:
     if df.empty and not list(df.columns):
         raise ImportDataError("表格没有可导入的字段")
     return normalize_dataframe(df)
+
+
+def workbook_sheet_summaries(raw: bytes, filename: str) -> list[WorkbookSheetSummary]:
+    suffix = Path(filename).suffix.lower()
+    if suffix not in {".xls", ".xlsx"}:
+        return []
+    if not raw:
+        raise ImportDataError("上传文件为空")
+    try:
+        workbook = pd.ExcelFile(BytesIO(raw))
+    except Exception as exc:
+        raise ImportDataError(f"读取上传表格失败：{exc}") from exc
+
+    summaries: list[WorkbookSheetSummary] = []
+    for sheet in workbook.sheet_names:
+        df = pd.read_excel(
+            workbook,
+            sheet_name=sheet,
+            dtype=str,
+            keep_default_na=False,
+            na_filter=False,
+        )
+        normalized = normalize_dataframe(df)
+        longitude_column, latitude_column = infer_coordinate_columns(normalized)
+        summaries.append(
+            WorkbookSheetSummary(
+                name=str(sheet),
+                row_count=int(len(normalized)),
+                column_count=len(normalized.columns),
+                is_geographic=bool(longitude_column and latitude_column),
+                longitude_column=longitude_column,
+                latitude_column=latitude_column,
+            )
+        )
+    return summaries
 
 
 def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
@@ -424,12 +502,12 @@ def validate_coordinate_columns(
         if not lon_text or not lat_text:
             missing_count += 1
             continue
-        if not _is_decimal_coordinate(lon_text) or not _is_decimal_coordinate(lat_text):
+        longitude = _coordinate_decimal(lon_text, is_longitude=True)
+        latitude = _coordinate_decimal(lat_text, is_longitude=False)
+        if longitude is None or latitude is None:
             invalid_format_count += 1
             continue
 
-        longitude = float(Decimal(lon_text))
-        latitude = float(Decimal(lat_text))
         row_has_range_error = False
         if longitude < -180 or longitude > 180:
             invalid_longitude_count += 1
@@ -453,7 +531,7 @@ def validate_coordinate_columns(
             ImportValidationIssue(
                 code="invalid_coordinate_format",
                 count=invalid_format_count,
-                message=f"存在 {invalid_format_count} 行经纬度不是小数格式，请使用例如 87.600、43.800 的十进制小数。",
+                message=f"存在 {invalid_format_count} 行经纬度格式无法识别；支持十进制度、度分秒和紧凑度分秒格式。",
             )
         )
     if invalid_longitude_count:
@@ -498,6 +576,19 @@ def validate_coordinate_columns(
 
 def position_error_meters(lon_text: str, lat_text: str) -> float:
     return _position_error_meters(lon_text, lat_text)
+
+
+def normalize_coordinate_columns(
+    df: pd.DataFrame, *, longitude_column: str, latitude_column: str
+) -> pd.DataFrame:
+    normalized = df.copy()
+    normalized[longitude_column] = normalized[longitude_column].map(
+        lambda value: _normalized_coordinate_text(value, is_longitude=True)
+    )
+    normalized[latitude_column] = normalized[latitude_column].map(
+        lambda value: _normalized_coordinate_text(value, is_longitude=False)
+    )
+    return normalized
 
 
 def validate_import_table_name(table_name: str) -> str:
@@ -662,6 +753,50 @@ def _read_csv_bytes(raw: bytes) -> pd.DataFrame:
     raise ImportDataError(f"CSV 编码无法识别：{last_error}")
 
 
+def _uploaded_file_bytes(uploaded_file) -> bytes:
+    raw = uploaded_file.read()
+    if not raw:
+        raise ImportDataError("上传文件为空")
+    return raw
+
+
+def _payload_sheet_name(payload: dict[str, Any]) -> str | None:
+    value = str(payload.get("sheetName") or "").strip()
+    return value or None
+
+
+def _selected_sheet_name(
+    sheets: list[WorkbookSheetSummary], sheet_name: str | None
+) -> str | None:
+    if not sheets:
+        return None
+    if sheet_name is None:
+        return sheets[0].name
+    if any(sheet.name == sheet_name for sheet in sheets):
+        return sheet_name
+    raise ImportDataError(f"工作表不存在：{sheet_name}")
+
+
+def _suggested_display_name(
+    file_stem: str, sheet_name: str | None, sheets: list[WorkbookSheetSummary]
+) -> str:
+    if not sheet_name or len(sheets) <= 1:
+        return file_stem
+    return f"{file_stem} - {sheet_name}"
+
+
+def _serialize_workbook_sheet(sheet: WorkbookSheetSummary) -> dict[str, Any]:
+    return {
+        "name": sheet.name,
+        "rowCount": sheet.row_count,
+        "columnCount": sheet.column_count,
+        "isGeographic": sheet.is_geographic,
+        "longitudeColumn": sheet.longitude_column,
+        "latitudeColumn": sheet.latitude_column,
+        "suggestedName": sheet.name,
+    }
+
+
 def _replace_field_metadata(
     connection: sqlite3.Connection,
     table_name: str,
@@ -769,29 +904,22 @@ def _included_columns(
 def _valid_coordinate_mask(
     df: pd.DataFrame, longitude_column: str, latitude_column: str
 ) -> pd.Series:
-    lon = pd.to_numeric(df[longitude_column], errors="coerce")
-    lat = pd.to_numeric(df[latitude_column], errors="coerce")
-    decimal_mask = df[longitude_column].map(_is_decimal_coordinate) & df[
-        latitude_column
-    ].map(_is_decimal_coordinate)
-    return decimal_mask & lon.between(-180, 180) & lat.between(-90, 90)
-
-
-def _is_decimal_coordinate(value: Any) -> bool:
-    text = str(value).strip()
-    if not re.fullmatch(r"[+-]?\d+\.\d+", text):
-        return False
-    try:
-        Decimal(text)
-    except InvalidOperation:
-        return False
-    return True
+    lon = df[longitude_column].map(
+        lambda value: _coordinate_decimal(value, is_longitude=True)
+    )
+    lat = df[latitude_column].map(
+        lambda value: _coordinate_decimal(value, is_longitude=False)
+    )
+    return lon.map(lambda value: value is not None and -180 <= value <= 180) & lat.map(
+        lambda value: value is not None and -90 <= value <= 90
+    )
 
 
 def _position_error_meters(lon_text: str, lat_text: str) -> float:
     lon_error_degrees = float(_half_unit_degree(lon_text))
     lat_error_degrees = float(_half_unit_degree(lat_text))
-    latitude = float(Decimal(lat_text))
+    latitude_decimal = _coordinate_decimal(lat_text, is_longitude=False)
+    latitude = float(latitude_decimal) if latitude_decimal is not None else 0.0
     lat_meters = lat_error_degrees * 111_320
     lon_meters = lon_error_degrees * 111_320 * abs(math.cos(math.radians(latitude)))
     return math.hypot(lat_meters, lon_meters)
@@ -799,16 +927,134 @@ def _position_error_meters(lon_text: str, lat_text: str) -> float:
 
 def _half_unit_degree(value: str) -> Decimal:
     text = value.strip()
-    match = re.match(r"^[+-]?\d+(?:\.(\d+))?$", text)
+    match = re.match(r"^[+-]?\d+(?:\.(\d+))?$", _strip_coordinate_direction(text))
     if match:
         decimals = len(match.group(1) or "")
         return Decimal("0.5") * (Decimal(10) ** Decimal(-decimals))
+    compact = _compact_dms_parts(text, is_longitude=True) or _compact_dms_parts(
+        text, is_longitude=False
+    )
+    if compact is not None:
+        _, _, seconds, _ = compact
+        decimals = max(-seconds.as_tuple().exponent, 0)
+        return Decimal("0.5") * (Decimal(10) ** Decimal(-decimals)) / Decimal(3600)
+    dms = _symbolic_dms_parts(text)
+    if dms is not None:
+        _, _, seconds, _ = dms
+        decimals = max(-seconds.as_tuple().exponent, 0)
+        return Decimal("0.5") * (Decimal(10) ** Decimal(-decimals)) / Decimal(3600)
     try:
         decimal = Decimal(text)
     except InvalidOperation:
         return Decimal("0")
     decimals = max(-decimal.as_tuple().exponent, 0)
     return Decimal("0.5") * (Decimal(10) ** Decimal(-decimals))
+
+
+def _coordinate_decimal(value: Any, *, is_longitude: bool) -> Decimal | None:
+    text = str(value).strip()
+    if not text:
+        return None
+    decimal = _decimal_degree(text)
+    max_degrees = 180 if is_longitude else 90
+    if decimal is not None and -max_degrees <= decimal <= max_degrees:
+        return decimal
+    compact = _compact_dms_parts(text, is_longitude=is_longitude)
+    if compact is not None:
+        return _dms_to_decimal(*compact)
+    symbolic = _symbolic_dms_parts(text)
+    if symbolic is not None:
+        return _dms_to_decimal(*symbolic)
+    return decimal
+
+
+def _normalized_coordinate_text(value: Any, *, is_longitude: bool) -> str:
+    decimal = _coordinate_decimal(value, is_longitude=is_longitude)
+    if decimal is None:
+        return str(value).strip()
+    return f"{float(decimal):.8f}".rstrip("0").rstrip(".")
+
+
+def _decimal_degree(text: str) -> Decimal | None:
+    stripped = _strip_coordinate_direction(text)
+    if not re.fullmatch(r"[+-]?\d+(?:\.\d+)?", stripped):
+        return None
+    try:
+        decimal = Decimal(stripped)
+    except InvalidOperation:
+        return None
+    direction = _coordinate_direction_sign(text)
+    return decimal.copy_abs() * direction if direction != 1 else decimal
+
+
+def _compact_dms_parts(
+    text: str, *, is_longitude: bool
+) -> tuple[Decimal, Decimal, Decimal, int] | None:
+    stripped = _strip_coordinate_direction(text)
+    sign = -1 if stripped.startswith("-") else 1
+    digits = stripped.lstrip("+-")
+    if not digits.isdigit() or len(digits) < 6:
+        return None
+    direction = _coordinate_direction_sign(text)
+    sign = sign * direction
+    max_degrees = 180 if is_longitude else 90
+    for degree_width in (3, 2):
+        if len(digits) < degree_width + 4:
+            continue
+        degree_text = digits[:degree_width]
+        minute_text = digits[degree_width : degree_width + 2]
+        second_text = digits[degree_width + 2 : degree_width + 4]
+        second_fraction = digits[degree_width + 4 :]
+        seconds = Decimal(second_text)
+        if second_fraction:
+            seconds += Decimal(second_fraction) / (Decimal(10) ** len(second_fraction))
+        degrees = Decimal(degree_text)
+        minutes = Decimal(minute_text)
+        if degrees > max_degrees or minutes >= 60 or seconds >= 60:
+            continue
+        return degrees, minutes, seconds, sign
+    return None
+
+
+def _symbolic_dms_parts(text: str) -> tuple[Decimal, Decimal, Decimal, int] | None:
+    prepared = text.strip()
+    sign = _coordinate_direction_sign(prepared)
+    prepared = _strip_coordinate_direction(prepared).replace(",", " ")
+    prepared = re.sub(r"[°º度dD]", " ", prepared)
+    prepared = re.sub(r"[′'’分mM]", " ", prepared)
+    prepared = re.sub(r"[″\"秒sS]", " ", prepared)
+    parts = [part for part in re.split(r"\s+", prepared.strip()) if part]
+    if len(parts) not in {2, 3}:
+        return None
+    try:
+        degrees = Decimal(parts[0])
+        minutes = Decimal(parts[1])
+        seconds = Decimal(parts[2]) if len(parts) == 3 else Decimal("0")
+    except InvalidOperation:
+        return None
+    if minutes >= 60 or seconds >= 60:
+        return None
+    number_sign = -1 if degrees < 0 else 1
+    return abs(degrees), minutes, seconds, sign * number_sign
+
+
+def _dms_to_decimal(
+    degrees: Decimal, minutes: Decimal, seconds: Decimal, sign: int
+) -> Decimal:
+    return (degrees + minutes / Decimal(60) + seconds / Decimal(3600)) * sign
+
+
+def _strip_coordinate_direction(text: str) -> str:
+    stripped = re.sub(r"[东西南北][经纬]", "", text)
+    return re.sub(r"(?i)[NSEW东南西北]", "", stripped).strip()
+
+
+def _coordinate_direction_sign(text: str) -> int:
+    if re.search(r"(?:^|[^A-Za-z])[SW](?:$|[^A-Za-z])", text) or re.search(
+        r"[西南]", text
+    ):
+        return -1
+    return 1
 
 
 def _best_coordinate_column(df: pd.DataFrame, *, is_longitude: bool) -> str | None:
@@ -827,9 +1073,12 @@ def _best_coordinate_column(df: pd.DataFrame, *, is_longitude: bool) -> str | No
             score += 2.0
         if score <= 0:
             continue
-        values = pd.to_numeric(df[column], errors="coerce")
-        in_range = (
-            values.between(-180, 180) if is_longitude else values.between(-90, 90)
+        values = df[column].map(
+            lambda value: _coordinate_decimal(value, is_longitude=is_longitude)
+        )
+        min_value, max_value = (-180, 180) if is_longitude else (-90, 90)
+        in_range = values.map(
+            lambda value: value is not None and min_value <= value <= max_value
         )
         valid_ratio = float(in_range.sum()) / max(len(df), 1)
         if valid_ratio <= 0:
@@ -933,6 +1182,7 @@ def _upsert_geographic_resource(
     ignore_coordinate_uncertainty: bool,
     source_size_bytes: int,
     user,
+    domain_type: str,
 ) -> DataResource:
     code = _unique_resource_code(stable_catalog_code("vector", table_name))
     spatial_extent = ",".join(f"{value:.6f}" for value in bounds) if bounds else ""
@@ -940,6 +1190,7 @@ def _upsert_geographic_resource(
         code=code,
         name=name,
         data_type=DataResource.DataType.VECTOR,
+        domain_type=domain_type,
         source="用户导入",
         provider="",
         spatial_extent=spatial_extent,
@@ -954,6 +1205,15 @@ def _upsert_geographic_resource(
         status=DataResource.Status.ACTIVE,
     )
     return resource
+
+
+def _domain_type(value: Any) -> str:
+    domain_type = str(value or "").strip()
+    if not domain_type:
+        return ""
+    if domain_type not in DataDomainType.values:
+        raise ImportDataError("无效的数据业务类型")
+    return domain_type
 
 
 def _unique_resource_code(base_code: str) -> str:

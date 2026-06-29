@@ -1,6 +1,8 @@
 import pandas as pd
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase
+from io import BytesIO
+from unittest import mock
 
 from apps.catalog.importer import (
     ImportDataError,
@@ -8,6 +10,8 @@ from apps.catalog.importer import (
     _metadata_map,
     infer_coordinate_columns,
     normalize_dataframe,
+    normalize_coordinate_columns,
+    preview_uploaded_table,
     read_uploaded_table,
     validate_import_table_name,
     validate_uploaded_table,
@@ -39,6 +43,103 @@ class ImporterUnitTests(SimpleTestCase):
 
         self.assertEqual(longitude, "经度")
         self.assertEqual(latitude, "纬度")
+
+    def test_infer_coordinate_columns_detects_compact_dms_values(self):
+        df = pd.DataFrame(
+            {
+                "样点": ["A", "B"],
+                "经度": ["79480913", "79480955"],
+                "纬度": ["40212444", "40212437"],
+            }
+        )
+
+        longitude, latitude = infer_coordinate_columns(df)
+
+        self.assertEqual(longitude, "经度")
+        self.assertEqual(latitude, "纬度")
+
+    def test_validate_accepts_compact_dms_coordinates(self):
+        result = validate_uploaded_table(
+            self._csv_file(
+                "survey.csv",
+                "name,lon,lat\nA,79480913,40212444\nB,79480955,40212437\n",
+            ),
+            {
+                "importMode": "geographic",
+                "longitudeColumn": "lon",
+                "latitudeColumn": "lat",
+            },
+        )
+
+        self.assertEqual(result["coordinateStats"]["validRows"], 2)
+        self.assertEqual(result["validationIssues"], [])
+
+    def test_normalize_coordinate_columns_converts_dms_to_decimal_degrees(self):
+        df = pd.DataFrame({"lon": ["79480913"], "lat": ["40°21′24.44″"]})
+
+        normalized = normalize_coordinate_columns(
+            df, longitude_column="lon", latitude_column="lat"
+        )
+
+        self.assertEqual(normalized.loc[0, "lon"], "79.80253611")
+        self.assertEqual(normalized.loc[0, "lat"], "40.35678889")
+
+    def test_dms_seconds_suffix_is_not_treated_as_south_direction(self):
+        df = pd.DataFrame({"lon": ["79d48m09.13s"], "lat": ["40d21m24.44s"]})
+
+        normalized = normalize_coordinate_columns(
+            df, longitude_column="lon", latitude_column="lat"
+        )
+
+        self.assertEqual(normalized.loc[0, "lon"], "79.80253611")
+        self.assertEqual(normalized.loc[0, "lat"], "40.35678889")
+
+    def test_dms_supports_chinese_direction_prefixes(self):
+        df = pd.DataFrame({"lon": ["东经79度48分09.13秒"], "lat": ["北纬40度21分24.44秒"]})
+
+        normalized = normalize_coordinate_columns(
+            df, longitude_column="lon", latitude_column="lat"
+        )
+
+        self.assertEqual(normalized.loc[0, "lon"], "79.80253611")
+        self.assertEqual(normalized.loc[0, "lat"], "40.35678889")
+
+    def test_preview_lists_excel_sheets_and_reads_selected_sheet(self):
+        workbook = self._excel_file(
+            "multi.xlsx",
+            {
+                "first": pd.DataFrame({"name": ["A"], "value": ["1"]}),
+                "points": pd.DataFrame(
+                    {"name": ["B"], "经度": ["79480913"], "纬度": ["40212444"]}
+                ),
+            },
+        )
+
+        with mock.patch(
+            "apps.catalog.importer.duplicate_target_for_display_name",
+            return_value=None,
+        ):
+            preview = preview_uploaded_table(workbook, sheet_name="points")
+
+        self.assertEqual(preview["activeSheetName"], "points")
+        self.assertEqual([sheet["name"] for sheet in preview["sheets"]], ["first", "points"])
+        self.assertEqual(preview["rowCount"], 1)
+        self.assertTrue(preview["detected"]["isGeographic"])
+        self.assertEqual(preview["detected"]["longitudeColumn"], "经度")
+
+    def test_read_uploaded_table_reads_requested_excel_sheet(self):
+        workbook = self._excel_file(
+            "multi.xlsx",
+            {
+                "first": pd.DataFrame({"name": ["A"]}),
+                "second": pd.DataFrame({"name": ["B"], "value": ["2"]}),
+            },
+        )
+
+        df = read_uploaded_table(workbook, sheet_name="second")
+
+        self.assertEqual(df.iloc[0]["name"], "B")
+        self.assertEqual(list(df.columns), ["name", "value"])
 
     def test_validate_table_mode_skips_coordinate_validation(self):
         result = validate_uploaded_table(
@@ -109,4 +210,17 @@ class ImporterUnitTests(SimpleTestCase):
     def _csv_file(self, name: str, content: str) -> SimpleUploadedFile:
         return SimpleUploadedFile(
             name, content.encode("utf-8"), content_type="text/csv"
+        )
+
+    def _excel_file(
+        self, name: str, sheets: dict[str, pd.DataFrame]
+    ) -> SimpleUploadedFile:
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            for sheet_name, df in sheets.items():
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
+        return SimpleUploadedFile(
+            name,
+            buffer.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )

@@ -5,6 +5,7 @@ import {
 } from "@ant-design/icons";
 import { Tabs, Tag, Typography } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { SyntheticEvent } from "react";
 import type { FeatureInfo, MapViewState } from "../types";
 import FeatureDetailPanel from "./FeatureDetailPanel";
 
@@ -18,6 +19,10 @@ const thumbnailMinZoom = 1;
 const thumbnailMaxZoom = 10;
 const thumbnailZoomOffset = 2;
 const osmTileSubdomains = ["a", "b", "c"] as const;
+const osmThumbnailTileUrlPattern =
+  /^https:\/\/([abc])\.tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png$/i;
+export const thumbnailFallbackTileUrl =
+  "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=";
 
 export interface ThumbnailMapTile {
   center: [number, number];
@@ -247,6 +252,7 @@ function FlatMapThumbnail({
               width: tile.width,
               height: tile.height,
             }}
+            onError={handleThumbnailTileError}
             draggable={false}
           />
         ))}
@@ -269,6 +275,49 @@ function FlatMapThumbnail({
       ) : null}
     </div>
   );
+}
+
+function handleThumbnailTileError(event: SyntheticEvent<HTMLImageElement>) {
+  const image = event.currentTarget;
+  const fallback = thumbnailFallbackUrlForFailedTile(
+    image.src,
+    image.dataset.triedSubdomains ?? "",
+  );
+  image.dataset.triedSubdomains = fallback.triedSubdomains;
+  if (fallback.url === thumbnailFallbackTileUrl) {
+    image.onerror = null;
+  }
+  image.src = fallback.url;
+}
+
+export function thumbnailFallbackUrlForFailedTile(
+  currentUrl: string,
+  triedSubdomains: string,
+) {
+  const match = osmThumbnailTileUrlPattern.exec(currentUrl);
+  if (!match) {
+    return {
+      url: thumbnailFallbackTileUrl,
+      triedSubdomains,
+    };
+  }
+  const currentSubdomain = match[1]?.toLowerCase();
+  const tried = new Set(triedSubdomains.split(",").filter(Boolean));
+  if (currentSubdomain) {
+    tried.add(currentSubdomain);
+  }
+  const nextSubdomain = osmTileSubdomains.find(
+    (subdomain) => !tried.has(subdomain),
+  );
+  return {
+    url: nextSubdomain
+      ? currentUrl.replace(
+          `://${currentSubdomain}.tile.openstreetmap.org/`,
+          `://${nextSubdomain}.tile.openstreetmap.org/`,
+        )
+      : thumbnailFallbackTileUrl,
+    triedSubdomains: [...tried].join(","),
+  };
 }
 
 export function buildThumbnail(

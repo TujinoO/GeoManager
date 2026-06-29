@@ -15,11 +15,14 @@ import type {
   BaseUserInfo,
   BootstrapResponse,
   CoordinateStats,
+  DataDomainType,
+  DataSchemaSummaryResponse,
   DataResource,
   Directory,
   ExportAdminDataResourcesData,
   ExportItem,
   ExportRequest,
+  GermplasmAccessionListResponse,
   FieldInfo,
   AttributeFilter as GeneratedAttributeFilter,
   GeoJsonFeatureCollection as GeneratedGeoJsonFeatureCollection,
@@ -31,6 +34,7 @@ import type {
   ImportValidateResponse,
   LayerListResponse,
   ListAdminDataResourcesData,
+  ListGermplasmAccessionsData,
   ListAdminOperationLogsData,
   ListAdminSystemLogsData,
   ListAdminWorkspacesData,
@@ -60,7 +64,10 @@ export type {
   AdminWorkspaceScene,
   AdminWorkspaceSceneListResponse,
   AdminWorkspaceSceneUpdateRequest,
+  DataDomainDefinition,
   DataResource,
+  DataDomainType,
+  DataSchemaCatalogNode,
   GeoJsonGeometry,
   Group,
   GroupCreateRequest,
@@ -112,6 +119,13 @@ export type AdminDataResourceFilters = NonNullable<
 export type AdminDataResourceExportFilters = NonNullable<
   ExportAdminDataResourcesData["query"]
 >;
+export type DataSchemaSummary = DataSchemaSummaryResponse;
+export type GermplasmAccessionList = GermplasmAccessionListResponse;
+export type GermplasmAccessionItem =
+  GermplasmAccessionListResponse["items"][number];
+export type GermplasmAccessionFilters = NonNullable<
+  ListGermplasmAccessionsData["query"]
+>;
 export type AdminWorkspaceList = AdminWorkspaceSceneListResponse;
 export type AdminWorkspaceUpdate = AdminWorkspaceSceneUpdateRequest;
 export type AdminWorkspaceFilters = NonNullable<
@@ -120,7 +134,20 @@ export type AdminWorkspaceFilters = NonNullable<
 export type ResourceField = FieldInfo;
 export type ImportCoordinateStats = CoordinateStats;
 export type ImportValidationIssue = ValidationIssue;
-export type ImportPreview = ImportPreviewResponse;
+export interface ImportWorkbookSheet {
+  name: string;
+  rowCount: number;
+  columnCount: number;
+  isGeographic: boolean;
+  longitudeColumn?: string | null;
+  latitudeColumn?: string | null;
+  suggestedName?: string;
+}
+
+export type ImportPreview = ImportPreviewResponse & {
+  activeSheetName?: string | null;
+  sheets?: ImportWorkbookSheet[];
+};
 export type ImportValidateResult = ImportValidateResponse;
 export type ImportCommitResult = ImportCommitResponse;
 export type RasterBandMetadata = RasterBandInfo;
@@ -174,6 +201,8 @@ export type DataResourceProfile = ResourceProfileResponse;
 
 export interface ImportCommitPayload {
   name: string;
+  domainType?: DataDomainType;
+  sheetName?: string | null;
   tableName: string;
   importMode: "geographic" | "table";
   longitudeColumn?: string;
@@ -187,6 +216,7 @@ export interface ImportCommitPayload {
 
 export interface ImportValidatePayload {
   name?: string;
+  sheetName?: string | null;
   importMode: "geographic" | "table";
   tableName?: string;
   longitudeColumn?: string;

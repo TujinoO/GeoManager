@@ -3,6 +3,18 @@ from django.contrib.auth.models import Group
 from django.db import models
 
 
+DATA_DOMAIN_TYPE_CHOICES = [
+    ("germplasm", "种质数据"),
+    ("genome", "基因组数据"),
+    ("individual", "个体数据"),
+    ("community", "群落数据"),
+    ("population", "种群数据"),
+    ("field_survey", "野外调查数据"),
+    ("remote_sensing", "遥感影像数据"),
+    ("molecular", "分子数据"),
+]
+
+
 class DictionaryItem(models.Model):
     class DictType(models.TextChoices):
         DATA_CATEGORY = "data_category", "数据分类"
@@ -66,6 +78,12 @@ class DataResource(models.Model):
     code = models.SlugField(max_length=80, unique=True, verbose_name="数据编号")
     data_type = models.CharField(
         max_length=24, choices=DataType.choices, verbose_name="数据类型"
+    )
+    domain_type = models.CharField(
+        max_length=32,
+        choices=DATA_DOMAIN_TYPE_CHOICES,
+        blank=True,
+        verbose_name="业务数据类型",
     )
     category = models.ForeignKey(
         DictionaryItem,

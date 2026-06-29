@@ -20,6 +20,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import type {
   AttributeFilter,
+  DataDomainType,
   DataResourceProfile,
   ResourceFilters,
   ResourceListItem,
@@ -40,6 +41,8 @@ interface Props {
   loadingProfile: boolean;
   querying: boolean;
   permissions: User["permissions"];
+  domainTypeOptions?: Array<{ value: DataDomainType; label: string }>;
+  selectedDomainType?: DataDomainType | null;
   searchKeyword?: string;
   onFilterResources: (filters: ResourceFilters) => void;
   onSelectResource: (resource: ResourceListItem) => void;
@@ -66,6 +69,8 @@ export default function DataPanel({
   loadingProfile,
   querying,
   permissions,
+  domainTypeOptions = [],
+  selectedDomainType,
   searchKeyword,
   onFilterResources,
   onSelectResource,
@@ -99,6 +104,7 @@ export default function DataPanel({
       label: name,
     }));
   }, [resources]);
+  const usesDomainTypeFilter = domainTypeOptions.length > 0;
 
   const fieldOptions = (profile?.fields ?? []).map((item) => ({
     value: item.name,
@@ -114,6 +120,15 @@ export default function DataPanel({
       current.q === nextQuery ? current : { ...current, q: nextQuery },
     );
   }, [searchKeyword]);
+
+  useEffect(() => {
+    const nextDomainType = selectedDomainType ?? undefined;
+    setResourceFilters((current) =>
+      current.domainType === nextDomainType
+        ? current
+        : { ...current, domainType: nextDomainType },
+    );
+  }, [selectedDomainType]);
 
   function updateResourceFilter(
     key: keyof ResourceFilters,
@@ -172,11 +187,18 @@ export default function DataPanel({
         <div className="data-filter-row">
           <Select
             placeholder="数据分类"
-            value={resourceFilters.category}
+            value={
+              usesDomainTypeFilter
+                ? resourceFilters.domainType
+                : resourceFilters.category
+            }
             allowClear
-            options={categoryOptions}
+            options={usesDomainTypeFilter ? domainTypeOptions : categoryOptions}
             onChange={(nextValue) =>
-              updateResourceFilter("category", nextValue)
+              updateResourceFilter(
+                usesDomainTypeFilter ? "domainType" : "category",
+                nextValue,
+              )
             }
           />
           <Select

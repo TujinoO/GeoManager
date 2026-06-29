@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildThumbnail,
   thumbnailExtentBox,
+  thumbnailFallbackTileUrl,
+  thumbnailFallbackUrlForFailedTile,
   thumbnailTiles,
   thumbnailViewportForMapView,
   thumbnailViewportForMapTile,
@@ -80,6 +82,27 @@ describe("thumbnailTiles", () => {
       }
     }
   });
+
+  it("provides a transparent fallback tile for failed thumbnail images", () => {
+    expect(thumbnailFallbackTileUrl).toMatch(/^data:image\/gif;base64,/);
+  });
+
+  it("retries failed thumbnail tiles on another OSM subdomain before falling back", () => {
+    const firstFallback = thumbnailFallbackUrlForFailedTile(
+      "https://a.tile.openstreetmap.org/10/747/384.png",
+      "",
+    );
+    const finalFallback = thumbnailFallbackUrlForFailedTile(
+      "https://c.tile.openstreetmap.org/10/747/384.png",
+      "a,b",
+    );
+
+    expect(firstFallback.url).toBe(
+      "https://b.tile.openstreetmap.org/10/747/384.png",
+    );
+    expect(firstFallback.triedSubdomains).toBe("a");
+    expect(finalFallback.url).toBe(thumbnailFallbackTileUrl);
+  });
 });
 
 describe("thumbnailViewportForMapView", () => {
@@ -100,9 +123,9 @@ describe("thumbnailViewportForMapView", () => {
     expect(thumbnail.extent).not.toBeNull();
     expect(thumbnail.extent?.left).toBeGreaterThan(0);
     expect(thumbnail.extent?.top).toBeGreaterThan(0);
-    expect(thumbnail.extent?.left + (thumbnail.extent?.width ?? 0)).toBeLessThan(
-      290,
-    );
+    expect(
+      thumbnail.extent?.left + (thumbnail.extent?.width ?? 0),
+    ).toBeLessThan(290);
     expect(
       thumbnail.extent?.top + (thumbnail.extent?.height ?? 0),
     ).toBeLessThan(174);
@@ -123,11 +146,28 @@ describe("thumbnailViewportForMapView", () => {
     expect(thumbnail.extent).not.toBeNull();
     expect(thumbnail.extent?.left).toBeGreaterThanOrEqual(0);
     expect(thumbnail.extent?.top).toBeGreaterThanOrEqual(0);
-    expect(thumbnail.extent?.left + (thumbnail.extent?.width ?? 0)).toBeLessThanOrEqual(
-      290,
-    );
+    expect(
+      thumbnail.extent?.left + (thumbnail.extent?.width ?? 0),
+    ).toBeLessThanOrEqual(290);
     expect(
       thumbnail.extent?.top + (thumbnail.extent?.height ?? 0),
     ).toBeLessThanOrEqual(174);
+  });
+
+  it("caps thumbnail tile zoom when the main map is zoomed in deeply", () => {
+    const closeView: MapViewState = {
+      center: [82.84, 40.96],
+      bounds: [82.82, 40.94, 82.86, 40.98],
+      zoom: 17.2,
+      bearing: 0,
+      pitch: 0,
+    };
+    const overview = thumbnailViewportForMapView(closeView, 290, 174);
+    const thumbnail = buildThumbnail(closeView, 290, 174);
+
+    expect(overview.zoom).toBe(10);
+    expect(thumbnail.tiles.every((tile) => tile.url.includes("/10/"))).toBe(
+      true,
+    );
   });
 });

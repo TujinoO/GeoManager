@@ -61,6 +61,7 @@ from apps.core.initialization import (
     SUPERADMIN_GROUP_NAME,
     ensure_superadmin_defaults,
 )
+from apps.standards.models import DataDomainType
 
 WORKSPACE_SNAPSHOT_MAX_BODY_BYTES = 1024 * 1024
 
@@ -90,7 +91,10 @@ def resources(request):
         return feature_denied_response(request.user)
 
     data_type = request.GET.get("dataType", "").strip()
+    domain_type = request.GET.get("domainType", "").strip()
     query = request.GET.get("q", "").strip()
+    if domain_type and domain_type not in DataDomainType.values:
+        return JsonResponse({"detail": "无效的数据业务类型"}, status=400)
 
     queryset = DataResource.objects.filter(
         status=DataResource.Status.ACTIVE
@@ -99,6 +103,8 @@ def resources(request):
         queryset = queryset.filter(name__icontains=query)
     if data_type:
         queryset = queryset.filter(data_type=data_type)
+    if domain_type:
+        queryset = queryset.filter(domain_type=domain_type)
     category = request.GET.get("category", "").strip()
     if category:
         queryset = queryset.filter(category__code=category)
@@ -152,7 +158,9 @@ def import_preview(request):
         )
         return JsonResponse({"detail": "请上传 Excel 或 CSV 文件"}, status=400)
     try:
-        result = preview_uploaded_table(uploaded_file)
+        result = preview_uploaded_table(
+            uploaded_file, sheet_name=request.POST.get("sheetName")
+        )
     except ImportDataError as exc:
         log_operation(
             request.user,

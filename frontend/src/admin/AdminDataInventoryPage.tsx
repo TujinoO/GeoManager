@@ -32,6 +32,7 @@ import type {
   AdminDataResourceList,
 } from "../types";
 import { downloadBlob } from "../utils/download";
+import DataSchemaOverview from "./DataSchemaOverview";
 import ManagedCollectionPage, {
   type AccessScopeId,
   type FilterField,
@@ -177,6 +178,7 @@ export default function AdminDataInventoryPage() {
   const canDelete = Boolean(user?.permissions.canDeleteDataResources);
   const canUpload = Boolean(user?.permissions.canUploadData);
   const canExport = Boolean(user?.permissions.canExportData);
+  const canBrowseData = Boolean(user?.permissions.canBrowseData);
   const canOpenInventory =
     canView || canChange || canDelete || canUpload || canExport;
 
@@ -865,6 +867,7 @@ export default function AdminDataInventoryPage() {
 
   return (
     <>
+      <DataSchemaOverview canBrowseData={canBrowseData} />
       <ManagedCollectionPage<AdminDataResource>
         items={data.items}
         total={data.total}

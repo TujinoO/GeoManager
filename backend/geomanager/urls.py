@@ -8,6 +8,8 @@ from apps.core.views import frontend_app
 urlpatterns = [
     path("api/", include("apps.core.urls")),
     path("api/", include("apps.catalog.urls")),
+    path("api/", include("apps.standards.urls")),
+    path("api/germplasm/", include("apps.omics.urls")),
     path("api/raster/", include("apps.raster.urls")),
 ]
 

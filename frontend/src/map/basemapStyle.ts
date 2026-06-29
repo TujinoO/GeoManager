@@ -13,6 +13,7 @@ export const mapboxSatelliteStyle =
 export const osmChineseVectorStyle =
   "https://tiles.openfreemap.org/styles/liberty";
 export const mapLabelLanguage = "zh-Hans";
+export const osmRasterTileMaxZoom = 19;
 
 export const chineseLabelExpression: ExpressionSpecification = [
   "coalesce",
@@ -136,6 +137,8 @@ const osmTileUrls = [
   "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
   "https://c.tile.openstreetmap.org/{z}/{x}/{y}.png",
 ];
+const osmTileUrlPattern =
+  /https:\/\/[abc]\.tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png/i;
 
 export function createOsmRasterStyle(
   sourceId = "osm-raster",
@@ -148,6 +151,7 @@ export function createOsmRasterStyle(
         type: "raster",
         tiles: osmTileUrls,
         tileSize: 256,
+        maxzoom: osmRasterTileMaxZoom,
         attribution: "&copy; OpenStreetMap contributors",
       },
     },
@@ -157,10 +161,35 @@ export function createOsmRasterStyle(
         type: "raster",
         source: sourceId,
         minzoom: 0,
-        maxzoom: 19,
+        maxzoom: 24,
       },
     ],
   };
+}
+
+export function isOsmRasterTileError(value: unknown) {
+  return osmTileUrlPattern.test(errorText(value));
+}
+
+function errorText(value: unknown, depth = 0): string {
+  if (depth > 2 || value == null) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value instanceof Error) {
+    return value.message;
+  }
+  if (typeof value !== "object") {
+    return String(value);
+  }
+
+  const record = value as Record<string, unknown>;
+  return ["message", "url", "statusText", "error"]
+    .map((key) => errorText(record[key], depth + 1))
+    .filter(Boolean)
+    .join(" ");
 }
 
 export function shouldUseMapboxBasemap(mapConfig: MapBasemapConfig) {

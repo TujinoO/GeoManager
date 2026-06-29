@@ -37,9 +37,10 @@ import {
 import type { TableProps } from "antd";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import WorkspaceHeader from "../components/WorkspaceHeader";
 import { useAppContext } from "../contexts/AppContext";
-import type { DataResource, ResourceListItem } from "../types";
+import type { DataDomainType, DataResource, ResourceListItem } from "../types";
 import {
   resourceCategoryName,
   resourceFormatLabel,
@@ -48,6 +49,7 @@ import {
 
 type ResourceTypeFilter = "all" | "table" | "gene";
 type LeftPanelKey = "data" | "views" | "workspace" | "topics";
+type NonGeoDomainType = Extract<DataDomainType, "molecular" | "genome">;
 type NonGeoScalar = string | number | boolean | null;
 type NonGeoFieldRole =
   | "identifier"
@@ -147,6 +149,8 @@ const nonGeoTypeOptions = [
   { label: "生态表", value: "table" },
   { label: "遗传", value: "gene" },
 ];
+
+const nonGeoDomainTypes = new Set<DataDomainType>(["molecular", "genome"]);
 
 const leftPanelOptions: Array<{
   key: LeftPanelKey;
@@ -549,6 +553,7 @@ const demoAnalytics: NonGeoAnalytics = {
 export default function NonGeoPage() {
   const { user } = useAppContext();
   const { message } = App.useApp();
+  const [searchParams] = useSearchParams();
   const permissions = user?.permissions;
   const canBrowseData = Boolean(permissions?.canBrowseData);
   const canQueryData = Boolean(permissions?.canQueryData);
@@ -569,6 +574,12 @@ export default function NonGeoPage() {
   const [selectedMetricField, setSelectedMetricField] = useState<
     string | undefined
   >();
+  const selectedDomainType = useMemo<NonGeoDomainType | null>(() => {
+    const value = searchParams.get("domainType");
+    return nonGeoDomainTypes.has(value as DataDomainType)
+      ? (value as NonGeoDomainType)
+      : null;
+  }, [searchParams]);
 
   const selectedResource = useMemo(
     () =>
@@ -699,6 +710,14 @@ export default function NonGeoPage() {
   useEffect(() => {
     void loadResources();
   }, [loadResources]);
+
+  useEffect(() => {
+    if (!selectedDomainType) {
+      return;
+    }
+    setResourceType("gene");
+    setActiveLeftPanel("data");
+  }, [selectedDomainType]);
 
   useEffect(() => {
     if (activeResourceId !== null) {
@@ -969,7 +988,11 @@ export default function NonGeoPage() {
 
   return (
     <Layout className="workspace">
-      <WorkspaceHeader activeTab="nongeo" canBrowseData={canBrowseData} />
+      <WorkspaceHeader
+        activeTab="nongeo"
+        canBrowseData={canBrowseData}
+        selectedDomainType={selectedDomainType}
+      />
       <div className="workspace-body workspace-body-nongeo">
         <main className="nongeo-stage" aria-label="非地理数据分析工作台">
           <aside className="nongeo-panel nongeo-resource-panel">

@@ -18,6 +18,7 @@ import {
   applyBasemapExpressionSafety,
   applyChineseBasemapLanguage,
   createBasemapStyle,
+  isOsmRasterTileError,
   mapLabelLanguage,
   shouldUseMapboxBasemap,
 } from "../map/basemapStyle";
@@ -162,6 +163,9 @@ export default function MapCanvas({
     };
     map.on("style.load", handleStyleLoad);
     const handleMapError = (event: { error?: unknown }) => {
+      if (isOsmRasterTileError(event)) {
+        return;
+      }
       onMapError?.(mapboxErrorMessage(event.error));
     };
     map.on("error", handleMapError);

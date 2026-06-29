@@ -66,6 +66,9 @@ INSTALLED_APPS = [
     "apps.core",
     "apps.catalog",
     "apps.raster",
+    "apps.standards",
+    "apps.ecology",
+    "apps.omics",
     "apps.audit",
 ]
 

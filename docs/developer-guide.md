@@ -504,6 +504,23 @@ for dir in directories:
         print(f"  - {res['name']} ({res['dataType']})")
 ```
 
+#### Step 1.1: 获取平台数据分类架构
+
+`GET /api/data-schema/summary/` 返回甲方确认后的平台业务数据分类、数据库分层、核心实体和前端目录树建议。该接口只读，不创建或修改业务数据；需要登录态和 `core.browse_data` 权限。当前分类包括地理数据中的种质数据、个体数据、群落数据、种群数据、野外调查数据、遥感影像数据，以及非地理数据中的分子数据和基因组数据。基因组数据不再放入地理数据目录；如需空间联动，应通过生物样品、采集地、个体或种群关联回地理对象。
+
+```javascript
+// JavaScript
+const response = await fetch("/api/data-schema/summary/", {
+  credentials: "include",
+});
+const schema = await response.json();
+
+console.log(schema.domains.map((domain) => domain.name));
+console.log(schema.catalogTree);
+```
+
+该接口用于前端展示“平台到底管理哪些数据”和“这些数据对应哪些核心表”，不替代实际数据资源列表。实际文件、表格、图层仍通过 `DataResource`、`MapLayer`、`RasterDataset` 等既有资源接口管理；标准业务实体通过新增的 `standards`、`ecology`、`omics` 后端模型承接。
+
 #### Step 2: 筛选数据资源
 
 支持按数据类型、分类、来源、提供者、日期范围等条件筛选数据资源。
@@ -512,6 +529,7 @@ for dir in directories:
 // JavaScript
 const params = new URLSearchParams({
   dataType: "vector",      // 数据类型: vector / raster / gene / table / document / image
+  domainType: "field_survey", // 业务数据类型: germplasm / individual / community / population / field_survey / remote_sensing / molecular / genome
   category: "vegetation",  // 分类代码
   q: "胡杨",              // 名称模糊搜索
 });
@@ -528,11 +546,40 @@ const { items } = await response.json();
 # Python
 response = session.get(f"{base_url}/catalog/resources/", params={
     "dataType": "vector",
+    "domainType": "field_survey",
     "category": "vegetation",
     "q": "胡杨",
 })
 resources = response.json()["items"]
 ```
+
+`domainType` 来自 `GET /api/data-schema/summary/` 的 `catalogTree[].children[].domainType`，用于平台顶部“地理数据 / 非地理数据”下拉菜单和左侧数据资源面板同步筛选。无效编码返回 `400 {"detail":"无效的数据业务类型"}`；权限、对象可见性和空数据行为仍与普通资源列表一致。
+
+#### Step 2.1: 查询种质资源清单
+
+`GET /api/germplasm/accessions/` 返回标准化种质资源清单，当前用于承接 DNA 样品清单中的样品编号、采集地点、性别、经纬度、海拔、资源类型和核心资源标记。接口支持 `q`、`taxon`、`site`、`isCore`、`current`、`pageSize` 查询参数；需要登录态和 `core.browse_data` 权限。无数据时返回 `{ items: [], total: 0, current, pageSize }`。
+
+```javascript
+// JavaScript
+const params = new URLSearchParams({
+  q: "GA1",
+  taxon: "胡杨",
+  site: "阿克苏",
+  isCore: "true",
+  current: "1",
+  pageSize: "20",
+});
+const response = await fetch(`/api/germplasm/accessions/?${params}`, {
+  credentials: "include",
+});
+const page = await response.json();
+
+page.items.forEach((item) => {
+  console.log(item.accessionCode, item.sampleCode, item.sourceSite?.name);
+});
+```
+
+种质资源通过 `GermplasmAccession` 关联 `BiologicalSample`、`Taxon`、`Site` 和来源 `DataResource`。如果来源资源设置了访问角色，接口会沿用现有数据资源可见性规则；来源资源为空的记录视为尚未完成资源归档，但仍可作为待治理业务记录返回。
 
 #### Step 3: 获取资源详情
 

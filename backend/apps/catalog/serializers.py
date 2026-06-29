@@ -23,6 +23,7 @@ def serialize_resource(resource: DataResource) -> dict:
         "name": resource.name,
         "code": resource.code,
         "dataType": resource.data_type,
+        "domainType": resource.domain_type or None,
         "category": serialize_dictionary(resource.category),
         "source": resource.source,
         "provider": resource.provider,

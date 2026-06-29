@@ -24,8 +24,11 @@ import type {
   AdminWorkspaceUpdate,
   Bootstrap,
   DataCatalog,
+  DataSchemaSummary,
   DataResourceProfile,
   ExportLayersPayload,
+  GermplasmAccessionFilters,
+  GermplasmAccessionList,
   Group,
   GroupCreateRequest,
   GroupListResponse,
@@ -434,6 +437,12 @@ export const api = {
   adminSettings: () => unwrap<AdminSettings>(sdk.getAdminSettings()),
   updateAdminSettings: (payload: AdminSettingsUpdate) =>
     unwrap<AdminSettings>(sdk.updateAdminSettings({ body: payload })),
+  dataSchemaSummary: () =>
+    unwrap<DataSchemaSummary>(sdk.getDataSchemaSummary()),
+  germplasmAccessions: (filters: GermplasmAccessionFilters = {}) =>
+    unwrap<GermplasmAccessionList>(
+      sdk.listGermplasmAccessions({ query: filters }),
+    ),
   adminDataResources: (filters: AdminDataResourceFilters = {}) =>
     unwrap<AdminDataResourceList>(
       sdk.listAdminDataResources({ query: filters }),
@@ -514,8 +523,14 @@ export const api = {
         body: { action: "delete" },
       }),
     ),
-  importPreview: (file: File) =>
-    unwrap<ImportPreview>(sdk.importPreview({ body: { file } })),
+  importPreview: (file: File, sheetName?: string | null) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (sheetName) {
+      formData.append("sheetName", sheetName);
+    }
+    return requestForm<ImportPreview>("/api/catalog/import/preview/", formData);
+  },
   importCommit: (file: File, payload: ImportCommitPayload) =>
     unwrap<ImportCommitResult>(
       sdk.importCommit({ body: { file, payload: JSON.stringify(payload) } }),

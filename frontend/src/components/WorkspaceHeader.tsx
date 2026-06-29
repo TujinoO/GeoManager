@@ -41,7 +41,13 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import capfedLogoWhite from "../assets/capfed-logo-white.svg";
 import { useAppContext } from "../contexts/AppContext";
-import type { ResourceListItem, WorkspaceScene } from "../types";
+import type {
+  DataDomainType,
+  DataSchemaCatalogNode,
+  DataSchemaSummary,
+  ResourceListItem,
+  WorkspaceScene,
+} from "../types";
 import {
   resourceCategoryName,
   resourceFormatLabel,
@@ -61,8 +67,14 @@ interface WorkspaceHeaderProps {
   canBrowseData: boolean;
   resources?: ResourceListItem[];
   workspaceScenes?: WorkspaceScene[];
+  dataSchema?: DataSchemaSummary | null;
+  selectedDomainType?: DataDomainType | null;
   searchKeyword?: string;
   onGlobalSearch?: (keyword: string) => void;
+  onSelectDataDomain?: (
+    domainType: DataDomainType,
+    node: DataSchemaCatalogNode,
+  ) => void;
   onQuickLoadResource?: (resource: ResourceListItem) => Promise<void> | void;
   onLoadWorkspaceScene?: (scene: WorkspaceScene) => void;
   onSearchFocus?: () => void;
@@ -73,8 +85,11 @@ export default function WorkspaceHeader({
   canBrowseData,
   resources,
   workspaceScenes,
+  dataSchema,
+  selectedDomainType,
   searchKeyword = "",
   onGlobalSearch,
+  onSelectDataDomain,
   onQuickLoadResource,
   onLoadWorkspaceScene,
   onSearchFocus,
@@ -91,6 +106,8 @@ export default function WorkspaceHeader({
   const [localWorkspaceScenes, setLocalWorkspaceScenes] = useState<
     WorkspaceScene[]
   >([]);
+  const [localDataSchema, setLocalDataSchema] =
+    useState<DataSchemaSummary | null>(null);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchCompact, setSearchCompact] = useState(false);
   const [navCompressed, setNavCompressed] = useState(false);
@@ -117,6 +134,7 @@ export default function WorkspaceHeader({
   const fullPrimaryNavWidthRef = useRef(0);
   const effectiveResources = resources ?? localResources;
   const effectiveWorkspaceScenes = workspaceScenes ?? localWorkspaceScenes;
+  const effectiveDataSchema = dataSchema ?? localDataSchema;
   const isGuestUser =
     user?.username === "guest" || Boolean(user?.roles.includes("游客"));
   const showAdminTab =
@@ -176,6 +194,32 @@ export default function WorkspaceHeader({
       mounted = false;
     };
   }, [canBrowseData, message, resources, workspaceScenes]);
+
+  useEffect(() => {
+    if (!canBrowseData || dataSchema !== undefined) {
+      return;
+    }
+    const loadSchema = (api as { dataSchemaSummary?: typeof api.dataSchemaSummary })
+      .dataSchemaSummary;
+    if (!loadSchema) {
+      return;
+    }
+    let mounted = true;
+    loadSchema()
+      .then((result) => {
+        if (mounted) {
+          setLocalDataSchema(result);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setLocalDataSchema(null);
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [canBrowseData, dataSchema]);
 
   useEffect(() => {
     navMeasureTimerRef.current = window.setTimeout(() => {
@@ -497,6 +541,22 @@ export default function WorkspaceHeader({
     [dismissSearchForNavigation, navigate],
   );
 
+  const selectDataDomain = useCallback(
+    (
+      domainType: DataDomainType,
+      node: DataSchemaCatalogNode,
+      targetTab: "map" | "nongeo",
+    ) => {
+      dismissSearchForNavigation();
+      if (targetTab === "map" && onSelectDataDomain) {
+        onSelectDataDomain(domainType, node);
+        return;
+      }
+      navigate(`/${targetTab}?domainType=${encodeURIComponent(domainType)}`);
+    },
+    [dismissSearchForNavigation, navigate, onSelectDataDomain],
+  );
+
   const handleAiInterpretationPlaceholder = useCallback(() => {
     dismissSearchForNavigation();
     message.info("智能解译功能按钮已预留，暂未接入后端服务");
@@ -627,6 +687,35 @@ export default function WorkspaceHeader({
     user?.permissions.canViewOperationLogs,
     user?.permissions.canViewOwnOperationLogs,
   ]);
+
+  const geoCatalogNode = useMemo(
+    () => dataCatalogGroup(effectiveDataSchema, "geo"),
+    [effectiveDataSchema],
+  );
+  const nonGeoCatalogNode = useMemo(
+    () => dataCatalogGroup(effectiveDataSchema, "nongeo"),
+    [effectiveDataSchema],
+  );
+  const geoDataMenuItems = useMemo<MenuProps["items"]>(
+    () =>
+      dataDomainMenuItems(
+        geoCatalogNode,
+        selectedDomainType,
+        selectDataDomain,
+        "map",
+      ),
+    [geoCatalogNode, selectedDomainType, selectDataDomain],
+  );
+  const nonGeoDataMenuItems = useMemo<MenuProps["items"]>(
+    () =>
+      dataDomainMenuItems(
+        nonGeoCatalogNode,
+        selectedDomainType,
+        selectDataDomain,
+        "nongeo",
+      ),
+    [nonGeoCatalogNode, selectedDomainType, selectDataDomain],
+  );
 
   const finishTour = useCallback(() => {
     setTourOpen(false);
@@ -930,33 +1019,47 @@ export default function WorkspaceHeader({
           className="header-primary-actions"
           aria-label="主导航"
         >
-          <Button
-            ref={mapTabRef}
-            type="text"
-            className={tabClass(activeTab === "map", expandedTabId === "map")}
-            onClick={() => navigateFromHeader("/map")}
-            onMouseEnter={() => scheduleTabHoverExpand("map")}
-            onMouseLeave={collapseTabHover}
-            title="地理数据"
+          <Dropdown
+            menu={{ items: geoDataMenuItems }}
+            trigger={["hover"]}
+            placement="bottom"
+            classNames={{ root: "workspace-management-dropdown" }}
           >
-            <ApartmentOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-            <span className="tab-text">地理数据</span>
-          </Button>
-          <Button
-            ref={nonGeoTabRef}
-            type="text"
-            className={tabClass(
-              activeTab === "nongeo",
-              expandedTabId === "nongeo",
-            )}
-            onClick={() => navigateFromHeader("/nongeo")}
-            onMouseEnter={() => scheduleTabHoverExpand("nongeo")}
-            onMouseLeave={collapseTabHover}
-            title="非地理数据"
+            <Button
+              ref={mapTabRef}
+              type="text"
+              className={tabClass(activeTab === "map", expandedTabId === "map")}
+              onClick={() => navigateFromHeader("/map")}
+              onMouseEnter={() => scheduleTabHoverExpand("map")}
+              onMouseLeave={collapseTabHover}
+              title="地理数据"
+            >
+              <ApartmentOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+              <span className="tab-text">地理数据</span>
+            </Button>
+          </Dropdown>
+          <Dropdown
+            menu={{ items: nonGeoDataMenuItems }}
+            trigger={["hover"]}
+            placement="bottom"
+            classNames={{ root: "workspace-management-dropdown" }}
           >
-            <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-            <span className="tab-text">非地理数据</span>
-          </Button>
+            <Button
+              ref={nonGeoTabRef}
+              type="text"
+              className={tabClass(
+                activeTab === "nongeo",
+                expandedTabId === "nongeo",
+              )}
+              onClick={() => navigateFromHeader("/nongeo")}
+              onMouseEnter={() => scheduleTabHoverExpand("nongeo")}
+              onMouseLeave={collapseTabHover}
+              title="非地理数据"
+            >
+              <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+              <span className="tab-text">非地理数据</span>
+            </Button>
+          </Dropdown>
           <Button
             type="text"
             className={tabClass(false, expandedTabId === "ai")}
@@ -1075,6 +1178,90 @@ export default function WorkspaceHeader({
       />
     </header>
   );
+}
+
+const fallbackCatalogTree: DataSchemaCatalogNode[] = [
+  {
+    code: "geo",
+    name: "地理数据",
+    domainType: null,
+    spatialClass: "spatial",
+    children: [
+      domainNode("geo-germplasm", "种质数据", "germplasm"),
+      domainNode("geo-individual", "个体数据", "individual"),
+      domainNode("geo-community", "群落数据", "community"),
+      domainNode("geo-population", "种群数据", "population"),
+      domainNode("geo-field-survey", "野外调查数据", "field_survey"),
+      domainNode("geo-remote-sensing", "遥感影像数据", "remote_sensing"),
+    ],
+  },
+  {
+    code: "nongeo",
+    name: "非地理数据",
+    domainType: null,
+    spatialClass: "non_spatial",
+    children: [
+      domainNode("nongeo-molecular", "分子数据", "molecular"),
+      domainNode("nongeo-genome", "基因组数据", "genome"),
+    ],
+  },
+];
+
+function domainNode(
+  code: string,
+  name: string,
+  domainType: DataDomainType,
+): DataSchemaCatalogNode {
+  return {
+    code,
+    name,
+    domainType,
+    spatialClass: null,
+    children: [],
+  };
+}
+
+function dataCatalogGroup(
+  schema: DataSchemaSummary | null | undefined,
+  code: "geo" | "nongeo",
+) {
+  return (
+    schema?.catalogTree.find((node) => node.code === code) ??
+    fallbackCatalogTree.find((node) => node.code === code) ??
+    null
+  );
+}
+
+function dataDomainMenuItems(
+  root: DataSchemaCatalogNode | null,
+  selectedDomainType: DataDomainType | null | undefined,
+  onSelect: (
+    domainType: DataDomainType,
+    node: DataSchemaCatalogNode,
+    targetTab: "map" | "nongeo",
+  ) => void,
+  targetTab: "map" | "nongeo",
+): MenuProps["items"] {
+  const children = root?.children ?? [];
+  if (!children.length) {
+    return [
+      {
+        key: `${root?.code ?? "data"}-empty`,
+        label: "暂无可选数据类型",
+        disabled: true,
+      },
+    ];
+  }
+  return children
+    .filter((node): node is DataSchemaCatalogNode & { domainType: DataDomainType } =>
+      Boolean(node.domainType),
+    )
+    .map((node) => ({
+      key: node.code,
+      label:
+        node.domainType === selectedDomainType ? `${node.name} · 当前` : node.name,
+      onClick: () => onSelect(node.domainType, node, targetTab),
+    }));
 }
 
 function tabClass(active: boolean, hoverExpanded = false) {

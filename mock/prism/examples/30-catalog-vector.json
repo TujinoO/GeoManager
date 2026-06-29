@@ -65,6 +65,7 @@
           "name": "Traim",
           "code": "raster-91d2a5ecd116",
           "dataType": "raster",
+          "domainType": "remote_sensing",
           "category": null,
           "source": "栅格导入",
           "provider": "",
@@ -86,6 +87,7 @@
           "name": "Traim_result",
           "code": "raster-fa42b738b42f",
           "dataType": "raster",
+          "domainType": "remote_sensing",
           "category": null,
           "source": "栅格导入",
           "provider": "",
@@ -107,6 +109,7 @@
           "name": "塔里木河胡杨样地监测点",
           "code": "survey-points-2026",
           "dataType": "vector",
+          "domainType": "field_survey",
           "category": {
             "id": 101,
             "type": "data_category",
@@ -133,6 +136,7 @@
           "name": "胡杨群落生物多样性与功能性状数据表",
           "code": "nongeo-poplar-community-traits-2024",
           "dataType": "table",
+          "domainType": "community",
           "category": {
             "id": 104,
             "type": "data_category",
@@ -155,6 +159,9 @@
           "itemCount": 2927
         }
       ]
+    },
+    "400": {
+      "detail": "无效的数据业务类型"
     }
   },
   "POST /api/catalog/scan/": {
@@ -388,6 +395,7 @@
         "name": "塔里木河胡杨样地监测点",
         "code": "survey-points-2026",
         "dataType": "vector",
+        "domainType": "field_survey",
         "category": {
           "id": 101,
           "type": "data_category",
@@ -691,6 +699,7 @@
           "name": "Traim",
           "code": "raster-91d2a5ecd116",
           "dataType": "raster",
+          "domainType": "remote_sensing",
           "category": null,
           "source": "栅格导入",
           "provider": "",
@@ -712,6 +721,7 @@
           "name": "Traim_result",
           "code": "raster-fa42b738b42f",
           "dataType": "raster",
+          "domainType": "remote_sensing",
           "category": null,
           "source": "栅格导入",
           "provider": "",
@@ -733,6 +743,7 @@
           "name": "塔里木河胡杨样地监测点",
           "code": "survey-points-2026",
           "dataType": "vector",
+          "domainType": "field_survey",
           "category": {
             "id": 101,
             "type": "data_category",

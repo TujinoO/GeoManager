@@ -62,6 +62,8 @@ const mockApi = vi.hoisted(() => ({
   createAdminDataResourceGroup: vi.fn(),
   updateAdminDataResourceGroup: vi.fn(),
   exportAdminDataResources: vi.fn(),
+  dataSchemaSummary: vi.fn(),
+  germplasmAccessions: vi.fn(),
   adminWorkspaces: vi.fn(),
   updateAdminWorkspace: vi.fn(),
   adminDashboard: vi.fn(),
@@ -503,10 +505,159 @@ describe("admin routes", () => {
         },
       },
     });
+    mockApi.dataSchemaSummary.mockResolvedValue({
+      domains: [
+        {
+          code: "germplasm",
+          name: "种质数据",
+          spatialClass: "spatialized_table",
+          description: "种质资源及样品来源管理。",
+          recommendedResourceTypes: ["vector", "gene", "table"],
+          coreEntities: ["GermplasmAccession", "BiologicalSample", "Site"],
+        },
+        {
+          code: "genome",
+          name: "基因组数据",
+          spatialClass: "non_spatial",
+          description: "测序、组装、变异和注释等非地理组学成果。",
+          recommendedResourceTypes: ["gene", "table"],
+          coreEntities: ["GenomeDataset", "GenomeSequenceFile"],
+        },
+        {
+          code: "individual",
+          name: "个体数据",
+          spatialClass: "spatial",
+          description: "单株个体位置、性别和健康状态。",
+          recommendedResourceTypes: ["vector", "table"],
+          coreEntities: ["IndividualOrganism", "TraitObservation"],
+        },
+        {
+          code: "community",
+          name: "群落数据",
+          spatialClass: "spatialized_table",
+          description: "样方、群落组成和多样性指标。",
+          recommendedResourceTypes: ["vector", "table"],
+          coreEntities: ["SamplePlot", "CommunitySurvey"],
+        },
+        {
+          code: "population",
+          name: "种群数据",
+          spatialClass: "spatial",
+          description: "种群范围、调查事件和种群指标。",
+          recommendedResourceTypes: ["vector", "table"],
+          coreEntities: ["PopulationUnit", "SamplePlot"],
+        },
+        {
+          code: "field_survey",
+          name: "野外调查数据",
+          spatialClass: "spatialized_table",
+          description: "调查任务、路线、样点和采集记录。",
+          recommendedResourceTypes: ["vector", "table", "image"],
+          coreEntities: ["SurveyEvent", "FieldObservation"],
+        },
+        {
+          code: "remote_sensing",
+          name: "遥感影像数据",
+          spatialClass: "spatial",
+          description: "遥感影像、指数产品和变化检测成果。",
+          recommendedResourceTypes: ["raster", "vector"],
+          coreEntities: ["RasterDataset", "RemoteSensingProduct"],
+        },
+        {
+          code: "molecular",
+          name: "分子数据",
+          spatialClass: "non_spatial",
+          description: "DNA/RNA 提取、PCR 和分子标记结果。",
+          recommendedResourceTypes: ["gene", "table", "document"],
+          coreEntities: ["MolecularSample", "MolecularAssay"],
+        },
+      ],
+      layers: [
+        {
+          name: "平台管理元数据层",
+          storage: "metadata.sqlite3",
+          description: "保存资源、权限、目录和日志。",
+        },
+        {
+          name: "生态业务语义层",
+          storage: "Django 主库",
+          description: "保存样方、个体、种质、样品等标准实体。",
+        },
+      ],
+      entities: [
+        {
+          name: "GermplasmAccession",
+          label: "种质资源",
+          domainTypes: ["germplasm"],
+          description: "连接样品、物种和采集地。",
+          keyFields: ["accession_code", "sample_code", "source_site_id"],
+        },
+        {
+          name: "SamplePlot",
+          label: "样方/样点",
+          domainTypes: ["community", "field_survey"],
+          description: "群落调查和野外调查的空间锚点。",
+          keyFields: ["plot_code", "longitude", "latitude"],
+        },
+      ],
+      catalogTree: [
+        {
+          code: "geo",
+          name: "地理数据",
+          domainType: null,
+          spatialClass: "spatial",
+          children: [
+            {
+              code: "geo-field-survey",
+              name: "野外调查数据",
+              domainType: "field_survey",
+              spatialClass: "spatialized_table",
+              children: [],
+            },
+            {
+              code: "geo-remote-sensing",
+              name: "遥感影像数据",
+              domainType: "remote_sensing",
+              spatialClass: "spatial",
+              children: [],
+            },
+          ],
+        },
+        {
+          code: "nongeo",
+          name: "非地理数据",
+          domainType: null,
+          spatialClass: "non_spatial",
+          children: [
+            {
+              code: "nongeo-molecular",
+              name: "分子数据",
+              domainType: "molecular",
+              spatialClass: "non_spatial",
+              children: [],
+            },
+            {
+              code: "nongeo-genome",
+              name: "基因组数据",
+              domainType: "genome",
+              spatialClass: "non_spatial",
+              children: [],
+            },
+          ],
+        },
+      ],
+    });
+    mockApi.germplasmAccessions.mockResolvedValue({
+      items: [],
+      total: 0,
+      current: 1,
+      pageSize: 5,
+    });
     mockApi.importPreview.mockResolvedValue({
       suggestedName: "样地调查点位",
       suggestedTableName: "sample_points",
       columns: ["plot_id", "longitude", "latitude", "height"],
+      rowCount: 1,
       rows: [
         {
           plot_id: "P001",
@@ -520,7 +671,10 @@ describe("admin routes", () => {
         isGeographic: true,
         longitudeColumn: "longitude",
         latitudeColumn: "latitude",
+        coordinateStats: null,
+        validationIssues: [],
       },
+      duplicateTarget: null,
     });
     mockApi.importValidate.mockResolvedValue({
       coordinateStats: {

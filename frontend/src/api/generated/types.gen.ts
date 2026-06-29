@@ -1272,6 +1272,236 @@ export type AdminSettingsUpdateRequest = {
     raster?: AdminRasterSettings;
 };
 
+/**
+ * 甲方确认的业务数据类型编码。
+ */
+export type DataDomainType = 'germplasm' | 'genome' | 'individual' | 'community' | 'population' | 'field_survey' | 'remote_sensing' | 'molecular';
+
+/**
+ * 数据与空间几何的关系。
+ */
+export type SpatialClass = 'spatial' | 'non_spatial' | 'spatialized_table' | 'derived_from_spatial';
+
+/**
+ * 数据记录粒度。
+ */
+export type DataGranularity = 'region' | 'site' | 'population' | 'individual' | 'plot' | 'observation' | 'sample' | 'molecular_assay' | 'genome_file' | 'raster_scene' | 'raster_product';
+
+/**
+ * 数据标准化状态。
+ */
+export type StandardizationStatus = 'raw' | 'profiled' | 'mapped' | 'spatialized' | 'standardized' | 'published';
+
+export type DataDomainDefinition = {
+    code: DataDomainType;
+    /**
+     * 业务数据类型中文名称。
+     */
+    name: string;
+    spatialClass: SpatialClass;
+    /**
+     * 数据类型说明。
+     */
+    description: string;
+    /**
+     * 推荐使用的 DataResource.dataType 类型。
+     */
+    recommendedResourceTypes: Array<'vector' | 'raster' | 'gene' | 'table' | 'document' | 'image'>;
+    /**
+     * 该业务类型涉及的核心数据库实体名称。
+     */
+    coreEntities: Array<string>;
+};
+
+export type DataSchemaLayer = {
+    /**
+     * 数据库层级名称。
+     */
+    name: string;
+    /**
+     * 主要存储位置。
+     */
+    storage: string;
+    /**
+     * 层级职责说明。
+     */
+    description: string;
+};
+
+export type DataSchemaEntity = {
+    /**
+     * 建议模型或表名。
+     */
+    name: string;
+    /**
+     * 中文名称。
+     */
+    label: string;
+    /**
+     * 关联的业务数据类型。
+     */
+    domainTypes: Array<DataDomainType>;
+    /**
+     * 实体职责说明。
+     */
+    description: string;
+    /**
+     * 建议关键字段。
+     */
+    keyFields: Array<string>;
+};
+
+export type DataSchemaSummaryResponse = {
+    /**
+     * 甲方确认数据类型定义。
+     */
+    domains: Array<DataDomainDefinition>;
+    /**
+     * 推荐数据库分层。
+     */
+    layers: Array<DataSchemaLayer>;
+    /**
+     * 推荐核心实体模型。
+     */
+    entities: Array<DataSchemaEntity>;
+    /**
+     * 面向前端目录展示的建议树。
+     */
+    catalogTree: Array<DataSchemaCatalogNode>;
+};
+
+export type DataSchemaCatalogNode = {
+    /**
+     * 目录节点编码。
+     */
+    code: string;
+    /**
+     * 目录节点名称。
+     */
+    name: string;
+    /**
+     * 节点对应的数据业务类型，分组节点可为 null。
+     */
+    domainType?: DataDomainType | null;
+    /**
+     * 节点空间属性，分组节点可为 null。
+     */
+    spatialClass?: SpatialClass | null;
+    /**
+     * 子目录节点。
+     */
+    children: Array<DataSchemaCatalogNode>;
+};
+
+export type TaxonSummary = {
+    /**
+     * 物种主表 ID。
+     */
+    id: number;
+    /**
+     * 中文名。
+     */
+    nameCn: string;
+    /**
+     * 拉丁名或科学名。
+     */
+    scientificName: string;
+};
+
+export type SiteSummary = {
+    /**
+     * 地点 ID。
+     */
+    id: number;
+    /**
+     * 采集地点或样地名称。
+     */
+    name: string;
+    /**
+     * 十进制度经度。
+     */
+    longitude: number | null;
+    /**
+     * 十进制度纬度。
+     */
+    latitude: number | null;
+    /**
+     * 海拔，单位米。
+     */
+    altitude: number | null;
+};
+
+export type GermplasmAccession = {
+    /**
+     * 种质资源 ID。
+     */
+    id: number;
+    /**
+     * 平台种质资源编号。
+     */
+    accessionCode: string;
+    /**
+     * 甲方样品编号或 DNA 样本编号。
+     */
+    sampleCode: string;
+    /**
+     * 关联物种，未标准化时为 null。
+     */
+    taxon: TaxonSummary | null;
+    /**
+     * 采集地点，未标准化时为 null。
+     */
+    sourceSite: SiteSummary | null;
+    /**
+     * 材料类型，如 DNA、枝条、种子、叶片等。
+     */
+    materialType: string;
+    /**
+     * 资源类型，如胡杨古树特异资源、胡杨群体种质资源、核心种质资源。
+     */
+    resourceType: string;
+    /**
+     * 性别或雌雄信息。
+     */
+    sex: string;
+    /**
+     * 是否属于核心种质资源。
+     */
+    isCore: boolean;
+    /**
+     * 保存状态。
+     */
+    storageStatus: string;
+    /**
+     * 来源 DataResource ID。
+     */
+    sourceResourceId: number | null;
+    /**
+     * 创建时间。
+     */
+    createdAt: string;
+    /**
+     * 更新时间。
+     */
+    updatedAt: string;
+};
+
+export type GermplasmAccessionListResponse = {
+    items: Array<GermplasmAccession>;
+    /**
+     * 总条数。
+     */
+    total: number;
+    /**
+     * 当前页码。
+     */
+    current: number;
+    /**
+     * 每页条数。
+     */
+    pageSize: number;
+};
+
 export type DictionaryItem = {
     /**
      * 字典项 ID
@@ -1308,6 +1538,10 @@ export type DataResource = {
      * 数据资源类型
      */
     dataType: 'vector' | 'raster' | 'gene' | 'table' | 'document' | 'image';
+    /**
+     * 平台确认的业务数据类型；历史资源或尚未归类资源为 null
+     */
+    domainType?: DataDomainType | null;
     /**
      * 数据分类，未分类时为 null
      */
@@ -2184,6 +2418,14 @@ export type ImportPreviewResponse = {
      */
     suggestedName: string;
     /**
+     * 当前读取的 Excel 工作表名称；CSV 为 null
+     */
+    activeSheetName: string | null;
+    /**
+     * Excel 工作表拆分清单；CSV 为空数组
+     */
+    sheets: Array<ImportWorkbookSheet>;
+    /**
      * 按建议数据名称检测到的同名数据资源；无重复时为 null
      */
     duplicateTarget: ImportDuplicateTarget | null;
@@ -2192,6 +2434,33 @@ export type ImportPreviewResponse = {
      * 导入限制提示
      */
     limitations: Array<string>;
+};
+
+export type ImportWorkbookSheet = {
+    /**
+     * 工作表名称
+     */
+    name: string;
+    /**
+     * 工作表总行数
+     */
+    rowCount: number;
+    /**
+     * 工作表字段数
+     */
+    columnCount: number;
+    /**
+     * 是否自动识别到可空间化经纬度列
+     */
+    isGeographic: boolean;
+    /**
+     * 自动识别的经度列
+     */
+    longitudeColumn: string | null;
+    /**
+     * 自动识别的纬度列
+     */
+    latitudeColumn: string | null;
 };
 
 export type ImportDetectedInfo = {
@@ -3830,6 +4099,93 @@ export type UpdateAdminSettingsResponses = {
 
 export type UpdateAdminSettingsResponse = UpdateAdminSettingsResponses[keyof UpdateAdminSettingsResponses];
 
+export type GetDataSchemaSummaryData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/data-schema/summary/';
+};
+
+export type GetDataSchemaSummaryErrors = {
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type GetDataSchemaSummaryError = GetDataSchemaSummaryErrors[keyof GetDataSchemaSummaryErrors];
+
+export type GetDataSchemaSummaryResponses = {
+    /**
+     * 成功
+     */
+    200: DataSchemaSummaryResponse;
+};
+
+export type GetDataSchemaSummaryResponse = GetDataSchemaSummaryResponses[keyof GetDataSchemaSummaryResponses];
+
+export type ListGermplasmAccessionsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * 按种质编号、样品编号、采集地点、备注模糊检索
+         */
+        q?: string;
+        /**
+         * 按物种中文名或拉丁名模糊检索
+         */
+        taxon?: string;
+        /**
+         * 按采集地点名称模糊检索
+         */
+        site?: string;
+        /**
+         * 是否只返回核心种质资源
+         */
+        isCore?: boolean;
+        /**
+         * 当前页码
+         */
+        current?: number;
+        /**
+         * 每页条数
+         */
+        pageSize?: number;
+    };
+    url: '/api/germplasm/accessions/';
+};
+
+export type ListGermplasmAccessionsErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type ListGermplasmAccessionsError = ListGermplasmAccessionsErrors[keyof ListGermplasmAccessionsErrors];
+
+export type ListGermplasmAccessionsResponses = {
+    /**
+     * 成功
+     */
+    200: GermplasmAccessionListResponse;
+};
+
+export type ListGermplasmAccessionsResponse = ListGermplasmAccessionsResponses[keyof ListGermplasmAccessionsResponses];
+
 export type ListAdminDataResourcesData = {
     body?: never;
     path?: never;
@@ -4221,6 +4577,10 @@ export type GetResourcesData = {
          */
         dataType?: 'vector' | 'raster' | 'gene' | 'table' | 'document' | 'image';
         /**
+         * 按平台确认的业务数据类型筛选，例如种质数据、个体数据、遥感影像数据、分子数据或基因组数据；无效编码返回 400 ErrorResponse
+         */
+        domainType?: DataDomainType;
+        /**
          * 分类代码精确匹配
          */
         category?: string;
@@ -4245,6 +4605,10 @@ export type GetResourcesData = {
 };
 
 export type GetResourcesErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
     /**
      * 未认证
      */
@@ -4444,6 +4808,10 @@ export type ImportPreviewData = {
          * .csv / .xls / .xlsx 文件
          */
         file: Blob | File;
+        /**
+         * 可选；Excel 工作表名称。为空时默认读取第一张工作表。
+         */
+        sheetName?: string;
     };
     path?: never;
     query?: never;
@@ -4483,7 +4851,7 @@ export type ImportValidateData = {
          */
         file: Blob | File;
         /**
-         * JSON 字符串，包含 name、importMode、tableName、longitudeColumn、latitudeColumn；name 是前端显示的数据名称，用于同名数据检测；tableName 是后台存储标识建议值。
+         * JSON 字符串，包含 name、sheetName、importMode、tableName、longitudeColumn、latitudeColumn；name 是前端显示的数据名称，用于同名数据检测；sheetName 是 Excel 工作表名称；tableName 是后台存储标识建议值。
          */
         payload: string;
     };
@@ -4522,7 +4890,7 @@ export type ImportCommitData = {
     body: {
         file: Blob | File;
         /**
-         * JSON 字符串，包含导入配置；name 是前端显示的数据名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true 表示用户已在校验阶段确认重复名称；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。
+         * JSON 字符串，包含导入配置；name 是前端显示的数据名称，domainType 是平台确认的业务数据类型，sheetName 是 Excel 工作表名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true 表示用户已在校验阶段确认重复名称；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。domainType 编码无效时返回 400 ImportErrorResponse。
          */
         payload: string;
     };

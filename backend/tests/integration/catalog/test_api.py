@@ -92,6 +92,50 @@ class LayerApiTests(TestCase):
         self.assertNotIn("resource-restricted-layer", layer_codes)
 
 
+class ResourceListDomainTypeTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="domain-filter", password="pass12345"
+        )
+        grant(self.user, ("core", "browse_data"))
+        self.client.force_login(self.user)
+
+    def test_resources_endpoint_filters_by_domain_type(self):
+        DataResource.objects.create(
+            name="种质样品",
+            code="domain-germplasm",
+            data_type=DataResource.DataType.VECTOR,
+            domain_type="germplasm",
+            maintainer=self.user,
+            status=DataResource.Status.ACTIVE,
+        )
+        DataResource.objects.create(
+            name="分子实验",
+            code="domain-molecular",
+            data_type=DataResource.DataType.TABLE,
+            domain_type="molecular",
+            maintainer=self.user,
+            status=DataResource.Status.ACTIVE,
+        )
+
+        response = self.client.get(
+            "/api/catalog/resources/", {"domainType": "germplasm"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        items = response.json()["items"]
+        self.assertEqual([item["code"] for item in items], ["domain-germplasm"])
+        self.assertEqual(items[0]["domainType"], "germplasm")
+
+    def test_resources_endpoint_rejects_invalid_domain_type(self):
+        response = self.client.get(
+            "/api/catalog/resources/", {"domainType": "unknown"}
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"detail": "无效的数据业务类型"})
+
+
 class ResourceQueryApiTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(

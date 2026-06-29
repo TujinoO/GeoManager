@@ -5,6 +5,7 @@ from typing import Any
 from apps.catalog.models import DataResource, MapLayer
 from apps.core.initialization import ensure_superadmin_defaults
 from apps.raster.models import RasterDataset
+from apps.standards.models import DataDomainType
 
 
 def upsert_catalog_records(
@@ -26,6 +27,7 @@ def upsert_catalog_records(
         defaults={
             "name": dataset.name,
             "data_type": DataResource.DataType.RASTER,
+            "domain_type": DataDomainType.REMOTE_SENSING,
             "source": "栅格导入",
             "provider": "",
             "spatial_extent": spatial_extent,

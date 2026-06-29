@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateAdminDataResourceGroupData, CreateAdminDataResourceGroupErrors, CreateAdminDataResourceGroupResponses, CreateCatalogWorkspaceData, CreateCatalogWorkspaceErrors, CreateCatalogWorkspaceResponses, CreateGroupData, CreateGroupErrors, CreateGroupResponses, CreateUserData, CreateUserErrors, CreateUserResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, ExportAdminDataResourcesData, ExportAdminDataResourcesErrors, ExportAdminDataResourcesResponses, ExportLayersAsyncData, ExportLayersAsyncErrors, ExportLayersAsyncResponses, ExportLayersData, ExportLayersErrors, ExportLayersResponses, GetAdminDashboardData, GetAdminDashboardErrors, GetAdminDashboardResponses, GetAdminDashboardServerData, GetAdminDashboardServerErrors, GetAdminDashboardServerResponses, GetAdminProfileData, GetAdminProfileErrors, GetAdminProfileResponses, GetAdminSettingsData, GetAdminSettingsErrors, GetAdminSettingsResponses, GetBootstrapData, GetBootstrapErrors, GetBootstrapResponses, GetCatalogWorkspaceData, GetCatalogWorkspaceErrors, GetCatalogWorkspaceResponses, GetCsrfCookieData, GetCsrfCookieErrors, GetCsrfCookieResponses, GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetDirectoriesData, GetDirectoriesErrors, GetDirectoriesResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetJobStatusData, GetJobStatusErrors, GetJobStatusResponses, GetLayersData, GetLayersErrors, GetLayersResponses, GetLoginOverviewData, GetLoginOverviewErrors, GetLoginOverviewResponses, GetRasterDatasetsData, GetRasterDatasetsErrors, GetRasterDatasetsResponses, GetResourceProfileData, GetResourceProfileErrors, GetResourceProfileResponses, GetResourcesData, GetResourcesErrors, GetResourcesResponses, GetTileData, GetTileErrors, GetTileResponses, GetUniqueValuesData, GetUniqueValuesErrors, GetUniqueValuesResponses, GetUserAvatarData, GetUserAvatarErrors, GetUserAvatarResponses, GuestLoginData, GuestLoginErrors, GuestLoginResponses, ImportCommitData, ImportCommitErrors, ImportCommitResponses, ImportPreviewData, ImportPreviewErrors, ImportPreviewResponses, ImportRasterData, ImportRasterErrors, ImportRasterResponses, ImportValidateData, ImportValidateErrors, ImportValidateResponses, ListAdminDataResourcesData, ListAdminDataResourcesErrors, ListAdminDataResourcesResponses, ListAdminOperationLogsData, ListAdminOperationLogsErrors, ListAdminOperationLogsResponses, ListAdminSystemLogsData, ListAdminSystemLogsErrors, ListAdminSystemLogsResponses, ListAdminWorkspacesData, ListAdminWorkspacesErrors, ListAdminWorkspacesResponses, ListCatalogWorkspacesData, ListCatalogWorkspacesErrors, ListCatalogWorkspacesResponses, ListGroupsData, ListGroupsErrors, ListGroupsResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, QueryResourceData, QueryResourceErrors, QueryResourceResponses, RegisterData, RegisterErrors, RegisterResponses, RenderRasterAsyncData, RenderRasterAsyncErrors, RenderRasterAsyncResponses, RenderRasterData, RenderRasterErrors, RenderRasterResponses, ResetUserPasswordData, ResetUserPasswordErrors, ResetUserPasswordResponses, ScanCatalogSourcesData, ScanCatalogSourcesErrors, ScanCatalogSourcesResponses, ScanRasterSourcesData, ScanRasterSourcesErrors, ScanRasterSourcesResponses, SearchData, SearchErrors, SearchResponses, UpdateAdminDataResourceData, UpdateAdminDataResourceErrors, UpdateAdminDataResourceGroupData, UpdateAdminDataResourceGroupErrors, UpdateAdminDataResourceGroupResponses, UpdateAdminDataResourceResponses, UpdateAdminProfileData, UpdateAdminProfileErrors, UpdateAdminProfilePasswordData, UpdateAdminProfilePasswordErrors, UpdateAdminProfilePasswordResponses, UpdateAdminProfilePermissionsData, UpdateAdminProfilePermissionsErrors, UpdateAdminProfilePermissionsResponses, UpdateAdminProfileResponses, UpdateAdminSettingsData, UpdateAdminSettingsErrors, UpdateAdminSettingsResponses, UpdateAdminWorkspaceData, UpdateAdminWorkspaceErrors, UpdateAdminWorkspaceResponses, UpdateCatalogWorkspaceData, UpdateCatalogWorkspaceErrors, UpdateCatalogWorkspaceResponses, UpdateOrDeleteGroupData, UpdateOrDeleteGroupErrors, UpdateOrDeleteGroupResponses, UpdateUserGroupsData, UpdateUserGroupsErrors, UpdateUserGroupsResponses, UpdateUserOrDeleteData, UpdateUserOrDeleteErrors, UpdateUserOrDeleteResponses, UpdateUserPermissionsData, UpdateUserPermissionsErrors, UpdateUserPermissionsResponses, UploadAdminProfileAvatarData, UploadAdminProfileAvatarErrors, UploadAdminProfileAvatarResponses } from './types.gen';
+import type { CreateAdminDataResourceGroupData, CreateAdminDataResourceGroupErrors, CreateAdminDataResourceGroupResponses, CreateCatalogWorkspaceData, CreateCatalogWorkspaceErrors, CreateCatalogWorkspaceResponses, CreateGroupData, CreateGroupErrors, CreateGroupResponses, CreateUserData, CreateUserErrors, CreateUserResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, ExportAdminDataResourcesData, ExportAdminDataResourcesErrors, ExportAdminDataResourcesResponses, ExportLayersAsyncData, ExportLayersAsyncErrors, ExportLayersAsyncResponses, ExportLayersData, ExportLayersErrors, ExportLayersResponses, GetAdminDashboardData, GetAdminDashboardErrors, GetAdminDashboardResponses, GetAdminDashboardServerData, GetAdminDashboardServerErrors, GetAdminDashboardServerResponses, GetAdminProfileData, GetAdminProfileErrors, GetAdminProfileResponses, GetAdminSettingsData, GetAdminSettingsErrors, GetAdminSettingsResponses, GetBootstrapData, GetBootstrapErrors, GetBootstrapResponses, GetCatalogWorkspaceData, GetCatalogWorkspaceErrors, GetCatalogWorkspaceResponses, GetCsrfCookieData, GetCsrfCookieErrors, GetCsrfCookieResponses, GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetDataSchemaSummaryData, GetDataSchemaSummaryErrors, GetDataSchemaSummaryResponses, GetDirectoriesData, GetDirectoriesErrors, GetDirectoriesResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetJobStatusData, GetJobStatusErrors, GetJobStatusResponses, GetLayersData, GetLayersErrors, GetLayersResponses, GetLoginOverviewData, GetLoginOverviewErrors, GetLoginOverviewResponses, GetRasterDatasetsData, GetRasterDatasetsErrors, GetRasterDatasetsResponses, GetResourceProfileData, GetResourceProfileErrors, GetResourceProfileResponses, GetResourcesData, GetResourcesErrors, GetResourcesResponses, GetTileData, GetTileErrors, GetTileResponses, GetUniqueValuesData, GetUniqueValuesErrors, GetUniqueValuesResponses, GetUserAvatarData, GetUserAvatarErrors, GetUserAvatarResponses, GuestLoginData, GuestLoginErrors, GuestLoginResponses, ImportCommitData, ImportCommitErrors, ImportCommitResponses, ImportPreviewData, ImportPreviewErrors, ImportPreviewResponses, ImportRasterData, ImportRasterErrors, ImportRasterResponses, ImportValidateData, ImportValidateErrors, ImportValidateResponses, ListAdminDataResourcesData, ListAdminDataResourcesErrors, ListAdminDataResourcesResponses, ListAdminOperationLogsData, ListAdminOperationLogsErrors, ListAdminOperationLogsResponses, ListAdminSystemLogsData, ListAdminSystemLogsErrors, ListAdminSystemLogsResponses, ListAdminWorkspacesData, ListAdminWorkspacesErrors, ListAdminWorkspacesResponses, ListCatalogWorkspacesData, ListCatalogWorkspacesErrors, ListCatalogWorkspacesResponses, ListGermplasmAccessionsData, ListGermplasmAccessionsErrors, ListGermplasmAccessionsResponses, ListGroupsData, ListGroupsErrors, ListGroupsResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, QueryResourceData, QueryResourceErrors, QueryResourceResponses, RegisterData, RegisterErrors, RegisterResponses, RenderRasterAsyncData, RenderRasterAsyncErrors, RenderRasterAsyncResponses, RenderRasterData, RenderRasterErrors, RenderRasterResponses, ResetUserPasswordData, ResetUserPasswordErrors, ResetUserPasswordResponses, ScanCatalogSourcesData, ScanCatalogSourcesErrors, ScanCatalogSourcesResponses, ScanRasterSourcesData, ScanRasterSourcesErrors, ScanRasterSourcesResponses, SearchData, SearchErrors, SearchResponses, UpdateAdminDataResourceData, UpdateAdminDataResourceErrors, UpdateAdminDataResourceGroupData, UpdateAdminDataResourceGroupErrors, UpdateAdminDataResourceGroupResponses, UpdateAdminDataResourceResponses, UpdateAdminProfileData, UpdateAdminProfileErrors, UpdateAdminProfilePasswordData, UpdateAdminProfilePasswordErrors, UpdateAdminProfilePasswordResponses, UpdateAdminProfilePermissionsData, UpdateAdminProfilePermissionsErrors, UpdateAdminProfilePermissionsResponses, UpdateAdminProfileResponses, UpdateAdminSettingsData, UpdateAdminSettingsErrors, UpdateAdminSettingsResponses, UpdateAdminWorkspaceData, UpdateAdminWorkspaceErrors, UpdateAdminWorkspaceResponses, UpdateCatalogWorkspaceData, UpdateCatalogWorkspaceErrors, UpdateCatalogWorkspaceResponses, UpdateOrDeleteGroupData, UpdateOrDeleteGroupErrors, UpdateOrDeleteGroupResponses, UpdateUserGroupsData, UpdateUserGroupsErrors, UpdateUserGroupsResponses, UpdateUserOrDeleteData, UpdateUserOrDeleteErrors, UpdateUserOrDeleteResponses, UpdateUserPermissionsData, UpdateUserPermissionsErrors, UpdateUserPermissionsResponses, UploadAdminProfileAvatarData, UploadAdminProfileAvatarErrors, UploadAdminProfileAvatarResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -472,6 +472,36 @@ export const updateAdminSettings = <ThrowOnError extends boolean = false>(option
 });
 
 /**
+ * 获取甲方数据分类与数据库架子摘要
+ *
+ * 返回平台面向甲方确认数据类型的分类字典、数据库分层、核心实体和目录树建议。该接口用于前端展示数据管理体系和后续导入配置提示；需要 `core.browse_data`。当前接口只读，不创建或修改任何业务数据。
+ */
+export const getDataSchemaSummary = <ThrowOnError extends boolean = false>(options?: Options<GetDataSchemaSummaryData, ThrowOnError>): RequestResult<GetDataSchemaSummaryResponses, GetDataSchemaSummaryErrors, ThrowOnError> => (options?.client ?? client).get<GetDataSchemaSummaryResponses, GetDataSchemaSummaryErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/data-schema/summary/',
+    ...options
+});
+
+/**
+ * 获取种质资源基础清单
+ *
+ * 返回当前用户可见的种质资源基础清单，支持按关键词、物种、采集地点和核心资源标记筛选。该接口读取标准化种质资源数据库架子，不直接扫描原始 Excel；需要 `core.browse_data`。无数据时返回空数组。
+ */
+export const listGermplasmAccessions = <ThrowOnError extends boolean = false>(options?: Options<ListGermplasmAccessionsData, ThrowOnError>): RequestResult<ListGermplasmAccessionsResponses, ListGermplasmAccessionsErrors, ThrowOnError> => (options?.client ?? client).get<ListGermplasmAccessionsResponses, ListGermplasmAccessionsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/germplasm/accessions/',
+    ...options
+});
+
+/**
  * 获取存量数据管理列表
  *
  * 返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组、存量数据内容分组和默认可视化方案查看。具备 `catalog.view_dataresource`、`catalog.change_dataresource`、`catalog.delete_dataresource` 或 `catalog.export_dataresource` 时，仅返回当前用户可见或本人上传且符合筛选条件的资源；超级管理员可查看全部资源；仅具备 `catalog.add_dataresource` 时只返回当前用户上传的数据资源，用于管理自己的数据可见范围。可手动配置的数据访问角色列表不会返回超级管理员角色，后端仍会强制保留超级管理员访问范围。
@@ -708,8 +738,8 @@ export const updateCatalogWorkspace = <ThrowOnError extends boolean = false>(opt
 /**
  * 导入数据预检
  *
- * 解析上传的 Excel/CSV 第一张表，按文本读取字段，自动推测经纬度列，
- * 并返回样例行、字段列表、建议后台存储标识和建议数据名称是否重名。该接口不执行坐标数据校验，不写入数据。
+ * 解析上传的 Excel/CSV，Excel 会识别全部工作表并按当前工作表读取字段，自动推测经纬度列，
+ * 并返回样例行、字段列表、工作表清单、建议后台存储标识和建议数据名称是否重名。该接口不执行坐标数据校验，不写入数据。
  * 需要 `catalog.add_dataresource`。
  *
  */
@@ -731,7 +761,7 @@ export const importPreview = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * 上传数据校验
  *
- * 按当前表单选择的数据名称、导入类型、后台存储标识和经纬度列校验上传文件，不写入数据。重复检测按前端显示的数据名称执行。需要 `catalog.add_dataresource`。
+ * 按当前表单选择的数据名称、工作表、导入类型、后台存储标识和经纬度列校验上传文件，不写入数据。重复检测按前端显示的数据名称执行。需要 `catalog.add_dataresource`。
  */
 export const importValidate = <ThrowOnError extends boolean = false>(options: Options<ImportValidateData, ThrowOnError>): RequestResult<ImportValidateResponses, ImportValidateErrors, ThrowOnError> => (options.client ?? client).post<ImportValidateResponses, ImportValidateErrors, ThrowOnError>({
     ...formDataBodySerializer,
