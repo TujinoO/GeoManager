@@ -91,45 +91,64 @@ def upsert_vector_catalog_record(path, layer_name: str) -> DataResource:
     bounds = metadata.bounds
     spatial_extent = ",".join(f"{value:.6f}" for value in bounds) if bounds else ""
     code = stable_catalog_code("vector", layer_name)
-    resource, _ = DataResource.objects.update_or_create(
-        code=code,
-        defaults={
-            "name": layer_name,
-            "data_type": DataResource.DataType.VECTOR,
-            "source": "矢量数据目录扫描",
-            "provider": "",
-            "spatial_extent": spatial_extent,
-            "coordinate_system": metadata.coordinate_system,
-            "file_format": "GPKG",
-            "storage_path": layer_name,
-            "description": f"自动扫描统一 GeoPackage 图层：{layer_name}",
-            "quality_note": "",
-            "size_bytes": path.stat().st_size,
-            "item_count": metadata.feature_count,
-            "maintainer": None,
-            "status": DataResource.Status.ACTIVE,
-        },
-    )
-    map_layer, _ = MapLayer.objects.update_or_create(
-        code=code,
-        defaults={
-            "name": layer_name,
-            "layer_type": MapLayer.LayerType.VECTOR,
-            "geometry_type": _map_geometry_type(metadata.geometry_type),
-            "data_resource": resource,
-            "source_path": layer_name,
-            "default_visible": False,
-            "default_opacity": 85,
-            "bounds": bounds,
-            "legend": "",
-            "is_active": True,
-        },
+    resource = DataResource.objects.filter(code=code).first()
+    preserves_user_metadata = bool(
+        resource is not None and resource.maintainer_id is not None
     )
     _, superadmin_group = ensure_superadmin_defaults(
         create_account=False, attach_existing_superusers=False
     )
-    resource.access_groups.set([superadmin_group])
-    map_layer.access_groups.set([superadmin_group])
+
+    if resource is None:
+        resource = DataResource(code=code)
+
+    if preserves_user_metadata:
+        resource.data_type = DataResource.DataType.VECTOR
+        resource.spatial_extent = spatial_extent
+        resource.coordinate_system = metadata.coordinate_system
+        resource.file_format = "GPKG"
+        resource.storage_path = layer_name
+        resource.item_count = metadata.feature_count
+        resource.status = DataResource.Status.ACTIVE
+    else:
+        resource.name = layer_name
+        resource.data_type = DataResource.DataType.VECTOR
+        resource.source = "矢量数据目录扫描"
+        resource.provider = ""
+        resource.spatial_extent = spatial_extent
+        resource.coordinate_system = metadata.coordinate_system
+        resource.file_format = "GPKG"
+        resource.storage_path = layer_name
+        resource.description = f"自动扫描统一 GeoPackage 图层：{layer_name}"
+        resource.quality_note = ""
+        resource.size_bytes = path.stat().st_size
+        resource.item_count = metadata.feature_count
+        resource.maintainer = None
+        resource.status = DataResource.Status.ACTIVE
+    resource.save()
+
+    map_layer = MapLayer.objects.filter(code=code).first()
+    layer_created = map_layer is None
+    if map_layer is None:
+        map_layer = MapLayer(code=code)
+    if layer_created or not preserves_user_metadata:
+        map_layer.name = resource.name if preserves_user_metadata else layer_name
+        map_layer.default_visible = False
+        map_layer.default_opacity = 85
+        map_layer.legend = ""
+    map_layer.layer_type = MapLayer.LayerType.VECTOR
+    map_layer.geometry_type = _map_geometry_type(metadata.geometry_type)
+    map_layer.data_resource = resource
+    map_layer.source_path = layer_name
+    map_layer.bounds = bounds
+    map_layer.is_active = True
+    map_layer.save()
+
+    if preserves_user_metadata:
+        map_layer.access_groups.set(resource.access_groups.all())
+    else:
+        resource.access_groups.set([superadmin_group])
+        map_layer.access_groups.set([superadmin_group])
     return resource
 
 

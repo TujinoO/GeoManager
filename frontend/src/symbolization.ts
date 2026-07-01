@@ -283,9 +283,41 @@ export interface ClusterSymbolization {
   radius: number;
 }
 
+export interface SingleSymbolRenderer {
+  type: "single";
+  templateId?: string;
+  businessType?: string;
+  updatedByUser?: boolean;
+}
+
+export interface UniqueValueSymbolClass {
+  id: string;
+  label: string;
+  values: string[];
+  color: string;
+  iconImage: string;
+  size: number;
+  count: number;
+  visible: boolean;
+}
+
+export interface UniqueValueRenderer {
+  type: "uniqueValue";
+  field: string;
+  templateId?: string;
+  businessType?: string;
+  updatedByUser?: boolean;
+  classes: UniqueValueSymbolClass[];
+  defaultClass: UniqueValueSymbolClass;
+  normalizationNotes?: string[];
+}
+
+export type VectorRenderer = SingleSymbolRenderer | UniqueValueRenderer;
+
 export interface VectorSymbolization {
   opacity: number;
   pointMode: PointSymbolMode;
+  renderer?: VectorRenderer;
   circle: CircleSymbolization;
   symbol: SymbolLayerSymbolization;
   heatmap: HeatmapSymbolization;
@@ -331,6 +363,10 @@ export const defaultGroupSymbolization: GroupSymbolization = {
 export const defaultVectorSymbolization: VectorSymbolization = {
   opacity: 90,
   pointMode: "circle",
+  renderer: {
+    type: "single",
+    updatedByUser: false,
+  },
   circle: {
     circleColor: "#d9a441",
     circleRadius: 6,
@@ -471,6 +507,17 @@ export const defaultVectorSymbolization: VectorSymbolization = {
   },
 };
 
+export const defaultUniqueValueClass: UniqueValueSymbolClass = {
+  id: "other",
+  label: "其他/未知",
+  values: [],
+  color: "#8A8F98",
+  iconImage: "gm-tree",
+  size: 1,
+  count: 0,
+  visible: true,
+};
+
 export const defaultRasterSymbolization: RasterSymbolization = {
   opacity: 90,
   mode: "gray",
@@ -497,6 +544,7 @@ export function cloneDefaultGroupSymbolization(): GroupSymbolization {
 export function cloneDefaultVectorSymbolization(): VectorSymbolization {
   return {
     ...defaultVectorSymbolization,
+    renderer: cloneVectorRenderer(defaultVectorSymbolization.renderer),
     circle: { ...defaultVectorSymbolization.circle },
     symbol: {
       ...defaultVectorSymbolization.symbol,
@@ -531,6 +579,37 @@ export function cloneDefaultVectorSymbolization(): VectorSymbolization {
       fillTranslate: [...defaultVectorSymbolization.fill.fillTranslate],
     },
   };
+}
+
+export function cloneVectorRenderer(
+  renderer: VectorRenderer | undefined,
+): VectorRenderer {
+  if (!renderer || renderer.type === "single") {
+    return {
+      type: "single",
+      templateId: renderer?.templateId,
+      businessType: renderer?.businessType,
+      updatedByUser: renderer?.updatedByUser ?? false,
+    };
+  }
+  return {
+    ...renderer,
+    classes: renderer.classes.map((item) => ({
+      ...item,
+      values: [...item.values],
+    })),
+    defaultClass: {
+      ...renderer.defaultClass,
+      values: [...renderer.defaultClass.values],
+    },
+    normalizationNotes: [...(renderer.normalizationNotes ?? [])],
+  };
+}
+
+export function isUniqueValueRenderer(
+  renderer: VectorRenderer | undefined,
+): renderer is UniqueValueRenderer {
+  return renderer?.type === "uniqueValue";
 }
 
 export function rasterSymbolizationFromRules(

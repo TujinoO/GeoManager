@@ -45,15 +45,11 @@ import type {
   ImportValidatePayload,
   ImportValidationIssue,
 } from "../types";
-
-interface ImportFormValues {
-  name: string;
-  domainType?: DataDomainType;
-  importMode: "geographic" | "table";
-  longitudeColumn?: string;
-  latitudeColumn?: string;
-  accessGroupIds: AccessScopeId[];
-}
+import {
+  normalizeImportValues,
+  type ImportAccessScopeId,
+  type ImportFormValues,
+} from "./importValues";
 
 type IssueAction = "continue" | "import";
 type ImportKind = "tabular" | "raster" | "vector" | "unsupported";
@@ -63,7 +59,7 @@ type RasterDimensions = { width: number; height: number };
 const selfAccessScopeId = "__self__";
 const unfinishedImportWarning =
   "当前导入尚未完成，离开页面会丢失已选择的文件、导入配置、校验结果和字段元数据。";
-type AccessScopeId = number | typeof selfAccessScopeId;
+type AccessScopeId = ImportAccessScopeId;
 
 const spatialClassLabels: Record<string, string> = {
   spatial: "地理数据",
@@ -778,6 +774,11 @@ export default function AdminDataImportPage() {
       }
       if (!values.importMode) {
         message.warning("请选择入库方式");
+        setCurrentStep(1);
+        return;
+      }
+      if (!values.domainType) {
+        message.warning("请选择业务数据类型");
         setCurrentStep(1);
         return;
       }
@@ -2056,20 +2057,6 @@ function DuplicateTargetAlert({
       }
     />
   );
-}
-
-function normalizeImportValues(
-  values: Partial<ImportFormValues>,
-): Partial<ImportFormValues> {
-  const name = values.name?.trim();
-  const importMode = values.importMode;
-  return {
-    name,
-    importMode,
-    longitudeColumn: values.longitudeColumn || undefined,
-    latitudeColumn: values.latitudeColumn || undefined,
-    accessGroupIds: values.accessGroupIds ?? [],
-  };
 }
 
 function withFixedAccessScopes(values: AccessScopeId[] = []): AccessScopeId[] {

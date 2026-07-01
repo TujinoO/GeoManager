@@ -59,6 +59,45 @@ const operationResultColor: Record<string, string> = {
   failed: "error",
 };
 
+const builtinRoleInfo: Record<
+  string,
+  { color: string; tag: string; summary: string }
+> = {
+  超级管理员: {
+    color: "volcano",
+    tag: "全量锁定",
+    summary: "拥有全部权限，含数据备份和系统根权限。",
+  },
+  平台管理员: {
+    color: "blue",
+    tag: "日常运维",
+    summary: "管理用户、角色、系统、日志和数据，默认不含数据备份。",
+  },
+  科研用户: {
+    color: "green",
+    tag: "高级数据",
+    summary: "可上传、浏览、查询、加载、导出，并使用符号化和 AI 解译。",
+  },
+  普通用户: {
+    color: "cyan",
+    tag: "基础数据",
+    summary: "可上传数据，浏览、查询、加载自己或共享范围内的数据。",
+  },
+  游客: {
+    color: "default",
+    tag: "默认关闭",
+    summary: "默认不开放功能权限，可按需要单独启用。",
+  },
+};
+
+const builtinRoleOrder = [
+  "超级管理员",
+  "平台管理员",
+  "科研用户",
+  "普通用户",
+  "游客",
+];
+
 export default function AdminAuthPage() {
   const { message, modal } = App.useApp();
   const { user } = useAppContext();
@@ -325,14 +364,27 @@ export default function AdminAuthPage() {
       title: "角色",
       dataIndex: "name",
       width: "24%",
-      render: (_, record) => (
-        <Space orientation="vertical" size={0}>
-          <Typography.Text strong>{record.name}</Typography.Text>
-          <Space size={[6, 6]} wrap>
-            <Tag color="blue">{record.userCount} 人</Tag>
+      render: (_, record) => {
+        const roleInfo = builtinRoleInfo[record.name];
+        return (
+          <Space orientation="vertical" size={2}>
+            <Space size={6} wrap>
+              <Typography.Text strong>{record.name}</Typography.Text>
+              {roleInfo ? <Tag color={roleInfo.color}>{roleInfo.tag}</Tag> : null}
+            </Space>
+            {roleInfo ? (
+              <Typography.Text type="secondary">{roleInfo.summary}</Typography.Text>
+            ) : null}
+            <Space size={[6, 6]} wrap>
+              <Tag color="blue">{record.userCount} 人</Tag>
+              {record.isProtected ? <Tag color="geekblue">内置</Tag> : null}
+              {record.lockedPermissions.length > 0 ? (
+                <Tag color="volcano">权限锁定</Tag>
+              ) : null}
+            </Space>
           </Space>
-        </Space>
-      ),
+        );
+      },
     },
     {
       title: "已授予权限",
@@ -800,29 +852,32 @@ export default function AdminAuthPage() {
         </Spin>
       ) : (
         <Spin spinning={loading}>
-          <div className="admin-table-scroll-shell">
-            <ProTable<Group>
-              className="admin-table"
-              rowKey="id"
-              headerTitle="角色列表"
-              columns={groupColumns}
-              dataSource={groups}
-              cardBordered
-              options={false}
-              pagination={false}
-              scroll={{ x: "100%" }}
-              search={false}
-              toolBarRender={() => [
-                <Button
-                  key="create"
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={() => setCreateGroupOpen(true)}
-                >
-                  新建角色
-                </Button>,
-              ]}
-            />
+          <div className="admin-page-stack">
+            <RolePresetGuide />
+            <div className="admin-table-scroll-shell">
+              <ProTable<Group>
+                className="admin-table"
+                rowKey="id"
+                headerTitle="角色列表"
+                columns={groupColumns}
+                dataSource={groups}
+                cardBordered
+                options={false}
+                pagination={false}
+                scroll={{ x: "100%" }}
+                search={false}
+                toolBarRender={() => [
+                  <Button
+                    key="create"
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => setCreateGroupOpen(true)}
+                  >
+                    新建角色
+                  </Button>,
+                ]}
+              />
+            </div>
           </div>
         </Spin>
       )}
@@ -1191,6 +1246,29 @@ export default function AdminAuthPage() {
 type FormValidationError = {
   errorFields?: { errors: string[] }[];
 };
+
+function RolePresetGuide() {
+  return (
+    <Alert
+      type="info"
+      showIcon
+      message="内置角色权限基线"
+      description={
+        <Space size={[8, 8]} wrap>
+          {builtinRoleOrder.map((roleName) => {
+            const roleInfo = builtinRoleInfo[roleName];
+            if (!roleInfo) return null;
+            return (
+              <Tooltip key={roleName} title={roleInfo.summary}>
+                <Tag color={roleInfo.color}>{roleName}</Tag>
+              </Tooltip>
+            );
+          })}
+        </Space>
+      }
+    />
+  );
+}
 
 function GroupTags({
   groupIds,

@@ -17,6 +17,7 @@ import { useEffect, useRef } from "react";
 import {
   applyBasemapExpressionSafety,
   applyChineseBasemapLanguage,
+  applySatelliteBasemapColorCorrection,
   createBasemapStyle,
   isOsmRasterTileError,
   mapLabelLanguage,
@@ -156,6 +157,7 @@ export default function MapCanvas({
         "star-intensity": 0.22,
       });
       if (shouldUseMapboxStyle) {
+        applySatelliteBasemapColorCorrection(map);
         applyChineseBasemapLanguage(map);
         hideAdministrativeBoundaries(map);
         map.once("idle", () => hideAdministrativeBoundaries(map));

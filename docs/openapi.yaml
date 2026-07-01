@@ -11,7 +11,7 @@ info:
     3. 后续请求携带 `sessionid` Cookie 和 `X-CSRFToken` 请求头
 
     ## 权限体系
-    - **功能权限**：36 项细粒度功能权限，通过用户组分配，按后台权限、日志权限、概览权限、数据权限、人员权限分组管理
+    - **功能权限**：30 余项细粒度功能权限，通过用户组分配，按后台权限、日志权限、概览权限、数据权限、人员权限分组管理
     - **数据访问权限**：基于 `access_groups` 的数据隔离
 
     ## 错误处理
@@ -762,7 +762,7 @@ paths:
     get:
       tags: [用户管理]
       summary: 获取用户组列表
-      description: 返回当前主体可见的 Django 用户组及其功能权限配置。非超级管理员主体不会返回超级管理员用户组。需要 `core.manage_auth`。
+      description: 返回当前主体可见的 Django 用户组及其功能权限配置，并确保内置角色（超级管理员、平台管理员、科研用户、普通用户、游客）存在。非超级管理员主体不会返回超级管理员用户组。需要 `core.manage_auth`。
       operationId: listGroups
       security:
         - sessionAuth: []
@@ -811,9 +811,9 @@ paths:
       description: |
         根据请求体中的 `action` 字段执行不同操作：
         - 不提供 `action`：更新用户组名称和功能权限
-        - `delete`：删除空用户组（仅当用户组没有任何关联用户时允许）
+        - `delete`：删除空用户组（仅当用户组没有任何关联用户且不是内置角色时允许）
 
-        非超级管理员主体不能看到、更新或删除超级管理员用户组。需要 `core.manage_auth`。
+        非超级管理员主体不能看到、更新或删除超级管理员用户组。超级管理员、平台管理员、科研用户、普通用户和游客属于系统内置角色，不能删除或重命名；其中只有超级管理员的权限集合被系统锁定为全量权限，其他内置角色允许调整权限。需要 `core.manage_auth`。删除仍有关联用户的角色、删除/重命名内置角色、或关闭超级管理员锁定权限时返回 `400 ErrorResponse`。
       operationId: updateOrDeleteGroup
       security:
         - sessionAuth: []
@@ -1637,6 +1637,8 @@ paths:
       description: |
         将预检后的 Excel/CSV 导入统一存储。选择地理数据时写入 GeoPackage，
         选择非地理数据时写入 SQLite。接口每次导入都会生成唯一后台存储标识并创建新的 DataResource。
+        `payload.domainType` 是必填字段，必须使用 `DataDomainType` 枚举值；后端会将该值保存为 DataResource.domainType，
+        资源列表页和地理/非地理数据分类筛选均以该字段为准。
         需要 `catalog.add_dataresource`；前端显示名已存在时必须在数据校验阶段确认，并在提交时显式传入 duplicateConfirmed=true 才允许继续导入。继续导入会创建新的 DataResource 和唯一后台存储标识，不覆盖已有数据。
       operationId: importCommit
       security:
@@ -1654,7 +1656,8 @@ paths:
                   format: binary
                 payload:
                   type: string
-                  description: JSON 字符串，包含导入配置；name 是前端显示的数据名称，domainType 是平台确认的业务数据类型，sheetName 是 Excel 工作表名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true 表示用户已在校验阶段确认重复名称；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。domainType 编码无效时返回 400 ImportErrorResponse。
+                  description: JSON 字符串，包含导入配置；name 是前端显示的数据名称，domainType 是必填的平台确认业务数据类型，sheetName 是 Excel 工作表名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true 表示用户已在校验阶段确认重复名称；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。domainType 缺失或编码无效时返回 400 ImportErrorResponse。
+                  example: '{"name":"胡杨群落样方数据","domainType":"community","importMode":"geographic","tableName":"community_plots","longitudeColumn":"Longitude","latitudeColumn":"Latitude","duplicateConfirmed":false,"includedColumns":["SamplePlot","Longitude","Latitude"],"fieldMetadata":{"SamplePlot":"样方编号"},"accessGroupIds":[]}'
       responses:
         '201':
           description: 导入成功
@@ -1668,6 +1671,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ImportErrorResponse'
+              examples:
+                missingDomainType:
+                  summary: 缺少业务数据类型
+                  value:
+                    detail: 请选择业务数据类型
+                invalidDomainType:
+                  summary: 业务数据类型编码无效
+                  value:
+                    detail: 无效的数据业务类型
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -3540,10 +3552,10 @@ components:
             type: string
         isProtected:
           type: boolean
-          description: 是否为系统受保护用户组，受保护组不能删除或重命名。初始化内置组包含超级管理员、普通用户和游客；游客权限允许编辑
+          description: 是否为系统受保护用户组，受保护组不能删除或重命名。初始化内置组包含超级管理员、平台管理员、科研用户、普通用户和游客；除超级管理员外，其他内置组权限允许编辑
         lockedPermissions:
           type: array
-          description: 受保护用户组中不可关闭的平台功能权限列表。游客用户组返回空列表
+          description: 受保护用户组中不可关闭的平台功能权限列表。当前仅超级管理员返回锁定权限，平台管理员、科研用户、普通用户和游客返回空列表
           items:
             type: string
 
@@ -4070,9 +4082,7 @@ components:
           maximum: 100
           description: 默认透明度百分比
         symbolization:
-          type: object
-          additionalProperties: true
-          description: 矢量默认符号化方案
+          $ref: '#/components/schemas/VectorSymbolization'
         rasterRules:
           type: object
           additionalProperties: true
@@ -4286,9 +4296,7 @@ components:
           maximum: 100
           description: 默认透明度百分比
         symbolization:
-          type: object
-          additionalProperties: true
-          description: 矢量默认符号化方案
+          $ref: '#/components/schemas/VectorSymbolization'
         rasterRules:
           type: object
           additionalProperties: true
@@ -4558,13 +4566,7 @@ components:
           maximum: 100
           description: 默认透明度百分比
         symbolization:
-          type: object
-          additionalProperties:
-            oneOf:
-              - type: string
-              - type: number
-              - type: boolean
-          description: 矢量默认符号化配置
+          $ref: '#/components/schemas/VectorSymbolization'
         bounds:
           type: array
           description: 图层边界
@@ -4582,6 +4584,144 @@ components:
           type: string
           format: date-time
           description: 最后更新时间
+
+    VectorSymbolization:
+      type: object
+      additionalProperties: true
+      description: >
+        矢量图层符号化配置。平台继续兼容历史松散字段；新版本推荐使用
+        `renderer` 描述单一符号、唯一值分类和业务默认模板，前端根据该结构生成
+        Mapbox GL JS 表达式并在渲染前注册 `gm-*` 平台内置图标。
+      properties:
+        opacity:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 图层透明度百分比
+        pointMode:
+          type: string
+          enum: [circle, symbol, heatmap]
+          description: 点图层基础表达方式；唯一值分类点模板通常使用 symbol
+        renderer:
+          $ref: '#/components/schemas/VectorRenderer'
+        circle:
+          type: object
+          additionalProperties: true
+          description: 圆点图层基础样式，字段驱动渲染未覆盖的属性继续使用这里的值
+        symbol:
+          type: object
+          additionalProperties: true
+          description: 图标和标注图层基础样式；平台内置图标使用 `gm-*` 英文 ID
+        heatmap:
+          type: object
+          additionalProperties: true
+          description: 热力图样式和权重字段
+        cluster:
+          type: object
+          additionalProperties: true
+          description: Mapbox source 聚合配置
+        line:
+          type: object
+          additionalProperties: true
+          description: 线图层基础样式
+        fill:
+          type: object
+          additionalProperties: true
+          description: 面图层基础样式
+
+    VectorRenderer:
+      oneOf:
+        - $ref: '#/components/schemas/SingleSymbolRenderer'
+        - $ref: '#/components/schemas/UniqueValueRenderer'
+      description: 矢量符号化渲染器；未提供时按单一符号处理
+
+    SingleSymbolRenderer:
+      type: object
+      required: [type]
+      additionalProperties: true
+      properties:
+        type:
+          type: string
+          enum: [single]
+          description: 单一符号渲染
+        templateId:
+          type: string
+          description: 来源模板 ID；空字符串表示未套用业务模板
+        businessType:
+          type: string
+          description: 业务类型编码，如 germplasm；用于提示默认模板来源
+        updatedByUser:
+          type: boolean
+          description: 用户是否已手动修改该符号化方案；为 true 时不应被默认模板自动覆盖
+
+    UniqueValueRenderer:
+      type: object
+      required: [type, field, classes, defaultClass]
+      additionalProperties: true
+      properties:
+        type:
+          type: string
+          enum: [uniqueValue]
+          description: 按字段唯一值分类符号化
+        field:
+          type: string
+          description: 分类字段名，例如种质数据中的 `性别`
+        templateId:
+          type: string
+          description: 默认业务模板 ID，例如 `germplasm.dna-sex-tree.v1`
+        businessType:
+          type: string
+          description: 业务类型编码，例如 `germplasm`
+        updatedByUser:
+          type: boolean
+          description: 用户是否已手动修改该分类符号化方案
+        classes:
+          type: array
+          description: 分类符号列表；一个类别可包含多个原始字段值，用于别名归一化和分类值合并
+          items:
+            $ref: '#/components/schemas/UniqueValueSymbolClass'
+        defaultClass:
+          $ref: '#/components/schemas/UniqueValueSymbolClass'
+        normalizationNotes:
+          type: array
+          description: 分类值合并或疑似别名提示，供前端展示给用户确认
+          items:
+            type: string
+
+    UniqueValueSymbolClass:
+      type: object
+      required: [id, label, values, color, iconImage, visible]
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+          description: 类别稳定 ID，前端可用于编辑列表 key
+        label:
+          type: string
+          description: 图例显示名称
+        values:
+          type: array
+          description: 归入该类别的原始字段值；空数组仅用于默认类
+          items:
+            type: string
+        color:
+          type: string
+          pattern: '^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$'
+          description: 类别颜色；平台内置图标会按图标 ID 与颜色生成运行时图片 ID
+        iconImage:
+          type: string
+          description: 图标 ID。平台内置图标必须使用 `gm-*` 英文 ID，并在 Mapbox 图层引用前通过 `addImage` 注册
+        size:
+          type: number
+          minimum: 0
+          description: 类别图标缩放或点半径倍率
+        count:
+          type: integer
+          minimum: 0
+          description: 当前加载数据中归入该类别的要素数量；服务端持久化时可省略或置 0
+        visible:
+          type: boolean
+          description: 该类别是否在地图和图例中显示
 
     RasterDataset:
       type: object

@@ -62,6 +62,8 @@ const operatorOptions = [
   { label: "介于", value: "between" },
 ];
 
+const allDataFilterValue = "__all__";
+
 export default function DataPanel({
   resources,
   profile,
@@ -105,6 +107,17 @@ export default function DataPanel({
     }));
   }, [resources]);
   const usesDomainTypeFilter = domainTypeOptions.length > 0;
+  const domainFilterOptions = useMemo(
+    () => [{ value: allDataFilterValue, label: "全部数据" }, ...domainTypeOptions],
+    [domainTypeOptions],
+  );
+  const domainTypeLabelByValue = useMemo(
+    () =>
+      new Map(
+        domainTypeOptions.map((option) => [option.value, option.label] as const),
+      ),
+    [domainTypeOptions],
+  );
 
   const fieldOptions = (profile?.fields ?? []).map((item) => ({
     value: item.name,
@@ -117,7 +130,9 @@ export default function DataPanel({
   useEffect(() => {
     const nextQuery = searchKeyword?.trim() || undefined;
     setResourceFilters((current) =>
-      current.q === nextQuery ? current : { ...current, q: nextQuery },
+      current.q === nextQuery
+        ? current
+        : withResourceFilterValue(current, "q", nextQuery),
     );
   }, [searchKeyword]);
 
@@ -126,7 +141,7 @@ export default function DataPanel({
     setResourceFilters((current) =>
       current.domainType === nextDomainType
         ? current
-        : { ...current, domainType: nextDomainType },
+        : withResourceFilterValue(current, "domainType", nextDomainType),
     );
   }, [selectedDomainType]);
 
@@ -134,7 +149,32 @@ export default function DataPanel({
     key: keyof ResourceFilters,
     nextValue?: string,
   ) {
-    setResourceFilters((current) => ({ ...current, [key]: nextValue }));
+    setResourceFilters((current) =>
+      withResourceFilterValue(current, key, nextValue),
+    );
+  }
+
+  function updateAndFilterResources(
+    key: keyof ResourceFilters,
+    nextValue?: string,
+  ) {
+    const nextFilters = withResourceFilterValue(
+      resourceFilters,
+      key,
+      nextValue,
+    );
+    setResourceFilters(nextFilters);
+    onFilterResources(cleanResourceFilters(nextFilters));
+  }
+
+  function resourceDomainCategoryName(resource: ResourceListItem) {
+    if (resource.domainType) {
+      return (
+        domainTypeLabelByValue.get(resource.domainType) ??
+        resourceCategoryName(resource)
+      );
+    }
+    return resourceCategoryName(resource);
   }
 
   function addAttributeFilter() {
@@ -189,17 +229,21 @@ export default function DataPanel({
             placeholder="数据分类"
             value={
               usesDomainTypeFilter
-                ? resourceFilters.domainType
+                ? (resourceFilters.domainType ?? allDataFilterValue)
                 : resourceFilters.category
             }
             allowClear
-            options={usesDomainTypeFilter ? domainTypeOptions : categoryOptions}
-            onChange={(nextValue) =>
-              updateResourceFilter(
-                usesDomainTypeFilter ? "domainType" : "category",
-                nextValue,
-              )
-            }
+            options={usesDomainTypeFilter ? domainFilterOptions : categoryOptions}
+            onChange={(nextValue) => {
+              if (usesDomainTypeFilter) {
+                updateAndFilterResources(
+                  "domainType",
+                  nextValue === allDataFilterValue ? undefined : nextValue,
+                );
+                return;
+              }
+              updateAndFilterResources("category", nextValue);
+            }}
           />
           <Select
             placeholder="数据类型"
@@ -238,7 +282,7 @@ export default function DataPanel({
         <Button
           type="primary"
           icon={<FilterOutlined style={{ fontSize: 15 }} />}
-          onClick={() => onFilterResources(resourceFilters)}
+          onClick={() => onFilterResources(cleanResourceFilters(resourceFilters))}
         >
           筛选数据
         </Button>
@@ -268,7 +312,7 @@ export default function DataPanel({
                   {resource.isRenderable && <Tag color="blue">栅格</Tag>}
                 </Typography.Text>
                 <Typography.Text type="secondary" className="resource-row-meta">
-                  {resourceCategoryName(resource) ?? "未分类"} ·{" "}
+                  {resourceDomainCategoryName(resource) ?? "未分类"} ·{" "}
                   {resourceFormatLabel(resource)}
                 </Typography.Text>
               </div>
@@ -435,6 +479,35 @@ export default function DataPanel({
       )}
     </section>
   );
+}
+
+function withResourceFilterValue(
+  filters: ResourceFilters,
+  key: keyof ResourceFilters,
+  nextValue?: string,
+): ResourceFilters {
+  const next = { ...filters };
+  const keyName = key as string;
+  if (nextValue?.trim()) {
+    (next as Record<string, unknown>)[keyName] = nextValue;
+  } else {
+    delete (next as Record<string, unknown>)[keyName];
+  }
+  return next;
+}
+
+function cleanResourceFilters(filters: ResourceFilters): ResourceFilters {
+  const next = { ...filters };
+  Object.entries(next).forEach(([key, value]) => {
+    if (
+      value === undefined ||
+      value === null ||
+      (typeof value === "string" && !value.trim())
+    ) {
+      delete (next as Record<string, unknown>)[key];
+    }
+  });
+  return next;
 }
 
 function operatorLabel(operator: AttributeFilter["operator"]) {

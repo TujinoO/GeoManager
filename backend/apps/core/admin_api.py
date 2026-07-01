@@ -46,6 +46,7 @@ from apps.core.initialization import (
     DEFAULT_USER_GROUP_NAME,
     ensure_guest_user,
     ensure_superadmin_defaults,
+    is_builtin_group,
     is_default_user_group,
     is_guest_group,
     is_guest_user,
@@ -404,11 +405,7 @@ def group_detail(request, group_id: int):
 
     # 检查是否是删除操作
     if payload.get("action") == "delete":
-        if (
-            is_superadmin_group(group)
-            or is_default_user_group(group)
-            or is_guest_group(group)
-        ):
+        if is_builtin_group(group):
             return JsonResponse({"detail": "系统内置角色不能删除"}, status=400)
         if group.user_set.exists():
             return JsonResponse({"detail": "角色仍有关联用户，不能删除"}, status=400)
@@ -426,19 +423,9 @@ def group_detail(request, group_id: int):
         name = _required_string(payload.get("name"), "name")
         if isinstance(name, JsonResponse):
             return name
-        if is_superadmin_group(group) and name != SUPERADMIN_GROUP_NAME:
+        if is_builtin_group(group) and name != group.name:
             return JsonResponse(
-                {"detail": f"{SUPERADMIN_GROUP_NAME}角色名称不能修改"},
-                status=400,
-            )
-        if is_default_user_group(group) and name != DEFAULT_USER_GROUP_NAME:
-            return JsonResponse(
-                {"detail": f"{DEFAULT_USER_GROUP_NAME}角色名称不能修改"},
-                status=400,
-            )
-        if is_guest_group(group) and name != GUEST_GROUP_NAME:
-            return JsonResponse(
-                {"detail": f"{GUEST_GROUP_NAME}角色名称不能修改"},
+                {"detail": f"{group.name}角色名称不能修改"},
                 status=400,
             )
         group.name = name
@@ -454,7 +441,7 @@ def group_detail(request, group_id: int):
                     status=400,
                 )
             permissions = protected_group_permissions()
-        if is_default_user_group(group) or is_guest_group(group):
+        if is_builtin_group(group) and not is_superadmin_group(group):
             permissions = sorted(set(permissions))
         _set_group_feature_permissions(group, permissions)
     try:
@@ -2131,14 +2118,12 @@ def _serialize_group(group: Group, viewer) -> dict[str, Any]:
         for permission in group.permissions.select_related("content_type").all()
     }
     is_superadmin = is_superadmin_group(group)
-    is_default_user = is_default_user_group(group)
-    is_guest = is_guest_group(group)
     return {
         "id": group.id,
         "name": group.name,
         "userCount": visible_users_for(group.user_set.all(), viewer).count(),
         "permissions": sorted(permissions & set(FEATURE_PERMISSION_NAMES)),
-        "isProtected": is_superadmin or is_default_user or is_guest,
+        "isProtected": is_builtin_group(group),
         "lockedPermissions": sorted(
             superadmin_group_locked_permissions() if is_superadmin else set()
         ),

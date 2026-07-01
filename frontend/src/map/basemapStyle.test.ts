@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  applySatelliteBasemapColorCorrection,
   createOsmRasterStyle,
   isOsmRasterTileError,
   osmRasterTileMaxZoom,
   sanitizeStyleNumericAssertions,
+  satelliteBasemapColorCorrection,
 } from "./basemapStyle";
 
 describe("basemapStyle", () => {
@@ -96,5 +98,30 @@ describe("basemapStyle", () => {
         error: new Error("Failed to fetch /api/raster/tiles/1/hash/5/1/2.png"),
       }),
     ).toBe(false);
+  });
+
+  it("applies satellite color correction only to live raster layers", () => {
+    const paintUpdates: Array<[string, string, number]> = [];
+    const map = {
+      getStyle: () => ({
+        layers: [
+          { id: "satellite", type: "raster" },
+          { id: "road-label", type: "symbol" },
+          { id: "removed-raster", type: "raster" },
+        ],
+      }),
+      getLayer: (id: string) => (id === "removed-raster" ? undefined : {}),
+      setPaintProperty: (id: string, property: string, value: number) => {
+        paintUpdates.push([id, property, value]);
+      },
+    };
+
+    applySatelliteBasemapColorCorrection(map as never);
+
+    expect(paintUpdates).toEqual(
+      Object.entries(satelliteBasemapColorCorrection).map(
+        ([property, value]) => ["satellite", property, value],
+      ),
+    );
   });
 });

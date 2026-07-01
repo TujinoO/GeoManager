@@ -88,7 +88,7 @@ backend/apps/
 - 前端加载栅格 XYZ 瓦片源时必须用数据集 `imageCoordinates`/`bounds4326` 约束 Mapbox source 的 `bounds`，避免按整个地图视窗请求无关瓦片；后端对栅格空间范围外的瓦片请求返回 `204 No Content`，并且应在打开栅格文件前优先用 `RasterDataset.bounds_3857` 快速判断。
 - 后端启动 `runserver` 或 WSGI/ASGI 进程时会异步扫描 `vector/vector.gpkg`、非地理数据 `gene/`、`table/` 和 `raster/original/` 下已有数据；矢量图层会登记为 `DataResource/MapLayer`，非地理文件登记为 `DataResource`，栅格源文件会完成预处理并登记目录。迁移、测试等管理命令不触发扫描。可在 TOML 的 `[runtime]` 段设置 `disable_catalog_startup_scan` 或 `disable_raster_startup_scan` 关闭启动扫描。
 - 启动扫描的服务命令判断必须覆盖 `runserver`、`waitress`、`uvicorn` 和 `daphne`；Docker 的 `waitress-serve geomanager.wsgi:application` 是生产启动路径，不能被当成普通管理命令跳过。目录扫描会通过 SQLite 读取统一 GeoPackage 元数据并枚举全部图层，为每个图层同步 `DataResource` 与 `MapLayer`；空间查询优先使用 GeoPackage RTree 表做 bbox 候选集预筛选，再由 GeoPandas 对候选要素执行精确几何过滤和 GeoJSON 输出。
-- 启动扫描或目录扫描登记的数据资源不设置上传者/维护人，后台界面显示为“未知”；资源和关联图层访问组强制且仅保留 `超级管理员`，避免首次部署时把存量数据自动暴露给普通角色。
+- 启动扫描或目录扫描新发现的数据资源不设置上传者/维护人，后台界面显示为“未知”；资源和关联图层访问组强制且仅保留 `超级管理员`，避免首次部署时把存量数据自动暴露给普通角色。若扫描命中已经由用户上传登记的 GeoPackage 图层，只刷新范围、坐标系、条目数等技术元数据，必须保留 `DataResource.maintainer`、用户填写名称、上传大小、访问组以及已保存的默认图层样式，并让维护人继续可见其关联 `MapLayer`。
 
 ## 统一功能权限
 
@@ -529,3 +529,8 @@ CREATE TABLE gpkg_data_columns (
 - `OperationLog` 除自由文本 `message` 外，使用 `target_type`、`target_id`、`target_code`、`target_name` 记录结构化操作目标。数据资源写 `data_resource + DataResource.id/code/name`，工程/专题写 `workspace_scene + WorkspaceScene.id/kind/name`。
 - 删除操作必须在删除数据库对象前缓存目标 ID、编码和名称，并写入结构化目标字段；不能只依赖名称文本追溯。
 - 后台数据资源维护按操作类型授权：`update`、`setStatus`、`saveVisualization` 必须具备 `catalog.change_dataresource`；`updateAccess` 允许资源维护人或具备 `catalog.change_dataresource` 的用户执行；空更新不写成功日志。
+# 2026-07-01 矢量唯一值符号化与种质默认模板
+
+- 矢量 `symbolization` 继续存储在现有 JSONField 中，不新增数据库迁移；OpenAPI 已补充 `VectorSymbolization`、`UniqueValueRenderer` 和 `UniqueValueSymbolClass` 以约束新结构，同时通过 `additionalProperties` 兼容历史松散样式。
+- 业务默认模板先以前端模板注册表实现。首个模板为 `germplasm.dna-sex-tree.v1`：命中 `domainType=germplasm` 或字段组合 `DNA样本编号 + 性别` 时，默认使用 `gm-tree` 图标按 `性别` 分类，`雌株` 与 `雌株珠` 归并为“雌性”，`雄株` 为“雄性”，其他值走默认类。
+- Mapbox 图标仍使用平台内置 `gm-*` 英文 ID。分类颜色通过运行时生成的 canvas 图片体现，图标图片 ID 形如 `gm-tree--d65a8a`，渲染前调用 `map.addImage()` 注册，并保留 `styleimagemissing` 兜底，避免未注册图标导致点位消失。

@@ -7,7 +7,7 @@ import type { VectorSymbolization } from "../symbolization";
 import { clamp } from "../utils/geometry";
 import { removeVectorInteraction } from "./featureInteraction";
 
-export function stateColor(baseColor: string) {
+export function stateColor(baseColor: string | ExpressionSpecification) {
   return [
     "case",
     ["boolean", ["feature-state", "selected"], false],
@@ -18,7 +18,11 @@ export function stateColor(baseColor: string) {
   ] as unknown as ExpressionSpecification;
 }
 
-export function stateNumber(base: number, selected: number, highlight: number) {
+export function stateNumber(
+  base: number | ExpressionSpecification,
+  selected: number | ExpressionSpecification,
+  highlight: number | ExpressionSpecification,
+) {
   return [
     "case",
     ["boolean", ["feature-state", "selected"], false],

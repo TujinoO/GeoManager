@@ -545,16 +545,6 @@ class CatalogScanTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_scan_endpoint_registers_vector_geopackage_layers(self):
-        stale_group = Group.objects.create(name="旧访问角色")
-        stale_resource = DataResource.objects.create(
-            name="旧扫描资源",
-            code=stable_catalog_code("vector", self.layer_name),
-            data_type=DataResource.DataType.VECTOR,
-            storage_path=self.layer_name,
-            maintainer=self.user,
-        )
-        stale_resource.access_groups.add(stale_group)
-
         with patch("geopandas.read_file") as read_file:
             read_file.side_effect = AssertionError(
                 "目录扫描应通过 SQLite 读取 GeoPackage 元数据"
@@ -590,6 +580,78 @@ class CatalogScanTests(TestCase):
                 module="数据管理", action="扫描数据目录"
             ).exists()
         )
+
+    def test_scan_preserves_user_uploaded_vector_resource_visibility(self):
+        _, superadmin_group = ensure_superadmin_defaults(create_account=False)
+        resource = DataResource.objects.create(
+            name="User uploaded points",
+            code=stable_catalog_code("vector", self.layer_name),
+            data_type=DataResource.DataType.VECTOR,
+            source="User import",
+            storage_path=self.layer_name,
+            maintainer=self.user,
+            size_bytes=123,
+            item_count=1,
+            status=DataResource.Status.ACTIVE,
+        )
+        resource.access_groups.add(superadmin_group)
+        layer = MapLayer.objects.create(
+            name="Custom upload layer",
+            code=stable_catalog_code("vector", self.layer_name),
+            layer_type=MapLayer.LayerType.VECTOR,
+            data_resource=resource,
+            source_path=self.layer_name,
+            default_visible=True,
+            default_opacity=42,
+            symbolization={"pointColor": "#2f7d62"},
+            is_active=True,
+        )
+        layer.access_groups.add(superadmin_group)
+
+        response = self.client.post(
+            "/api/catalog/scan/", data={}, content_type="application/json"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["items"][0]["id"], resource.id)
+        self.assertEqual(payload["items"][0]["name"], "User uploaded points")
+        resource.refresh_from_db()
+        self.assertEqual(resource.name, "User uploaded points")
+        self.assertEqual(resource.source, "User import")
+        self.assertEqual(resource.maintainer, self.user)
+        self.assertEqual(resource.size_bytes, 123)
+        self.assertEqual(resource.item_count, 1)
+        self.assertEqual(
+            set(resource.access_groups.values_list("name", flat=True)),
+            {SUPERADMIN_GROUP_NAME},
+        )
+        layer.refresh_from_db()
+        self.assertEqual(layer.name, "Custom upload layer")
+        self.assertTrue(layer.default_visible)
+        self.assertEqual(layer.default_opacity, 42)
+        self.assertEqual(layer.symbolization, {"pointColor": "#2f7d62"})
+        self.assertEqual(layer.data_resource, resource)
+
+        resources_response = self.client.get("/api/catalog/resources/?dataType=vector")
+        self.assertEqual(resources_response.status_code, 200)
+        resource_ids = {item["id"] for item in resources_response.json()["items"]}
+        self.assertIn(resource.id, resource_ids)
+
+        layers_response = self.client.get("/api/layers/")
+        self.assertEqual(layers_response.status_code, 200)
+        layer_resource_ids = {
+            item["dataResourceId"] for item in layers_response.json()["items"]
+        }
+        self.assertIn(resource.id, layer_resource_ids)
+
+        dashboard_response = self.client.get("/api/admin/dashboard/")
+        self.assertEqual(dashboard_response.status_code, 200)
+        own_uploads = dashboard_response.json()["cards"]["dataOverview"]["ownUploads"]
+        self.assertEqual(own_uploads["totalResources"], 1)
+        self.assertEqual(own_uploads["totalSizeBytes"], 123)
+        self.assertEqual(own_uploads["totalItemCount"], 1)
 
     def test_resources_endpoint_ignores_unreadable_realtime_geopackage(self):
         self.path.write_text("not a geopackage", encoding="utf-8")
@@ -1078,6 +1140,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "导入点位",
+                        "domainType": "field_survey",
                         "tableName": "import_points",
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
@@ -1111,6 +1174,7 @@ class DataImportApiTests(TestCase):
         self.assertEqual(resource.name, "导入点位")
         self.assertEqual(resource.id, payload["resourceId"])
         self.assertEqual(resource.data_type, DataResource.DataType.VECTOR)
+        self.assertEqual(resource.domain_type, "field_survey")
         self.assertEqual(resource.maintainer, self.user)
         self.assertEqual(resource.size_bytes, uploaded_file.size)
         self.assertEqual(resource.item_count, 1)
@@ -1131,6 +1195,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "样地调查点",
+                        "domainType": "field_survey",
                         "tableName": "survey_points_2026",
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
@@ -1161,6 +1226,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "导入点位",
+                        "domainType": "field_survey",
                         "tableName": "included_points",
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
@@ -1198,6 +1264,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "导入点位",
+                        "domainType": "field_survey",
                         "tableName": "missing_points",
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
@@ -1222,6 +1289,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "导入点位",
+                        "domainType": "field_survey",
                         "tableName": "integer_coordinate_points",
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
@@ -1248,6 +1316,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "导入点位",
+                        "domainType": "field_survey",
                         "tableName": "out_of_range_points",
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
@@ -1275,6 +1344,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "导入点位",
+                        "domainType": "field_survey",
                         "tableName": "uncertain_points",
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
@@ -1300,6 +1370,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "导入点位",
+                        "domainType": "field_survey",
                         "tableName": "confirmed_uncertain_points",
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
@@ -1326,6 +1397,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "普通用户上传表",
+                        "domainType": "field_survey",
                         "tableName": "upload_permission_table",
                         "importMode": "table",
                         "duplicateConfirmed": False,
@@ -1350,6 +1422,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "游客共享表",
+                        "domainType": "field_survey",
                         "tableName": "guest_visible_table",
                         "importMode": "table",
                         "duplicateConfirmed": False,
@@ -1377,6 +1450,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "隐藏角色表",
+                        "domainType": "field_survey",
                         "tableName": "hidden_group_table",
                         "importMode": "table",
                         "duplicateConfirmed": False,
@@ -1405,6 +1479,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "超级管理员手动角色表",
+                        "domainType": "field_survey",
                         "tableName": "superadmin_selected_group_table",
                         "importMode": "table",
                         "duplicateConfirmed": False,
@@ -1434,6 +1509,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "调查表",
+                        "domainType": "field_survey",
                         "tableName": "survey_table",
                         "importMode": "table",
                         "duplicateConfirmed": False,
@@ -1449,6 +1525,7 @@ class DataImportApiTests(TestCase):
         self.assertEqual(payload["resourceName"], "调查表")
         resource = DataResource.objects.get(storage_path="survey_table")
         self.assertEqual(resource.data_type, DataResource.DataType.TABLE)
+        self.assertEqual(resource.domain_type, "field_survey")
         self.assertEqual(resource.maintainer, self.user)
         self.assertEqual(resource.size_bytes, uploaded_file.size)
         self.assertEqual(resource.item_count, 1)
@@ -1480,6 +1557,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "重复表",
+                        "domainType": "field_survey",
                         "tableName": "existing_table",
                         "importMode": "table",
                         "duplicateConfirmed": False,
@@ -1504,6 +1582,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "重复表",
+                        "domainType": "field_survey",
                         "tableName": "existing_table",
                         "importMode": "table",
                         "duplicateConfirmed": True,
@@ -1532,6 +1611,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "第一次调查表",
+                        "domainType": "field_survey",
                         "tableName": "same_backend_id",
                         "importMode": "table",
                         "duplicateConfirmed": False,
@@ -1547,6 +1627,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "第二次调查表",
+                        "domainType": "field_survey",
                         "tableName": "same_backend_id",
                         "importMode": "table",
                         "duplicateConfirmed": False,
@@ -1575,6 +1656,7 @@ class DataImportApiTests(TestCase):
                 "payload": json.dumps(
                     {
                         "name": "调查表",
+                        "domainType": "field_survey",
                         "tableName": "included_table",
                         "importMode": "table",
                         "duplicateConfirmed": False,
@@ -1601,6 +1683,71 @@ class DataImportApiTests(TestCase):
             ).fetchone()
         self.assertEqual(columns, ["name", "value"])
         self.assertIsNone(hidden_metadata)
+
+    def _csv_file(self, name: str, content: str) -> SimpleUploadedFile:
+        return SimpleUploadedFile(
+            name, content.encode("utf-8"), content_type="text/csv"
+        )
+
+
+class ImportCommitDomainTypeApiTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="import-domain-validator", password="pass12345"
+        )
+        grant(self.user, ("catalog", "add_dataresource"))
+        self.client.force_login(self.user)
+
+    def test_import_commit_rejects_missing_domain_type(self):
+        response = self.client.post(
+            "/api/catalog/import/commit/",
+            data={
+                "file": self._csv_file("survey.csv", "name,value\nA,42\n"),
+                "payload": json.dumps(
+                    {
+                        "name": "缺少业务类型表",
+                        "tableName": "missing_domain_type_table",
+                        "importMode": "table",
+                        "duplicateConfirmed": False,
+                        "fieldMetadata": {},
+                    }
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "请选择业务数据类型")
+        self.assertFalse(
+            DataResource.objects.filter(
+                storage_path="missing_domain_type_table"
+            ).exists()
+        )
+
+    def test_import_commit_rejects_invalid_domain_type(self):
+        response = self.client.post(
+            "/api/catalog/import/commit/",
+            data={
+                "file": self._csv_file("survey.csv", "name,value\nA,42\n"),
+                "payload": json.dumps(
+                    {
+                        "name": "无效业务类型表",
+                        "domainType": "unknown",
+                        "tableName": "invalid_domain_type_table",
+                        "importMode": "table",
+                        "duplicateConfirmed": False,
+                        "fieldMetadata": {},
+                    }
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "无效的数据业务类型")
+        self.assertFalse(
+            DataResource.objects.filter(
+                storage_path="invalid_domain_type_table"
+            ).exists()
+        )
 
     def _csv_file(self, name: str, content: str) -> SimpleUploadedFile:
         return SimpleUploadedFile(

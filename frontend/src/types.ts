@@ -201,7 +201,7 @@ export type DataResourceProfile = ResourceProfileResponse;
 
 export interface ImportCommitPayload {
   name: string;
-  domainType?: DataDomainType;
+  domainType: DataDomainType;
   sheetName?: string | null;
   tableName: string;
   importMode: "geographic" | "table";

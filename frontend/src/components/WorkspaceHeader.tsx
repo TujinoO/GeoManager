@@ -54,8 +54,9 @@ import {
   resourceProvider,
 } from "../utils/resources";
 import { clearCachedLayerGroups } from "../utils/layerWorkspaceStorage";
+import { aboutSections } from "../about/aboutSections";
 
-export type WorkspaceTab = "map" | "nongeo" | "resources" | "admin";
+export type WorkspaceTab = "map" | "nongeo" | "resources" | "admin" | "about";
 
 const platformChineseName = "中亚胡杨林生态系统保护数据共享平台";
 const hoverExpandDelayMs = 100;
@@ -72,8 +73,8 @@ interface WorkspaceHeaderProps {
   searchKeyword?: string;
   onGlobalSearch?: (keyword: string) => void;
   onSelectDataDomain?: (
-    domainType: DataDomainType,
-    node: DataSchemaCatalogNode,
+    domainType: DataDomainType | null,
+    node: DataSchemaCatalogNode | null,
   ) => void;
   onQuickLoadResource?: (resource: ResourceListItem) => Promise<void> | void;
   onLoadWorkspaceScene?: (scene: WorkspaceScene) => void;
@@ -135,6 +136,10 @@ export default function WorkspaceHeader({
   const effectiveResources = resources ?? localResources;
   const effectiveWorkspaceScenes = workspaceScenes ?? localWorkspaceScenes;
   const effectiveDataSchema = dataSchema ?? localDataSchema;
+  const domainTypeLabelByValue = useMemo(
+    () => domainTypeLabels(effectiveDataSchema),
+    [effectiveDataSchema],
+  );
   const isGuestUser =
     user?.username === "guest" || Boolean(user?.roles.includes("游客"));
   const showAdminTab =
@@ -432,9 +437,11 @@ export default function WorkspaceHeader({
   const filteredResources = useMemo(
     () =>
       effectiveResources.filter((resource) =>
-        searchQuery ? resourceMatches(resource, searchQuery) : true,
+        searchQuery
+          ? resourceMatches(resource, searchQuery, domainTypeLabelByValue)
+          : true,
       ),
-    [effectiveResources, searchQuery],
+    [domainTypeLabelByValue, effectiveResources, searchQuery],
   );
   const filteredWorkspaceScenes = useMemo(
     () =>
@@ -543,13 +550,17 @@ export default function WorkspaceHeader({
 
   const selectDataDomain = useCallback(
     (
-      domainType: DataDomainType,
-      node: DataSchemaCatalogNode,
+      domainType: DataDomainType | null,
+      node: DataSchemaCatalogNode | null,
       targetTab: "map" | "nongeo",
     ) => {
       dismissSearchForNavigation();
       if (targetTab === "map" && onSelectDataDomain) {
         onSelectDataDomain(domainType, node);
+        return;
+      }
+      if (!domainType) {
+        navigate(`/${targetTab}`);
         return;
       }
       navigate(`/${targetTab}?domainType=${encodeURIComponent(domainType)}`);
@@ -688,6 +699,16 @@ export default function WorkspaceHeader({
     user?.permissions.canViewOwnOperationLogs,
   ]);
 
+  const aboutMenuItems = useMemo<MenuProps["items"]>(
+    () =>
+      aboutSections.map((section) => ({
+        key: section.key,
+        label: section.title,
+        onClick: () => navigateFromHeader(section.path),
+      })),
+    [navigateFromHeader],
+  );
+
   const geoCatalogNode = useMemo(
     () => dataCatalogGroup(effectiveDataSchema, "geo"),
     [effectiveDataSchema],
@@ -789,7 +810,8 @@ export default function WorkspaceHeader({
     steps.push(
       {
         title: "关于我们",
-        description: "查看平台定位与系统名称等基础信息。",
+        description:
+          "查看系统简介、团队介绍、团队成员、胡杨知识和帮助文档等占位栏目。",
         target: () => aboutTabRef.current ?? document.body,
         placement: "bottom",
       },
@@ -842,15 +864,6 @@ export default function WorkspaceHeader({
     </div>
   );
 
-  const aboutContent = (
-    <div className="about-popover-content">
-      <strong>{bootstrap.systemName}</strong>
-      <span>
-        面向胡杨林生态系统保护的数据共享、目录检索与三维地理可视化平台。
-      </span>
-    </div>
-  );
-
   const userContent = (
     <div className="user-popover-content">
       <div className="user-popover-head">
@@ -898,7 +911,9 @@ export default function WorkspaceHeader({
             <span className="workspace-search-row-main">
               <strong>{resource.name}</strong>
               <small>
-                {resourceCategoryName(resource) ?? "未分类"} ·{" "}
+                {resourceDomainCategoryName(resource, domainTypeLabelByValue) ??
+                  "未分类"}{" "}
+                ·{" "}
                 {resourceFormatLabel(resource)}
               </small>
             </span>
@@ -1096,16 +1111,20 @@ export default function WorkspaceHeader({
               </Button>
             </Dropdown>
           )}
-          <Popover
-            trigger="click"
+          <Dropdown
+            menu={{ items: aboutMenuItems }}
+            trigger={["hover"]}
             placement="bottom"
-            content={aboutContent}
-            classNames={{ root: "workspace-info-popover" }}
+            classNames={{ root: "workspace-management-dropdown" }}
           >
             <Button
               ref={aboutTabRef}
               type="text"
-              className={tabClass(false, expandedTabId === "about")}
+              className={tabClass(
+                activeTab === "about",
+                expandedTabId === "about",
+              )}
+              onClick={() => navigateFromHeader("/about/system")}
               onMouseEnter={() => scheduleTabHoverExpand("about")}
               onMouseLeave={collapseTabHover}
               title="关于我们"
@@ -1113,7 +1132,7 @@ export default function WorkspaceHeader({
               <InfoCircleOutlined aria-hidden="true" style={{ fontSize: 16 }} />
               <span className="tab-text">关于我们</span>
             </Button>
-          </Popover>
+          </Dropdown>
         </nav>
       </div>
 
@@ -1236,15 +1255,21 @@ function dataDomainMenuItems(
   root: DataSchemaCatalogNode | null,
   selectedDomainType: DataDomainType | null | undefined,
   onSelect: (
-    domainType: DataDomainType,
-    node: DataSchemaCatalogNode,
+    domainType: DataDomainType | null,
+    node: DataSchemaCatalogNode | null,
     targetTab: "map" | "nongeo",
   ) => void,
   targetTab: "map" | "nongeo",
 ): MenuProps["items"] {
   const children = root?.children ?? [];
+  const allDataItem = {
+    key: `${root?.code ?? targetTab}-all`,
+    label: selectedDomainType ? "全部数据" : "全部数据 · 当前",
+    onClick: () => onSelect(null, null, targetTab),
+  };
   if (!children.length) {
     return [
+      allDataItem,
       {
         key: `${root?.code ?? "data"}-empty`,
         label: "暂无可选数据类型",
@@ -1252,7 +1277,7 @@ function dataDomainMenuItems(
       },
     ];
   }
-  return children
+  const domainItems = children
     .filter((node): node is DataSchemaCatalogNode & { domainType: DataDomainType } =>
       Boolean(node.domainType),
     )
@@ -1262,6 +1287,7 @@ function dataDomainMenuItems(
         node.domainType === selectedDomainType ? `${node.name} · 当前` : node.name,
       onClick: () => onSelect(node.domainType, node, targetTab),
     }));
+  return [allDataItem, { type: "divider" }, ...domainItems];
 }
 
 function tabClass(active: boolean, hoverExpanded = false) {
@@ -1312,14 +1338,51 @@ function SearchResultSection({
   );
 }
 
-function resourceMatches(resource: ResourceListItem, query: string) {
+function domainTypeLabels(schema: DataSchemaSummary | null | undefined) {
+  const labels = new Map<DataDomainType, string>();
+  schema?.domains.forEach((domain) => labels.set(domain.code, domain.name));
+  collectDomainLabels(fallbackCatalogTree, labels);
+  collectDomainLabels(schema?.catalogTree ?? [], labels);
+  return labels;
+}
+
+function collectDomainLabels(
+  nodes: DataSchemaCatalogNode[],
+  labels: Map<DataDomainType, string>,
+) {
+  nodes.forEach((node) => {
+    if (node.domainType && !labels.has(node.domainType)) {
+      labels.set(node.domainType, node.name);
+    }
+    collectDomainLabels(node.children, labels);
+  });
+}
+
+function resourceDomainCategoryName(
+  resource: ResourceListItem,
+  domainTypeLabelByValue: Map<DataDomainType, string>,
+) {
+  if (resource.domainType) {
+    return (
+      domainTypeLabelByValue.get(resource.domainType) ??
+      resourceCategoryName(resource)
+    );
+  }
+  return resourceCategoryName(resource);
+}
+
+function resourceMatches(
+  resource: ResourceListItem,
+  query: string,
+  domainTypeLabelByValue: Map<DataDomainType, string>,
+) {
   return [
     resource.name,
     resource.code,
     resource.source,
     resourceProvider(resource),
     "description" in resource ? resource.description : "",
-    resourceCategoryName(resource),
+    resourceDomainCategoryName(resource, domainTypeLabelByValue),
     resourceFormatLabel(resource),
   ].some((value) => textMatches(value, query));
 }

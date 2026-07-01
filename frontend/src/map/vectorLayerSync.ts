@@ -5,6 +5,11 @@ import type {
 } from "mapbox-gl";
 import type { LoadedLayer, LoadedVectorLayer } from "../types";
 import { clamp, sourceIdFor } from "../utils/geometry";
+import {
+  isUniqueValueRenderer,
+  type UniqueValueRenderer,
+  type UniqueValueSymbolClass,
+} from "../symbolization";
 import { removeVectorInteraction } from "./featureInteraction";
 import { getMapState } from "./mapState";
 import {
@@ -30,6 +35,9 @@ export function addLoadedStyleLayers(
   layer: LoadedVectorLayer,
 ) {
   const style = layer.symbolization;
+  const uniqueRenderer = isUniqueValueRenderer(style.renderer)
+    ? style.renderer
+    : null;
   const layerOpacity = clamp(style.opacity / 100, 0, 1);
   const {
     circleOpacity,
@@ -48,7 +56,11 @@ export function addLoadedStyleLayers(
     filter: ["==", ["geometry-type"], "Polygon"],
     layout: { "fill-sort-key": style.fill.fillSortKey },
     paint: {
-      "fill-color": stateColor(style.fill.fillColor),
+      "fill-color": stateColor(
+        uniqueRenderer
+          ? buildUniqueColorExpression(uniqueRenderer, style.fill.fillColor)
+          : style.fill.fillColor,
+      ),
       "fill-opacity": stateNumber(
         fillOpacity,
         clamp(fillOpacity + 0.16, 0, 1),
@@ -79,7 +91,11 @@ export function addLoadedStyleLayers(
       "line-round-limit": style.line.lineRoundLimit,
     },
     paint: {
-      "line-color": stateColor(style.line.lineColor),
+      "line-color": stateColor(
+        uniqueRenderer
+          ? buildUniqueColorExpression(uniqueRenderer, style.line.lineColor)
+          : style.line.lineColor,
+      ),
       "line-width": stateNumber(
         style.line.lineWidth,
         style.line.lineWidth + 2,
@@ -161,18 +177,32 @@ export function addLoadedStyleLayers(
       filter: pointFilter,
       layout: { "circle-sort-key": style.circle.circleSortKey },
       paint: {
-        "circle-color": stateColor(style.circle.circleColor),
+        "circle-color": stateColor(
+          uniqueRenderer
+            ? buildUniqueColorExpression(
+                uniqueRenderer,
+                style.circle.circleColor,
+              )
+            : style.circle.circleColor,
+        ),
         "circle-radius": stateNumber(
-          style.circle.circleRadius,
+          uniqueRenderer
+            ? buildUniqueSizeExpression(
+                uniqueRenderer,
+                style.circle.circleRadius,
+              )
+            : style.circle.circleRadius,
           style.circle.circleRadius + 3,
           style.circle.circleRadius + 1.8,
         ),
         "circle-blur": style.circle.circleBlur,
-        "circle-opacity": stateNumber(
-          circleOpacity,
-          clamp(circleOpacity + 0.16, 0, 1),
-          clamp(circleOpacity + 0.08, 0, 1),
-        ),
+        "circle-opacity": uniqueRenderer
+          ? buildUniqueVisibilityExpression(uniqueRenderer, circleOpacity)
+          : stateNumber(
+              circleOpacity,
+              clamp(circleOpacity + 0.16, 0, 1),
+              clamp(circleOpacity + 0.08, 0, 1),
+            ),
         "circle-pitch-alignment": style.circle.circlePitchAlignment,
         "circle-pitch-scale": style.circle.circlePitchScale,
         "circle-stroke-color": style.circle.circleStrokeColor,
@@ -190,18 +220,25 @@ export function addLoadedStyleLayers(
   } else {
     removeStyleLayer(map, `${sourceId}-heatmap`);
     removeStyleLayer(map, `${sourceId}-point`);
-    ensurePlatformSymbolImage(
-      map,
-      style.symbol.iconImage,
-      style.symbol.iconColor,
-    );
-    const symbolIconImage = platformSymbolImageId(
-      style.symbol.iconImage,
-      style.symbol.iconColor,
-    );
-    const usesPlatformSymbolImage = isPlatformSymbolImage(
-      style.symbol.iconImage,
-    );
+    if (uniqueRenderer) {
+      ensureUniqueValueSymbolImages(map, uniqueRenderer);
+    } else {
+      ensurePlatformSymbolImage(
+        map,
+        style.symbol.iconImage,
+        style.symbol.iconColor,
+      );
+    }
+    const symbolIconImage = uniqueRenderer
+      ? buildUniqueIconImageExpression(
+          uniqueRenderer,
+          style.symbol.iconImage,
+          style.symbol.iconColor,
+        )
+      : platformSymbolImageId(style.symbol.iconImage, style.symbol.iconColor);
+    const usesPlatformSymbolImage = uniqueRenderer
+      ? uniqueRendererUsesPlatformImages(uniqueRenderer)
+      : isPlatformSymbolImage(style.symbol.iconImage);
     const enableSymbolText =
       style.symbol.textField.trim().length > 0 && mapStyleSupportsGlyphs(map);
     const symbolLayerId = `${sourceId}-symbol`;
@@ -211,6 +248,12 @@ export function addLoadedStyleLayers(
     const symbolLayout = usesPlatformSymbolImage
       ? buildPlatformSymbolLayout(style, symbolIconImage, enableSymbolText)
       : buildExternalSymbolLayout(style, symbolIconImage, enableSymbolText);
+    if (uniqueRenderer) {
+      symbolLayout["icon-size"] = buildUniqueSizeExpression(
+        uniqueRenderer,
+        style.symbol.iconSize,
+      );
+    }
     const symbolPaint = usesPlatformSymbolImage
       ? buildPlatformSymbolPaint(
           style,
@@ -224,6 +267,18 @@ export function addLoadedStyleLayers(
           symbolTextOpacity,
           enableSymbolText,
         );
+    if (uniqueRenderer) {
+      symbolPaint["icon-opacity"] = buildUniqueVisibilityExpression(
+        uniqueRenderer,
+        symbolIconOpacity,
+      );
+      if (enableSymbolText) {
+        symbolPaint["text-opacity"] = buildUniqueVisibilityExpression(
+          uniqueRenderer,
+          symbolTextOpacity,
+        );
+      }
+    }
     upsertLayer(map, {
       id: symbolLayerId,
       type: "symbol",
@@ -241,6 +296,100 @@ function pointFeatureFilter(): FilterSpecification {
     ["==", ["geometry-type"], "Point"],
     ["!", ["has", "point_count"]],
   ];
+}
+
+function buildUniqueColorExpression(
+  renderer: UniqueValueRenderer,
+  fallback: string,
+) {
+  return buildUniqueMatchExpression(
+    renderer,
+    (item) => item.color,
+    renderer.defaultClass.color || fallback,
+  );
+}
+
+function buildUniqueSizeExpression(
+  renderer: UniqueValueRenderer,
+  baseSize: number,
+) {
+  return buildUniqueMatchExpression(
+    renderer,
+    (item) => Math.max(0.01, baseSize * (item.size || 1)),
+    Math.max(0.01, baseSize * (renderer.defaultClass.size || 1)),
+  );
+}
+
+function buildUniqueVisibilityExpression(
+  renderer: UniqueValueRenderer,
+  baseOpacity: number,
+) {
+  return buildUniqueMatchExpression(
+    renderer,
+    (item) => (item.visible ? baseOpacity : 0),
+    renderer.defaultClass.visible ? baseOpacity : 0,
+  );
+}
+
+function buildUniqueIconImageExpression(
+  renderer: UniqueValueRenderer,
+  fallbackIcon: string,
+  fallbackColor: string,
+) {
+  const fallback = uniqueClassImageId(
+    renderer.defaultClass,
+    fallbackIcon,
+    fallbackColor,
+  );
+  return buildUniqueMatchExpression(
+    renderer,
+    (item) => uniqueClassImageId(item, fallbackIcon, fallbackColor),
+    fallback,
+  );
+}
+
+function buildUniqueMatchExpression<T>(
+  renderer: UniqueValueRenderer,
+  output: (item: UniqueValueSymbolClass) => T,
+  fallback: T,
+) {
+  const expression: unknown[] = [
+    "match",
+    ["to-string", ["get", renderer.field]],
+  ];
+  for (const item of renderer.classes) {
+    const values = item.values.map((value) => String(value).trim()).filter(Boolean);
+    if (values.length === 0) continue;
+    expression.push(values.length === 1 ? values[0] : values, output(item));
+  }
+  expression.push(fallback);
+  return expression as unknown as ExpressionSpecification;
+}
+
+function uniqueClassImageId(
+  item: UniqueValueSymbolClass,
+  fallbackIcon: string,
+  fallbackColor: string,
+) {
+  return platformSymbolImageId(
+    item.iconImage || fallbackIcon,
+    item.color || fallbackColor,
+  );
+}
+
+function ensureUniqueValueSymbolImages(
+  map: MapboxMap,
+  renderer: UniqueValueRenderer,
+) {
+  for (const item of [...renderer.classes, renderer.defaultClass]) {
+    ensurePlatformSymbolImage(map, item.iconImage, item.color);
+  }
+}
+
+function uniqueRendererUsesPlatformImages(renderer: UniqueValueRenderer) {
+  return [...renderer.classes, renderer.defaultClass].every((item) =>
+    isPlatformSymbolImage(item.iconImage),
+  );
 }
 
 function addClusterStyleLayers(
@@ -388,7 +537,7 @@ function buildHeatmapDetailOpacity(opacity: number) {
 
 function buildPlatformSymbolLayout(
   style: LoadedVectorLayer["symbolization"],
-  symbolIconImage: string,
+  symbolIconImage: string | ExpressionSpecification,
   enableText: boolean,
 ) {
   const symbolLayout: StyleProperties = {
@@ -409,7 +558,7 @@ function buildPlatformSymbolLayout(
 
 function buildExternalSymbolLayout(
   style: LoadedVectorLayer["symbolization"],
-  symbolIconImage: string,
+  symbolIconImage: string | ExpressionSpecification,
   enableText: boolean,
 ) {
   const symbolLayout: StyleProperties = {

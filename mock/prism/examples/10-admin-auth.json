@@ -528,7 +528,7 @@
             "core.custom_symbolization",
             "core.ai_interpretation",
             "catalog.export_dataresource",
-            "raster.manage_rasterdataset",
+            "raster.manage_raster_dataset",
             "catalog.add_dataresource",
             "core.view_data_overview"
           ],
@@ -551,7 +551,7 @@
             "core.custom_symbolization",
             "core.ai_interpretation",
             "catalog.export_dataresource",
-            "raster.manage_rasterdataset",
+            "raster.manage_raster_dataset",
             "catalog.add_dataresource",
             "core.view_data_overview"
           ],
@@ -712,7 +712,7 @@
             "core.custom_symbolization",
             "core.ai_interpretation",
             "catalog.export_dataresource",
-            "raster.manage_rasterdataset",
+            "raster.manage_raster_dataset",
             "catalog.add_dataresource",
             "core.view_data_overview"
           ],
@@ -732,7 +732,7 @@
             "core.custom_symbolization",
             "core.ai_interpretation",
             "catalog.export_dataresource",
-            "raster.manage_rasterdataset",
+            "raster.manage_raster_dataset",
             "catalog.add_dataresource",
             "core.view_data_overview"
           ],
@@ -1156,20 +1156,27 @@
     "200": {
       "items": [
         {
-          "id": 6,
-          "name": "系统管理员",
+          "id": 1,
+          "name": "超级管理员",
           "userCount": 1,
           "permissions": [
-            "core.manage_auth",
             "core.manage_feature_permissions",
             "core.create_user",
             "core.view_operation_logs",
+            "core.view_system_logs",
             "core.view_all_operation_logs",
             "core.view_group_operation_logs",
+            "core.view_own_operation_logs",
             "core.manage_system_settings",
+            "core.manage_data_backup",
+            "core.manage_auth",
             "core.view_dashboard_resource_card",
             "core.view_dashboard_layer_card",
             "core.view_dashboard_raster_card",
+            "core.view_dashboard_user_card",
+            "core.view_dashboard_active_users_card",
+            "core.view_dashboard_system_card",
+            "core.view_data_overview",
             "core.browse_data",
             "core.query_data",
             "core.load_vector_layer",
@@ -1177,23 +1184,59 @@
             "core.custom_symbolization",
             "core.ai_interpretation",
             "catalog.export_dataresource",
-            "raster.manage_rasterdataset",
-            "core.view_data_overview",
-            "catalog.add_dataresource"
+            "catalog.add_dataresource",
+            "catalog.view_dataresource",
+            "catalog.change_dataresource",
+            "catalog.delete_dataresource",
+            "catalog.add_workspacescene",
+            "catalog.view_workspacescene",
+            "catalog.change_workspacescene",
+            "catalog.delete_workspacescene",
+            "raster.manage_raster_dataset"
           ],
-          "isProtected": false,
-          "lockedPermissions": []
+          "isProtected": true,
+          "lockedPermissions": [
+            "core.manage_auth",
+            "core.manage_feature_permissions",
+            "core.manage_system_settings",
+            "core.manage_data_backup"
+          ]
         },
         {
           "id": 2,
-          "name": "普通用户",
-          "userCount": 1,
+          "name": "平台管理员",
+          "userCount": 2,
           "permissions": [
+            "core.create_user",
+            "core.manage_auth",
+            "core.manage_feature_permissions",
+            "core.manage_system_settings",
+            "core.view_operation_logs",
+            "core.view_system_logs",
+            "core.view_all_operation_logs",
+            "core.view_dashboard_resource_card",
+            "core.view_dashboard_layer_card",
+            "core.view_dashboard_raster_card",
+            "core.view_dashboard_user_card",
+            "core.view_dashboard_active_users_card",
+            "core.view_dashboard_system_card",
+            "core.view_data_overview",
             "core.browse_data",
             "core.query_data",
-            "core.load_vector_layer",
+            "core.custom_symbolization",
+            "core.ai_interpretation",
             "catalog.add_dataresource",
-            "core.load_raster_layer"
+            "catalog.view_dataresource",
+            "catalog.change_dataresource",
+            "catalog.delete_dataresource",
+            "catalog.export_dataresource",
+            "catalog.add_workspacescene",
+            "catalog.view_workspacescene",
+            "catalog.change_workspacescene",
+            "catalog.delete_workspacescene",
+            "core.load_vector_layer",
+            "core.load_raster_layer",
+            "raster.manage_raster_dataset"
           ],
           "isProtected": true,
           "lockedPermissions": []
@@ -1201,35 +1244,48 @@
         {
           "id": 3,
           "name": "科研用户",
-          "userCount": 2,
+          "userCount": 4,
           "permissions": [
-            "core.view_operation_logs",
-            "core.view_own_operation_logs",
-            "core.browse_data",
-            "core.query_data",
-            "core.load_vector_layer",
-            "core.load_raster_layer",
-            "catalog.export_dataresource"
-          ],
-          "isProtected": false,
-          "lockedPermissions": []
-        },
-        {
-          "id": 4,
-          "name": "数据管理员",
-          "userCount": 1,
-          "permissions": [
-            "core.view_operation_logs",
             "core.browse_data",
             "core.query_data",
             "core.load_vector_layer",
             "core.load_raster_layer",
             "core.custom_symbolization",
             "core.ai_interpretation",
+            "core.view_data_overview",
+            "catalog.add_dataresource",
+            "catalog.view_dataresource",
             "catalog.export_dataresource",
-            "raster.manage_rasterdataset"
+            "catalog.add_workspacescene",
+            "catalog.view_workspacescene",
+            "catalog.change_workspacescene"
           ],
-          "isProtected": false,
+          "isProtected": true,
+          "lockedPermissions": []
+        },
+        {
+          "id": 4,
+          "name": "普通用户",
+          "userCount": 2,
+          "permissions": [
+            "core.browse_data",
+            "core.query_data",
+            "core.load_vector_layer",
+            "core.load_raster_layer",
+            "catalog.add_dataresource",
+            "catalog.add_workspacescene",
+            "catalog.view_workspacescene",
+            "catalog.change_workspacescene"
+          ],
+          "isProtected": true,
+          "lockedPermissions": []
+        },
+        {
+          "id": 5,
+          "name": "游客",
+          "userCount": 1,
+          "permissions": [],
+          "isProtected": true,
           "lockedPermissions": []
         }
       ],
@@ -1255,6 +1311,11 @@
           "group": "日志权限"
         },
         {
+          "id": "core.view_system_logs",
+          "label": "查看系统日志",
+          "group": "后台权限"
+        },
+        {
           "id": "core.view_all_operation_logs",
           "label": "查看全部日志",
           "group": "日志权限"
@@ -1265,8 +1326,18 @@
           "group": "日志权限"
         },
         {
+          "id": "core.view_own_operation_logs",
+          "label": "查看自己的日志",
+          "group": "日志权限"
+        },
+        {
           "id": "core.manage_system_settings",
           "label": "系统设置管理",
+          "group": "后台权限"
+        },
+        {
+          "id": "core.manage_data_backup",
+          "label": "管理数据备份",
           "group": "后台权限"
         },
         {
@@ -1282,6 +1353,21 @@
         {
           "id": "core.view_dashboard_raster_card",
           "label": "栅格总览卡片",
+          "group": "概览权限"
+        },
+        {
+          "id": "core.view_dashboard_user_card",
+          "label": "用户总览卡片",
+          "group": "概览权限"
+        },
+        {
+          "id": "core.view_dashboard_active_users_card",
+          "label": "活跃用户总览卡片",
+          "group": "概览权限"
+        },
+        {
+          "id": "core.view_dashboard_system_card",
+          "label": "系统信息总览",
           "group": "概览权限"
         },
         {
@@ -1320,7 +1406,7 @@
           "group": "数据权限"
         },
         {
-          "id": "raster.manage_rasterdataset",
+          "id": "raster.manage_raster_dataset",
           "label": "管理栅格数据",
           "group": "数据权限"
         },

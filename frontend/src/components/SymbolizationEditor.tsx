@@ -13,6 +13,7 @@ import {
   Slider,
   Space,
   Switch,
+  Tag,
   Tabs,
   Typography,
 } from "antd";
@@ -31,8 +32,19 @@ import {
   type LineSymbolization,
   type RasterSymbolization,
   type SymbolLayerSymbolization,
+  type UniqueValueRenderer,
+  type UniqueValueSymbolClass,
   type VectorSymbolization,
+  isUniqueValueRenderer,
 } from "../symbolization";
+import {
+  buildUniqueValueRenderer,
+  classValuesLabel,
+  fieldValueOptions,
+  germplasmDnaSexRenderer,
+  germplasmDnaSexTemplateId,
+  refreshUniqueValueCounts,
+} from "../symbolizationTemplates";
 import type { RasterBandMetadata, ResourceField } from "../types";
 
 const anchorOptions: Anchor[] = [
@@ -286,12 +298,14 @@ function isNumericResourceField(field: ResourceField) {
 export function VectorSymbolizationEditor({
   value,
   fields,
+  fieldValueCounts,
   geometryType,
   onChange,
   onApply,
 }: {
   value: VectorSymbolization;
   fields: ResourceField[];
+  fieldValueCounts?: Record<string, Record<string, number>>;
   geometryType?: string;
   onChange: (value: VectorSymbolization) => void;
   onApply?: () => void;
@@ -365,39 +379,98 @@ export function VectorSymbolizationEditor({
     });
   }
 
-  function applyPreset(kind: "point" | "symbol" | "heatmap" | "line" | "fill") {
-    if (kind === "point") {
-      onChange({
-        ...value,
-        pointMode: "circle",
-        circle: {
-          ...value.circle,
-          circleColor: "#2f7d62",
-          circleRadius: 7,
-          circleStrokeColor: "#f4cb68",
-          circleStrokeWidth: 1.6,
-        },
+  function updateRenderer(renderer: VectorSymbolization["renderer"]) {
+    onChange({ ...value, renderer });
+  }
+
+  function countsForField(fieldName: string) {
+    return new Map(
+      Object.entries(fieldValueCounts?.[fieldName] ?? {}).map(
+        ([fieldValue, count]) => [fieldValue, Number(count)] as const,
+      ),
+    );
+  }
+
+  function hasGermplasmSexField(fieldName: string) {
+    return ["性别", "雌雄", "雌/雄"].some((name) =>
+      fieldName.includes(name),
+    );
+  }
+
+  function createRendererForField(fieldName: string): UniqueValueRenderer {
+    const counts = countsForField(fieldName);
+    if (hasGermplasmSexField(fieldName)) {
+      return germplasmDnaSexRenderer(fieldName, counts);
+    }
+    return buildUniqueValueRenderer(
+      fieldName,
+      counts,
+      selectedIconImage || value.symbol.iconImage,
+    );
+  }
+
+  function updateUniqueRenderer(
+    updater: (renderer: UniqueValueRenderer) => UniqueValueRenderer,
+  ) {
+    const current = isUniqueValueRenderer(value.renderer)
+      ? value.renderer
+      : createRendererForField(defaultClassifyField);
+    const next = updater(current);
+    updateRenderer({ ...next, updatedByUser: true });
+  }
+
+  function updateUniqueClass(
+    classId: string,
+    patch: Partial<UniqueValueSymbolClass>,
+  ) {
+    updateUniqueRenderer((renderer) => {
+      const nextValues =
+        patch.values?.map((item) => item.trim()).filter(Boolean) ?? null;
+      const nextClasses = renderer.classes.map((item) => {
+        if (item.id === classId) {
+          return { ...item, ...patch, values: nextValues ?? item.values };
+        }
+        if (nextValues) {
+          return {
+            ...item,
+            values: item.values.filter((raw) => !nextValues.includes(raw)),
+          };
+        }
+        return item;
       });
-    } else if (kind === "symbol") {
-      onChange({
-        ...value,
-        pointMode: "symbol",
-        symbol: {
-          ...value.symbol,
-          iconImage: "gm-marker",
-          iconColor: "#d9a441",
-          iconHaloColor: "#173f39",
-          iconHaloWidth: 0.8,
-          iconSize: 1.15,
-          textColor: "#173f39",
-          textHaloColor: "#ffffff",
-          textHaloWidth: 1.2,
-        },
-      });
-    } else if (kind === "heatmap") {
+      return refreshUniqueValueCounts(
+        { ...renderer, classes: nextClasses },
+        countsForField(renderer.field),
+      );
+    });
+  }
+
+  function updateDefaultUniqueClass(patch: Partial<UniqueValueSymbolClass>) {
+    updateUniqueRenderer((renderer) => ({
+      ...renderer,
+      defaultClass: { ...renderer.defaultClass, ...patch, values: [] },
+    }));
+  }
+
+  function changeUniqueField(fieldName: string) {
+    const nextRenderer = createRendererForField(fieldName);
+    onChange({
+      ...value,
+      pointMode: "symbol",
+      renderer: { ...nextRenderer, updatedByUser: true },
+      symbol: {
+        ...value.symbol,
+        iconImage: nextRenderer.classes[0]?.iconImage ?? value.symbol.iconImage,
+      },
+    });
+  }
+
+  function changeExpressionMode(mode: "single" | "uniqueValue" | "heatmap") {
+    if (mode === "heatmap") {
       onChange({
         ...value,
         pointMode: "heatmap",
+        renderer: { type: "single", updatedByUser: true },
         heatmap: {
           ...value.heatmap,
           heatmapWeight: 0.72,
@@ -411,7 +484,35 @@ export function VectorSymbolizationEditor({
           ],
         },
       });
-    } else if (kind === "line") {
+      return;
+    }
+    if (mode === "uniqueValue") {
+      const nextRenderer = isUniqueValueRenderer(value.renderer)
+        ? refreshUniqueValueCounts(
+            value.renderer,
+            countsForField(value.renderer.field),
+          )
+        : createRendererForField(defaultClassifyField);
+      onChange({
+        ...value,
+        pointMode: "symbol",
+        renderer: { ...nextRenderer, updatedByUser: true },
+        symbol: {
+          ...value.symbol,
+          iconImage: nextRenderer.classes[0]?.iconImage ?? value.symbol.iconImage,
+        },
+      });
+      return;
+    }
+    onChange({
+      ...value,
+      pointMode: value.pointMode === "heatmap" ? "circle" : value.pointMode,
+      renderer: { type: "single", updatedByUser: true },
+    });
+  }
+
+  function applyPreset(kind: "line" | "fill") {
+    if (kind === "line") {
       onChange({
         ...value,
         line: {
@@ -463,6 +564,29 @@ export function VectorSymbolizationEditor({
         : field.name,
     })),
   ];
+  const categoricalFieldOptions = fields
+    .filter((field) => !isNumericResourceField(field))
+    .map((field) => ({
+      value: field.name,
+      label: field.description
+        ? `${field.name} · ${field.description}`
+        : field.name,
+    }));
+  const fallbackClassifyField =
+    categoricalFieldOptions[0]?.value ?? fields[0]?.name ?? "";
+  const defaultClassifyField =
+    categoricalFieldOptions.find((option) =>
+      hasGermplasmSexField(option.value),
+    )?.value ?? fallbackClassifyField;
+  const uniqueRenderer = isUniqueValueRenderer(value.renderer)
+    ? refreshUniqueValueCounts(value.renderer, countsForField(value.renderer.field))
+    : null;
+  const expressionMode =
+    value.pointMode === "heatmap"
+      ? "heatmap"
+      : uniqueRenderer
+        ? "uniqueValue"
+        : "single";
   const normalizedGeometry = (geometryType ?? "").toLowerCase();
   const geometryUnknown =
     !normalizedGeometry ||
@@ -546,6 +670,24 @@ export function VectorSymbolizationEditor({
     });
   }
 
+  const uniqueFieldOptions =
+    categoricalFieldOptions.length > 0
+      ? categoricalFieldOptions
+      : fields.map((field) => ({ value: field.name, label: field.name }));
+  const uniqueValueOptions = uniqueRenderer
+    ? fieldValueOptions(countsForField(uniqueRenderer.field))
+    : [];
+  const uniqueIconOptions = platformSymbolIconGroups.flatMap((group) =>
+    group.options.map((option) => {
+      const label = `${group.label} / ${option.label}`;
+      return {
+        value: option.value,
+        label,
+        title: label,
+      };
+    }),
+  );
+
   return (
     <Card
       className="symbolization-card symbolization-card-redesigned"
@@ -566,11 +708,28 @@ export function VectorSymbolizationEditor({
             <ControlRow label="点数据表达">
               <Segmented
                 block
-                value={value.pointMode}
+                value={expressionMode}
                 options={[
-                  { value: "circle", label: "单点符号" },
-                  { value: "symbol", label: "图标标记" },
+                  { value: "single", label: "单一符号" },
+                  { value: "uniqueValue", label: "唯一值分类" },
                   { value: "heatmap", label: "密度热力" },
+                ]}
+                onChange={(mode) =>
+                  changeExpressionMode(
+                    mode as "single" | "uniqueValue" | "heatmap",
+                  )
+                }
+              />
+            </ControlRow>
+          )}
+          {geometry.hasPoint && expressionMode === "single" && (
+            <ControlRow label="点符号类型">
+              <Segmented
+                block
+                value={value.pointMode === "heatmap" ? "circle" : value.pointMode}
+                options={[
+                  { value: "circle", label: "圆点" },
+                  { value: "symbol", label: "图标" },
                 ]}
                 onChange={(mode) =>
                   updateRoot(
@@ -581,95 +740,232 @@ export function VectorSymbolizationEditor({
               />
             </ControlRow>
           )}
-          <div className="symbolization-preset-grid">
-            {geometry.hasPoint && (
-              <>
-                <Button
-                  className={
-                    value.pointMode === "circle"
-                      ? "symbolization-preset-button is-active"
-                      : "symbolization-preset-button"
-                  }
-                  onClick={() => applyPreset("point")}
-                >
-                  <span>调查点</span>
-                  <small>清晰展示单个采样点</small>
-                </Button>
-                <Button
-                  className={
-                    value.pointMode === "symbol"
-                      ? "symbolization-preset-button is-active"
-                      : "symbolization-preset-button"
-                  }
-                  onClick={() => applyPreset("symbol")}
-                >
-                  <span>监测站</span>
-                  <small>用图标强调站点类别</small>
-                </Button>
-                <Button
-                  className={
-                    value.pointMode === "heatmap"
-                      ? "symbolization-preset-button is-active"
-                      : "symbolization-preset-button"
-                  }
-                  onClick={() => applyPreset("heatmap")}
-                >
-                  <span>密度热力</span>
-                  <small>查看点位聚集强弱</small>
-                </Button>
-              </>
-            )}
-            {geometry.hasLine && (
-              <>
-                <Button
-                  className="symbolization-preset-button"
-                  onClick={() => applyPreset("line")}
-                >
-                  <span>河流线</span>
-                  <small>连续线条，适合河道边界</small>
-                </Button>
-                <Button
-                  className="symbolization-preset-button"
-                  onClick={() => {
-                    applyPreset("line");
-                    updateLinePattern("dash");
-                  }}
-                >
-                  <span>虚线辅助线</span>
-                  <small>适合规划线和参考线</small>
-                </Button>
-              </>
-            )}
-            {geometry.hasPolygon && (
-              <>
-                <Button
-                  className="symbolization-preset-button"
-                  onClick={() => applyPreset("fill")}
-                >
-                  <span>保护区</span>
-                  <small>半透明填充保留底图信息</small>
-                </Button>
-                <Button
-                  className="symbolization-preset-button"
-                  onClick={() =>
-                    onChange({
-                      ...value,
-                      fill: {
-                        ...value.fill,
-                        fillColor: "#8fb9d9",
-                        fillOpacity: 0.36,
-                        fillOutlineColor: "#174f46",
-                      },
-                    })
-                  }
-                >
-                  <span>分区填色</span>
-                  <small>弱化填充，突出边界</small>
-                </Button>
-              </>
-            )}
-          </div>
+          {(geometry.hasLine || geometry.hasPolygon) && (
+            <div className="symbolization-preset-grid">
+              {geometry.hasLine && (
+                <>
+                  <Button
+                    className="symbolization-preset-button"
+                    onClick={() => applyPreset("line")}
+                  >
+                    <span>河流线</span>
+                    <small>连续线条，适合河道边界</small>
+                  </Button>
+                  <Button
+                    className="symbolization-preset-button"
+                    onClick={() => {
+                      applyPreset("line");
+                      updateLinePattern("dash");
+                    }}
+                  >
+                    <span>虚线辅助线</span>
+                    <small>适合规划线和参考线</small>
+                  </Button>
+                </>
+              )}
+              {geometry.hasPolygon && (
+                <>
+                  <Button
+                    className="symbolization-preset-button"
+                    onClick={() => applyPreset("fill")}
+                  >
+                    <span>保护区</span>
+                    <small>半透明填充保留底图信息</small>
+                  </Button>
+                  <Button
+                    className="symbolization-preset-button"
+                    onClick={() =>
+                      onChange({
+                        ...value,
+                        fill: {
+                          ...value.fill,
+                          fillColor: "#8fb9d9",
+                          fillOpacity: 0.36,
+                          fillOutlineColor: "#174f46",
+                        },
+                      })
+                    }
+                  >
+                    <span>分区填色</span>
+                    <small>弱化填充，突出边界</small>
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
         </section>
+
+        {expressionMode === "uniqueValue" && uniqueRenderer && (
+          <section className="symbolization-section unique-symbolization-section">
+            <div className="symbolization-section-head">
+              <div>
+                <Typography.Text strong>字段分类</Typography.Text>
+                <Typography.Text type="secondary">
+                  一个图例类别可以包含多个原始值，用于合并别名和录入变体
+                </Typography.Text>
+              </div>
+              {uniqueRenderer.templateId === germplasmDnaSexTemplateId && (
+                <Tag color="green">种质默认模板</Tag>
+              )}
+            </div>
+            <Space
+              orientation="vertical"
+              className="full-width symbolization-stack"
+            >
+              <ControlRow label="分类字段">
+                <Select
+                  className="full-width"
+                  value={uniqueRenderer.field}
+                  options={uniqueFieldOptions}
+                  onChange={changeUniqueField}
+                />
+              </ControlRow>
+              {uniqueRenderer.normalizationNotes?.length ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  title="已应用分类值合并"
+                  description={uniqueRenderer.normalizationNotes.join(" ")}
+                />
+              ) : null}
+              <div className="unique-class-list">
+                {uniqueRenderer.classes.map((item) => (
+                  <div className="unique-class-row" key={item.id}>
+                    <div className="unique-class-preview">
+                      <span
+                        className="unique-class-swatch"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <Switch
+                        size="small"
+                        checked={item.visible}
+                        onChange={(visible) =>
+                          updateUniqueClass(item.id, { visible })
+                        }
+                      />
+                    </div>
+                    <Input
+                      className="unique-class-label"
+                      value={item.label}
+                      maxLength={24}
+                      onChange={(event) =>
+                        updateUniqueClass(item.id, {
+                          label: event.target.value,
+                        })
+                      }
+                    />
+                    <Select
+                      className="unique-class-values"
+                      mode="tags"
+                      value={item.values}
+                      options={uniqueValueOptions}
+                      placeholder="包含原始值"
+                      onChange={(values) =>
+                        updateUniqueClass(item.id, { values })
+                      }
+                    />
+                    <ColorPicker
+                      value={item.color}
+                      onChangeComplete={(color) =>
+                        updateUniqueClass(item.id, {
+                          color: color.toHexString(),
+                        })
+                      }
+                    />
+                    <Select
+                      className="unique-class-icon"
+                      value={item.iconImage}
+                      showSearch
+                      optionFilterProp="label"
+                      popupMatchSelectWidth={false}
+                      options={uniqueIconOptions}
+                      onChange={(iconImage) =>
+                        updateUniqueClass(item.id, { iconImage })
+                      }
+                    />
+                    <InputNumber
+                      className="unique-class-size"
+                      value={item.size}
+                      min={0.2}
+                      max={5}
+                      step={0.05}
+                      onChange={(size) =>
+                        updateUniqueClass(item.id, {
+                          size: typeof size === "number" ? size : 1,
+                        })
+                      }
+                    />
+                    <Typography.Text className="unique-class-count">
+                      {item.count} 条
+                    </Typography.Text>
+                  </div>
+                ))}
+                <div className="unique-class-row unique-class-row-default">
+                  <div className="unique-class-preview">
+                    <span
+                      className="unique-class-swatch"
+                      style={{ backgroundColor: uniqueRenderer.defaultClass.color }}
+                    />
+                    <Switch
+                      size="small"
+                      checked={uniqueRenderer.defaultClass.visible}
+                      onChange={(visible) =>
+                        updateDefaultUniqueClass({ visible })
+                      }
+                    />
+                  </div>
+                  <Input
+                    className="unique-class-label"
+                    value={uniqueRenderer.defaultClass.label}
+                    maxLength={24}
+                    onChange={(event) =>
+                      updateDefaultUniqueClass({
+                        label: event.target.value,
+                      })
+                    }
+                  />
+                  <Typography.Text className="unique-class-values-readonly">
+                    {classValuesLabel(uniqueRenderer.defaultClass)}
+                  </Typography.Text>
+                  <ColorPicker
+                    value={uniqueRenderer.defaultClass.color}
+                    onChangeComplete={(color) =>
+                      updateDefaultUniqueClass({
+                        color: color.toHexString(),
+                      })
+                    }
+                  />
+                  <Select
+                    className="unique-class-icon"
+                    value={uniqueRenderer.defaultClass.iconImage}
+                    showSearch
+                    optionFilterProp="label"
+                    popupMatchSelectWidth={false}
+                    options={uniqueIconOptions}
+                    onChange={(iconImage) =>
+                      updateDefaultUniqueClass({ iconImage })
+                    }
+                  />
+                  <InputNumber
+                    className="unique-class-size"
+                    value={uniqueRenderer.defaultClass.size}
+                    min={0.2}
+                    max={5}
+                    step={0.05}
+                    onChange={(size) =>
+                      updateDefaultUniqueClass({
+                        size: typeof size === "number" ? size : 1,
+                      })
+                    }
+                  />
+                  <Typography.Text className="unique-class-count">
+                    {uniqueRenderer.defaultClass.count} 条
+                  </Typography.Text>
+                </div>
+              </div>
+            </Space>
+          </section>
+        )}
 
         <section className="symbolization-section">
           <div className="symbolization-section-head">
@@ -693,7 +989,9 @@ export function VectorSymbolizationEditor({
               />
             </ControlRow>
 
-            {geometry.hasPoint && value.pointMode === "circle" && (
+            {geometry.hasPoint &&
+              expressionMode === "single" &&
+              value.pointMode === "circle" && (
               <>
                 <ColorField
                   label="点颜色"
@@ -724,7 +1022,9 @@ export function VectorSymbolizationEditor({
               </>
             )}
 
-            {geometry.hasPoint && value.pointMode === "symbol" && (
+            {geometry.hasPoint &&
+              expressionMode === "single" &&
+              value.pointMode === "symbol" && (
               <>
                 <ControlRow label="图标类型">
                   <Popover
@@ -903,7 +1203,7 @@ export function VectorSymbolizationEditor({
               </>
             )}
 
-            {geometry.hasPoint && value.pointMode !== "heatmap" && (
+            {geometry.hasPoint && expressionMode === "single" && (
               <ControlRow label="点位聚合">
                 <Switch
                   checked={cluster.enabled}

@@ -1210,7 +1210,7 @@ def _upsert_geographic_resource(
 def _domain_type(value: Any) -> str:
     domain_type = str(value or "").strip()
     if not domain_type:
-        return ""
+        raise ImportDataError("请选择业务数据类型")
     if domain_type not in DataDomainType.values:
         raise ImportDataError("无效的数据业务类型")
     return domain_type

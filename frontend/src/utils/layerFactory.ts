@@ -4,6 +4,7 @@ import {
   cloneDefaultVectorSymbolization,
   rasterSymbolizationFromRules,
 } from "../symbolization";
+import { vectorSymbolizationWithDefaultTemplate } from "../symbolizationTemplates";
 import type {
   AttributeFilter,
   DataResource,
@@ -47,6 +48,12 @@ export function createVectorLayerGroup(
     命中条数: queryResult.totalCount,
     加载时间: now.toLocaleString("zh-CN", { hour12: false }),
   };
+  const vectorSymbolization = vectorSymbolizationWithDefaultTemplate({
+    resource,
+    fields: queryResult.fields,
+    geojson: queryResult.geojson,
+    base: cloneDefaultVectorSymbolization(),
+  });
   return {
     id: groupId,
     name: resource.name,
@@ -71,7 +78,7 @@ export function createVectorLayerGroup(
           图层类型: "矢量",
           几何类型: profile.geometryType,
         },
-        symbolization: cloneDefaultVectorSymbolization(),
+        symbolization: vectorSymbolization,
         fields: queryResult.fields,
         query,
       } satisfies LoadedVectorLayer,

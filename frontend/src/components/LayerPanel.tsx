@@ -50,11 +50,13 @@ import {
   type LayerDropPlacement,
   useLayerContext,
 } from "../hooks/LayerContext";
-import type {
-  GroupSymbolization,
-  RasterSymbolization,
-  VectorSymbolization,
+import {
+  isUniqueValueRenderer,
+  type GroupSymbolization,
+  type RasterSymbolization,
+  type VectorSymbolization,
 } from "../symbolization";
+import { classValuesLabel } from "../symbolizationTemplates";
 import type {
   ExportLayerItem,
   LoadedLayer,
@@ -951,6 +953,10 @@ function LayerItemNode({
 }: LayerNodeProps) {
   const ctx = useLayerContext();
   const dropClass = dropPlacement ? ` layer-drop-${dropPlacement}` : "";
+  const fieldValueCounts = useMemo(
+    () => buildFieldValueCounts(layer),
+    [layer],
+  );
   return (
     <div
       className={`layer-tree-node${selected ? " layer-tree-node-selected" : ""}${dragging ? " is-dragging" : ""}${dropClass}`}
@@ -997,6 +1003,7 @@ function LayerItemNode({
           <NodeActions
             symbolization={layer.symbolization}
             fields={layer.fields}
+            fieldValueCounts={fieldValueCounts}
             geometryType={layer.geometryType}
             rasterBands={
               layer.layerType === "raster"
@@ -1054,8 +1061,55 @@ function LayerItemNode({
           {selected ? "已选" : "选中"}
         </Button>
       </div>
+      <LayerLegend layer={layer} />
     </div>
   );
+}
+
+function LayerLegend({ layer }: { layer: LoadedLayer }) {
+  if (layer.layerType !== "vector") return null;
+  const renderer = layer.symbolization.renderer;
+  if (!isUniqueValueRenderer(renderer)) return null;
+  const visibleClasses = [...renderer.classes, renderer.defaultClass].filter(
+    (item) => item.visible,
+  );
+  if (visibleClasses.length === 0) return null;
+  return (
+    <div className="layer-legend-strip" aria-label={`${layer.name}图例`}>
+      {visibleClasses.slice(0, 6).map((item) => (
+        <span className="layer-legend-item" key={item.id}>
+          <i style={{ backgroundColor: item.color }} />
+          <span title={`${item.label}：${classValuesLabel(item)}`}>
+            {item.label}
+          </span>
+          <small>{item.count}</small>
+        </span>
+      ))}
+      {visibleClasses.length > 6 && (
+        <span className="layer-legend-more">
+          +{visibleClasses.length - 6}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function buildFieldValueCounts(layer: LoadedLayer) {
+  if (layer.layerType !== "vector") return {};
+  const result: Record<string, Record<string, number>> = {};
+  for (const field of layer.fields) {
+    const counts: Record<string, number> = {};
+    for (const feature of layer.geojson.features) {
+      const properties = feature.properties ?? {};
+      const value = (properties as Record<string, unknown>)[field.name];
+      if (value === null || value === undefined) continue;
+      const key = String(value).trim();
+      if (!key) continue;
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    result[field.name] = counts;
+  }
+  return result;
 }
 
 function groupIdFromDrag(value: string): string | null {
@@ -1074,6 +1128,7 @@ function layerPayloadFromDrag(
 interface NodeActionProps {
   symbolization: GroupSymbolization | VectorSymbolization | RasterSymbolization;
   fields: ResourceField[];
+  fieldValueCounts?: Record<string, Record<string, number>>;
   geometryType?: string;
   rasterBands?: RasterBandMetadata[];
   rasterDatasetId?: number;
@@ -1092,6 +1147,7 @@ interface NodeActionProps {
 function NodeActions({
   symbolization,
   fields,
+  fieldValueCounts,
   geometryType,
   rasterBands = [],
   rasterDatasetId,
@@ -1218,6 +1274,7 @@ function NodeActions({
         <VectorSymbolizationEditor
           value={draftSymbolization}
           fields={fields}
+          fieldValueCounts={fieldValueCounts}
           geometryType={geometryType}
           onChange={previewVectorSymbolization}
           onApply={applyDraftSymbolization}

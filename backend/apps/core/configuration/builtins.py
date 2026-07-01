@@ -6,10 +6,15 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class BuiltinGroupConfig:
     superadmin_name: str
+    platform_admin_name: str
+    research_user_name: str
     default_user_name: str
     guest_name: str
     superadmin_locked_permissions: tuple[str, ...]
+    platform_admin_permissions: tuple[str, ...]
+    research_user_permissions: tuple[str, ...]
     default_user_permissions: tuple[str, ...]
+    legacy_default_user_permissions: tuple[str, ...]
     guest_permissions: tuple[str, ...]
 
 
@@ -30,6 +35,8 @@ class BuiltinAccountConfig:
 
 BUILTIN_GROUPS = BuiltinGroupConfig(
     superadmin_name="超级管理员",
+    platform_admin_name="平台管理员",
+    research_user_name="科研用户",
     default_user_name="普通用户",
     guest_name="游客",
     superadmin_locked_permissions=(
@@ -38,7 +45,64 @@ BUILTIN_GROUPS = BuiltinGroupConfig(
         "core.manage_system_settings",
         "core.manage_data_backup",
     ),
+    platform_admin_permissions=(
+        "core.create_user",
+        "core.manage_auth",
+        "core.manage_feature_permissions",
+        "core.manage_system_settings",
+        "core.view_operation_logs",
+        "core.view_system_logs",
+        "core.view_all_operation_logs",
+        "core.view_dashboard_resource_card",
+        "core.view_dashboard_layer_card",
+        "core.view_dashboard_raster_card",
+        "core.view_dashboard_user_card",
+        "core.view_dashboard_active_users_card",
+        "core.view_dashboard_system_card",
+        "core.view_data_overview",
+        "core.browse_data",
+        "core.query_data",
+        "core.custom_symbolization",
+        "core.ai_interpretation",
+        "catalog.add_dataresource",
+        "catalog.view_dataresource",
+        "catalog.change_dataresource",
+        "catalog.delete_dataresource",
+        "catalog.export_dataresource",
+        "catalog.add_workspacescene",
+        "catalog.view_workspacescene",
+        "catalog.change_workspacescene",
+        "catalog.delete_workspacescene",
+        "core.load_vector_layer",
+        "core.load_raster_layer",
+        "raster.manage_raster_dataset",
+    ),
+    research_user_permissions=(
+        "core.browse_data",
+        "core.query_data",
+        "core.load_vector_layer",
+        "core.load_raster_layer",
+        "core.custom_symbolization",
+        "core.ai_interpretation",
+        "core.view_data_overview",
+        "catalog.add_dataresource",
+        "catalog.view_dataresource",
+        "catalog.export_dataresource",
+        "catalog.add_workspacescene",
+        "catalog.view_workspacescene",
+        "catalog.change_workspacescene",
+    ),
     default_user_permissions=(
+        "core.browse_data",
+        "core.query_data",
+        "core.load_vector_layer",
+        "core.load_raster_layer",
+        "catalog.add_dataresource",
+        "catalog.add_workspacescene",
+        "catalog.view_workspacescene",
+        "catalog.change_workspacescene",
+    ),
+    legacy_default_user_permissions=(
         "core.browse_data",
         "core.query_data",
         "core.custom_symbolization",

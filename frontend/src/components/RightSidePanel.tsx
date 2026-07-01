@@ -240,6 +240,7 @@ function FlatMapThumbnail({
         aria-label="当前范围二维地图缩略图"
         role="img"
       >
+        <ThumbnailFallbackMap />
         {thumbnail.tiles.map((tile) => (
           <img
             key={tile.key}
@@ -274,6 +275,32 @@ function FlatMapThumbnail({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function ThumbnailFallbackMap() {
+  return (
+    <svg
+      className="right-map-mini-fallback"
+      viewBox="0 0 360 180"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect className="fallback-ocean" width="360" height="180" />
+      <path
+        className="fallback-grid"
+        d="M60 0V180M120 0V180M180 0V180M240 0V180M300 0V180M0 45H360M0 90H360M0 135H360"
+      />
+      <g className="fallback-land">
+        <path d="M5 51 21 35 48 27 80 31 102 47 96 65 112 82 101 104 76 104 60 84 37 83 25 69 8 66Z" />
+        <path d="M54 105 73 112 83 137 71 168 55 151 47 127Z" />
+        <path d="M132 46 162 29 207 22 260 28 316 42 344 62 337 91 307 99 279 90 256 101 218 93 188 105 153 93 126 75Z" />
+        <path d="M165 95 190 107 202 139 184 166 158 147 148 117Z" />
+        <path d="M263 108 286 113 303 132 291 151 267 142Z" />
+      </g>
+      <path className="fallback-region" d="M136 72H286V118H136Z" />
+    </svg>
   );
 }
 

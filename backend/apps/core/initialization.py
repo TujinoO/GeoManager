@@ -20,6 +20,8 @@ from apps.core.permissions import (
 from apps.core.configuration import BUILTIN_ACCOUNTS, BUILTIN_GROUPS
 
 SUPERADMIN_GROUP_NAME = BUILTIN_GROUPS.superadmin_name
+PLATFORM_ADMIN_GROUP_NAME = BUILTIN_GROUPS.platform_admin_name
+RESEARCH_USER_GROUP_NAME = BUILTIN_GROUPS.research_user_name
 DEFAULT_USER_GROUP_NAME = BUILTIN_GROUPS.default_user_name
 GUEST_GROUP_NAME = BUILTIN_GROUPS.guest_name
 GUEST_USERNAME = BUILTIN_ACCOUNTS.guest_username
@@ -30,8 +32,11 @@ DEFAULT_SUPERADMIN_USERNAME = BUILTIN_ACCOUNTS.default_superadmin_username
 DEFAULT_SUPERADMIN_EMAIL = BUILTIN_ACCOUNTS.default_superadmin_email
 INITIAL_PASSWORD_FILE = BUILTIN_ACCOUNTS.initial_password_file
 LOCKED_SUPERADMIN_PERMISSIONS = BUILTIN_GROUPS.superadmin_locked_permissions
+PLATFORM_ADMIN_GROUP_PERMISSIONS = BUILTIN_GROUPS.platform_admin_permissions
+RESEARCH_USER_GROUP_PERMISSIONS = BUILTIN_GROUPS.research_user_permissions
 GUEST_GROUP_PERMISSIONS = BUILTIN_GROUPS.guest_permissions
 DEFAULT_USER_GROUP_PERMISSIONS = BUILTIN_GROUPS.default_user_permissions
+LEGACY_DEFAULT_USER_GROUP_PERMISSIONS = BUILTIN_GROUPS.legacy_default_user_permissions
 
 
 def ensure_superadmin_defaults(
@@ -39,6 +44,8 @@ def ensure_superadmin_defaults(
 ) -> tuple[Any | None, Group]:
     with transaction.atomic():
         ensure_feature_permissions()
+        ensure_platform_admin_group()
+        ensure_research_user_group()
         ensure_default_user_group()
         ensure_guest_group()
         ensure_guest_user()
@@ -79,6 +86,14 @@ def is_superadmin_group(group: Group) -> bool:
     return group.name == SUPERADMIN_GROUP_NAME
 
 
+def is_platform_admin_group(group: Group) -> bool:
+    return group.name == PLATFORM_ADMIN_GROUP_NAME
+
+
+def is_research_user_group(group: Group) -> bool:
+    return group.name == RESEARCH_USER_GROUP_NAME
+
+
 def is_guest_group(group: Group) -> bool:
     return group.name == GUEST_GROUP_NAME
 
@@ -87,9 +102,41 @@ def is_default_user_group(group: Group) -> bool:
     return group.name == DEFAULT_USER_GROUP_NAME
 
 
+def is_builtin_group(group: Group) -> bool:
+    return group.name in builtin_group_names()
+
+
+def builtin_group_names() -> set[str]:
+    return {
+        SUPERADMIN_GROUP_NAME,
+        PLATFORM_ADMIN_GROUP_NAME,
+        RESEARCH_USER_GROUP_NAME,
+        DEFAULT_USER_GROUP_NAME,
+        GUEST_GROUP_NAME,
+    }
+
+
+def ensure_platform_admin_group() -> Group:
+    group, created = Group.objects.get_or_create(name=PLATFORM_ADMIN_GROUP_NAME)
+    if created:
+        _set_group_permissions(group, PLATFORM_ADMIN_GROUP_PERMISSIONS)
+    return group
+
+
+def ensure_research_user_group() -> Group:
+    group, created = Group.objects.get_or_create(name=RESEARCH_USER_GROUP_NAME)
+    if created:
+        _set_group_permissions(group, RESEARCH_USER_GROUP_PERMISSIONS)
+    return group
+
+
 def ensure_default_user_group() -> Group:
     group, created = Group.objects.get_or_create(name=DEFAULT_USER_GROUP_NAME)
     if created:
+        _set_group_permissions(group, DEFAULT_USER_GROUP_PERMISSIONS)
+    elif _group_feature_permission_names(group) == set(
+        LEGACY_DEFAULT_USER_GROUP_PERMISSIONS
+    ):
         _set_group_permissions(group, DEFAULT_USER_GROUP_PERMISSIONS)
     return group
 
@@ -175,6 +222,14 @@ def guest_group_permissions() -> set[str]:
     return set(GUEST_GROUP_PERMISSIONS)
 
 
+def platform_admin_group_permissions() -> set[str]:
+    return set(PLATFORM_ADMIN_GROUP_PERMISSIONS)
+
+
+def research_user_group_permissions() -> set[str]:
+    return set(RESEARCH_USER_GROUP_PERMISSIONS)
+
+
 def default_user_group_permissions() -> set[str]:
     return set(DEFAULT_USER_GROUP_PERMISSIONS)
 
@@ -195,17 +250,30 @@ def _grant_all_feature_permissions(group: Group) -> None:
 
 
 def _set_group_permissions(group: Group, permission_names: tuple[str, ...]) -> None:
+    permissions = feature_permission_queryset()
+    feature_ids = set(permissions.values_list("id", flat=True))
     permissions_by_name = {
         f"{permission.content_type.app_label}.{permission.codename}": permission
-        for permission in feature_permission_queryset()
+        for permission in permissions
     }
-    selected = [
-        permissions_by_name[permission_name]
+    selected_ids = [
+        permissions_by_name[permission_name].id
         for permission_name in permission_names
         if permission_name in permissions_by_name
     ]
-    if selected:
-        group.permissions.set(selected)
+    non_feature_ids = set(
+        group.permissions.exclude(id__in=feature_ids).values_list("id", flat=True)
+    )
+    group.permissions.set([*non_feature_ids, *selected_ids])
+
+
+def _group_feature_permission_names(group: Group) -> set[str]:
+    feature_ids = set(feature_permission_queryset().values_list("id", flat=True))
+    return {
+        f"{permission.content_type.app_label}.{permission.codename}"
+        for permission in group.permissions.select_related("content_type").all()
+        if permission.id in feature_ids
+    }
 
 
 def _add_group_permissions(group: Group, permission_names: tuple[str, ...]) -> None:

@@ -382,7 +382,7 @@ export const updateUserOrDelete = <ThrowOnError extends boolean = false>(options
 /**
  * 获取用户组列表
  *
- * 返回当前主体可见的 Django 用户组及其功能权限配置。非超级管理员主体不会返回超级管理员用户组。需要 `core.manage_auth`。
+ * 返回当前主体可见的 Django 用户组及其功能权限配置，并确保内置角色（超级管理员、平台管理员、科研用户、普通用户、游客）存在。非超级管理员主体不会返回超级管理员用户组。需要 `core.manage_auth`。
  */
 export const listGroups = <ThrowOnError extends boolean = false>(options?: Options<ListGroupsData, ThrowOnError>): RequestResult<ListGroupsResponses, ListGroupsErrors, ThrowOnError> => (options?.client ?? client).get<ListGroupsResponses, ListGroupsErrors, ThrowOnError>({
     security: [{
@@ -418,9 +418,9 @@ export const createGroup = <ThrowOnError extends boolean = false>(options: Optio
  *
  * 根据请求体中的 `action` 字段执行不同操作：
  * - 不提供 `action`：更新用户组名称和功能权限
- * - `delete`：删除空用户组（仅当用户组没有任何关联用户时允许）
+ * - `delete`：删除空用户组（仅当用户组没有任何关联用户且不是内置角色时允许）
  *
- * 非超级管理员主体不能看到、更新或删除超级管理员用户组。需要 `core.manage_auth`。
+ * 非超级管理员主体不能看到、更新或删除超级管理员用户组。超级管理员、平台管理员、科研用户、普通用户和游客属于系统内置角色，不能删除或重命名；其中只有超级管理员的权限集合被系统锁定为全量权限，其他内置角色允许调整权限。需要 `core.manage_auth`。删除仍有关联用户的角色、删除/重命名内置角色、或关闭超级管理员锁定权限时返回 `400 ErrorResponse`。
  *
  */
 export const updateOrDeleteGroup = <ThrowOnError extends boolean = false>(options: Options<UpdateOrDeleteGroupData, ThrowOnError>): RequestResult<UpdateOrDeleteGroupResponses, UpdateOrDeleteGroupErrors, ThrowOnError> => (options.client ?? client).post<UpdateOrDeleteGroupResponses, UpdateOrDeleteGroupErrors, ThrowOnError>({
@@ -783,6 +783,8 @@ export const importValidate = <ThrowOnError extends boolean = false>(options: Op
  *
  * 将预检后的 Excel/CSV 导入统一存储。选择地理数据时写入 GeoPackage，
  * 选择非地理数据时写入 SQLite。接口每次导入都会生成唯一后台存储标识并创建新的 DataResource。
+ * `payload.domainType` 是必填字段，必须使用 `DataDomainType` 枚举值；后端会将该值保存为 DataResource.domainType，
+ * 资源列表页和地理/非地理数据分类筛选均以该字段为准。
  * 需要 `catalog.add_dataresource`；前端显示名已存在时必须在数据校验阶段确认，并在提交时显式传入 duplicateConfirmed=true 才允许继续导入。继续导入会创建新的 DataResource 和唯一后台存储标识，不覆盖已有数据。
  *
  */

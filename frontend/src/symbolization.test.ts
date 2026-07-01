@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { platformSymbolImageId } from "./map/symbolImages";
+import { germplasmDnaSexRenderer } from "./symbolizationTemplates";
 import {
   cloneDefaultGroupSymbolization,
   cloneDefaultRasterSymbolization,
@@ -11,6 +12,7 @@ import {
   platformSymbolIconGroups,
   platformSymbolIconIds,
   rasterSymbolizationFromRules,
+  isUniqueValueRenderer,
 } from "./symbolization";
 
 describe("defaultGroupSymbolization", () => {
@@ -58,6 +60,13 @@ describe("defaultVectorSymbolization", () => {
 describe("normalizeSymbolIconImage", () => {
   it("keeps platform icon ids unchanged", () => {
     expect(normalizeSymbolIconImage("gm-marker")).toBe("gm-marker");
+  });
+
+  it("uses single symbol renderer by default", () => {
+    expect(defaultVectorSymbolization.renderer).toEqual({
+      type: "single",
+      updatedByUser: false,
+    });
   });
 
   it("keeps expanded platform icon ids unchanged", () => {
@@ -168,6 +177,7 @@ describe("cloneDefaultVectorSymbolization", () => {
     expect(clone.cluster).not.toBe(defaultVectorSymbolization.cluster);
     expect(clone.line).not.toBe(defaultVectorSymbolization.line);
     expect(clone.fill).not.toBe(defaultVectorSymbolization.fill);
+    expect(clone.renderer).not.toBe(defaultVectorSymbolization.renderer);
   });
 
   it("clones nested arrays", () => {
@@ -178,6 +188,24 @@ describe("cloneDefaultVectorSymbolization", () => {
     expect(clone.line.lineDasharray).not.toBe(
       defaultVectorSymbolization.line.lineDasharray,
     );
+  });
+});
+
+describe("germplasmDnaSexRenderer", () => {
+  it("merges female aliases into one class", () => {
+    const renderer = germplasmDnaSexRenderer(
+      "性别",
+      new Map([
+        ["雌株", 287],
+        ["雄株", 361],
+        ["雌株珠", 15],
+      ]),
+    );
+    expect(isUniqueValueRenderer(renderer)).toBe(true);
+    expect(renderer.classes[0]?.label).toBe("雌性");
+    expect(renderer.classes[0]?.values).toEqual(["雌株", "雌株珠"]);
+    expect(renderer.classes[0]?.count).toBe(302);
+    expect(renderer.classes[1]?.count).toBe(361);
   });
 });
 

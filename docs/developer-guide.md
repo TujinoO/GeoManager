@@ -1363,13 +1363,25 @@ map.addLayer({
 
 图层的符号化配置存储在 `symbolization` 字段中，包含：
 
-- `fillColor`：填充颜色
-- `fillOpacity`：填充透明度
-- `strokeColor`：边框颜色
-- `strokeWidth`：边框宽度
-- `cluster.enabled`：点图层是否启用 Mapbox source 聚合，默认 `false`
-- `cluster.maxZoom`：聚合生效的最大瓦片缩放级别，默认 `12`
-- `cluster.radius`：聚合半径，默认 `50`
+- `opacity`：图层透明度百分比。
+- `pointMode`：点图层基础表达方式，支持 `circle`、`symbol`、`heatmap`。
+- `renderer.type=single`：单一符号渲染，继续使用 `circle`、`symbol`、`line`、`fill` 中的基础样式。
+- `renderer.type=uniqueValue`：按字段唯一值分类渲染，`field` 指定分类字段，`classes[].values` 可包含多个原始字段值，用于“分类值合并/别名归一化”。
+- `renderer.classes[].iconImage`：平台内置图标必须使用 `gm-*` 英文 ID。前端在写入 Mapbox `icon-image` 前会按“图标 ID + 颜色”生成运行时图片 ID，并通过 `map.addImage()` 注册。
+- `renderer.defaultClass`：未匹配值、空值或其他值的默认图例类，避免数据因未分类而不可见。
+- `cluster.enabled`：点图层是否启用 Mapbox source 聚合，默认 `false`。
+- `cluster.maxZoom`：聚合生效的最大瓦片缩放级别，默认 `12`。
+- `cluster.radius`：聚合半径，默认 `50`。
+
+种质数据当前内置首个业务默认模板 `germplasm.dna-sex-tree.v1`。当资源业务类型为 `germplasm`，或字段组合命中 `DNA样本编号` 与 `性别` 时，前端加载图层后默认使用树形图标按 `性别` 唯一值分类：
+
+| 图例类别 | 原始值 | 图标 | 默认颜色 |
+| --- | --- | --- | --- |
+| 雌性 | `雌株`、`雌株珠` | `gm-tree` | `#D65A8A` |
+| 雄性 | `雄株` | `gm-tree` | `#2878B5` |
+| 未知/其他 | 未匹配值和空值 | `gm-tree` | `#8A8F98` |
+
+该模板不修改原始属性值，只在 `symbolization.renderer.classes[].values` 中记录“多个原始值映射到同一图例类别”的关系。用户具备 `core.custom_symbolization` 权限时，可在前端符号化面板中调整类别名称、颜色、图标、大小、显隐和原始值归并关系；保存工作台快照时会保存修改后的 `symbolization`。
 
 ### 最佳实践
 

@@ -2,6 +2,7 @@ import type {
   ExpressionSpecification,
   FilterSpecification,
   Map as MapboxMap,
+  PaintSpecification,
   StyleSpecification,
 } from "mapbox-gl";
 import type { Bootstrap } from "../types";
@@ -14,6 +15,21 @@ export const osmChineseVectorStyle =
   "https://tiles.openfreemap.org/styles/liberty";
 export const mapLabelLanguage = "zh-Hans";
 export const osmRasterTileMaxZoom = 19;
+
+type SatelliteBasemapColorCorrection = Pick<
+  PaintSpecification,
+  | "raster-saturation"
+  | "raster-contrast"
+  | "raster-brightness-min"
+  | "raster-brightness-max"
+>;
+
+export const satelliteBasemapColorCorrection: SatelliteBasemapColorCorrection = {
+  "raster-saturation": -0.28,
+  "raster-contrast": -0.08,
+  "raster-brightness-min": 0.04,
+  "raster-brightness-max": 0.9,
+};
 
 export const chineseLabelExpression: ExpressionSpecification = [
   "coalesce",
@@ -81,6 +97,26 @@ export function applyBasemapExpressionSafety(map: MapboxMap) {
       if (safeValue !== value) {
         map.setPaintProperty(layer.id, property as never, safeValue as never);
       }
+    }
+  }
+}
+
+export function applySatelliteBasemapColorCorrection(map: MapboxMap) {
+  const style = map.getStyle();
+  for (const layer of style.layers ?? []) {
+    if (layer.type !== "raster" || !map.getLayer(layer.id)) {
+      continue;
+    }
+
+    const properties = Object.keys(
+      satelliteBasemapColorCorrection,
+    ) as Array<keyof SatelliteBasemapColorCorrection>;
+    for (const property of properties) {
+      map.setPaintProperty(
+        layer.id,
+        property,
+        satelliteBasemapColorCorrection[property],
+      );
     }
   }
 }

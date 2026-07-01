@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "中亚胡杨林生态系统保护数据共享平台 API",
-    "description": "中亚胡杨林生态系统保护数据共享平台后端接口文档。\n\n## 认证方式\n本平台使用 Django Session 认证机制：\n1. `GET /api/auth/csrf/` 获取 CSRF Token\n2. `POST /api/auth/login/` 登录建立 Session\n3. 后续请求携带 `sessionid` Cookie 和 `X-CSRFToken` 请求头\n\n## 权限体系\n- **功能权限**：36 项细粒度功能权限，通过用户组分配，按后台权限、日志权限、概览权限、数据权限、人员权限分组管理\n- **数据访问权限**：基于 `access_groups` 的数据隔离\n\n## 错误处理\n所有错误响应包含 `detail` 字段描述错误原因。\nAPI 接口不会返回登录页 HTML：未认证请求返回 JSON `401`，CSRF 校验失败返回 JSON `403`。\n",
+    "description": "中亚胡杨林生态系统保护数据共享平台后端接口文档。\n\n## 认证方式\n本平台使用 Django Session 认证机制：\n1. `GET /api/auth/csrf/` 获取 CSRF Token\n2. `POST /api/auth/login/` 登录建立 Session\n3. 后续请求携带 `sessionid` Cookie 和 `X-CSRFToken` 请求头\n\n## 权限体系\n- **功能权限**：30 余项细粒度功能权限，通过用户组分配，按后台权限、日志权限、概览权限、数据权限、人员权限分组管理\n- **数据访问权限**：基于 `access_groups` 的数据隔离\n\n## 错误处理\n所有错误响应包含 `detail` 字段描述错误原因。\nAPI 接口不会返回登录页 HTML：未认证请求返回 JSON `401`，CSRF 校验失败返回 JSON `403`。\n",
     "version": "0.1.0",
     "contact": {
       "name": "API Support",
@@ -2088,7 +2088,7 @@
                         "core.custom_symbolization",
                         "core.ai_interpretation",
                         "catalog.export_dataresource",
-                        "raster.manage_rasterdataset",
+                        "raster.manage_raster_dataset",
                         "catalog.add_dataresource",
                         "core.view_data_overview"
                       ],
@@ -2111,7 +2111,7 @@
                         "core.custom_symbolization",
                         "core.ai_interpretation",
                         "catalog.export_dataresource",
-                        "raster.manage_rasterdataset",
+                        "raster.manage_raster_dataset",
                         "catalog.add_dataresource",
                         "core.view_data_overview"
                       ],
@@ -2272,7 +2272,7 @@
                         "core.custom_symbolization",
                         "core.ai_interpretation",
                         "catalog.export_dataresource",
-                        "raster.manage_rasterdataset",
+                        "raster.manage_raster_dataset",
                         "catalog.add_dataresource",
                         "core.view_data_overview"
                       ],
@@ -2292,7 +2292,7 @@
                         "core.custom_symbolization",
                         "core.ai_interpretation",
                         "catalog.export_dataresource",
-                        "raster.manage_rasterdataset",
+                        "raster.manage_raster_dataset",
                         "catalog.add_dataresource",
                         "core.view_data_overview"
                       ],
@@ -3019,7 +3019,7 @@
           "用户管理"
         ],
         "summary": "获取用户组列表",
-        "description": "返回当前主体可见的 Django 用户组及其功能权限配置。非超级管理员主体不会返回超级管理员用户组。需要 `core.manage_auth`。",
+        "description": "返回当前主体可见的 Django 用户组及其功能权限配置，并确保内置角色（超级管理员、平台管理员、科研用户、普通用户、游客）存在。非超级管理员主体不会返回超级管理员用户组。需要 `core.manage_auth`。",
         "operationId": "listGroups",
         "security": [
           {
@@ -3037,20 +3037,27 @@
                 "example": {
                   "items": [
                     {
-                      "id": 6,
-                      "name": "系统管理员",
+                      "id": 1,
+                      "name": "超级管理员",
                       "userCount": 1,
                       "permissions": [
-                        "core.manage_auth",
                         "core.manage_feature_permissions",
                         "core.create_user",
                         "core.view_operation_logs",
+                        "core.view_system_logs",
                         "core.view_all_operation_logs",
                         "core.view_group_operation_logs",
+                        "core.view_own_operation_logs",
                         "core.manage_system_settings",
+                        "core.manage_data_backup",
+                        "core.manage_auth",
                         "core.view_dashboard_resource_card",
                         "core.view_dashboard_layer_card",
                         "core.view_dashboard_raster_card",
+                        "core.view_dashboard_user_card",
+                        "core.view_dashboard_active_users_card",
+                        "core.view_dashboard_system_card",
+                        "core.view_data_overview",
                         "core.browse_data",
                         "core.query_data",
                         "core.load_vector_layer",
@@ -3058,23 +3065,59 @@
                         "core.custom_symbolization",
                         "core.ai_interpretation",
                         "catalog.export_dataresource",
-                        "raster.manage_rasterdataset",
-                        "core.view_data_overview",
-                        "catalog.add_dataresource"
+                        "catalog.add_dataresource",
+                        "catalog.view_dataresource",
+                        "catalog.change_dataresource",
+                        "catalog.delete_dataresource",
+                        "catalog.add_workspacescene",
+                        "catalog.view_workspacescene",
+                        "catalog.change_workspacescene",
+                        "catalog.delete_workspacescene",
+                        "raster.manage_raster_dataset"
                       ],
-                      "isProtected": false,
-                      "lockedPermissions": []
+                      "isProtected": true,
+                      "lockedPermissions": [
+                        "core.manage_auth",
+                        "core.manage_feature_permissions",
+                        "core.manage_system_settings",
+                        "core.manage_data_backup"
+                      ]
                     },
                     {
                       "id": 2,
-                      "name": "普通用户",
-                      "userCount": 1,
+                      "name": "平台管理员",
+                      "userCount": 2,
                       "permissions": [
+                        "core.create_user",
+                        "core.manage_auth",
+                        "core.manage_feature_permissions",
+                        "core.manage_system_settings",
+                        "core.view_operation_logs",
+                        "core.view_system_logs",
+                        "core.view_all_operation_logs",
+                        "core.view_dashboard_resource_card",
+                        "core.view_dashboard_layer_card",
+                        "core.view_dashboard_raster_card",
+                        "core.view_dashboard_user_card",
+                        "core.view_dashboard_active_users_card",
+                        "core.view_dashboard_system_card",
+                        "core.view_data_overview",
                         "core.browse_data",
                         "core.query_data",
-                        "core.load_vector_layer",
+                        "core.custom_symbolization",
+                        "core.ai_interpretation",
                         "catalog.add_dataresource",
-                        "core.load_raster_layer"
+                        "catalog.view_dataresource",
+                        "catalog.change_dataresource",
+                        "catalog.delete_dataresource",
+                        "catalog.export_dataresource",
+                        "catalog.add_workspacescene",
+                        "catalog.view_workspacescene",
+                        "catalog.change_workspacescene",
+                        "catalog.delete_workspacescene",
+                        "core.load_vector_layer",
+                        "core.load_raster_layer",
+                        "raster.manage_raster_dataset"
                       ],
                       "isProtected": true,
                       "lockedPermissions": []
@@ -3082,35 +3125,48 @@
                     {
                       "id": 3,
                       "name": "科研用户",
-                      "userCount": 2,
+                      "userCount": 4,
                       "permissions": [
-                        "core.view_operation_logs",
-                        "core.view_own_operation_logs",
-                        "core.browse_data",
-                        "core.query_data",
-                        "core.load_vector_layer",
-                        "core.load_raster_layer",
-                        "catalog.export_dataresource"
-                      ],
-                      "isProtected": false,
-                      "lockedPermissions": []
-                    },
-                    {
-                      "id": 4,
-                      "name": "数据管理员",
-                      "userCount": 1,
-                      "permissions": [
-                        "core.view_operation_logs",
                         "core.browse_data",
                         "core.query_data",
                         "core.load_vector_layer",
                         "core.load_raster_layer",
                         "core.custom_symbolization",
                         "core.ai_interpretation",
+                        "core.view_data_overview",
+                        "catalog.add_dataresource",
+                        "catalog.view_dataresource",
                         "catalog.export_dataresource",
-                        "raster.manage_rasterdataset"
+                        "catalog.add_workspacescene",
+                        "catalog.view_workspacescene",
+                        "catalog.change_workspacescene"
                       ],
-                      "isProtected": false,
+                      "isProtected": true,
+                      "lockedPermissions": []
+                    },
+                    {
+                      "id": 4,
+                      "name": "普通用户",
+                      "userCount": 2,
+                      "permissions": [
+                        "core.browse_data",
+                        "core.query_data",
+                        "core.load_vector_layer",
+                        "core.load_raster_layer",
+                        "catalog.add_dataresource",
+                        "catalog.add_workspacescene",
+                        "catalog.view_workspacescene",
+                        "catalog.change_workspacescene"
+                      ],
+                      "isProtected": true,
+                      "lockedPermissions": []
+                    },
+                    {
+                      "id": 5,
+                      "name": "游客",
+                      "userCount": 1,
+                      "permissions": [],
+                      "isProtected": true,
                       "lockedPermissions": []
                     }
                   ],
@@ -3136,6 +3192,11 @@
                       "group": "日志权限"
                     },
                     {
+                      "id": "core.view_system_logs",
+                      "label": "查看系统日志",
+                      "group": "后台权限"
+                    },
+                    {
                       "id": "core.view_all_operation_logs",
                       "label": "查看全部日志",
                       "group": "日志权限"
@@ -3146,8 +3207,18 @@
                       "group": "日志权限"
                     },
                     {
+                      "id": "core.view_own_operation_logs",
+                      "label": "查看自己的日志",
+                      "group": "日志权限"
+                    },
+                    {
                       "id": "core.manage_system_settings",
                       "label": "系统设置管理",
+                      "group": "后台权限"
+                    },
+                    {
+                      "id": "core.manage_data_backup",
+                      "label": "管理数据备份",
                       "group": "后台权限"
                     },
                     {
@@ -3163,6 +3234,21 @@
                     {
                       "id": "core.view_dashboard_raster_card",
                       "label": "栅格总览卡片",
+                      "group": "概览权限"
+                    },
+                    {
+                      "id": "core.view_dashboard_user_card",
+                      "label": "用户总览卡片",
+                      "group": "概览权限"
+                    },
+                    {
+                      "id": "core.view_dashboard_active_users_card",
+                      "label": "活跃用户总览卡片",
+                      "group": "概览权限"
+                    },
+                    {
+                      "id": "core.view_dashboard_system_card",
+                      "label": "系统信息总览",
                       "group": "概览权限"
                     },
                     {
@@ -3201,7 +3287,7 @@
                       "group": "数据权限"
                     },
                     {
-                      "id": "raster.manage_rasterdataset",
+                      "id": "raster.manage_raster_dataset",
                       "label": "管理栅格数据",
                       "group": "数据权限"
                     },
@@ -3325,7 +3411,7 @@
           "用户管理"
         ],
         "summary": "更新或删除用户组",
-        "description": "根据请求体中的 `action` 字段执行不同操作：\n- 不提供 `action`：更新用户组名称和功能权限\n- `delete`：删除空用户组（仅当用户组没有任何关联用户时允许）\n\n非超级管理员主体不能看到、更新或删除超级管理员用户组。需要 `core.manage_auth`。\n",
+        "description": "根据请求体中的 `action` 字段执行不同操作：\n- 不提供 `action`：更新用户组名称和功能权限\n- `delete`：删除空用户组（仅当用户组没有任何关联用户且不是内置角色时允许）\n\n非超级管理员主体不能看到、更新或删除超级管理员用户组。超级管理员、平台管理员、科研用户、普通用户和游客属于系统内置角色，不能删除或重命名；其中只有超级管理员的权限集合被系统锁定为全量权限，其他内置角色允许调整权限。需要 `core.manage_auth`。删除仍有关联用户的角色、删除/重命名内置角色、或关闭超级管理员锁定权限时返回 `400 ErrorResponse`。\n",
         "operationId": "updateOrDeleteGroup",
         "security": [
           {
@@ -5899,7 +5985,7 @@
           "数据目录"
         ],
         "summary": "提交数据导入",
-        "description": "将预检后的 Excel/CSV 导入统一存储。选择地理数据时写入 GeoPackage，\n选择非地理数据时写入 SQLite。接口每次导入都会生成唯一后台存储标识并创建新的 DataResource。\n需要 `catalog.add_dataresource`；前端显示名已存在时必须在数据校验阶段确认，并在提交时显式传入 duplicateConfirmed=true 才允许继续导入。继续导入会创建新的 DataResource 和唯一后台存储标识，不覆盖已有数据。\n",
+        "description": "将预检后的 Excel/CSV 导入统一存储。选择地理数据时写入 GeoPackage，\n选择非地理数据时写入 SQLite。接口每次导入都会生成唯一后台存储标识并创建新的 DataResource。\n`payload.domainType` 是必填字段，必须使用 `DataDomainType` 枚举值；后端会将该值保存为 DataResource.domainType，\n资源列表页和地理/非地理数据分类筛选均以该字段为准。\n需要 `catalog.add_dataresource`；前端显示名已存在时必须在数据校验阶段确认，并在提交时显式传入 duplicateConfirmed=true 才允许继续导入。继续导入会创建新的 DataResource 和唯一后台存储标识，不覆盖已有数据。\n",
         "operationId": "importCommit",
         "security": [
           {
@@ -5923,7 +6009,8 @@
                   },
                   "payload": {
                     "type": "string",
-                    "description": "JSON 字符串，包含导入配置；name 是前端显示的数据名称，domainType 是平台确认的业务数据类型，sheetName 是 Excel 工作表名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true 表示用户已在校验阶段确认重复名称；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。domainType 编码无效时返回 400 ImportErrorResponse。"
+                    "description": "JSON 字符串，包含导入配置；name 是前端显示的数据名称，domainType 是必填的平台确认业务数据类型，sheetName 是 Excel 工作表名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true 表示用户已在校验阶段确认重复名称；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。domainType 缺失或编码无效时返回 400 ImportErrorResponse。",
+                    "example": "{\"name\":\"胡杨群落样方数据\",\"domainType\":\"community\",\"importMode\":\"geographic\",\"tableName\":\"community_plots\",\"longitudeColumn\":\"Longitude\",\"latitudeColumn\":\"Latitude\",\"duplicateConfirmed\":false,\"includedColumns\":[\"SamplePlot\",\"Longitude\",\"Latitude\"],\"fieldMetadata\":{\"SamplePlot\":\"样方编号\"},\"accessGroupIds\":[]}"
                   }
                 }
               }
@@ -5979,6 +6066,20 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ImportErrorResponse"
+                },
+                "examples": {
+                  "missingDomainType": {
+                    "summary": "缺少业务数据类型",
+                    "value": {
+                      "detail": "请选择业务数据类型"
+                    }
+                  },
+                  "invalidDomainType": {
+                    "summary": "业务数据类型编码无效",
+                    "value": {
+                      "detail": "无效的数据业务类型"
+                    }
+                  }
                 }
               }
             }
@@ -6547,6 +6648,91 @@
                       },
                       "isActive": true,
                       "updatedAt": "2026-06-07T11:34:11.744219+00:00"
+                    },
+                    {
+                      "id": 31,
+                      "name": "塔里木大学移交胡杨DNA样品清单",
+                      "code": "germplasm-dna-sex-points-2024",
+                      "layerType": "vector",
+                      "geometryType": "point",
+                      "category": {
+                        "id": 301,
+                        "type": "data_category",
+                        "code": "germplasm",
+                        "name": "种质资源"
+                      },
+                      "dataResourceId": 31,
+                      "sortOrder": 110,
+                      "defaultVisible": false,
+                      "defaultOpacity": 90,
+                      "symbolization": {
+                        "opacity": 90,
+                        "pointMode": "symbol",
+                        "renderer": {
+                          "type": "uniqueValue",
+                          "field": "性别",
+                          "templateId": "germplasm.dna-sex-tree.v1",
+                          "businessType": "germplasm",
+                          "updatedByUser": false,
+                          "classes": [
+                            {
+                              "id": "female",
+                              "label": "雌性",
+                              "values": [
+                                "雌株",
+                                "雌株珠"
+                              ],
+                              "color": "#D65A8A",
+                              "iconImage": "gm-tree",
+                              "size": 1.08,
+                              "count": 302,
+                              "visible": true
+                            },
+                            {
+                              "id": "male",
+                              "label": "雄性",
+                              "values": [
+                                "雄株"
+                              ],
+                              "color": "#2878B5",
+                              "iconImage": "gm-tree",
+                              "size": 1.08,
+                              "count": 361,
+                              "visible": true
+                            }
+                          ],
+                          "defaultClass": {
+                            "id": "other",
+                            "label": "未知/其他",
+                            "values": [],
+                            "color": "#8A8F98",
+                            "iconImage": "gm-tree",
+                            "size": 0.96,
+                            "count": 0,
+                            "visible": true
+                          },
+                          "normalizationNotes": [
+                            "字段值“雌株珠”疑似“雌株”的录入别名，默认并入雌性类别。"
+                          ]
+                        },
+                        "symbol": {
+                          "iconImage": "gm-tree",
+                          "iconColor": "#2F7D62",
+                          "iconSize": 1.08,
+                          "textField": "",
+                          "textSize": 12
+                        }
+                      },
+                      "bounds": [
+                        74.365,
+                        40.398,
+                        90.922,
+                        43.812
+                      ],
+                      "legend": "按性别默认分为雌性、雄性和未知/其他，使用树形图标表达种质资源点位。",
+                      "rasterRules": {},
+                      "isActive": true,
+                      "updatedAt": "2026-07-01T12:00:00+08:00"
                     }
                   ]
                 }
@@ -9816,11 +10002,11 @@
           },
           "isProtected": {
             "type": "boolean",
-            "description": "是否为系统受保护用户组，受保护组不能删除或重命名。初始化内置组包含超级管理员、普通用户和游客；游客权限允许编辑"
+            "description": "是否为系统受保护用户组，受保护组不能删除或重命名。初始化内置组包含超级管理员、平台管理员、科研用户、普通用户和游客；除超级管理员外，其他内置组权限允许编辑"
           },
           "lockedPermissions": {
             "type": "array",
-            "description": "受保护用户组中不可关闭的平台功能权限列表。游客用户组返回空列表",
+            "description": "受保护用户组中不可关闭的平台功能权限列表。当前仅超级管理员返回锁定权限，平台管理员、科研用户、普通用户和游客返回空列表",
             "items": {
               "type": "string"
             }
@@ -10634,9 +10820,7 @@
             "description": "默认透明度百分比"
           },
           "symbolization": {
-            "type": "object",
-            "additionalProperties": true,
-            "description": "矢量默认符号化方案"
+            "$ref": "#/components/schemas/VectorSymbolization"
           },
           "rasterRules": {
             "type": "object",
@@ -10954,9 +11138,7 @@
             "description": "默认透明度百分比"
           },
           "symbolization": {
-            "type": "object",
-            "additionalProperties": true,
-            "description": "矢量默认符号化方案"
+            "$ref": "#/components/schemas/VectorSymbolization"
           },
           "rasterRules": {
             "type": "object",
@@ -11396,21 +11578,7 @@
             "description": "默认透明度百分比"
           },
           "symbolization": {
-            "type": "object",
-            "additionalProperties": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "boolean"
-                }
-              ]
-            },
-            "description": "矢量默认符号化配置"
+            "$ref": "#/components/schemas/VectorSymbolization"
           },
           "bounds": {
             "type": "array",
@@ -11434,6 +11602,204 @@
             "type": "string",
             "format": "date-time",
             "description": "最后更新时间"
+          }
+        }
+      },
+      "VectorSymbolization": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "矢量图层符号化配置。平台继续兼容历史松散字段；新版本推荐使用 `renderer` 描述单一符号、唯一值分类和业务默认模板，前端根据该结构生成 Mapbox GL JS 表达式并在渲染前注册 `gm-*` 平台内置图标。\n",
+        "properties": {
+          "opacity": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "图层透明度百分比"
+          },
+          "pointMode": {
+            "type": "string",
+            "enum": [
+              "circle",
+              "symbol",
+              "heatmap"
+            ],
+            "description": "点图层基础表达方式；唯一值分类点模板通常使用 symbol"
+          },
+          "renderer": {
+            "$ref": "#/components/schemas/VectorRenderer"
+          },
+          "circle": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "圆点图层基础样式，字段驱动渲染未覆盖的属性继续使用这里的值"
+          },
+          "symbol": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "图标和标注图层基础样式；平台内置图标使用 `gm-*` 英文 ID"
+          },
+          "heatmap": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "热力图样式和权重字段"
+          },
+          "cluster": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Mapbox source 聚合配置"
+          },
+          "line": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "线图层基础样式"
+          },
+          "fill": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "面图层基础样式"
+          }
+        }
+      },
+      "VectorRenderer": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SingleSymbolRenderer"
+          },
+          {
+            "$ref": "#/components/schemas/UniqueValueRenderer"
+          }
+        ],
+        "description": "矢量符号化渲染器；未提供时按单一符号处理"
+      },
+      "SingleSymbolRenderer": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "single"
+            ],
+            "description": "单一符号渲染"
+          },
+          "templateId": {
+            "type": "string",
+            "description": "来源模板 ID；空字符串表示未套用业务模板"
+          },
+          "businessType": {
+            "type": "string",
+            "description": "业务类型编码，如 germplasm；用于提示默认模板来源"
+          },
+          "updatedByUser": {
+            "type": "boolean",
+            "description": "用户是否已手动修改该符号化方案；为 true 时不应被默认模板自动覆盖"
+          }
+        }
+      },
+      "UniqueValueRenderer": {
+        "type": "object",
+        "required": [
+          "type",
+          "field",
+          "classes",
+          "defaultClass"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "uniqueValue"
+            ],
+            "description": "按字段唯一值分类符号化"
+          },
+          "field": {
+            "type": "string",
+            "description": "分类字段名，例如种质数据中的 `性别`"
+          },
+          "templateId": {
+            "type": "string",
+            "description": "默认业务模板 ID，例如 `germplasm.dna-sex-tree.v1`"
+          },
+          "businessType": {
+            "type": "string",
+            "description": "业务类型编码，例如 `germplasm`"
+          },
+          "updatedByUser": {
+            "type": "boolean",
+            "description": "用户是否已手动修改该分类符号化方案"
+          },
+          "classes": {
+            "type": "array",
+            "description": "分类符号列表；一个类别可包含多个原始字段值，用于别名归一化和分类值合并",
+            "items": {
+              "$ref": "#/components/schemas/UniqueValueSymbolClass"
+            }
+          },
+          "defaultClass": {
+            "$ref": "#/components/schemas/UniqueValueSymbolClass"
+          },
+          "normalizationNotes": {
+            "type": "array",
+            "description": "分类值合并或疑似别名提示，供前端展示给用户确认",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "UniqueValueSymbolClass": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "values",
+          "color",
+          "iconImage",
+          "visible"
+        ],
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "类别稳定 ID，前端可用于编辑列表 key"
+          },
+          "label": {
+            "type": "string",
+            "description": "图例显示名称"
+          },
+          "values": {
+            "type": "array",
+            "description": "归入该类别的原始字段值；空数组仅用于默认类",
+            "items": {
+              "type": "string"
+            }
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "类别颜色；平台内置图标会按图标 ID 与颜色生成运行时图片 ID"
+          },
+          "iconImage": {
+            "type": "string",
+            "description": "图标 ID。平台内置图标必须使用 `gm-*` 英文 ID，并在 Mapbox 图层引用前通过 `addImage` 注册"
+          },
+          "size": {
+            "type": "number",
+            "minimum": 0,
+            "description": "类别图标缩放或点半径倍率"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "当前加载数据中归入该类别的要素数量；服务端持久化时可省略或置 0"
+          },
+          "visible": {
+            "type": "boolean",
+            "description": "该类别是否在地图和图例中显示"
           }
         }
       },

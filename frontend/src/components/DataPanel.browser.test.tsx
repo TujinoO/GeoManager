@@ -5,7 +5,12 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { cloneDefaultVectorSymbolization } from "../symbolization";
 import { appTheme } from "../theme";
-import type { DataResourceProfile, ResourceListItem, User } from "../types";
+import type {
+  DataDomainType,
+  DataResourceProfile,
+  ResourceListItem,
+  User,
+} from "../types";
 import DataPanel from "./DataPanel";
 import { VectorSymbolizationEditor } from "./SymbolizationEditor";
 
@@ -88,6 +93,21 @@ const rasterResource: ResourceListItem = {
   isRenderable: true,
   updatedAt: "2026-06-18T12:00:00+08:00",
 };
+
+const communityResource: ResourceListItem = {
+  ...vectorResource,
+  id: 3,
+  name: "群落样方调查数据",
+  code: "community-plots",
+  domainType: "community",
+  category: null,
+};
+
+const domainTypeOptions: Array<{ value: DataDomainType; label: string }> = [
+  { value: "germplasm", label: "种质数据" },
+  { value: "community", label: "群落数据" },
+  { value: "population", label: "种群数据" },
+];
 
 const rasterProfile: DataResourceProfile = {
   resource: rasterResource,
@@ -211,6 +231,63 @@ describe("DataPanel", () => {
 
     expect(onFilterResources).toHaveBeenCalledWith(
       expect.objectContaining({ q: "胡杨", source: "野外调查" }),
+    );
+  });
+
+  it("defaults the domain type selector to all data without sending a filter", () => {
+    const onFilterResources = vi.fn();
+
+    renderWithAntd(
+      <DataPanel
+        resources={[communityResource]}
+        profile={null}
+        selectedResourceId={null}
+        queryResult={null}
+        loadingProfile={false}
+        querying={false}
+        permissions={permissions}
+        domainTypeOptions={domainTypeOptions}
+        onFilterResources={onFilterResources}
+        onSelectResource={vi.fn()}
+        onQuickLoadResource={vi.fn()}
+        onQueryAndLoad={vi.fn()}
+        onLoadRaster={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("全部数据")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /筛选数据/ }));
+
+    expect(onFilterResources).toHaveBeenCalledWith({});
+  });
+
+  it("uses the imported domain type for filtering and resource labels", () => {
+    const onFilterResources = vi.fn();
+
+    renderWithAntd(
+      <DataPanel
+        resources={[communityResource]}
+        profile={null}
+        selectedResourceId={null}
+        queryResult={null}
+        loadingProfile={false}
+        querying={false}
+        permissions={permissions}
+        domainTypeOptions={domainTypeOptions}
+        selectedDomainType="community"
+        onFilterResources={onFilterResources}
+        onSelectResource={vi.fn()}
+        onQuickLoadResource={vi.fn()}
+        onQueryAndLoad={vi.fn()}
+        onLoadRaster={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/群落数据.*GeoPackage/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /筛选数据/ }));
+
+    expect(onFilterResources).toHaveBeenCalledWith(
+      expect.objectContaining({ domainType: "community" }),
     );
   });
 

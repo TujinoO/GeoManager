@@ -16,10 +16,14 @@ from apps.core.config import (
 from apps.core.initialization import (
     DEFAULT_USER_GROUP_NAME,
     GUEST_GROUP_NAME,
+    PLATFORM_ADMIN_GROUP_NAME,
+    RESEARCH_USER_GROUP_NAME,
     SUPERADMIN_GROUP_NAME,
     ensure_guest_user,
     ensure_superadmin_defaults,
+    platform_admin_group_permissions,
     protected_group_permissions,
+    research_user_group_permissions,
     superadmin_group_locked_permissions,
 )
 from apps.core.models import SystemSetting, UserProfile
@@ -485,7 +489,7 @@ class FeaturePermissionTests(TestCase):
             username="user-manager", password="pass12345"
         )
         grant(manager, ("core", "manage_auth"), ("core", "create_user"))
-        group = Group.objects.create(name="科研用户")
+        group = Group.objects.create(name="科研辅助组")
         self.client.force_login(manager)
 
         response = self.client.post(
@@ -615,7 +619,7 @@ class FeaturePermissionTests(TestCase):
             username="self-group-manager", password="pass12345"
         )
         grant(manager, ("core", "manage_auth"))
-        group = Group.objects.create(name="科研用户")
+        group = Group.objects.create(name="科研辅助组")
         manager.groups.add(group)
         self.client.force_login(manager)
 
@@ -763,6 +767,7 @@ class FeaturePermissionTests(TestCase):
         self.assertNotIn("core.access_admin", permission_ids)
         self.assertIn("core.manage_feature_permissions", permission_ids)
         self.assertIn("core.create_user", permission_ids)
+        groups_by_name = {item["name"]: item for item in payload["items"]}
         guest_items = [
             item for item in payload["items"] if item["name"] == GUEST_GROUP_NAME
         ]
@@ -773,6 +778,22 @@ class FeaturePermissionTests(TestCase):
         ]
         self.assertEqual(default_user_items[0]["isProtected"], True)
         self.assertEqual(default_user_items[0]["lockedPermissions"], [])
+        self.assertEqual(groups_by_name[PLATFORM_ADMIN_GROUP_NAME]["isProtected"], True)
+        self.assertEqual(
+            set(groups_by_name[PLATFORM_ADMIN_GROUP_NAME]["permissions"]),
+            platform_admin_group_permissions(),
+        )
+        self.assertEqual(
+            groups_by_name[PLATFORM_ADMIN_GROUP_NAME]["lockedPermissions"], []
+        )
+        self.assertEqual(groups_by_name[RESEARCH_USER_GROUP_NAME]["isProtected"], True)
+        self.assertEqual(
+            set(groups_by_name[RESEARCH_USER_GROUP_NAME]["permissions"]),
+            research_user_group_permissions(),
+        )
+        self.assertEqual(
+            groups_by_name[RESEARCH_USER_GROUP_NAME]["lockedPermissions"], []
+        )
         protected_items = [
             item for item in payload["items"] if item["name"] == SUPERADMIN_GROUP_NAME
         ]
@@ -988,6 +1009,43 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(patch_response.status_code, 200)
         self.assertEqual(patch_response.json()["permissions"], ["core.query_data"])
 
+    def test_non_superadmin_builtin_groups_are_protected_but_permissions_can_change(
+        self,
+    ):
+        manager = get_user_model().objects.create_user(
+            username="builtin-group-guard-manager", password="pass12345"
+        )
+        grant(manager, ("core", "manage_auth"), ("core", "manage_feature_permissions"))
+        ensure_superadmin_defaults(create_account=False)
+        self.client.force_login(manager)
+
+        for group_name in (PLATFORM_ADMIN_GROUP_NAME, RESEARCH_USER_GROUP_NAME):
+            with self.subTest(group_name=group_name):
+                group = Group.objects.get(name=group_name)
+                delete_response = self.client.post(
+                    f"/api/groups/{group.id}/",
+                    data=json.dumps({"action": "delete"}),
+                    content_type="application/json",
+                )
+                rename_response = self.client.post(
+                    f"/api/groups/{group.id}/",
+                    data=json.dumps({"name": f"{group_name}-renamed"}),
+                    content_type="application/json",
+                )
+                patch_response = self.client.post(
+                    f"/api/groups/{group.id}/",
+                    data=json.dumps({"permissions": ["core.query_data"]}),
+                    content_type="application/json",
+                )
+
+                self.assertEqual(delete_response.status_code, 400)
+                self.assertEqual(rename_response.status_code, 400)
+                self.assertEqual(patch_response.status_code, 200)
+                self.assertEqual(
+                    patch_response.json()["permissions"], ["core.query_data"]
+                )
+                self.assertEqual(patch_response.json()["lockedPermissions"], [])
+
     def test_superadmin_user_is_hidden_from_regular_auth_manager(self):
         manager = get_user_model().objects.create_user(
             username="superadmin-user-group-manager", password="pass12345"
@@ -1130,7 +1188,7 @@ class FeaturePermissionTests(TestCase):
             username="user-permission-list-manager", password="pass12345"
         )
         grant(manager, ("core", "manage_auth"), ("core", "manage_feature_permissions"))
-        group = Group.objects.create(name="科研用户")
+        group = Group.objects.create(name="科研辅助组")
         permission = Permission.objects.get(
             content_type__app_label="core", codename="browse_data"
         )

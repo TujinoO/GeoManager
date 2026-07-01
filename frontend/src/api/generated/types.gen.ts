@@ -1191,11 +1191,11 @@ export type Group = {
      */
     permissions: Array<string>;
     /**
-     * 是否为系统受保护用户组，受保护组不能删除或重命名。初始化内置组包含超级管理员、普通用户和游客；游客权限允许编辑
+     * 是否为系统受保护用户组，受保护组不能删除或重命名。初始化内置组包含超级管理员、平台管理员、科研用户、普通用户和游客；除超级管理员外，其他内置组权限允许编辑
      */
     isProtected: boolean;
     /**
-     * 受保护用户组中不可关闭的平台功能权限列表。游客用户组返回空列表
+     * 受保护用户组中不可关闭的平台功能权限列表。当前仅超级管理员返回锁定权限，平台管理员、科研用户、普通用户和游客返回空列表
      */
     lockedPermissions: Array<string>;
 };
@@ -1652,12 +1652,7 @@ export type AdminDataResourceLayer = {
      * 默认透明度百分比
      */
     defaultOpacity: number;
-    /**
-     * 矢量默认符号化方案
-     */
-    symbolization: {
-        [key: string]: unknown;
-    };
+    symbolization: VectorSymbolization;
     /**
      * 栅格默认符号化规则
      */
@@ -1856,12 +1851,7 @@ export type AdminDataResourceVisualization = {
      * 默认透明度百分比
      */
     defaultOpacity?: number;
-    /**
-     * 矢量默认符号化方案
-     */
-    symbolization?: {
-        [key: string]: unknown;
-    };
+    symbolization?: VectorSymbolization;
     /**
      * 栅格默认符号化规则
      */
@@ -2107,12 +2097,7 @@ export type MapLayer = {
      * 默认透明度百分比
      */
     defaultOpacity: number;
-    /**
-     * 矢量默认符号化配置
-     */
-    symbolization: {
-        [key: string]: string | number | boolean;
-    };
+    symbolization: VectorSymbolization;
     /**
      * 图层边界
      */
@@ -2130,6 +2115,153 @@ export type MapLayer = {
      * 最后更新时间
      */
     updatedAt: string;
+};
+
+/**
+ * 矢量图层符号化配置。平台继续兼容历史松散字段；新版本推荐使用 `renderer` 描述单一符号、唯一值分类和业务默认模板，前端根据该结构生成 Mapbox GL JS 表达式并在渲染前注册 `gm-*` 平台内置图标。
+ *
+ */
+export type VectorSymbolization = {
+    /**
+     * 图层透明度百分比
+     */
+    opacity?: number;
+    /**
+     * 点图层基础表达方式；唯一值分类点模板通常使用 symbol
+     */
+    pointMode?: 'circle' | 'symbol' | 'heatmap';
+    renderer?: VectorRenderer;
+    /**
+     * 圆点图层基础样式，字段驱动渲染未覆盖的属性继续使用这里的值
+     */
+    circle?: {
+        [key: string]: unknown;
+    };
+    /**
+     * 图标和标注图层基础样式；平台内置图标使用 `gm-*` 英文 ID
+     */
+    symbol?: {
+        [key: string]: unknown;
+    };
+    /**
+     * 热力图样式和权重字段
+     */
+    heatmap?: {
+        [key: string]: unknown;
+    };
+    /**
+     * Mapbox source 聚合配置
+     */
+    cluster?: {
+        [key: string]: unknown;
+    };
+    /**
+     * 线图层基础样式
+     */
+    line?: {
+        [key: string]: unknown;
+    };
+    /**
+     * 面图层基础样式
+     */
+    fill?: {
+        [key: string]: unknown;
+    };
+    [key: string]: unknown;
+};
+
+/**
+ * 矢量符号化渲染器；未提供时按单一符号处理
+ */
+export type VectorRenderer = SingleSymbolRenderer | UniqueValueRenderer;
+
+export type SingleSymbolRenderer = {
+    /**
+     * 单一符号渲染
+     */
+    type: 'single';
+    /**
+     * 来源模板 ID；空字符串表示未套用业务模板
+     */
+    templateId?: string;
+    /**
+     * 业务类型编码，如 germplasm；用于提示默认模板来源
+     */
+    businessType?: string;
+    /**
+     * 用户是否已手动修改该符号化方案；为 true 时不应被默认模板自动覆盖
+     */
+    updatedByUser?: boolean;
+    [key: string]: unknown;
+};
+
+export type UniqueValueRenderer = {
+    /**
+     * 按字段唯一值分类符号化
+     */
+    type: 'uniqueValue';
+    /**
+     * 分类字段名，例如种质数据中的 `性别`
+     */
+    field: string;
+    /**
+     * 默认业务模板 ID，例如 `germplasm.dna-sex-tree.v1`
+     */
+    templateId?: string;
+    /**
+     * 业务类型编码，例如 `germplasm`
+     */
+    businessType?: string;
+    /**
+     * 用户是否已手动修改该分类符号化方案
+     */
+    updatedByUser?: boolean;
+    /**
+     * 分类符号列表；一个类别可包含多个原始字段值，用于别名归一化和分类值合并
+     */
+    classes: Array<UniqueValueSymbolClass>;
+    defaultClass: UniqueValueSymbolClass;
+    /**
+     * 分类值合并或疑似别名提示，供前端展示给用户确认
+     */
+    normalizationNotes?: Array<string>;
+    [key: string]: unknown;
+};
+
+export type UniqueValueSymbolClass = {
+    /**
+     * 类别稳定 ID，前端可用于编辑列表 key
+     */
+    id: string;
+    /**
+     * 图例显示名称
+     */
+    label: string;
+    /**
+     * 归入该类别的原始字段值；空数组仅用于默认类
+     */
+    values: Array<string>;
+    /**
+     * 类别颜色；平台内置图标会按图标 ID 与颜色生成运行时图片 ID
+     */
+    color: string;
+    /**
+     * 图标 ID。平台内置图标必须使用 `gm-*` 英文 ID，并在 Mapbox 图层引用前通过 `addImage` 注册
+     */
+    iconImage: string;
+    /**
+     * 类别图标缩放或点半径倍率
+     */
+    size?: number;
+    /**
+     * 当前加载数据中归入该类别的要素数量；服务端持久化时可省略或置 0
+     */
+    count?: number;
+    /**
+     * 该类别是否在地图和图例中显示
+     */
+    visible: boolean;
+    [key: string]: unknown;
 };
 
 export type RasterDataset = {
@@ -4890,7 +5022,7 @@ export type ImportCommitData = {
     body: {
         file: Blob | File;
         /**
-         * JSON 字符串，包含导入配置；name 是前端显示的数据名称，domainType 是平台确认的业务数据类型，sheetName 是 Excel 工作表名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true 表示用户已在校验阶段确认重复名称；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。domainType 编码无效时返回 400 ImportErrorResponse。
+         * JSON 字符串，包含导入配置；name 是前端显示的数据名称，domainType 是必填的平台确认业务数据类型，sheetName 是 Excel 工作表名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true 表示用户已在校验阶段确认重复名称；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。domainType 缺失或编码无效时返回 400 ImportErrorResponse。
          */
         payload: string;
     };

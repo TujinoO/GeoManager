@@ -687,6 +687,91 @@
           },
           "isActive": true,
           "updatedAt": "2026-06-07T11:34:11.744219+00:00"
+        },
+        {
+          "id": 31,
+          "name": "塔里木大学移交胡杨DNA样品清单",
+          "code": "germplasm-dna-sex-points-2024",
+          "layerType": "vector",
+          "geometryType": "point",
+          "category": {
+            "id": 301,
+            "type": "data_category",
+            "code": "germplasm",
+            "name": "种质资源"
+          },
+          "dataResourceId": 31,
+          "sortOrder": 110,
+          "defaultVisible": false,
+          "defaultOpacity": 90,
+          "symbolization": {
+            "opacity": 90,
+            "pointMode": "symbol",
+            "renderer": {
+              "type": "uniqueValue",
+              "field": "性别",
+              "templateId": "germplasm.dna-sex-tree.v1",
+              "businessType": "germplasm",
+              "updatedByUser": false,
+              "classes": [
+                {
+                  "id": "female",
+                  "label": "雌性",
+                  "values": [
+                    "雌株",
+                    "雌株珠"
+                  ],
+                  "color": "#D65A8A",
+                  "iconImage": "gm-tree",
+                  "size": 1.08,
+                  "count": 302,
+                  "visible": true
+                },
+                {
+                  "id": "male",
+                  "label": "雄性",
+                  "values": [
+                    "雄株"
+                  ],
+                  "color": "#2878B5",
+                  "iconImage": "gm-tree",
+                  "size": 1.08,
+                  "count": 361,
+                  "visible": true
+                }
+              ],
+              "defaultClass": {
+                "id": "other",
+                "label": "未知/其他",
+                "values": [],
+                "color": "#8A8F98",
+                "iconImage": "gm-tree",
+                "size": 0.96,
+                "count": 0,
+                "visible": true
+              },
+              "normalizationNotes": [
+                "字段值“雌株珠”疑似“雌株”的录入别名，默认并入雌性类别。"
+              ]
+            },
+            "symbol": {
+              "iconImage": "gm-tree",
+              "iconColor": "#2F7D62",
+              "iconSize": 1.08,
+              "textField": "",
+              "textSize": 12
+            }
+          },
+          "bounds": [
+            74.365,
+            40.398,
+            90.922,
+            43.812
+          ],
+          "legend": "按性别默认分为雌性、雄性和未知/其他，使用树形图标表达种质资源点位。",
+          "rasterRules": {},
+          "isActive": true,
+          "updatedAt": "2026-07-01T12:00:00+08:00"
         }
       ]
     }

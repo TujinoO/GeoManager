@@ -4,6 +4,7 @@ import type {
   DataResourceProfile,
   ResourceQueryResult,
 } from "../types";
+import { isUniqueValueRenderer } from "../symbolization";
 import {
   createEmptyLayerGroup,
   createRasterLayerGroup,
@@ -109,6 +110,77 @@ describe("createVectorLayerGroup", () => {
     if (child.layerType === "vector") {
       expect(child.symbolization.pointMode).toBeDefined();
       expect(child.symbolization.opacity).toBeDefined();
+    }
+  });
+
+  it("applies germplasm DNA sex template to matching vector data", () => {
+    const group = createVectorLayerGroup(
+      makeResource({ domainType: "germplasm" }),
+      makeProfile({
+        fields: [
+          {
+            name: "DNA样本编号",
+            type: "str",
+            nullable: false,
+            sampleValues: ["DNA-001"],
+            description: "",
+          },
+          {
+            name: "性别",
+            type: "str",
+            nullable: false,
+            sampleValues: ["雌株", "雄株"],
+            description: "",
+          },
+        ],
+      }),
+      makeQueryResult({
+        fields: [
+          {
+            name: "DNA样本编号",
+            type: "str",
+            nullable: false,
+            sampleValues: ["DNA-001"],
+            description: "",
+          },
+          {
+            name: "性别",
+            type: "str",
+            nullable: false,
+            sampleValues: ["雌株", "雄株"],
+            description: "",
+          },
+        ],
+        geojson: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              geometry: { type: "Point", coordinates: [80, 40] },
+              properties: { 性别: "雌株" },
+            },
+            {
+              type: "Feature",
+              geometry: { type: "Point", coordinates: [81, 41] },
+              properties: { 性别: "雌株珠" },
+            },
+            {
+              type: "Feature",
+              geometry: { type: "Point", coordinates: [82, 42] },
+              properties: { 性别: "雄株" },
+            },
+          ],
+        },
+      }),
+    );
+    const child = group.children[0];
+    expect(child.layerType).toBe("vector");
+    if (child.layerType === "vector") {
+      expect(child.symbolization.pointMode).toBe("symbol");
+      expect(isUniqueValueRenderer(child.symbolization.renderer)).toBe(true);
+      if (isUniqueValueRenderer(child.symbolization.renderer)) {
+        expect(child.symbolization.renderer.classes[0]?.count).toBe(2);
+      }
     }
   });
 

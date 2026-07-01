@@ -39,6 +39,7 @@ const AdminSystemSettingsPage = lazy(
 const AdminWorkspaceManagementPage = lazy(
   () => import("./admin/AdminWorkspaceManagementPage"),
 );
+const AboutPage = lazy(() => import("./pages/AboutPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const MapPage = lazy(() => import("./pages/MapPage"));
@@ -173,6 +174,18 @@ export default function App() {
               element={
                 <RouteTransition>
                   <NonGeoPage />
+                </RouteTransition>
+              }
+            />
+            <Route
+              path="/about"
+              element={<Navigate to="/about/system" replace />}
+            />
+            <Route
+              path="/about/:section"
+              element={
+                <RouteTransition>
+                  <AboutPage />
                 </RouteTransition>
               }
             />

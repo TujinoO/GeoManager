@@ -477,9 +477,13 @@ export default function MapPage() {
   }
 
   const handleSelectDataDomain = useCallback(
-    (domainType: DataDomainType) => {
+    (domainType: DataDomainType | null) => {
       const nextParams = new URLSearchParams(searchParams);
-      nextParams.set("domainType", domainType);
+      if (domainType) {
+        nextParams.set("domainType", domainType);
+      } else {
+        nextParams.delete("domainType");
+      }
       nextParams.delete("resourceQ");
       setSearchParams(nextParams);
       setResourceSearchKeyword("");
