@@ -2,6 +2,7 @@ import io
 import json
 import sqlite3
 import zipfile
+from datetime import date
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -15,6 +16,7 @@ from apps.catalog.models import (
     DataCatalog,
     DataResource,
     DataResourceGroup,
+    DictionaryItem,
     MapLayer,
     WorkspaceScene,
 )
@@ -1833,7 +1835,7 @@ class AdminDataResourceApiTests(TestCase):
             ("core", "browse_data"),
         )
         self.client.force_login(self.user)
-        self.group = Group.objects.create(name="科研用户")
+        self.group, _ = Group.objects.get_or_create(name="科研用户")
         self.resource = DataResource.objects.create(
             name="存量样地数据",
             code="inventory-plots",
@@ -2019,14 +2021,62 @@ class AdminDataResourceApiTests(TestCase):
         )
 
     def test_admin_data_export_supports_csv_and_xlsx(self):
+        data_category = DictionaryItem.objects.create(
+            dict_type="data_category",
+            code="field-survey",
+            name="野外调查",
+        )
+        inventory_group = DataResourceGroup.objects.create(name="DNA 样品")
+        self.resource.domain_type = "germplasm"
+        self.resource.category = data_category
+        self.resource.inventory_group = inventory_group
+        self.resource.data_date = date(2026, 7, 1)
+        self.resource.spatial_extent = "87.600000,43.795100,87.642800,43.812450"
+        self.resource.coordinate_system = "EPSG:4326"
+        self.resource.description = "胡杨 DNA 样品清单"
+        self.resource.quality_note = "经纬度已统一"
+        self.resource.size_bytes = 232103
+        self.resource.item_count = 663
+        self.resource.save()
+        self.resource.access_groups.add(self.group)
+        MapLayer.objects.create(
+            name="DNA 样品点",
+            code="dna-sample-points",
+            layer_type=MapLayer.LayerType.VECTOR,
+            geometry_type=MapLayer.GeometryType.POINT,
+            data_resource=self.resource,
+        )
+
         csv_response = self.client.get("/api/admin/data/resources/export/?format=csv")
         xlsx_response = self.client.get("/api/admin/data/resources/export/?format=xlsx")
 
         self.assertEqual(csv_response.status_code, 200)
         self.assertIn("text/csv", csv_response["Content-Type"])
-        self.assertIn("存量样地数据", csv_response.content.decode("utf-8-sig"))
+        csv_text = csv_response.content.decode("utf-8-sig")
+        self.assertIn("存量数据组别", csv_text)
+        self.assertIn("业务数据类型", csv_text)
+        self.assertIn("空间范围", csv_text)
+        self.assertIn("DNA 样品", csv_text)
+        self.assertIn("种质数据", csv_text)
+        self.assertIn("经纬度已统一", csv_text)
         self.assertEqual(xlsx_response.status_code, 200)
         self.assertIn("spreadsheetml", xlsx_response["Content-Type"])
+        from openpyxl import load_workbook
+
+        workbook = load_workbook(io.BytesIO(xlsx_response.content), data_only=True)
+        sheet = workbook.active
+        headers = [cell.value for cell in sheet[1]]
+        values = dict(zip(headers, [cell.value for cell in sheet[2]], strict=True))
+        self.assertEqual(values["存量数据组别"], "DNA 样品")
+        self.assertEqual(values["数据类型"], "矢量空间数据")
+        self.assertEqual(values["业务数据类型"], "种质数据")
+        self.assertEqual(values["状态"], "启用")
+        self.assertEqual(values["分类"], "野外调查")
+        self.assertEqual(values["空间范围"], "87.600000,43.795100,87.642800,43.812450")
+        self.assertEqual(values["默认图层"], "DNA 样品点")
+        self.assertEqual(values["数据大小(B)"], 232103)
+        self.assertEqual(values["数据条目数"], 663)
+        self.assertEqual(sheet.freeze_panes, "A2")
 
     def test_admin_data_resource_list_hides_inaccessible_resources(self):
         restricted_group = Group.objects.create(name="保密数据组")

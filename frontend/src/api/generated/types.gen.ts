@@ -3293,6 +3293,44 @@ export type GetHealthResponses = {
 
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
 
+export type GetMapThumbnailTileData = {
+    body?: never;
+    path: {
+        /**
+         * Web Mercator 瓦片层级，范围 0-12。
+         */
+        z: number;
+        /**
+         * Web Mercator 瓦片 X 坐标，必须在指定层级有效范围内。
+         */
+        x: number;
+        /**
+         * Web Mercator 瓦片 Y 坐标，必须在指定层级有效范围内。
+         */
+        y: number;
+    };
+    query?: never;
+    url: '/api/map/thumbnail-tiles/{z}/{x}/{y}.png';
+};
+
+export type GetMapThumbnailTileErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+};
+
+export type GetMapThumbnailTileError = GetMapThumbnailTileErrors[keyof GetMapThumbnailTileErrors];
+
+export type GetMapThumbnailTileResponses = {
+    /**
+     * 成功返回图片瓦片。
+     */
+    200: Blob | File;
+};
+
+export type GetMapThumbnailTileResponse = GetMapThumbnailTileResponses[keyof GetMapThumbnailTileResponses];
+
 export type GetCsrfCookieData = {
     body?: never;
     path?: never;

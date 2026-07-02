@@ -1020,19 +1020,18 @@ def admin_data_resource_detail(request, resource_id: int):
 def admin_data_resources_export(request):
     queryset = _filter_admin_data_resources(
         DataResource.objects.select_related("category", "maintainer")
+        .select_related("inventory_group")
         .prefetch_related("access_groups", "map_layers")
         .order_by("-updated_at", "name"),
         request.GET,
     )
     queryset = filter_accessible(queryset, request.user)
-    rows = [
-        _serialize_admin_data_resource(resource, request.user) for resource in queryset
-    ]
+    resources = list(queryset)
     export_format = str(request.GET.get("format", "csv")).strip().lower()
     if export_format == "xlsx":
-        response = _data_resources_xlsx_response(rows)
+        response = _data_resources_xlsx_response(resources, request.user)
     elif export_format == "csv":
-        response = _data_resources_csv_response(rows)
+        response = _data_resources_csv_response(resources, request.user)
     else:
         return JsonResponse({"detail": "format 仅支持 csv 或 xlsx"}, status=400)
 
@@ -1041,7 +1040,7 @@ def admin_data_resources_export(request):
         "数据管理",
         "导出存量数据",
         "success",
-        f"{export_format.upper()} {len(rows)} 条",
+        f"{export_format.upper()} {len(resources)} 条",
         request,
     )
     return response
@@ -1701,10 +1700,12 @@ def _admin_resource_action_label(action: str, payload: dict[str, Any]) -> str:
     return f"更新存量数据{'、'.join(changed)}" if changed else "更新存量数据"
 
 
-def _data_resources_csv_response(rows: list[dict[str, Any]]) -> HttpResponse:
+def _data_resources_csv_response(
+    resources: list[DataResource], request_user
+) -> HttpResponse:
     output = io.StringIO()
     output.write("\ufeff")
-    headers, body = _data_resource_export_rows(rows)
+    headers, body = _data_resource_export_rows(resources, request_user)
     output.write(",".join(headers))
     output.write("\n")
     for row in body:
@@ -1715,16 +1716,34 @@ def _data_resources_csv_response(rows: list[dict[str, Any]]) -> HttpResponse:
     return response
 
 
-def _data_resources_xlsx_response(rows: list[dict[str, Any]]) -> HttpResponse:
+def _data_resources_xlsx_response(
+    resources: list[DataResource], request_user
+) -> HttpResponse:
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
     from openpyxl import Workbook
 
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "存量数据"
-    headers, body = _data_resource_export_rows(rows)
+    headers, body = _data_resource_export_rows(resources, request_user)
     sheet.append(headers)
     for row in body:
         sheet.append(row)
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = sheet.dimensions
+    header_fill = PatternFill("solid", fgColor="D9EDE6")
+    for cell in sheet[1]:
+        cell.font = Font(bold=True, color="173F39")
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+    for column_cells in sheet.columns:
+        values = ["" if cell.value is None else str(cell.value) for cell in column_cells]
+        width = min(max(max((len(value) for value in values), default=8) + 2, 10), 36)
+        sheet.column_dimensions[get_column_letter(column_cells[0].column)].width = width
+    for row in sheet.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
     buffer = io.BytesIO()
     workbook.save(buffer)
     response = HttpResponse(
@@ -1736,46 +1755,100 @@ def _data_resources_xlsx_response(rows: list[dict[str, Any]]) -> HttpResponse:
 
 
 def _data_resource_export_rows(
-    rows: list[dict[str, Any]],
-) -> tuple[list[str], list[list[str]]]:
+    resources: list[DataResource], request_user
+) -> tuple[list[str], list[list[Any]]]:
     headers = [
+        "存量数据组别",
         "数据名称",
         "数据编号",
         "数据类型",
+        "业务数据类型",
         "状态",
         "分类",
         "来源",
         "提供单位",
+        "上传用户",
+        "上传账号",
         "数据日期",
+        "空间范围",
+        "坐标信息",
         "文件格式",
         "存储路径",
+        "数据大小(B)",
         "数据大小",
         "数据条目数",
         "访问角色",
-        "维护人员",
+        "默认图层",
+        "图层类型",
+        "几何类型",
+        "资源说明",
+        "质量说明",
+        "创建时间",
         "更新时间",
     ]
-    body = [
-        [
-            row["name"],
-            row["code"],
-            row["dataType"],
-            row["status"],
-            (row["category"] or {}).get("name", ""),
-            row["source"],
-            row["provider"],
-            row["dataDate"] or "",
-            row["fileFormat"],
-            row["storagePath"],
-            str(row["sizeBytes"]),
-            str(row["itemCount"]),
-            "、".join(group["name"] for group in row["accessGroups"]),
-            row["maintainer"],
-            row["updatedAt"],
-        ]
-        for row in rows
-    ]
+    body = []
+    for resource in resources:
+        layers = list(resource.map_layers.all())
+        layer = layers[0] if layers else None
+        uploader = _serialize_uploader(resource.maintainer, request_user)
+        body.append(
+            [
+                resource.inventory_group.name if resource.inventory_group else "默认分组",
+                resource.name,
+                resource.code,
+                resource.get_data_type_display(),
+                resource.get_domain_type_display() if resource.domain_type else "未归类",
+                resource.get_status_display(),
+                resource.category.name if resource.category else "未分类",
+                _export_text(resource.source, "未记录来源"),
+                _export_text(resource.provider, "未记录提供单位"),
+                uploader["displayName"] if uploader else "未记录或不可见",
+                uploader["username"] if uploader else "",
+                resource.data_date.isoformat() if resource.data_date else "未记录",
+                _export_text(resource.spatial_extent, "未记录"),
+                _export_text(resource.coordinate_system, "未记录"),
+                _export_text(resource.file_format, "未记录"),
+                _export_text(resource.storage_path, "未记录"),
+                int(resource.size_bytes or 0),
+                _format_bytes(resource.size_bytes),
+                int(resource.item_count or 0),
+                "、".join(
+                    group.name
+                    for group in visible_groups_for(
+                        resource.access_groups.all(), request_user
+                    )
+                )
+                or "未单独配置",
+                layer.name if layer else "未配置",
+                layer.get_layer_type_display() if layer else "",
+                layer.get_geometry_type_display() if layer else "",
+                _export_text(resource.description, "未记录"),
+                _export_text(resource.quality_note, "未记录"),
+                timezone.localtime(resource.created_at).strftime("%Y-%m-%d %H:%M:%S"),
+                timezone.localtime(resource.updated_at).strftime("%Y-%m-%d %H:%M:%S"),
+            ]
+        )
     return headers, body
+
+
+def _export_text(value: Any, fallback: str = "") -> str:
+    text = str(value or "").strip()
+    return text if text else fallback
+
+
+def _format_bytes(value: Any) -> str:
+    try:
+        size = float(value or 0)
+    except (TypeError, ValueError):
+        size = 0
+    units = ["B", "KB", "MB", "GB", "TB"]
+    unit_index = 0
+    while size >= 1024 and unit_index < len(units) - 1:
+        size /= 1024
+        unit_index += 1
+    if unit_index == 0:
+        return f"{int(size)} {units[unit_index]}"
+    return f"{size:.1f} {units[unit_index]}"
 
 
 def _escape_csv_cell(value: Any) -> str:

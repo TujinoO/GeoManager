@@ -1124,6 +1124,7 @@ export default function MapPage() {
             <RightSidePanel
               selectedFeature={selectedFeature}
               currentView={currentMapView}
+              mapConfig={bootstrap.map}
             />
           </ConfigProvider>
         </aside>

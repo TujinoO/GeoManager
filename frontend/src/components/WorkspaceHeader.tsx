@@ -570,7 +570,7 @@ export default function WorkspaceHeader({
 
   const handleAiInterpretationPlaceholder = useCallback(() => {
     dismissSearchForNavigation();
-    message.info("智能解译功能按钮已预留，暂未接入后端服务");
+    message.info("智能解译功能按钮已预留，暂未接入后端服务", 1.2);
   }, [dismissSearchForNavigation, message]);
 
   function handleResourceCenter() {

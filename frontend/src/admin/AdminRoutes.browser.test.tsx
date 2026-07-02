@@ -879,17 +879,17 @@ describe("admin routes", () => {
       "workspace-switch-card-active",
     );
     expect(
-      await screen.findByRole("tab", { name: "我上传的" }),
+      await screen.findByRole("tab", { name: "我可见的" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "我可见的" })).toBeInTheDocument();
-    expect(screen.getByText("我上传的数据概览")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "我上传的" })).toBeInTheDocument();
+    expect(screen.getByText("我可见的数据概览")).toBeInTheDocument();
     expect(screen.getByText("数据资源")).toBeInTheDocument();
     expect(screen.getByText("数据大小")).toBeInTheDocument();
     expect(screen.getByText("数据条目")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("tab", { name: "我可见的" }));
+    fireEvent.click(screen.getByRole("tab", { name: "我上传的" }));
 
-    expect(await screen.findByText("我可见的数据概览")).toBeInTheDocument();
+    expect(await screen.findByText("我上传的数据概览")).toBeInTheDocument();
     expect(screen.queryByText("用户信息")).not.toBeInTheDocument();
     expect(screen.queryByText("服务器信息")).not.toBeInTheDocument();
   });

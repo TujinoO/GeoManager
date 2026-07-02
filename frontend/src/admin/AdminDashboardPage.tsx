@@ -498,19 +498,7 @@ function DataOverviewTabs({
   overview: DataOverviewCard;
   canViewVisible: boolean;
 }) {
-  const items: TabsProps["items"] = [
-    {
-      key: "ownUploads",
-      label: "我上传的",
-      children: (
-        <DataOverviewScopePanel
-          title="我上传的数据概览"
-          scope={overview.ownUploads}
-          itemDescription="按当前账号上传的数据统计"
-        />
-      ),
-    },
-  ];
+  const items: TabsProps["items"] = [];
   if (canViewVisible && overview.visibleResources) {
     items.push({
       key: "visibleResources",
@@ -529,6 +517,17 @@ function DataOverviewTabs({
       ),
     });
   }
+  items.push({
+    key: "ownUploads",
+    label: "我上传的",
+    children: (
+      <DataOverviewScopePanel
+        title="我上传的数据概览"
+        scope={overview.ownUploads}
+        itemDescription="按当前账号上传的数据统计"
+      />
+    ),
+  });
   return <Tabs className="admin-dashboard-tabs" items={items} />;
 }
 

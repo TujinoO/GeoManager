@@ -25,8 +25,8 @@ type SatelliteBasemapColorCorrection = Pick<
 >;
 
 export const satelliteBasemapColorCorrection: SatelliteBasemapColorCorrection = {
-  "raster-saturation": -0.28,
-  "raster-contrast": -0.08,
+  "raster-saturation": -0.55,
+  "raster-contrast": -0.1,
   "raster-brightness-min": 0.04,
   "raster-brightness-max": 0.9,
 };

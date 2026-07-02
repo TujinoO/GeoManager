@@ -1,8 +1,10 @@
 import json
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import tomlkit
+from apps.core.map_thumbnail import ThumbnailTileError
 from apps.audit.models import OperationLog
 from apps.catalog.models import DataResource, DictionaryItem, MapLayer
 from apps.core.config import (
@@ -80,6 +82,99 @@ class BootstrapApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.json()["allowRegistration"])
+
+
+class MapThumbnailTileApiTests(TestCase):
+    def test_thumbnail_tile_is_served_from_same_origin_and_cached(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(
+                    (root / "app").as_posix(),
+                    (root / "research").as_posix(),
+                ),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+
+            with (
+                override_settings(PROJECT_CONFIG=config),
+                patch(
+                    "apps.core.map_thumbnail.fetch_tile",
+                    return_value=(b"png-data", "image/png"),
+                ) as fetch_tile,
+            ):
+                response = self.client.get("/api/map/thumbnail-tiles/3/4/2.png")
+                cached_response = self.client.get("/api/map/thumbnail-tiles/3/4/2.png")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "image/png")
+        self.assertEqual(response.content, b"png-data")
+        self.assertEqual(cached_response.content, b"png-data")
+        fetch_tile.assert_called_once()
+
+    def test_thumbnail_tile_preserves_cached_image_content_type(self):
+        jpeg_data = b"\xff\xd8\xff\xe0cached-jpeg"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(
+                    (root / "app").as_posix(),
+                    (root / "research").as_posix(),
+                ),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+
+            with (
+                override_settings(PROJECT_CONFIG=config),
+                patch(
+                    "apps.core.map_thumbnail.fetch_tile",
+                    return_value=(jpeg_data, "image/jpeg"),
+                ) as fetch_tile,
+            ):
+                response = self.client.get("/api/map/thumbnail-tiles/3/4/2.png")
+                cached_response = self.client.get("/api/map/thumbnail-tiles/3/4/2.png")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "image/jpeg")
+        self.assertEqual(cached_response["Content-Type"], "image/jpeg")
+        self.assertEqual(cached_response.content, jpeg_data)
+        fetch_tile.assert_called_once()
+
+    def test_thumbnail_tile_returns_generated_image_when_source_is_unavailable(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(
+                    (root / "app").as_posix(),
+                    (root / "research").as_posix(),
+                ),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+
+            with (
+                override_settings(PROJECT_CONFIG=config),
+                patch(
+                    "apps.core.map_thumbnail.fetch_tile",
+                    side_effect=ThumbnailTileError("unavailable"),
+                ),
+            ):
+                response = self.client.get("/api/map/thumbnail-tiles/3/4/2.png")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "image/svg+xml")
+        self.assertIn(b"<svg", response.content)
+        self.assertIn(b'data-local-basemap="world-mercator"', response.content)
+
+    def test_thumbnail_tile_rejects_out_of_range_coordinates(self):
+        response = self.client.get("/api/map/thumbnail-tiles/3/99/2.png")
+
+        self.assertEqual(response.status_code, 400)
 
 
 class LoginOverviewApiTests(TestCase):

@@ -168,6 +168,24 @@ console.log(overview.metrics.map((item) => item.displayValue));
 
 推荐后端将该接口结果短时间缓存，例如 60 秒到 5 分钟；数据资源、图层和监测站点数量不要求实时到秒级，但应与后台 Dashboard 或数据管理统计口径保持一致。
 
+### 地图缩略图同源瓦片
+
+主界面右侧“当前视角平面缩略图”必须通过平台同源接口加载底图瓦片，禁止前端直接把 Mapbox、OSM 等第三方瓦片域名写入 `<img>`。同源接口为：
+
+```text
+GET /api/map/thumbnail-tiles/{z}/{x}/{y}.png
+```
+
+后端按当前 `application.map` 配置选择 Mapbox 或 OSM 源，成功获取后缓存到业务数据目录下的 `media/map-thumbnail-tiles/`，缓存命中时按图片文件头保留真实 MIME 类型。当外部瓦片源暂时不可达且本地无缓存时，接口仍返回本地生成的 Web Mercator 2D 世界地图瓦片，避免无缓存的新电脑访问平台时出现黑屏或仅显示前端内置兜底图。
+
+前端缩略图只需要生成同源 URL，例如：
+
+```typescript
+const tileUrl = `/api/map/thumbnail-tiles/${z}/${x}/${y}.png`;
+```
+
+该接口不暴露敏感业务数据；返回内容可能是 `image/png`、`image/jpeg`、`image/webp`、`image/avif` 或本地兜底 `image/svg+xml`，非法瓦片坐标返回标准 `ErrorResponse`。
+
 **Python**
 
 ```python

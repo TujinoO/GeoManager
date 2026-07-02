@@ -103,6 +103,68 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /api/map/thumbnail-tiles/{z}/{x}/{y}.png:
+    get:
+      tags: [公共接口]
+      summary: 获取地图缩略图同源瓦片
+      description: |
+        返回右侧当前视角平面缩略图使用的底图瓦片。浏览器只请求平台同源地址，
+        由服务器按当前 application.map 配置代理 Mapbox 或 OSM 瓦片并缓存到应用数据目录。
+        成功瓦片会缓存到应用数据目录，缓存命中时按图片文件头保留真实 MIME 类型。
+        当外部瓦片源暂时不可达且本地无缓存时，服务器返回本地生成的 Web Mercator 2D 世界地图瓦片，
+        保证客户端不会因为第三方瓦片域名访问失败而显示黑屏或前端内置兜底图。
+      operationId: getMapThumbnailTile
+      security: []
+      parameters:
+        - name: z
+          in: path
+          required: true
+          description: Web Mercator 瓦片层级，范围 0-12。
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 12
+        - name: x
+          in: path
+          required: true
+          description: Web Mercator 瓦片 X 坐标，必须在指定层级有效范围内。
+          schema:
+            type: integer
+            minimum: 0
+        - name: y
+          in: path
+          required: true
+          description: Web Mercator 瓦片 Y 坐标，必须在指定层级有效范围内。
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: 成功返回图片瓦片。
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+            image/avif:
+              schema:
+                type: string
+                format: binary
+            image/svg+xml:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
   /api/auth/csrf/:
     get:
       tags: [认证接口]

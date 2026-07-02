@@ -2,6 +2,7 @@ import tomllib
 
 from django.conf import settings
 from django.http import Http404
+from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
@@ -10,6 +11,7 @@ from django.views.decorators.http import require_GET
 from apps.catalog.models import DataResource, DictionaryItem, MapLayer
 from apps.core.config import APP_SUBDIRS, RESEARCH_SUBDIRS
 from apps.core.config import load_runtime_config_document
+from apps.core.map_thumbnail import thumbnail_tile
 from apps.core.models import SystemSetting
 from apps.core.runtime_config import runtime_allow_registration, runtime_system_name
 
@@ -104,6 +106,18 @@ def health(request):
             "researchSubdirs": list(RESEARCH_SUBDIRS),
         }
     )
+
+
+@require_GET
+def map_thumbnail_tile(request, z: int, x: int, y: int):
+    try:
+        data, content_type = thumbnail_tile(z, x, y)
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+
+    response = HttpResponse(data, content_type=content_type)
+    response["Cache-Control"] = "public, max-age=86400"
+    return response
 
 
 @require_GET

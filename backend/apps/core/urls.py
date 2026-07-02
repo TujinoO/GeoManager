@@ -6,6 +6,11 @@ urlpatterns = [
     path("bootstrap/", views.bootstrap, name="bootstrap"),
     path("login/overview/", views.login_overview, name="login-overview"),
     path("health/", views.health, name="health"),
+    path(
+        "map/thumbnail-tiles/<int:z>/<int:x>/<int:y>.png",
+        views.map_thumbnail_tile,
+        name="map-thumbnail-tile",
+    ),
     path("auth/csrf/", auth_views.csrf_cookie, name="csrf"),
     path("auth/login/", auth_views.login_view, name="login"),
     path("auth/guest-login/", auth_views.guest_login_view, name="guest-login"),

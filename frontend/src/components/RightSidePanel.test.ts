@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   buildThumbnail,
+  isPlatformThumbnailTileUrl,
   thumbnailExtentBox,
   thumbnailFallbackTileUrl,
+  thumbnailMapTileForBasemap,
   thumbnailFallbackUrlForFailedTile,
   thumbnailTiles,
+  thumbnailUrlTemplateWithRetry,
   thumbnailViewportForMapView,
   thumbnailViewportForMapTile,
 } from "./RightSidePanel";
@@ -31,6 +34,41 @@ describe("thumbnailTiles", () => {
     expect(viewport.scale).toBe(0.44);
     expect(tiles.length).toBeGreaterThan(0);
     expect(tiles[0]?.url).toContain("/6/");
+  });
+
+  it("requests thumbnail tiles from the platform server", () => {
+    const viewport = thumbnailViewportForMapTile(mapTile, 290, 174);
+    const tiles = thumbnailTiles(
+      mapTile.tileZoom,
+      viewport,
+      290,
+      174,
+      "/api/map/thumbnail-tiles/{z}/{x}/{y}.png",
+    );
+
+    expect(tiles[0]?.url).toMatch(
+      /^\/api\/map\/thumbnail-tiles\/6\/\d+\/\d+\.png$/,
+    );
+  });
+
+  it("recognizes platform thumbnail tile URLs for automatic retries", () => {
+    expect(
+      isPlatformThumbnailTileUrl(
+        "http://127.0.0.1:5173/api/map/thumbnail-tiles/3/5/2.png",
+      ),
+    ).toBe(true);
+    expect(
+      isPlatformThumbnailTileUrl("https://a.tile.openstreetmap.org/3/5/2.png"),
+    ).toBe(false);
+  });
+
+  it("adds a retry query to platform thumbnail templates", () => {
+    expect(
+      thumbnailUrlTemplateWithRetry(
+        "/api/map/thumbnail-tiles/{z}/{x}/{y}.png",
+        42,
+      ),
+    ).toBe("/api/map/thumbnail-tiles/{z}/{x}/{y}.png?retry=42");
   });
 
   it("uses the configured scale as the thumbnail zoom ratio", () => {
@@ -103,6 +141,35 @@ describe("thumbnailTiles", () => {
     expect(firstFallback.triedSubdomains).toBe("a");
     expect(finalFallback.url).toBe(thumbnailFallbackTileUrl);
   });
+
+  it("uses the configured Mapbox basemap for satellite thumbnails", () => {
+    const satelliteTile = thumbnailMapTileForBasemap({
+      defaultCenter: [81, 41],
+      defaultZoom: 4,
+      defaultBasemap: "satellite",
+      mapboxAccessToken: "pk.test token",
+    });
+
+    expect(satelliteTile.tileUrlTemplate).toBe(
+      "/api/map/thumbnail-tiles/{z}/{x}/{y}.png",
+    );
+    expect(satelliteTile.tileUrlTemplate).not.toContain(
+      "tile.openstreetmap.org",
+    );
+  });
+
+  it("keeps OSM thumbnails when the configured basemap is OSM", () => {
+    const osmTile = thumbnailMapTileForBasemap({
+      defaultCenter: [81, 41],
+      defaultZoom: 4,
+      defaultBasemap: "osm",
+      mapboxAccessToken: "pk.test-token",
+    });
+
+    expect(osmTile.tileUrlTemplate).toBe(
+      "/api/map/thumbnail-tiles/{z}/{x}/{y}.png",
+    );
+  });
 });
 
 describe("thumbnailViewportForMapView", () => {
@@ -152,6 +219,25 @@ describe("thumbnailViewportForMapView", () => {
     expect(
       thumbnail.extent?.top + (thumbnail.extent?.height ?? 0),
     ).toBeLessThanOrEqual(174);
+  });
+
+  it("keeps tiles covering the thumbnail height at low zoom", () => {
+    const worldView: MapViewState = {
+      center: [88, 18],
+      bounds: [-180, -60, 180, 75],
+      zoom: 2.1,
+      bearing: 0,
+      pitch: 0,
+    };
+
+    const thumbnail = buildThumbnail(worldView, 360, 180);
+    const top = Math.min(...thumbnail.tiles.map((tile) => tile.top));
+    const bottom = Math.max(
+      ...thumbnail.tiles.map((tile) => tile.top + tile.height),
+    );
+
+    expect(top).toBeLessThanOrEqual(0);
+    expect(bottom).toBeGreaterThanOrEqual(180);
   });
 
   it("caps thumbnail tile zoom when the main map is zoomed in deeply", () => {

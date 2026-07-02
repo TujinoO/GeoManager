@@ -4,8 +4,9 @@ import {
   RadarChartOutlined,
 } from "@ant-design/icons";
 import { Tabs, Tag, Typography } from "antd";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SyntheticEvent } from "react";
+import type { MapBasemapConfig } from "../map/basemapStyle";
 import type { FeatureInfo, MapViewState } from "../types";
 import FeatureDetailPanel from "./FeatureDetailPanel";
 
@@ -18,6 +19,7 @@ const thumbnailMaxTileScale = 1;
 const thumbnailMinZoom = 1;
 const thumbnailMaxZoom = 10;
 const thumbnailZoomOffset = 2;
+const thumbnailTileRetryDelayMs = 2500;
 const osmTileSubdomains = ["a", "b", "c"] as const;
 const osmThumbnailTileUrlPattern =
   /^https:\/\/([abc])\.tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png$/i;
@@ -35,8 +37,14 @@ export const thumbnailMapTile: ThumbnailMapTile = {
   center: [81, 41],
   tileZoom: 5,
   scale: 0.38,
-  tileUrlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  tileUrlTemplate: "/api/map/thumbnail-tiles/{z}/{x}/{y}.png",
 };
+
+export function thumbnailMapTileForBasemap(
+  _mapConfig: MapBasemapConfig,
+): ThumbnailMapTile {
+  return thumbnailMapTile;
+}
 
 interface ThumbnailTile {
   key: string;
@@ -133,11 +141,13 @@ const riskMatrix = [
 interface Props {
   selectedFeature: FeatureInfo | null;
   currentView: MapViewState | null;
+  mapConfig: MapBasemapConfig;
 }
 
 export default function RightSidePanel({
   selectedFeature,
   currentView,
+  mapConfig,
 }: Props) {
   return (
     <div className="right-panel-stack">
@@ -145,7 +155,7 @@ export default function RightSidePanel({
         className="right-map-overview-panel"
         aria-label="当前视角平面缩略图"
       >
-        <FlatMapThumbnail currentView={currentView} />
+        <FlatMapThumbnail currentView={currentView} mapConfig={mapConfig} />
       </section>
 
       <section
@@ -204,11 +214,29 @@ export default function RightSidePanel({
 
 function FlatMapThumbnail({
   currentView,
+  mapConfig,
 }: {
   currentView: MapViewState | null;
+  mapConfig: MapBasemapConfig;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [tileRetryNonce, setTileRetryNonce] = useState(0);
+  const mapTile = useMemo(
+    () => thumbnailMapTileForBasemap(mapConfig),
+    [mapConfig],
+  );
+  const retryingMapTile = useMemo(
+    () => ({
+      ...mapTile,
+      tileUrlTemplate: thumbnailUrlTemplateWithRetry(
+        mapTile.tileUrlTemplate,
+        tileRetryNonce,
+      ),
+    }),
+    [mapTile, tileRetryNonce],
+  );
 
   useEffect(() => {
     const container = containerRef.current;
@@ -226,10 +254,45 @@ function FlatMapThumbnail({
     return () => resizeObserver.disconnect();
   }, []);
 
+  useEffect(
+    () => () => {
+      if (retryTimerRef.current !== null) {
+        clearTimeout(retryTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const scheduleTileRetry = useCallback(() => {
+    if (retryTimerRef.current !== null) {
+      return;
+    }
+    retryTimerRef.current = setTimeout(() => {
+      retryTimerRef.current = null;
+      setTileRetryNonce(Date.now());
+    }, thumbnailTileRetryDelayMs);
+  }, []);
+
+  const handleTileError = useCallback(
+    (event: SyntheticEvent<HTMLImageElement>) => {
+      const shouldRetry = isPlatformThumbnailTileUrl(event.currentTarget.src);
+      handleThumbnailTileError(event);
+      if (shouldRetry) {
+        scheduleTileRetry();
+      }
+    },
+    [scheduleTileRetry],
+  );
+
   const thumbnail = useMemo(
     () =>
-      buildThumbnail(currentView, containerSize.width, containerSize.height),
-    [containerSize.height, containerSize.width, currentView],
+      buildThumbnail(
+        currentView,
+        containerSize.width,
+        containerSize.height,
+        retryingMapTile,
+      ),
+    [containerSize.height, containerSize.width, currentView, retryingMapTile],
   );
 
   return (
@@ -240,7 +303,6 @@ function FlatMapThumbnail({
         aria-label="当前范围二维地图缩略图"
         role="img"
       >
-        <ThumbnailFallbackMap />
         {thumbnail.tiles.map((tile) => (
           <img
             key={tile.key}
@@ -253,7 +315,7 @@ function FlatMapThumbnail({
               width: tile.width,
               height: tile.height,
             }}
-            onError={handleThumbnailTileError}
+            onError={handleTileError}
             draggable={false}
           />
         ))}
@@ -278,32 +340,6 @@ function FlatMapThumbnail({
   );
 }
 
-function ThumbnailFallbackMap() {
-  return (
-    <svg
-      className="right-map-mini-fallback"
-      viewBox="0 0 360 180"
-      preserveAspectRatio="none"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <rect className="fallback-ocean" width="360" height="180" />
-      <path
-        className="fallback-grid"
-        d="M60 0V180M120 0V180M180 0V180M240 0V180M300 0V180M0 45H360M0 90H360M0 135H360"
-      />
-      <g className="fallback-land">
-        <path d="M5 51 21 35 48 27 80 31 102 47 96 65 112 82 101 104 76 104 60 84 37 83 25 69 8 66Z" />
-        <path d="M54 105 73 112 83 137 71 168 55 151 47 127Z" />
-        <path d="M132 46 162 29 207 22 260 28 316 42 344 62 337 91 307 99 279 90 256 101 218 93 188 105 153 93 126 75Z" />
-        <path d="M165 95 190 107 202 139 184 166 158 147 148 117Z" />
-        <path d="M263 108 286 113 303 132 291 151 267 142Z" />
-      </g>
-      <path className="fallback-region" d="M136 72H286V118H136Z" />
-    </svg>
-  );
-}
-
 function handleThumbnailTileError(event: SyntheticEvent<HTMLImageElement>) {
   const image = event.currentTarget;
   const fallback = thumbnailFallbackUrlForFailedTile(
@@ -311,10 +347,28 @@ function handleThumbnailTileError(event: SyntheticEvent<HTMLImageElement>) {
     image.dataset.triedSubdomains ?? "",
   );
   image.dataset.triedSubdomains = fallback.triedSubdomains;
-  if (fallback.url === thumbnailFallbackTileUrl) {
-    image.onerror = null;
-  }
   image.src = fallback.url;
+}
+
+export function isPlatformThumbnailTileUrl(currentUrl: string) {
+  try {
+    return new URL(currentUrl, "http://localhost").pathname.startsWith(
+      "/api/map/thumbnail-tiles/",
+    );
+  } catch {
+    return currentUrl.startsWith("/api/map/thumbnail-tiles/");
+  }
+}
+
+export function thumbnailUrlTemplateWithRetry(
+  tileUrlTemplate: string,
+  retryNonce: number,
+) {
+  if (retryNonce <= 0) {
+    return tileUrlTemplate;
+  }
+  const separator = tileUrlTemplate.includes("?") ? "&" : "?";
+  return `${tileUrlTemplate}${separator}retry=${retryNonce}`;
 }
 
 export function thumbnailFallbackUrlForFailedTile(
@@ -391,10 +445,19 @@ export function thumbnailViewportForMapTile(
   height: number,
 ): ThumbnailViewport {
   const center = lngLatToWorldPixel(mapTile.center, mapTile.tileZoom);
-  const scale = Math.max(0.05, mapTile.scale);
+  const scale = Math.max(
+    0.05,
+    mapTile.scale,
+    thumbnailMinScaleForWorldHeight(mapTile.tileZoom, height),
+  );
   return {
     left: center.x - width / (2 * scale),
-    top: center.y - height / (2 * scale),
+    top: constrainThumbnailViewportTop(
+      center.y - height / (2 * scale),
+      mapTile.tileZoom,
+      height,
+      scale,
+    ),
     scale,
   };
 }
@@ -431,17 +494,25 @@ export function thumbnailViewportForMapView(
     );
   }
 
-  const scale = clamp(
-    selectedMetrics.fitScale,
-    thumbnailMinTileScale,
-    thumbnailMaxTileScale,
+  const scale = Math.max(
+    clamp(
+      selectedMetrics.fitScale,
+      thumbnailMinTileScale,
+      thumbnailMaxTileScale,
+    ),
+    thumbnailMinScaleForWorldHeight(selectedZoom, height),
   );
   const center = lngLatToWorldPixel(normalizedBounds.center, selectedZoom);
   return {
     zoom: selectedZoom,
     viewport: {
       left: center.x - width / (2 * scale),
-      top: center.y - height / (2 * scale),
+      top: constrainThumbnailViewportTop(
+        center.y - height / (2 * scale),
+        selectedZoom,
+        height,
+        scale,
+      ),
       scale,
     },
   };
@@ -669,8 +740,26 @@ function thumbnailFitMetrics(
   };
 }
 
+function thumbnailMinScaleForWorldHeight(zoom: number, height: number) {
+  return height / thumbnailWorldSize(zoom);
+}
+
+function constrainThumbnailViewportTop(
+  top: number,
+  zoom: number,
+  height: number,
+  scale: number,
+) {
+  const worldSize = thumbnailWorldSize(zoom);
+  const visibleWorldHeight = height / scale;
+  if (visibleWorldHeight >= worldSize) {
+    return 0;
+  }
+  return clamp(top, 0, worldSize - visibleWorldHeight);
+}
+
 function lngLatToWorldPixel([lng, lat]: [number, number], zoom: number) {
-  const worldSize = thumbnailTileSize * 2 ** zoom;
+  const worldSize = thumbnailWorldSize(zoom);
   const clampedLat = Math.max(
     -thumbnailMaxMercatorLat,
     Math.min(thumbnailMaxMercatorLat, lat),
@@ -688,11 +777,15 @@ function worldPixelToLngLat(
   y: number,
   zoom: number,
 ): [number, number] {
-  const worldSize = thumbnailTileSize * 2 ** zoom;
+  const worldSize = thumbnailWorldSize(zoom);
   const lng = (x / worldSize) * 360 - 180;
   const mercatorY = Math.PI * (1 - (2 * y) / worldSize);
   const lat = (Math.atan(Math.sinh(mercatorY)) * 180) / Math.PI;
   return [lng, lat];
+}
+
+function thumbnailWorldSize(zoom: number) {
+  return thumbnailTileSize * 2 ** zoom;
 }
 
 function wrapTileX(tileX: number, tileCount: number) {
