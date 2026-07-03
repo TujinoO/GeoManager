@@ -2,7 +2,6 @@ import type {
   ExpressionSpecification,
   FilterSpecification,
   Map as MapboxMap,
-  PaintSpecification,
   StyleSpecification,
 } from "mapbox-gl";
 import type { Bootstrap } from "../types";
@@ -16,13 +15,12 @@ export const osmChineseVectorStyle =
 export const mapLabelLanguage = "zh-Hans";
 export const osmRasterTileMaxZoom = 19;
 
-type SatelliteBasemapColorCorrection = Pick<
-  PaintSpecification,
-  | "raster-saturation"
-  | "raster-contrast"
-  | "raster-brightness-min"
-  | "raster-brightness-max"
->;
+type SatelliteBasemapColorCorrection = {
+  "raster-saturation": number;
+  "raster-contrast": number;
+  "raster-brightness-min": number;
+  "raster-brightness-max": number;
+};
 
 export const satelliteBasemapColorCorrection: SatelliteBasemapColorCorrection = {
   "raster-saturation": -0.55,
@@ -30,6 +28,11 @@ export const satelliteBasemapColorCorrection: SatelliteBasemapColorCorrection = 
   "raster-brightness-min": 0.04,
   "raster-brightness-max": 0.9,
 };
+export const satelliteBasemapThumbnailFilter = [
+  `saturate(${paintRatioToCssPercent(satelliteBasemapColorCorrection["raster-saturation"])})`,
+  `contrast(${paintRatioToCssPercent(satelliteBasemapColorCorrection["raster-contrast"])})`,
+  `brightness(${Math.round(satelliteBasemapColorCorrection["raster-brightness-max"] * 100)}%)`,
+].join(" ");
 
 export const chineseLabelExpression: ExpressionSpecification = [
   "coalesce",
@@ -166,6 +169,10 @@ function withSafeNumericAssertions(value: unknown): unknown {
   }
 
   return changed ? next : value;
+}
+
+function paintRatioToCssPercent(value: number) {
+  return `${Math.round(Math.max(0, 1 + value) * 100)}%`;
 }
 
 const osmTileUrls = [

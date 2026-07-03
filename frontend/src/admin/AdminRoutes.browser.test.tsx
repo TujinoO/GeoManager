@@ -52,6 +52,14 @@ const mockApi = vi.hoisted(() => ({
   deleteAdminGroup: vi.fn(),
   adminSettings: vi.fn(),
   updateAdminSettings: vi.fn(),
+  adminBackupOverview: vi.fn(),
+  adminBackupSettings: vi.fn(),
+  updateAdminBackupSettings: vi.fn(),
+  testAdminBackupTarget: vi.fn(),
+  adminBackupRuns: vi.fn(),
+  createAdminBackupRun: vi.fn(),
+  adminBackupRun: vi.fn(),
+  downloadAdminBackupRun: vi.fn(),
   importPreview: vi.fn(),
   importValidate: vi.fn(),
   importCommit: vi.fn(),
@@ -255,6 +263,87 @@ const adminSettings = {
   editable: true,
 };
 
+const backupRun = {
+  id: 1,
+  planType: "platform",
+  targetType: "local",
+  trigger: "manual",
+  status: "success",
+  progressPercent: 100,
+  messages: ["本地备份已保存"],
+  result: { fileCount: 2 },
+  error: "",
+  archiveName: "platform-backup-20260703030000.zip",
+  sizeBytes: 2048,
+  checksumSha256: "abc123",
+  objectKey: "",
+  localPath: "platform/platform-backup-20260703030000.zip",
+  createdBy: "系统管理员",
+  createdAt: "2026-07-03T03:00:00+08:00",
+  startedAt: "2026-07-03T03:00:01+08:00",
+  finishedAt: "2026-07-03T03:00:10+08:00",
+} as const;
+
+const backupSettings = {
+  plans: {
+    platform: {
+      enabled: true,
+      dailyAt: "03:00",
+      target: "local",
+      retentionCount: 3,
+      includeLogs: false,
+    },
+    research: {
+      enabled: false,
+      dailyAt: "02:00",
+      target: "object_storage",
+      retentionCount: 7,
+      includeLogs: false,
+    },
+  },
+  local: {
+    directory: "",
+    configured: true,
+  },
+  objectStorage: {
+    provider: "s3_compatible",
+    endpoint: "https://s3.example.com",
+    region: "cn-north-1",
+    bucket: "geomanager-backups",
+    prefix: "prod/",
+    accessKeyId: "backup-service",
+    secretConfigured: true,
+    secretPreview: "******1234",
+    configured: true,
+  },
+  updatedAt: "2026-07-03T10:20:00+08:00",
+} as const;
+
+const backupOverview = {
+  settings: backupSettings,
+  summaries: [
+    {
+      planType: "research",
+      label: "科研数据",
+      source: "科研数据根目录",
+      available: true,
+      fileCount: 12,
+      sizeBytes: 4096,
+    },
+    {
+      planType: "platform",
+      label: "平台数据",
+      source: "业务数据根目录",
+      available: true,
+      fileCount: 8,
+      sizeBytes: 2048,
+    },
+  ],
+  activeRuns: [],
+  recentRuns: [backupRun],
+  generatedAt: "2026-07-03T10:20:00+08:00",
+} as const;
+
 function hoverElement(element: Element) {
   fireEvent.pointerEnter(element);
   fireEvent.mouseOver(element);
@@ -409,6 +498,28 @@ describe("admin routes", () => {
     });
     mockApi.adminSettings.mockResolvedValue(adminSettings);
     mockApi.updateAdminSettings.mockResolvedValue(adminSettings);
+    mockApi.adminBackupOverview.mockResolvedValue(backupOverview);
+    mockApi.adminBackupSettings.mockResolvedValue(backupSettings);
+    mockApi.updateAdminBackupSettings.mockResolvedValue(backupSettings);
+    mockApi.testAdminBackupTarget.mockResolvedValue({
+      targetType: "local",
+      status: "success",
+      message: "备份目标连接测试成功",
+      testedAt: "2026-07-03T10:20:00+08:00",
+    });
+    mockApi.adminBackupRuns.mockResolvedValue({ items: [backupRun], total: 1 });
+    mockApi.createAdminBackupRun.mockResolvedValue({
+      ...backupRun,
+      id: 2,
+      status: "queued",
+      progressPercent: 0,
+      messages: ["备份任务已创建"],
+    });
+    mockApi.adminBackupRun.mockResolvedValue(backupRun);
+    mockApi.downloadAdminBackupRun.mockResolvedValue({
+      blob: new Blob(["backup"]),
+      filename: "platform-backup.zip",
+    });
     mockApi.adminDashboard.mockResolvedValue({
       generatedAt: "2026-06-07T20:00:00+08:00",
       cards: {
@@ -1052,6 +1163,23 @@ describe("admin routes", () => {
 
     expect(await screen.findByText("个人信息")).toBeInTheDocument();
     expect(screen.queryByText("数据备份功能暂未实现")).not.toBeInTheDocument();
+  }, 30000);
+
+  it("renders the superadmin backup workspace from typed API data", async () => {
+    renderAdminRoute("/admin/backup", adminUser);
+
+    expect(await screen.findByText("备份目标")).toBeInTheDocument();
+    expect(screen.getByText("科研数据备份")).toBeInTheDocument();
+    expect(screen.getByText("平台数据备份")).toBeInTheDocument();
+    expect(screen.getByText("geomanager-backups")).toBeInTheDocument();
+    expect(
+      screen.getByText("platform-backup-20260703030000.zip"),
+    ).toBeInTheDocument();
+    expect(mockApi.adminBackupOverview).toHaveBeenCalledOnce();
+    expect(mockApi.adminBackupRuns).toHaveBeenCalledWith({
+      current: 1,
+      pageSize: 20,
+    });
   }, 30000);
 
   it("opens the user detail drawer from auth management", async () => {

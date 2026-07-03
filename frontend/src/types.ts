@@ -1,6 +1,13 @@
 import type {
   AdminDashboardResponse,
   AdminDashboardServerResponse,
+  AdminBackupOverviewResponse,
+  AdminBackupRunCreateRequest,
+  AdminBackupRunListResponse,
+  AdminBackupSettingsResponse,
+  AdminBackupSettingsUpdateRequest,
+  AdminBackupTargetTestRequest,
+  AdminBackupTargetTestResponse,
   AdminDataResourceListResponse,
   AdminDataResourceGroupUpdateRequest,
   AdminDataResourceUpdateRequest,
@@ -33,6 +40,7 @@ import type {
   ImportPreviewResponse,
   ImportValidateResponse,
   LayerListResponse,
+  ListAdminBackupRunsData,
   ListAdminDataResourcesData,
   ListGermplasmAccessionsData,
   ListAdminOperationLogsData,
@@ -60,6 +68,10 @@ export type {
   AdminDataResourceGroup,
   AdminOperationLog,
   AdminPermissionItem,
+  AdminBackupRun,
+  BackupPlanType,
+  BackupRunStatus,
+  BackupTargetType,
   AdminSystemLogFile,
   AdminWorkspaceScene,
   AdminWorkspaceSceneListResponse,
@@ -106,6 +118,16 @@ export type AdminOperationLogQuery = NonNullable<
 >;
 export type AdminSystemLog = AdminSystemLogResponse;
 export type AdminSystemLogQuery = NonNullable<ListAdminSystemLogsData["query"]>;
+export type AdminBackupOverview = AdminBackupOverviewResponse;
+export type AdminBackupSettings = AdminBackupSettingsResponse;
+export type AdminBackupSettingsUpdate = AdminBackupSettingsUpdateRequest;
+export type AdminBackupTargetTestPayload = AdminBackupTargetTestRequest;
+export type AdminBackupTargetTestResult = AdminBackupTargetTestResponse;
+export type AdminBackupRunCreate = AdminBackupRunCreateRequest;
+export type AdminBackupRunList = AdminBackupRunListResponse;
+export type AdminBackupRunFilters = NonNullable<
+  ListAdminBackupRunsData["query"]
+>;
 export type AdminDashboard = AdminDashboardResponse;
 export type AdminDashboardServer = AdminDashboardServerResponse;
 export type AdminSettings = AdminSettingsResponse;

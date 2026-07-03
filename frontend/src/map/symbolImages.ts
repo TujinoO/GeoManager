@@ -7,9 +7,17 @@ import {
 
 type IconPainter = (ctx: CanvasRenderingContext2D, size: number) => void;
 
-const iconSize = 64;
+const iconContentSize = 64;
+const iconPadding = 4;
+const iconSize = iconContentSize + iconPadding * 2;
 const iconPixelRatio = 2;
 const defaultIconColor = "#2f7d62";
+const iconOutlineColor = "#f8fffb";
+const iconAmbientShadowColor = "rgba(4, 19, 22, 0.24)";
+const iconContactShadowColor = "rgba(4, 19, 22, 0.46)";
+const iconInnerRimColor = "rgba(3, 26, 28, 0.2)";
+const iconHighlightColor = "rgba(255, 255, 255, 0.38)";
+const refreshedSymbolImages = new WeakMap<MapboxMap, Set<string>>();
 
 const iconPainters: Record<PlatformSymbolIconId, IconPainter> = {
   "gm-marker": drawMarker,
@@ -104,10 +112,28 @@ function registerPlatformSymbolImage(
   color: string,
 ) {
   const imageId = platformSymbolImageId(id, color);
-  if (map.hasImage(imageId)) return;
-  map.addImage(imageId, createIconImage(iconPainters[id], color), {
+  const image = createIconImage(iconPainters[id], color);
+  const refreshedImages = refreshedImagesForMap(map);
+  if (map.hasImage(imageId)) {
+    if (!refreshedImages.has(imageId)) {
+      map.updateImage(imageId, image);
+      refreshedImages.add(imageId);
+    }
+    return;
+  }
+  map.addImage(imageId, image, {
     pixelRatio: iconPixelRatio,
   });
+  refreshedImages.add(imageId);
+}
+
+function refreshedImagesForMap(map: MapboxMap) {
+  let images = refreshedSymbolImages.get(map);
+  if (!images) {
+    images = new Set<string>();
+    refreshedSymbolImages.set(map, images);
+  }
+  return images;
 }
 
 function isPlatformSymbolIconId(id: string): id is PlatformSymbolIconId {
@@ -115,6 +141,8 @@ function isPlatformSymbolIconId(id: string): id is PlatformSymbolIconId {
 }
 
 function createIconImage(paint: IconPainter, color: string) {
+  const maskCanvas = createIconMask(paint);
+  const palette = iconPalette(color);
   const canvas = document.createElement("canvas");
   canvas.width = iconSize;
   canvas.height = iconSize;
@@ -124,14 +152,232 @@ function createIconImage(paint: IconPainter, color: string) {
   }
 
   ctx.clearRect(0, 0, iconSize, iconSize);
-  ctx.fillStyle = color;
-  paint(ctx, iconSize);
+  drawSoftShadow(ctx, maskCanvas);
+  drawIconOutline(ctx, maskCanvas, iconContactShadowColor, 4, 1.6);
+  drawIconOutline(ctx, maskCanvas, iconOutlineColor, 2, 0);
+  drawTintedMask(ctx, maskCanvas, palette);
+  drawMaskedGradient(ctx, maskCanvas, iconInnerRimColor, "multiply", {
+    from: [iconSize * 0.18, iconSize * 0.08, 0],
+    to: [iconSize * 0.76, iconSize * 0.84, iconSize * 0.86],
+  });
+  drawMaskedLinearSheen(ctx, maskCanvas);
   const image = ctx.getImageData(0, 0, iconSize, iconSize);
   return {
     width: iconSize,
     height: iconSize,
     data: image.data,
   };
+}
+
+function createIconMask(paint: IconPainter) {
+  const canvas = document.createElement("canvas");
+  canvas.width = iconSize;
+  canvas.height = iconSize;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+
+  ctx.clearRect(0, 0, iconSize, iconSize);
+  ctx.save();
+  ctx.translate(iconPadding, iconPadding);
+  ctx.fillStyle = "#ffffff";
+  paint(ctx, iconContentSize);
+  ctx.restore();
+  return canvas;
+}
+
+function drawSoftShadow(
+  ctx: CanvasRenderingContext2D,
+  maskCanvas: HTMLCanvasElement,
+) {
+  const shadowCanvas = document.createElement("canvas");
+  shadowCanvas.width = iconSize;
+  shadowCanvas.height = iconSize;
+  const shadowCtx = shadowCanvas.getContext("2d");
+  if (!shadowCtx) return;
+
+  shadowCtx.filter = "blur(2px)";
+  shadowCtx.globalAlpha = 0.9;
+  shadowCtx.drawImage(maskCanvas, 0, 2.2);
+  shadowCtx.globalAlpha = 1;
+  shadowCtx.filter = "none";
+  shadowCtx.globalCompositeOperation = "source-in";
+  shadowCtx.fillStyle = iconAmbientShadowColor;
+  shadowCtx.fillRect(0, 0, iconSize, iconSize);
+  shadowCtx.globalCompositeOperation = "source-over";
+  ctx.drawImage(shadowCanvas, 0, 0);
+}
+
+function drawIconOutline(
+  ctx: CanvasRenderingContext2D,
+  maskCanvas: HTMLCanvasElement,
+  color: string,
+  radius: number,
+  yOffset: number,
+) {
+  const outlineCanvas = document.createElement("canvas");
+  outlineCanvas.width = iconSize;
+  outlineCanvas.height = iconSize;
+  const outlineCtx = outlineCanvas.getContext("2d");
+  if (!outlineCtx) return;
+
+  for (let x = -radius; x <= radius; x += 1) {
+    for (let y = -radius; y <= radius; y += 1) {
+      if (x === 0 && y === 0) continue;
+      if (Math.hypot(x, y) > radius) continue;
+      outlineCtx.drawImage(maskCanvas, x, y + yOffset);
+    }
+  }
+  outlineCtx.globalCompositeOperation = "source-in";
+  outlineCtx.fillStyle = color;
+  outlineCtx.fillRect(0, 0, iconSize, iconSize);
+  outlineCtx.globalCompositeOperation = "source-over";
+  ctx.drawImage(outlineCanvas, 0, 0);
+}
+
+function drawTintedMask(
+  ctx: CanvasRenderingContext2D,
+  maskCanvas: HTMLCanvasElement,
+  palette: IconPalette,
+) {
+  const colorCanvas = document.createElement("canvas");
+  colorCanvas.width = iconSize;
+  colorCanvas.height = iconSize;
+  const colorCtx = colorCanvas.getContext("2d");
+  if (!colorCtx) return;
+
+  colorCtx.drawImage(maskCanvas, 0, 0);
+  colorCtx.globalCompositeOperation = "source-in";
+  const gradient = colorCtx.createLinearGradient(
+    iconSize * 0.18,
+    iconSize * 0.04,
+    iconSize * 0.78,
+    iconSize * 0.94,
+  );
+  gradient.addColorStop(0, palette.top);
+  gradient.addColorStop(0.48, palette.base);
+  gradient.addColorStop(1, palette.bottom);
+  colorCtx.fillStyle = gradient;
+  colorCtx.fillRect(0, 0, iconSize, iconSize);
+  colorCtx.globalCompositeOperation = "source-over";
+  ctx.drawImage(colorCanvas, 0, 0);
+}
+
+function drawMaskedGradient(
+  ctx: CanvasRenderingContext2D,
+  maskCanvas: HTMLCanvasElement,
+  color: string,
+  composite: GlobalCompositeOperation,
+  bounds: {
+    from: [number, number, number];
+    to: [number, number, number];
+  },
+) {
+  const layerCanvas = document.createElement("canvas");
+  layerCanvas.width = iconSize;
+  layerCanvas.height = iconSize;
+  const layerCtx = layerCanvas.getContext("2d");
+  if (!layerCtx) return;
+
+  layerCtx.drawImage(maskCanvas, 0, 0);
+  layerCtx.globalCompositeOperation = "source-in";
+  const gradient = layerCtx.createRadialGradient(...bounds.from, ...bounds.to);
+  gradient.addColorStop(0, "rgba(255, 255, 255, 0)");
+  gradient.addColorStop(0.58, "rgba(255, 255, 255, 0)");
+  gradient.addColorStop(1, color);
+  layerCtx.fillStyle = gradient;
+  layerCtx.fillRect(0, 0, iconSize, iconSize);
+  layerCtx.globalCompositeOperation = "source-over";
+
+  ctx.save();
+  ctx.globalCompositeOperation = composite;
+  ctx.drawImage(layerCanvas, 0, 0);
+  ctx.restore();
+}
+
+function drawMaskedLinearSheen(
+  ctx: CanvasRenderingContext2D,
+  maskCanvas: HTMLCanvasElement,
+) {
+  const sheenCanvas = document.createElement("canvas");
+  sheenCanvas.width = iconSize;
+  sheenCanvas.height = iconSize;
+  const sheenCtx = sheenCanvas.getContext("2d");
+  if (!sheenCtx) return;
+
+  sheenCtx.drawImage(maskCanvas, 0, 0);
+  sheenCtx.globalCompositeOperation = "source-in";
+  const gradient = sheenCtx.createLinearGradient(
+    iconSize * 0.1,
+    iconSize * 0.08,
+    iconSize * 0.68,
+    iconSize * 0.7,
+  );
+  gradient.addColorStop(0, iconHighlightColor);
+  gradient.addColorStop(0.26, "rgba(255, 255, 255, 0.2)");
+  gradient.addColorStop(0.58, "rgba(255, 255, 255, 0)");
+  gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+  sheenCtx.fillStyle = gradient;
+  sheenCtx.fillRect(0, 0, iconSize, iconSize);
+  sheenCtx.globalCompositeOperation = "source-over";
+
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.drawImage(sheenCanvas, 0, 0);
+  ctx.restore();
+}
+
+type RgbColor = {
+  r: number;
+  g: number;
+  b: number;
+};
+
+type IconPalette = {
+  top: string;
+  base: string;
+  bottom: string;
+};
+
+function iconPalette(color: string): IconPalette {
+  const rgb = parseColor(color) ?? parseColor(defaultIconColor)!;
+  return {
+    top: rgbToCss(mixRgb(rgb, { r: 255, g: 255, b: 255 }, 0.28)),
+    base: rgbToCss(rgb),
+    bottom: rgbToCss(mixRgb(rgb, { r: 0, g: 28, b: 31 }, 0.22)),
+  };
+}
+
+function parseColor(color: string): RgbColor | null {
+  const normalized = color.trim().toLowerCase();
+  const hex = normalized.match(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/);
+  const hexValue = hex?.[1];
+  if (!hexValue) return null;
+  const channels =
+    hexValue.length === 3
+      ? hexValue
+          .split("")
+          .map((value) => Number.parseInt(`${value}${value}`, 16))
+      : [
+          Number.parseInt(hexValue.slice(0, 2), 16),
+          Number.parseInt(hexValue.slice(2, 4), 16),
+          Number.parseInt(hexValue.slice(4, 6), 16),
+        ];
+  const [r, g, b] = channels;
+  if ([r, g, b].some((channel) => Number.isNaN(channel))) return null;
+  return { r: r ?? 0, g: g ?? 0, b: b ?? 0 };
+}
+
+function mixRgb(from: RgbColor, to: RgbColor, amount: number): RgbColor {
+  const clampedAmount = Math.max(0, Math.min(1, amount));
+  return {
+    r: Math.round(from.r + (to.r - from.r) * clampedAmount),
+    g: Math.round(from.g + (to.g - from.g) * clampedAmount),
+    b: Math.round(from.b + (to.b - from.b) * clampedAmount),
+  };
+}
+
+function rgbToCss(color: RgbColor) {
+  return `rgb(${color.r} ${color.g} ${color.b})`;
 }
 
 function colorKey(color: string) {

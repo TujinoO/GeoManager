@@ -84,6 +84,36 @@ urlpatterns = [
     ),
     path("admin/settings/", admin_api.admin_settings, name="admin-settings"),
     path(
+        "admin/backups/overview/",
+        admin_api.admin_backup_overview,
+        name="admin-backup-overview",
+    ),
+    path(
+        "admin/backups/settings/",
+        admin_api.admin_backup_settings,
+        name="admin-backup-settings",
+    ),
+    path(
+        "admin/backups/targets/test/",
+        admin_api.admin_backup_target_test,
+        name="admin-backup-target-test",
+    ),
+    path(
+        "admin/backups/runs/",
+        admin_api.admin_backup_runs,
+        name="admin-backup-runs",
+    ),
+    path(
+        "admin/backups/runs/<int:run_id>/",
+        admin_api.admin_backup_run_detail,
+        name="admin-backup-run-detail",
+    ),
+    path(
+        "admin/backups/runs/<int:run_id>/download/",
+        admin_api.admin_backup_run_download,
+        name="admin-backup-run-download",
+    ),
+    path(
         "admin/data/resources/",
         admin_api.admin_data_resources,
         name="admin-data-resources",

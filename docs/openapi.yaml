@@ -964,6 +964,238 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /api/admin/backups/overview/:
+    get:
+      tags: [管理后台]
+      summary: 获取数据备份概览
+      description: 返回超级管理员数据备份页面所需的计划配置、数据范围摘要、运行中任务和最近历史。该接口仅允许平台内置“超级管理员”主体访问；即使普通用户被误授予 `core.manage_data_backup` 权限，后端也会拒绝访问。
+      operationId: getAdminBackupOverview
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBackupOverviewResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/backups/settings/:
+    get:
+      tags: [管理后台]
+      summary: 获取数据备份配置
+      description: 返回本地备份目标、云端对象存储目标和平台/科研数据备份计划。仅允许平台内置“超级管理员”主体访问；云端密钥永不回显，仅返回是否已配置和脱敏预览。
+      operationId: getAdminBackupSettings
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBackupSettingsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [管理后台]
+      summary: 更新数据备份配置
+      description: 将数据备份计划和目标配置写入运行 TOML 配置。仅允许平台内置“超级管理员”主体访问；`secretAccessKey` 只在提交时使用，读取配置时不会返回明文。
+      operationId: updateAdminBackupSettings
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminBackupSettingsUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBackupSettingsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/backups/targets/test/:
+    post:
+      tags: [管理后台]
+      summary: 测试备份目标连接
+      description: 测试本地备份目录写入能力或对象存储上传/删除能力。仅允许平台内置“超级管理员”主体访问；对象存储测试可以使用请求体中的临时参数，也可以使用已保存配置。
+      operationId: testAdminBackupTarget
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminBackupTargetTestRequest'
+      responses:
+        '200':
+          description: 测试完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBackupTargetTestResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/backups/runs/:
+    get:
+      tags: [管理后台]
+      summary: 查询数据备份历史
+      description: 分页返回手动和自动数据备份任务历史。仅允许平台内置“超级管理员”主体访问。
+      operationId: listAdminBackupRuns
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: current
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: 当前页码
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+          description: 每页数量
+        - name: planType
+          in: query
+          schema:
+            $ref: '#/components/schemas/BackupPlanType'
+          description: 按备份类型筛选
+        - name: targetType
+          in: query
+          schema:
+            $ref: '#/components/schemas/BackupTargetType'
+          description: 按备份目标筛选
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/BackupRunStatus'
+          description: 按任务状态筛选
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBackupRunListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [管理后台]
+      summary: 发起数据备份任务
+      description: 手动发起平台数据或科研数据备份任务。后端创建任务后异步生成归档并保存到本地或上传至对象存储；仅允许平台内置“超级管理员”主体访问。
+      operationId: createAdminBackupRun
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminBackupRunCreateRequest'
+      responses:
+        '202':
+          description: 备份任务已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBackupRun'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/backups/runs/{runId}/:
+    get:
+      tags: [管理后台]
+      summary: 获取数据备份任务详情
+      description: 返回指定备份任务的当前状态、进度、消息、归档信息和错误原因。仅允许平台内置“超级管理员”主体访问。
+      operationId: getAdminBackupRun
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 备份任务 ID
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBackupRun'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/admin/backups/runs/{runId}/download/:
+    get:
+      tags: [管理后台]
+      summary: 下载本地数据备份归档
+      description: 下载本地备份目标保存的归档文件。对象存储目标不会通过该接口代理下载，应使用历史记录中的对象路径在云端管理后台查看；仅允许平台内置“超级管理员”主体访问。
+      operationId: downloadAdminBackupRun
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 备份任务 ID
+      responses:
+        '200':
+          description: 备份归档文件
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /api/data-schema/summary/:
     get:
@@ -1777,7 +2009,7 @@ paths:
     post:
       tags: [数据目录]
       summary: 查询矢量数据
-      description: 对矢量数据资源执行属性 + 空间联合查询，返回 GeoJSON FeatureCollection
+      description: 对矢量数据资源执行属性 + 空间联合查询，返回 GeoJSON FeatureCollection 以及空间查询工作台展示所需的命中数量、返回范围、截断状态和查询耗时。需要当前用户同时具备 `core.query_data` 和 `core.load_vector_layer`，并且有权访问该数据资源。
       operationId: queryResource
       security:
         - sessionAuth: []
@@ -2762,7 +2994,7 @@ components:
           description: 是否可修改系统设置
         canManageDataBackup:
           type: boolean
-          description: 是否可管理数据备份，由 `core.manage_data_backup` 权限控制；默认仅超级管理员角色具备
+          description: 是否可管理数据备份；仅内置 `超级管理员` 且具备 `core.manage_data_backup` 时为 true
         canManageAuth:
           type: boolean
           description: 是否可修改认证授权
@@ -3705,6 +3937,363 @@ components:
         raster:
           $ref: '#/components/schemas/AdminRasterSettings'
 
+    BackupPlanType:
+      type: string
+      enum: [platform, research]
+      description: 备份内容类型；platform 表示平台业务数据，research 表示科研数据。
+
+    BackupTargetType:
+      type: string
+      enum: [local, object_storage]
+      description: 备份目标类型；local 为本地目录，object_storage 为云端对象存储。
+
+    BackupProviderType:
+      type: string
+      enum: [s3_compatible]
+      description: 云端对象存储提供方类型。当前实现支持 S3 兼容协议，后续可扩展具体云厂商适配。
+
+    BackupRunStatus:
+      type: string
+      enum: [queued, running, success, failed]
+      description: 备份任务状态。
+
+    BackupTriggerType:
+      type: string
+      enum: [manual, scheduled]
+      description: 备份触发方式；manual 为超级管理员手动触发，scheduled 为后端计划任务触发。
+
+    AdminBackupPlanSettings:
+      type: object
+      required: [enabled, dailyAt, target, retentionCount, includeLogs]
+      properties:
+        enabled:
+          type: boolean
+          description: 是否启用该类数据的自动备份计划。
+        dailyAt:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          description: 每日自动备份时间，格式为 HH:mm，按服务器时区执行。
+          example: '02:00'
+        target:
+          $ref: '#/components/schemas/BackupTargetType'
+        retentionCount:
+          type: integer
+          minimum: 1
+          maximum: 365
+          description: 该计划在同一目标保留的成功备份数量。
+        includeLogs:
+          type: boolean
+          description: 是否包含业务数据根目录 logs/ 下运行日志；仅平台数据备份生效，科研数据备份固定为 false。
+
+    AdminBackupPlans:
+      type: object
+      required: [platform, research]
+      properties:
+        platform:
+          $ref: '#/components/schemas/AdminBackupPlanSettings'
+        research:
+          $ref: '#/components/schemas/AdminBackupPlanSettings'
+
+    AdminBackupLocalTargetSettings:
+      type: object
+      required: [directory, configured]
+      properties:
+        directory:
+          type: string
+          description: 本地备份目录；为空字符串时使用业务数据根目录下的 backups/local/。本地备份不推荐作为唯一容灾手段。
+        configured:
+          type: boolean
+          description: 本地目标是否具备可用配置。
+
+    AdminBackupObjectStorageSettings:
+      type: object
+      required:
+        [
+          provider,
+          endpoint,
+          region,
+          bucket,
+          prefix,
+          accessKeyId,
+          secretConfigured,
+          secretPreview,
+          configured,
+        ]
+      properties:
+        provider:
+          $ref: '#/components/schemas/BackupProviderType'
+        endpoint:
+          type: string
+          description: 对象存储访问地址，例如 https://s3.example.com 或 https://oss-cn.example.com。
+        region:
+          type: string
+          description: 对象存储区域，用于 S3 签名。
+        bucket:
+          type: string
+          description: 存储桶名称。
+        prefix:
+          type: string
+          description: 备份对象名前缀，例如 geomanager/prod/。
+        accessKeyId:
+          type: string
+          description: 备份专用访问密钥 ID。
+        secretConfigured:
+          type: boolean
+          description: 是否已配置访问密钥 Secret。
+        secretPreview:
+          type: string
+          description: Secret 脱敏预览；未配置时为空字符串。
+        configured:
+          type: boolean
+          description: 对象存储目标是否具备可用于连接测试和上传的完整配置。
+
+    AdminBackupObjectStorageUpdate:
+      type: object
+      properties:
+        provider:
+          $ref: '#/components/schemas/BackupProviderType'
+        endpoint:
+          type: string
+          description: 对象存储访问地址。
+        region:
+          type: string
+          description: 对象存储区域。
+        bucket:
+          type: string
+          description: 存储桶名称。
+        prefix:
+          type: string
+          description: 备份对象名前缀。
+        accessKeyId:
+          type: string
+          description: 访问密钥 ID。
+        secretAccessKey:
+          type: string
+          description: 访问密钥 Secret；仅用于新增或更换密钥，接口响应永不返回明文。
+        clearSecret:
+          type: boolean
+          description: 是否清空已保存 Secret。
+
+    AdminBackupSettingsResponse:
+      type: object
+      required: [plans, local, objectStorage, updatedAt]
+      properties:
+        plans:
+          $ref: '#/components/schemas/AdminBackupPlans'
+        local:
+          $ref: '#/components/schemas/AdminBackupLocalTargetSettings'
+        objectStorage:
+          $ref: '#/components/schemas/AdminBackupObjectStorageSettings'
+        updatedAt:
+          type: string
+          format: date-time
+          description: 配置序列化时间。
+
+    AdminBackupSettingsUpdateRequest:
+      type: object
+      properties:
+        plans:
+          $ref: '#/components/schemas/AdminBackupPlans'
+        local:
+          type: object
+          properties:
+            directory:
+              type: string
+              description: 本地备份目录；为空字符串时使用默认目录。
+        objectStorage:
+          $ref: '#/components/schemas/AdminBackupObjectStorageUpdate'
+
+    AdminBackupTargetTestRequest:
+      type: object
+      required: [targetType]
+      properties:
+        targetType:
+          $ref: '#/components/schemas/BackupTargetType'
+        local:
+          type: object
+          properties:
+            directory:
+              type: string
+              description: 可选临时本地目录；为空时使用已保存配置或默认目录。
+        objectStorage:
+          $ref: '#/components/schemas/AdminBackupObjectStorageUpdate'
+
+    AdminBackupTargetTestResponse:
+      type: object
+      required: [targetType, status, message, testedAt]
+      properties:
+        targetType:
+          $ref: '#/components/schemas/BackupTargetType'
+        status:
+          type: string
+          enum: [success, failed]
+          description: 测试结果。
+        message:
+          type: string
+          description: 面向管理员的连接测试结果说明。
+        testedAt:
+          type: string
+          format: date-time
+          description: 测试完成时间。
+
+    AdminBackupScopeSummary:
+      type: object
+      required: [planType, label, source, available, fileCount, sizeBytes]
+      properties:
+        planType:
+          $ref: '#/components/schemas/BackupPlanType'
+        label:
+          type: string
+          description: 备份范围中文名称。
+        source:
+          type: string
+          description: 数据来源摘要，不暴露服务器绝对路径。
+        available:
+          type: boolean
+          description: 当前数据根目录是否可读取。
+        fileCount:
+          type: integer
+          minimum: 0
+          description: 当前范围内可备份文件数量估算。
+        sizeBytes:
+          type: integer
+          minimum: 0
+          description: 当前范围内可备份文件大小估算。
+
+    AdminBackupRun:
+      type: object
+      required:
+        [
+          id,
+          planType,
+          targetType,
+          trigger,
+          status,
+          progressPercent,
+          messages,
+          result,
+          error,
+          archiveName,
+          sizeBytes,
+          checksumSha256,
+          objectKey,
+          localPath,
+          createdBy,
+          createdAt,
+          startedAt,
+          finishedAt,
+        ]
+      properties:
+        id:
+          type: integer
+          description: 备份任务 ID。
+        planType:
+          $ref: '#/components/schemas/BackupPlanType'
+        targetType:
+          $ref: '#/components/schemas/BackupTargetType'
+        trigger:
+          $ref: '#/components/schemas/BackupTriggerType'
+        status:
+          $ref: '#/components/schemas/BackupRunStatus'
+        progressPercent:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 备份进度百分比。
+        messages:
+          type: array
+          description: 最近任务消息。
+          items:
+            type: string
+        result:
+          type: [object, "null"]
+          additionalProperties: true
+          description: 任务成功后的 manifest 摘要；未完成或失败时为 null。
+        error:
+          type: string
+          description: 失败原因；非失败状态为空字符串。
+        archiveName:
+          type: string
+          description: 备份归档文件名。
+        sizeBytes:
+          type: integer
+          minimum: 0
+          description: 归档文件大小。
+        checksumSha256:
+          type: string
+          description: 归档文件 SHA256 校验值。
+        objectKey:
+          type: string
+          description: 对象存储路径；本地目标为空字符串。
+        localPath:
+          type: string
+          description: 本地备份路径摘要；对象存储目标为空字符串。
+        createdBy:
+          type: [string, "null"]
+          description: 手动任务发起人显示名；计划任务为 null。
+        createdAt:
+          type: string
+          format: date-time
+          description: 任务创建时间。
+        startedAt:
+          type: [string, "null"]
+          format: date-time
+          description: 任务开始时间。
+        finishedAt:
+          type: [string, "null"]
+          format: date-time
+          description: 任务结束时间。
+
+    AdminBackupRunListResponse:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminBackupRun'
+        total:
+          type: integer
+          minimum: 0
+          description: 符合筛选条件的任务总数。
+
+    AdminBackupRunCreateRequest:
+      type: object
+      required: [planType]
+      properties:
+        planType:
+          $ref: '#/components/schemas/BackupPlanType'
+        targetType:
+          $ref: '#/components/schemas/BackupTargetType'
+        includeLogs:
+          type: boolean
+          description: 手动平台备份是否包含运行日志；未提供时使用计划配置。
+
+    AdminBackupOverviewResponse:
+      type: object
+      required: [settings, summaries, activeRuns, recentRuns, generatedAt]
+      properties:
+        settings:
+          $ref: '#/components/schemas/AdminBackupSettingsResponse'
+        summaries:
+          type: array
+          description: 平台数据和科研数据范围摘要。
+          items:
+            $ref: '#/components/schemas/AdminBackupScopeSummary'
+        activeRuns:
+          type: array
+          description: 当前排队或运行中的备份任务。
+          items:
+            $ref: '#/components/schemas/AdminBackupRun'
+        recentRuns:
+          type: array
+          description: 最近备份任务。
+          items:
+            $ref: '#/components/schemas/AdminBackupRun'
+        generatedAt:
+          type: string
+          format: date-time
+          description: 概览生成时间。
 
     DataDomainType:
       type: string
@@ -4695,6 +5284,7 @@ components:
       oneOf:
         - $ref: '#/components/schemas/SingleSymbolRenderer'
         - $ref: '#/components/schemas/UniqueValueRenderer'
+        - $ref: '#/components/schemas/GraduatedRenderer'
       description: 矢量符号化渲染器；未提供时按单一符号处理
 
     SingleSymbolRenderer:
@@ -4749,6 +5339,91 @@ components:
           description: 分类值合并或疑似别名提示，供前端展示给用户确认
           items:
             type: string
+
+    GraduatedRenderer:
+      type: object
+      required: [type, field, method, classCount, precision, colorRamp, classes, defaultClass]
+      additionalProperties: true
+      description: >
+        按连续数值字段进行分级符号化，适用于海拔、NDVI、盐分等可转为数字的字段。
+        前端依据当前加载要素统计分级断点并生成 Mapbox GL JS case 表达式；服务端按
+        JSON 对象透传保存，不新增独立接口。
+      properties:
+        type:
+          type: string
+          enum: [graduated]
+          description: 数值分级渲染
+        field:
+          type: string
+          description: 连续数值字段名，例如 `海拔`、`NDVI` 或 `盐分`
+        method:
+          type: string
+          enum: [equalInterval, quantile]
+          description: 分级方法；equalInterval 为等距分级，quantile 为分位数分级
+        classCount:
+          type: integer
+          minimum: 3
+          maximum: 9
+          description: 分级数量，平台编辑器默认限制为 3 到 9 级
+        precision:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: 图例区间标签保留的小数位
+        colorRamp:
+          type: string
+          enum: [green, blue, orange, purple]
+          description: 平台内置连续色带编码
+        updatedByUser:
+          type: boolean
+          description: 用户是否已手动修改该数值分级方案
+        classes:
+          type: array
+          description: 数值区间符号列表；最后一个区间包含最大值，其他区间为左闭右开
+          items:
+            $ref: '#/components/schemas/GraduatedSymbolClass'
+        defaultClass:
+          $ref: '#/components/schemas/GraduatedSymbolClass'
+
+    GraduatedSymbolClass:
+      type: object
+      required: [id, label, min, max, color, iconImage, visible]
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+          description: 区间类别稳定 ID，前端可用于编辑列表 key
+        label:
+          type: string
+          description: 图例显示名称，通常由区间端点自动生成
+        min:
+          type:
+            - number
+            - "null"
+          description: 区间最小值；默认类使用 null 表示无数值或空值
+        max:
+          type:
+            - number
+            - "null"
+          description: 区间最大值；默认类使用 null 表示无数值或空值
+        color:
+          type: string
+          pattern: '^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$'
+          description: 区间颜色；平台内置图标会按图标 ID 与颜色生成运行时图片 ID
+        iconImage:
+          type: string
+          description: 图标 ID。平台内置图标必须使用 `gm-*` 英文 ID，并在 Mapbox 图层引用前通过 `addImage` 注册
+        size:
+          type: number
+          minimum: 0
+          description: 区间图标缩放或点半径倍率
+        count:
+          type: integer
+          minimum: 0
+          description: 当前加载数据中落入该区间的要素数量；服务端持久化时可省略或置 0
+        visible:
+          type: boolean
+          description: 该区间是否在地图和图例中显示
 
     UniqueValueSymbolClass:
       type: object
@@ -5463,7 +6138,19 @@ components:
     QueryResponse:
       type: object
       required:
-        [resourceId, resourceName, totalCount, returnedCount, limit, fields, geojson, warnings]
+        [
+          resourceId,
+          resourceName,
+          totalCount,
+          returnedCount,
+          limit,
+          limitExceeded,
+          bounds,
+          elapsedMs,
+          fields,
+          geojson,
+          warnings,
+        ]
       properties:
         resourceId:
           type: integer
@@ -5480,6 +6167,20 @@ components:
         limit:
           type: integer
           description: 返回上限
+        limitExceeded:
+          type: boolean
+          description: 命中数量是否超过返回上限；为 true 时 geojson 仅包含前 limit 条有效结果。
+        bounds:
+          type: array
+          minItems: 0
+          maxItems: 4
+          description: 本次返回有效结果的 WGS84 边界 [minLng, minLat, maxLng, maxLat]；无有效返回结果时为空数组。
+          items:
+            type: number
+        elapsedMs:
+          type: integer
+          minimum: 0
+          description: 后端执行本次资源查询耗时，单位毫秒。
         fields:
           type: array
           description: 查询结果字段

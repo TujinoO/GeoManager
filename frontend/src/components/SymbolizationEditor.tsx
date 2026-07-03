@@ -28,6 +28,10 @@ import {
   type CircleSymbolization,
   type ClusterSymbolization,
   type FillSymbolization,
+  type GraduatedClassificationMethod,
+  type GraduatedColorRamp,
+  type GraduatedRenderer,
+  type GraduatedSymbolClass,
   type HeatmapSymbolization,
   type LineSymbolization,
   type RasterSymbolization,
@@ -35,14 +39,21 @@ import {
   type UniqueValueRenderer,
   type UniqueValueSymbolClass,
   type VectorSymbolization,
+  isGraduatedRenderer,
   isUniqueValueRenderer,
 } from "../symbolization";
 import {
+  buildGraduatedRenderer,
   buildUniqueValueRenderer,
   classValuesLabel,
   fieldValueOptions,
   germplasmDnaSexRenderer,
   germplasmDnaSexTemplateId,
+  graduatedColorRamps,
+  graduatedRangeLabel,
+  numericValuesFromCounts,
+  rebuildGraduatedRenderer,
+  refreshGraduatedCounts,
   refreshUniqueValueCounts,
 } from "../symbolizationTemplates";
 import type { RasterBandMetadata, ResourceField } from "../types";
@@ -63,6 +74,8 @@ type IconPickerGroup = {
   label: string;
   options: readonly { value: string; label: string }[];
 };
+
+type VectorExpressionMode = "single" | "uniqueValue" | "graduated" | "heatmap";
 
 const rgbBandLabels = ["R", "G", "B"] as const;
 const heatmapPalettes = [
@@ -295,6 +308,20 @@ function isNumericResourceField(field: ResourceField) {
   );
 }
 
+function isPreferredGraduatedField(fieldName: string) {
+  const normalized = fieldName.toLowerCase();
+  return [
+    "海拔",
+    "高程",
+    "ndvi",
+    "盐分",
+    "含盐",
+    "salinity",
+    "elevation",
+    "altitude",
+  ].some((keyword) => normalized.includes(keyword));
+}
+
 export function VectorSymbolizationEditor({
   value,
   fields,
@@ -391,6 +418,10 @@ export function VectorSymbolizationEditor({
     );
   }
 
+  function numericDataForField(fieldName: string) {
+    return numericValuesFromCounts(countsForField(fieldName));
+  }
+
   function hasGermplasmSexField(fieldName: string) {
     return ["性别", "雌雄", "雌/雄"].some((name) =>
       fieldName.includes(name),
@@ -465,7 +496,82 @@ export function VectorSymbolizationEditor({
     });
   }
 
-  function changeExpressionMode(mode: "single" | "uniqueValue" | "heatmap") {
+  function createGraduatedRendererForField(fieldName: string): GraduatedRenderer {
+    const { values, nonNumericCount } = numericDataForField(fieldName);
+    const renderer = buildGraduatedRenderer(fieldName, values, {
+      iconImage: selectedIconImage || value.symbol.iconImage,
+    });
+    return refreshGraduatedCounts(renderer, values, nonNumericCount);
+  }
+
+  function rebuildGraduatedWith(
+    renderer: GraduatedRenderer,
+    patch: Partial<
+      Pick<
+        GraduatedRenderer,
+        "field" | "method" | "classCount" | "colorRamp" | "precision"
+      >
+    >,
+  ) {
+    const nextField = patch.field ?? renderer.field;
+    const { values, nonNumericCount } = numericDataForField(nextField);
+    return refreshGraduatedCounts(
+      rebuildGraduatedRenderer(renderer, values, patch),
+      values,
+      nonNumericCount,
+    );
+  }
+
+  function updateGraduatedRenderer(
+    updater: (renderer: GraduatedRenderer) => GraduatedRenderer,
+  ) {
+    const current = isGraduatedRenderer(value.renderer)
+      ? value.renderer
+      : createGraduatedRendererForField(defaultGraduatedField);
+    const next = updater(current);
+    updateRenderer({ ...next, updatedByUser: true });
+  }
+
+  function updateGraduatedClass(
+    classId: string,
+    patch: Partial<GraduatedSymbolClass>,
+  ) {
+    updateGraduatedRenderer((renderer) => ({
+      ...renderer,
+      classes: renderer.classes.map((item) =>
+        item.id === classId ? { ...item, ...patch } : item,
+      ),
+    }));
+  }
+
+  function updateDefaultGraduatedClass(
+    patch: Partial<GraduatedSymbolClass>,
+  ) {
+    updateGraduatedRenderer((renderer) => ({
+      ...renderer,
+      defaultClass: {
+        ...renderer.defaultClass,
+        ...patch,
+        min: null,
+        max: null,
+      },
+    }));
+  }
+
+  function changeGraduatedField(fieldName: string) {
+    const nextRenderer = createGraduatedRendererForField(fieldName);
+    onChange({
+      ...value,
+      pointMode: geometry.hasPoint ? "symbol" : value.pointMode,
+      renderer: { ...nextRenderer, updatedByUser: true },
+      symbol: {
+        ...value.symbol,
+        iconImage: nextRenderer.classes[0]?.iconImage ?? value.symbol.iconImage,
+      },
+    });
+  }
+
+  function changeExpressionMode(mode: VectorExpressionMode) {
     if (mode === "heatmap") {
       onChange({
         ...value,
@@ -482,6 +588,30 @@ export function VectorSymbolizationEditor({
           heatmapColor: [
             ...(heatmapPalettes[0]?.value ?? value.heatmap.heatmapColor),
           ],
+        },
+      });
+      return;
+    }
+    if (mode === "graduated") {
+      const nextRenderer = isGraduatedRenderer(value.renderer)
+        ? (() => {
+            const { values, nonNumericCount } = numericDataForField(
+              value.renderer.field,
+            );
+            return refreshGraduatedCounts(
+              value.renderer,
+              values,
+              nonNumericCount,
+            );
+          })()
+        : createGraduatedRendererForField(defaultGraduatedField);
+      onChange({
+        ...value,
+        pointMode: geometry.hasPoint ? "symbol" : value.pointMode,
+        renderer: { ...nextRenderer, updatedByUser: true },
+        symbol: {
+          ...value.symbol,
+          iconImage: nextRenderer.classes[0]?.iconImage ?? value.symbol.iconImage,
         },
       });
       return;
@@ -581,12 +711,28 @@ export function VectorSymbolizationEditor({
   const uniqueRenderer = isUniqueValueRenderer(value.renderer)
     ? refreshUniqueValueCounts(value.renderer, countsForField(value.renderer.field))
     : null;
+  const rawGraduatedRenderer = isGraduatedRenderer(value.renderer)
+    ? value.renderer
+    : null;
+  const graduatedData = rawGraduatedRenderer
+    ? numericDataForField(rawGraduatedRenderer.field)
+    : null;
+  const graduatedRenderer =
+    rawGraduatedRenderer && graduatedData
+      ? refreshGraduatedCounts(
+          rawGraduatedRenderer,
+          graduatedData.values,
+          graduatedData.nonNumericCount,
+        )
+      : null;
   const expressionMode =
     value.pointMode === "heatmap"
       ? "heatmap"
       : uniqueRenderer
         ? "uniqueValue"
-        : "single";
+        : graduatedRenderer
+          ? "graduated"
+          : "single";
   const normalizedGeometry = (geometryType ?? "").toLowerCase();
   const geometryUnknown =
     !normalizedGeometry ||
@@ -687,6 +833,43 @@ export function VectorSymbolizationEditor({
       };
     }),
   );
+  const numericFieldOptions = fields
+    .filter((field) => {
+      if (isNumericResourceField(field)) return true;
+      return numericDataForField(field.name).values.length > 0;
+    })
+    .map((field) => ({
+      value: field.name,
+      label: field.description
+        ? `${field.name} · ${field.description}`
+        : field.name,
+    }));
+  const graduatedFieldOptions =
+    numericFieldOptions.length > 0
+      ? numericFieldOptions
+      : fields.map((field) => ({ value: field.name, label: field.name }));
+  const defaultGraduatedField =
+    graduatedFieldOptions.find((option) =>
+      isPreferredGraduatedField(option.value),
+    )?.value ??
+    graduatedFieldOptions[0]?.value ??
+    fields[0]?.name ??
+    "";
+  const graduatedRampOptions = Object.entries(graduatedColorRamps).map(
+    ([rampKey, ramp]) => ({
+      value: rampKey,
+      label: (
+        <span className="graduated-ramp-option">
+          <span className="graduated-ramp-preview" aria-hidden="true">
+            {ramp.colors.map((color) => (
+              <i key={color} style={{ backgroundColor: color }} />
+            ))}
+          </span>
+          <span>{ramp.label}</span>
+        </span>
+      ),
+    }),
+  );
 
   return (
     <Card
@@ -704,20 +887,21 @@ export function VectorSymbolizationEditor({
               </Typography.Text>
             </div>
           </div>
-          {geometry.hasPoint && (
-            <ControlRow label="点数据表达">
+          {(geometry.hasPoint || geometry.hasLine || geometry.hasPolygon) && (
+            <ControlRow label="字段表达">
               <Segmented
                 block
                 value={expressionMode}
                 options={[
                   { value: "single", label: "单一符号" },
                   { value: "uniqueValue", label: "唯一值分类" },
-                  { value: "heatmap", label: "密度热力" },
+                  { value: "graduated", label: "数值分级" },
+                  ...(geometry.hasPoint
+                    ? [{ value: "heatmap", label: "密度热力" }]
+                    : []),
                 ]}
                 onChange={(mode) =>
-                  changeExpressionMode(
-                    mode as "single" | "uniqueValue" | "heatmap",
-                  )
+                  changeExpressionMode(mode as VectorExpressionMode)
                 }
               />
             </ControlRow>
@@ -960,6 +1144,243 @@ export function VectorSymbolizationEditor({
                   />
                   <Typography.Text className="unique-class-count">
                     {uniqueRenderer.defaultClass.count} 条
+                  </Typography.Text>
+                </div>
+              </div>
+            </Space>
+          </section>
+        )}
+
+        {expressionMode === "graduated" && graduatedRenderer && (
+          <section className="symbolization-section unique-symbolization-section graduated-symbolization-section">
+            <div className="symbolization-section-head">
+              <div>
+                <Typography.Text strong>数值分级</Typography.Text>
+                <Typography.Text type="secondary">
+                  按连续字段区间生成图例，适合海拔、NDVI、盐分等数值型属性
+                </Typography.Text>
+              </div>
+            </div>
+            <Space
+              orientation="vertical"
+              className="full-width symbolization-stack"
+            >
+              <ControlRow label="分级字段">
+                <Select
+                  className="full-width"
+                  value={graduatedRenderer.field}
+                  options={graduatedFieldOptions}
+                  onChange={changeGraduatedField}
+                />
+              </ControlRow>
+              <ControlRow label="分级方法">
+                <Segmented
+                  block
+                  value={graduatedRenderer.method}
+                  options={[
+                    { value: "equalInterval", label: "等距分级" },
+                    { value: "quantile", label: "分位数" },
+                  ]}
+                  onChange={(method) =>
+                    updateGraduatedRenderer((renderer) =>
+                      rebuildGraduatedWith(renderer, {
+                        method: method as GraduatedClassificationMethod,
+                      }),
+                    )
+                  }
+                />
+              </ControlRow>
+              <div className="graduated-control-grid">
+                <ControlRow label="分级数量">
+                  <InputNumber
+                    className="full-width"
+                    value={graduatedRenderer.classCount}
+                    min={3}
+                    max={9}
+                    step={1}
+                    onChange={(classCount) =>
+                      updateGraduatedRenderer((renderer) =>
+                        rebuildGraduatedWith(renderer, {
+                          classCount:
+                            typeof classCount === "number" ? classCount : 5,
+                        }),
+                      )
+                    }
+                  />
+                </ControlRow>
+                <ControlRow label="小数位">
+                  <InputNumber
+                    className="full-width"
+                    value={graduatedRenderer.precision}
+                    min={0}
+                    max={6}
+                    step={1}
+                    onChange={(precision) =>
+                      updateGraduatedRenderer((renderer) =>
+                        rebuildGraduatedWith(renderer, {
+                          precision:
+                            typeof precision === "number" ? precision : 2,
+                        }),
+                      )
+                    }
+                  />
+                </ControlRow>
+              </div>
+              <ControlRow label="色带">
+                <Select
+                  className="full-width"
+                  value={graduatedRenderer.colorRamp}
+                  options={graduatedRampOptions}
+                  onChange={(colorRamp) =>
+                    updateGraduatedRenderer((renderer) =>
+                      rebuildGraduatedWith(renderer, {
+                        colorRamp: colorRamp as GraduatedColorRamp,
+                      }),
+                    )
+                  }
+                />
+              </ControlRow>
+              {graduatedRenderer.classes.length === 0 && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  title="当前字段没有可用于分级的数值"
+                  description="请切换到海拔、NDVI、盐分等可解析为数字的字段，或检查原始属性值。"
+                />
+              )}
+              <div className="unique-class-list">
+                {graduatedRenderer.classes.map((item) => (
+                  <div
+                    className="unique-class-row graduated-class-row"
+                    key={item.id}
+                  >
+                    <div className="unique-class-preview">
+                      <span
+                        className="unique-class-swatch"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <Switch
+                        size="small"
+                        checked={item.visible}
+                        onChange={(visible) =>
+                          updateGraduatedClass(item.id, { visible })
+                        }
+                      />
+                    </div>
+                    <Input
+                      className="unique-class-label"
+                      value={item.label}
+                      maxLength={32}
+                      onChange={(event) =>
+                        updateGraduatedClass(item.id, {
+                          label: event.target.value,
+                        })
+                      }
+                    />
+                    <Typography.Text
+                      className="unique-class-values-readonly graduated-class-range"
+                      title={graduatedRangeLabel(item)}
+                    >
+                      {graduatedRangeLabel(item)}
+                    </Typography.Text>
+                    <ColorPicker
+                      value={item.color}
+                      onChangeComplete={(color) =>
+                        updateGraduatedClass(item.id, {
+                          color: color.toHexString(),
+                        })
+                      }
+                    />
+                    <Select
+                      className="unique-class-icon"
+                      value={item.iconImage}
+                      showSearch
+                      optionFilterProp="label"
+                      popupMatchSelectWidth={false}
+                      options={uniqueIconOptions}
+                      onChange={(iconImage) =>
+                        updateGraduatedClass(item.id, { iconImage })
+                      }
+                    />
+                    <InputNumber
+                      className="unique-class-size"
+                      value={item.size}
+                      min={0.2}
+                      max={5}
+                      step={0.05}
+                      onChange={(size) =>
+                        updateGraduatedClass(item.id, {
+                          size: typeof size === "number" ? size : 1,
+                        })
+                      }
+                    />
+                    <Typography.Text className="unique-class-count">
+                      {item.count} 条
+                    </Typography.Text>
+                  </div>
+                ))}
+                <div className="unique-class-row unique-class-row-default graduated-class-row">
+                  <div className="unique-class-preview">
+                    <span
+                      className="unique-class-swatch"
+                      style={{
+                        backgroundColor: graduatedRenderer.defaultClass.color,
+                      }}
+                    />
+                    <Switch
+                      size="small"
+                      checked={graduatedRenderer.defaultClass.visible}
+                      onChange={(visible) =>
+                        updateDefaultGraduatedClass({ visible })
+                      }
+                    />
+                  </div>
+                  <Input
+                    className="unique-class-label"
+                    value={graduatedRenderer.defaultClass.label}
+                    maxLength={24}
+                    onChange={(event) =>
+                      updateDefaultGraduatedClass({
+                        label: event.target.value,
+                      })
+                    }
+                  />
+                  <Typography.Text className="unique-class-values-readonly graduated-class-range">
+                    {graduatedRangeLabel(graduatedRenderer.defaultClass)}
+                  </Typography.Text>
+                  <ColorPicker
+                    value={graduatedRenderer.defaultClass.color}
+                    onChangeComplete={(color) =>
+                      updateDefaultGraduatedClass({
+                        color: color.toHexString(),
+                      })
+                    }
+                  />
+                  <Select
+                    className="unique-class-icon"
+                    value={graduatedRenderer.defaultClass.iconImage}
+                    showSearch
+                    optionFilterProp="label"
+                    popupMatchSelectWidth={false}
+                    options={uniqueIconOptions}
+                    onChange={(iconImage) =>
+                      updateDefaultGraduatedClass({ iconImage })
+                    }
+                  />
+                  <InputNumber
+                    className="unique-class-size"
+                    value={graduatedRenderer.defaultClass.size}
+                    min={0.2}
+                    max={5}
+                    step={0.05}
+                    onChange={(size) =>
+                      updateDefaultGraduatedClass({
+                        size: typeof size === "number" ? size : 1,
+                      })
+                    }
+                  />
+                  <Typography.Text className="unique-class-count">
+                    {graduatedRenderer.defaultClass.count} 条
                   </Typography.Text>
                 </div>
               </div>

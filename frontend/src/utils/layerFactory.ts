@@ -31,9 +31,14 @@ export function createVectorLayerGroup(
     attributeFilters: AttributeFilter[];
     spatialFilter: SpatialFilter | null;
   },
+  options: {
+    name?: string;
+    metadata?: Record<string, string | number | boolean | null | undefined>;
+  } = {},
 ): LoadedLayerGroup {
   const now = new Date();
   const groupId = `query-${resource.id}-${now.getTime()}`;
+  const displayName = options.name ?? resource.name;
   const summary = `${queryResult.returnedCount}/${queryResult.totalCount} 条 · ${profile.geometryType || "空间数据"}`;
   const metadata = {
     数据名称: resource.name,
@@ -47,6 +52,7 @@ export function createVectorLayerGroup(
     返回条数: queryResult.returnedCount,
     命中条数: queryResult.totalCount,
     加载时间: now.toLocaleString("zh-CN", { hour12: false }),
+    ...options.metadata,
   };
   const vectorSymbolization = vectorSymbolizationWithDefaultTemplate({
     resource,
@@ -56,7 +62,7 @@ export function createVectorLayerGroup(
   });
   return {
     id: groupId,
-    name: resource.name,
+    name: displayName,
     sourceResource: resource,
     visible: true,
     summary,
@@ -66,7 +72,7 @@ export function createVectorLayerGroup(
     children: [
       {
         id: `${groupId}-vector`,
-        name: resource.name,
+        name: displayName,
         layerType: "vector",
         sourceResource: resource,
         geojson: queryResult.geojson,

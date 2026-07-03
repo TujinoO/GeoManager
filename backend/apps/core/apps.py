@@ -22,6 +22,9 @@ class CoreConfig(AppConfig):
         if not _startup_credentials_printed:
             _startup_credentials_printed = True
             self._print_credentials_async()
+        from apps.core.backup_scheduler import start_backup_scheduler_once
+
+        start_backup_scheduler_once()
 
     def _print_credentials_async(self):
         import os

@@ -185,7 +185,7 @@ frontend/src/
 - 管理后台通过前端 `/admin/` SPA 路由承载，使用 `@ant-design/pro-components` 的 `ProLayout`、`PageContainer`、`ProTable`、`ProForm` 和 `ProCard`。
 - `/admin/` 默认进入运行概览；后台运行概览保留用户信息、活跃用户和服务器信息。操作日志、系统设置、认证授权根据功能权限显示。数据概览中的数据资源、图层、栅格和数据体量相关部分归入数据管理 `/resources/`，数据导入和存量数据管理也归入数据管理，不再作为后台管理菜单项。
 - 后台入口只要求登录态，具体页面、菜单和操作必须同时由前端权限展示和后端权限校验控制。
-- 后台“数据备份”入口使用独立功能权限 `core.manage_data_backup`，默认且锁定授予 `超级管理员` 角色，不随系统设置权限开放给普通角色。当前页面仅为云端备份 UI 占位，实际备份任务和接口尚未实现。
+- 后台“数据备份”入口使用独立功能权限 `core.manage_data_backup`，默认且锁定授予 `超级管理员` 角色，不随系统设置权限开放给普通角色。备份 API 还必须二次校验当前主体属于内置 `超级管理员`，避免普通账号被误授予权限后执行备份。备份目标支持不推荐的本地目录和推荐的 S3 兼容对象存储；对象存储参数由超级管理员通过前端配置，`secretAccessKey` 不回显。备份任务写入持久化 `BackupRun`，用户主动配置、测试和发起备份写入 `OperationLog(module="数据备份")`。
 - 用户设置和系统设置默认只读，点击编辑后进入编辑态；后台创建用户不受自助注册开关影响，但必须具备 `core.create_user` 权限。
 - 用户组权限配置复用 Django `Group`/`Permission`，必须具备 `core.manage_feature_permissions` 权限；超级管理员用户组不能删除，初始化的 `admin` 用户不能从该组移除。
 - 数据导入入口统一为单个任意文件上传区，前端按扩展名自动分流：CSV/Excel 复用 `/api/catalog/import/preview/`、`/api/catalog/import/validate/` 和 `/api/catalog/import/commit/`，流程为文件预检、导入配置校验、数据预览和字段元数据维护；GeoTIFF/IMG/VRT 复用 `/api/raster/import/` 和栅格任务轮询；尚无后端导入流程的文件类型必须显示“暂不支持自动导入”，不得误调用表格或栅格接口。
@@ -234,6 +234,7 @@ frontend/src/
 - 透明度在子图层符号化面板中配置；图层组不再提供单独透明度配置入口。
 - 点要素符号化按 Mapbox Style Specification 的 `circle` 和 `symbol` 图层拆分：`circle` 参数覆盖颜色、半径、描边、模糊、位移、pitch、sort key、emissive 等；`symbol` 参数覆盖 icon/text 的 layout 与 paint 配置。
 - 线、面要素继续使用 Mapbox `line`、`fill` 图层表达，符号化面板同步暴露线色、线宽、线型、填充色、透明度、位移、sort key 等参数。
+- 矢量 `renderer.type` 当前支持 `single`、`uniqueValue` 和 `graduated`。唯一值分类使用 Mapbox `match` 表达式，数值分级使用 `case + to-number` 表达式；空值或无法转数字的属性落入 `defaultClass`。两者的 `gm-*` 图标都会在写入 `icon-image` 前注册为按颜色区分的运行时图片。
 - 每个前端加载的 GeoJSON source 使用 `generateId`，所有矢量 style layer 注册统一交互：鼠标覆盖仅改变指针并高亮要素，单击要素后选中并在右侧导航面板的"要素属性"标签中展示该单条记录属性。
 - 主界面侧栏参考 `docs/ui-redesign-mockups.html` 的 V2 布局：左侧统一为 `数据`、`图层`、`工程`、`专题` 四个切换页；右侧拆成上方平面缩略图窗口和下方生态数据窗口，下方包含 `概览`、`要素`、`监测` 三个切换页，其中 `要素` 继续承载地图单击要素属性；底部面板改为空间查询工作区，包含 `空间查询`、`结果`、`时间`、`图例` 标签，`空间查询` 内按左右区域组织范围绘制/导入导出与查询状态/图例占位。共享空间范围仍同时用于空间查询和导出裁切，当前选中图层范围开关继续将 `minLng,minLat,maxLng,maxLat` 范围绘制为地图覆盖层。
 - 当前符号化模型位于 `frontend/src/symbolization.ts`，编辑界面位于 `frontend/src/components/SymbolizationEditor.tsx`，Mapbox 转换逻辑位于 `frontend/src/map/vectorLayerSync.ts`。
@@ -534,3 +535,9 @@ CREATE TABLE gpkg_data_columns (
 - 矢量 `symbolization` 继续存储在现有 JSONField 中，不新增数据库迁移；OpenAPI 已补充 `VectorSymbolization`、`UniqueValueRenderer` 和 `UniqueValueSymbolClass` 以约束新结构，同时通过 `additionalProperties` 兼容历史松散样式。
 - 业务默认模板先以前端模板注册表实现。首个模板为 `germplasm.dna-sex-tree.v1`：命中 `domainType=germplasm` 或字段组合 `DNA样本编号 + 性别` 时，默认使用 `gm-tree` 图标按 `性别` 分类，`雌株` 与 `雌株珠` 归并为“雌性”，`雄株` 为“雄性”，其他值走默认类。
 - Mapbox 图标仍使用平台内置 `gm-*` 英文 ID。分类颜色通过运行时生成的 canvas 图片体现，图标图片 ID 形如 `gm-tree--d65a8a`，渲染前调用 `map.addImage()` 注册，并保留 `styleimagemissing` 兜底，避免未注册图标导致点位消失。
+
+# 2026-07-03 矢量数值分级符号化
+
+- 矢量 `symbolization.renderer` 增加 `graduated` 类型，继续复用现有 `MapLayer.symbolization` JSONField、图层序列化和默认可视化保存链路，不新增数据库迁移或分类接口。
+- 前端符号化面板支持按海拔、NDVI、盐分等连续字段生成等距分级或分位数分级；字段类型不是数值但当前属性值可解析为数字时也允许分级，无法解析的值进入默认“无数值/空值”类。
+- Mapbox 渲染使用 `case + to-number` 表达式驱动点、线、面颜色、大小和可见性；点图标仍使用 `gm-*--color` 运行时图片 ID 并在渲染前注册，避免平台内置图标加载失败。

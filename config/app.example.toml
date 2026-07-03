@@ -29,3 +29,29 @@ max_raster_side_pixels = 10000
 
 [application.raster]
 symbolizer_timeout_seconds = 120
+
+[application.backup.local]
+directory = ""
+
+[application.backup.object_storage]
+provider = "s3_compatible"
+endpoint = ""
+region = ""
+bucket = ""
+prefix = ""
+access_key_id = ""
+secret_access_key = ""
+
+[application.backup.plans.platform]
+enabled = false
+daily_at = "03:00"
+target = "object_storage"
+retention_count = 14
+include_logs = false
+
+[application.backup.plans.research]
+enabled = false
+daily_at = "02:00"
+target = "object_storage"
+retention_count = 7
+include_logs = false

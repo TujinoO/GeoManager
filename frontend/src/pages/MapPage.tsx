@@ -21,8 +21,11 @@ import DataPanel from "../components/DataPanel";
 import LayerDataTableModal from "../components/LayerDataTableModal";
 import LayerPanel from "../components/LayerPanel";
 import RightSidePanel from "../components/RightSidePanel";
+import SpatialQueryWorkbench, {
+  type SpatialQueryTarget,
+  type SpatialQueryWorkbenchResult,
+} from "../components/SpatialQueryWorkbench";
 import WorkspaceScenePanel from "../components/WorkspaceScenePanel";
-import WorkspaceBottomPanel from "../components/WorkspaceBottomPanel";
 import WorkspaceHeader from "../components/WorkspaceHeader";
 import { useAppContext } from "../contexts/AppContext";
 import {
@@ -58,6 +61,7 @@ import type {
   MapViewState,
   ResourceFilters,
   ResourceListItem,
+  ResourceQueryResult,
   SpatialFilter,
 } from "../types";
 import { downloadBlob } from "../utils/download";
@@ -66,6 +70,7 @@ import {
   combinedFeatureBounds,
   fitGeojsonBounds,
   geometryFromBoundsText,
+  rectangleGeometry,
   sourceIdFor,
 } from "../utils/geometry";
 import {
@@ -76,6 +81,24 @@ import { resourceSpatialExtent } from "../utils/resources";
 import { showGeojsonWarnings } from "../workspace/workspaceNotifications";
 
 type DrawPurpose = "query";
+type LeftPanelTabKey = "data" | "layers" | "projects" | "topics";
+const leftPanelTabKeys = new Set<string>([
+  "data",
+  "layers",
+  "projects",
+  "topics",
+]);
+
+interface SpatialQueryContext {
+  target: SpatialQueryTarget;
+  targetName: string;
+  resource: ResourceListItem;
+  profile: DataResourceProfile;
+  query: {
+    attributeFilters: AttributeFilter[];
+    spatialFilter: SpatialFilter | null;
+  };
+}
 
 const emptyPermissions = {
   canAccessAdmin: false,
@@ -146,6 +169,13 @@ export default function MapPage() {
   const [spatialFilter, setSpatialFilter] = useState<SpatialFilter | null>(
     null,
   );
+  const [spatialQuerying, setSpatialQuerying] = useState(false);
+  const [spatialQueryData, setSpatialQueryData] =
+    useState<ResourceQueryResult | null>(null);
+  const [spatialQueryContext, setSpatialQueryContext] =
+    useState<SpatialQueryContext | null>(null);
+  const [spatialQueryResult, setSpatialQueryResult] =
+    useState<SpatialQueryWorkbenchResult | null>(null);
   const [activeDraw, setActiveDraw] = useState<{
     purpose: DrawPurpose;
     mode: NonNullable<DrawMode>;
@@ -156,6 +186,8 @@ export default function MapPage() {
     null,
   );
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+  const [activeLeftPanel, setActiveLeftPanel] =
+    useState<LeftPanelTabKey>("data");
   const [tableLayer, setTableLayer] = useState<LoadedLayer | null>(null);
   const [visibleLayerExtentIds, setVisibleLayerExtentIds] = useState<
     Set<string>
@@ -286,12 +318,10 @@ export default function MapPage() {
   );
 
   const selectedLayer = useMemo(() => {
-    return (
-      allLayers.find((layer) => layer.id === selectedLayerId) ??
-      allLayers.find((layer) => layer.layerType === "vector") ??
-      allLayers[0] ??
-      null
-    );
+    if (!selectedLayerId) {
+      return null;
+    }
+    return allLayers.find((layer) => layer.id === selectedLayerId) ?? null;
   }, [allLayers, selectedLayerId]);
 
   const setLayerExtentVisibility = useCallback(
@@ -478,6 +508,7 @@ export default function MapPage() {
 
   const handleSelectDataDomain = useCallback(
     (domainType: DataDomainType | null) => {
+      setActiveLeftPanel("data");
       const nextParams = new URLSearchParams(searchParams);
       if (domainType) {
         nextParams.set("domainType", domainType);
@@ -490,6 +521,12 @@ export default function MapPage() {
     },
     [searchParams, setSearchParams],
   );
+
+  const handleLeftPanelChange = useCallback((key: string) => {
+    if (isLeftPanelTabKey(key)) {
+      setActiveLeftPanel(key);
+    }
+  }, []);
 
   const handleDrawComplete = useCallback(
     (mode: NonNullable<DrawMode>, geometry: GeoJsonGeometry) => {
@@ -899,6 +936,325 @@ export default function MapPage() {
     ],
   );
 
+  function handleUseCurrentViewRange() {
+    if (!currentMapView) {
+      message.warning("地图视图尚未就绪");
+      return;
+    }
+    const [west, south, east, north] = currentMapView.bounds;
+    if (![west, south, east, north].every(Number.isFinite)) {
+      message.warning("当前视图范围无效");
+      return;
+    }
+    setSpatialFilter({
+      mode: "rectangle",
+      geometry: rectangleGeometry([west, south], [east, north]),
+    });
+    setActiveDraw(null);
+  }
+
+  function handleUseSelectedLayerRange() {
+    if (!selectedLayer) {
+      message.warning("请先在图层树选择图层");
+      return;
+    }
+    const geometry = layerExtentGeometryFor(selectedLayer);
+    if (!geometry) {
+      message.warning("当前图层没有可用空间范围");
+      return;
+    }
+    setSpatialFilter({ mode: "rectangle", geometry });
+    setActiveDraw(null);
+  }
+
+  function handleClearSpatialFilter() {
+    setSpatialFilter(null);
+    setActiveDraw(null);
+  }
+
+  function handleImportSpatialFilter(filter: SpatialFilter) {
+    setSpatialFilter(filter);
+    setActiveDraw(null);
+  }
+
+  function clearSpatialQueryState() {
+    setSpatialQueryData(null);
+    setSpatialQueryContext(null);
+    setSpatialQueryResult(null);
+  }
+
+  async function handleSelectSpatialTargetResource(resourceId: number | null) {
+    clearSpatialQueryState();
+    if (resourceId === null) {
+      setSelectedResource(null);
+      setResourceProfile(null);
+      return;
+    }
+    const resource = resources.find((item) => item.id === resourceId);
+    if (!resource) {
+      message.warning("当前资源列表中没有找到该资源");
+      return;
+    }
+    if (resource.dataType !== "vector" || !resource.isQueryable) {
+      message.warning("请选择可查询的矢量资源");
+      return;
+    }
+    await fetchResourceProfile(resource);
+  }
+
+  function handleSelectSpatialTargetLayer(layerId: string | null) {
+    clearSpatialQueryState();
+    if (layerId === null) {
+      setSelectedLayerId(null);
+      return;
+    }
+    const layer = allLayers.find((item) => item.id === layerId);
+    if (!layer || layer.layerType !== "vector") {
+      message.warning("请选择已加载的矢量图层");
+      return;
+    }
+    setSelectedLayerId(layerId);
+  }
+
+  async function resolveSpatialQueryContext(
+    target: SpatialQueryTarget,
+    queryFilter: SpatialFilter,
+  ): Promise<SpatialQueryContext | null> {
+    const query = {
+      attributeFilters: [],
+      spatialFilter: queryFilter,
+    };
+    if (target === "selectedResource") {
+      if (!selectedResource) {
+        message.warning("请先在左侧数据面板选择资源");
+        return null;
+      }
+      if (
+        selectedResource.dataType !== "vector" ||
+        !selectedResource.isQueryable ||
+        !resourceProfile
+      ) {
+        message.warning("当前资源不是可查询的矢量资源");
+        return null;
+      }
+      return {
+        target,
+        targetName: selectedResource.name,
+        resource: selectedResource,
+        profile: resourceProfile,
+        query,
+      };
+    }
+
+    if (!selectedLayer || selectedLayer.layerType !== "vector") {
+      message.warning("请先在图层树选择矢量图层");
+      return null;
+    }
+    const resource = selectedLayer.sourceResource;
+    if (
+      resource.id <= 0 ||
+      resource.dataType !== "vector" ||
+      !resource.isQueryable
+    ) {
+      message.warning("当前图层没有可反查的可查询来源资源");
+      return null;
+    }
+    const profile =
+      selectedResource?.id === resource.id && resourceProfile
+        ? resourceProfile
+        : await api.resourceProfile(resource);
+    return {
+      target,
+      targetName: selectedLayer.name,
+      resource,
+      profile,
+      query,
+    };
+  }
+
+  async function handleRunSpatialQuery(target: SpatialQueryTarget) {
+    if (!permissions.canQueryData || !permissions.canLoadVectorLayer) {
+      message.warning(permissionDeniedMessage);
+      return;
+    }
+    if (!spatialFilter?.geometry) {
+      message.warning("请先设置空间查询范围");
+      return;
+    }
+
+    setSpatialQuerying(true);
+    setSpatialQueryData(null);
+    setSpatialQueryContext(null);
+    setSpatialQueryResult(null);
+    try {
+      const context = await resolveSpatialQueryContext(target, spatialFilter);
+      if (!context) {
+        return;
+      }
+      const result = await api.queryResource(context.resource, {
+        ...context.query,
+        limit: bootstrap.limits.queryResultLimit,
+      });
+      showGeojsonWarnings(notification, result.warnings);
+      setSpatialQueryData(result);
+      setSpatialQueryContext(context);
+      setSpatialQueryResult({
+        id: `spatial-query-${context.resource.id}-${Date.now()}`,
+        target,
+        targetName: context.targetName,
+        resourceName: context.resource.name,
+        rangeMode: spatialFilter.mode,
+        totalCount: result.totalCount,
+        returnedCount: result.returnedCount,
+        limit: result.limit,
+        limitExceeded: result.limitExceeded,
+        bounds: result.bounds,
+        elapsedMs: result.elapsedMs,
+        warningCount: result.warnings.length,
+        loadedLayerName: null,
+      });
+
+      const resultMessage = spatialQueryMessage(result);
+      if (result.returnedCount === 0) {
+        message.warning(resultMessage);
+      } else if (result.limitExceeded) {
+        message.warning(resultMessage);
+      } else {
+        message.success(resultMessage);
+      }
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : "空间查询执行失败",
+      );
+    } finally {
+      setSpatialQuerying(false);
+    }
+  }
+
+  function createSpatialResultGroup() {
+    if (!spatialQueryData || !spatialQueryContext || !spatialQueryResult) {
+      return null;
+    }
+    if (spatialQueryData.returnedCount === 0) {
+      return null;
+    }
+    const name =
+      spatialQueryResult.loadedLayerName ??
+      `空间查询结果 - ${spatialQueryContext.targetName}`;
+    return createVectorLayerGroup(
+      spatialQueryContext.resource,
+      spatialQueryContext.profile,
+      spatialQueryData,
+      spatialQueryContext.query,
+      {
+        name,
+        metadata: {
+          查询类型: "空间查询",
+          查询对象: spatialQueryContext.targetName,
+          查询来源:
+            spatialQueryContext.target === "selectedLayer"
+              ? "当前图层"
+              : "当前资源",
+          来源资源: spatialQueryContext.resource.name,
+          空间范围: spatialQueryContext.query.spatialFilter
+            ? spatialFilterModeLabel(spatialQueryContext.query.spatialFilter.mode)
+            : "未设置",
+          命中总数: spatialQueryData.totalCount,
+          返回条数: spatialQueryData.returnedCount,
+          返回上限: spatialQueryData.limit,
+          结果截断: spatialQueryData.limitExceeded ? "是" : "否",
+          后端耗时ms: spatialQueryData.elapsedMs,
+        },
+      },
+    );
+  }
+
+  function handleLoadSpatialResult() {
+    if (spatialQueryResult?.loadedLayerName) {
+      message.info("空间查询结果已加载为图层");
+      return;
+    }
+    const group = createSpatialResultGroup();
+    if (!group) {
+      message.warning("暂无可加载的空间查询结果");
+      return;
+    }
+    layerGroups.addGroup(group);
+    setSelectedLayerId(group.children[0]?.id ?? null);
+    setSpatialQueryResult((current) =>
+      current ? { ...current, loadedLayerName: group.name } : current,
+    );
+    message.success("空间查询结果已加载为图层");
+  }
+
+  async function handleLocateSpatialResult() {
+    if (!spatialQueryData || spatialQueryData.returnedCount === 0) {
+      message.warning("暂无可定位的空间查询结果");
+      return;
+    }
+    const map = mapInstanceRef.current;
+    if (!map) {
+      message.warning("地图尚未准备好");
+      return;
+    }
+    fitGeojsonBounds(
+      map,
+      spatialQueryData.geojson,
+      bootstrap.map.defaultCenter,
+      bootstrap.map.defaultZoom,
+      await mapFitBoundsOptions(map),
+    );
+  }
+
+  function handleOpenSpatialResultTable() {
+    const group = createSpatialResultGroup();
+    const layer = group?.children.find(
+      (item): item is LoadedVectorLayer => item.layerType === "vector",
+    );
+    if (!layer) {
+      message.warning("暂无可查看的空间查询结果");
+      return;
+    }
+    setTableLayer(layer);
+  }
+
+  function handleExportSpatialResult() {
+    if (!spatialQueryData || !spatialQueryContext || !spatialQueryResult) {
+      message.warning("暂无可导出的空间查询结果");
+      return;
+    }
+    if (spatialQueryData.returnedCount === 0) {
+      message.warning("空间查询结果为空，无法导出");
+      return;
+    }
+    void exportLayers(
+      [
+        {
+          layerType: "vector",
+          name:
+            spatialQueryResult.loadedLayerName ??
+            `空间查询结果 - ${spatialQueryContext.targetName}`,
+          resourceId: spatialQueryContext.resource.id,
+          geojson: spatialQueryData.geojson,
+          sourceCrs: spatialQueryContext.resource.coordinateSystem || "EPSG:4326",
+        },
+      ],
+      {
+        epsg: 4326,
+        reproject: true,
+        clip: false,
+        clipGeometry: null,
+        format: "geojson",
+      },
+    ).catch(() => undefined);
+  }
+
+  function handleClearSpatialResult() {
+    setSpatialQueryData(null);
+    setSpatialQueryContext(null);
+    setSpatialQueryResult(null);
+  }
+
   useEffect(() => {
     const sceneIdText = searchParams.get("sceneId")?.trim();
     if (!sceneIdText) {
@@ -1040,7 +1396,8 @@ export default function MapPage() {
             <LayerContext.Provider value={layerContextValue}>
               <Tabs
                 className="workspace-side-tabs workspace-left-tabs"
-                defaultActiveKey="data"
+                activeKey={activeLeftPanel}
+                onChange={handleLeftPanelChange}
                 size="small"
                 items={[
                   {
@@ -1130,20 +1487,40 @@ export default function MapPage() {
         </aside>
         <aside
           className="floating-panel-bottom"
-          aria-label="底部数据与绘制面板"
+          aria-label="空间查询面板"
         >
           <ConfigProvider theme={workspacePanelTheme}>
-            <WorkspaceBottomPanel
+            <SpatialQueryWorkbench
+              resources={resources}
+              layers={allLayers}
+              selectedResource={selectedResource}
+              selectedResourceProfile={resourceProfile}
               selectedLayer={selectedLayer}
               exportClipGeometry={sharedSpatialGeometry}
               spatialFilter={spatialFilter}
               activeDraw={activeDraw}
-              canUseAiInterpretation={permissions.canUseAiInterpretation}
-              canExportMap={permissions.canExportData}
+              spatialQuerying={spatialQuerying}
+              spatialQueryResult={spatialQueryResult}
+              canExportData={permissions.canExportData}
               exportTileZoomRange={exportTileZoomRange}
+              canUseCurrentViewRange={Boolean(currentMapView)}
+              canUseSelectedLayerRange={Boolean(
+                selectedLayer && layerExtentGeometryFor(selectedLayer),
+              )}
+              loadingResourceProfile={loadingProfile}
+              onSelectTargetResource={handleSelectSpatialTargetResource}
+              onSelectTargetLayer={handleSelectSpatialTargetLayer}
               onStartQueryDraw={setQueryDrawMode}
-              onClearSpatialFilter={() => setSpatialFilter(null)}
-              onImportSpatialFilter={setSpatialFilter}
+              onClearSpatialFilter={handleClearSpatialFilter}
+              onImportSpatialFilter={handleImportSpatialFilter}
+              onUseCurrentViewRange={handleUseCurrentViewRange}
+              onUseSelectedLayerRange={handleUseSelectedLayerRange}
+              onRunSpatialQuery={handleRunSpatialQuery}
+              onLoadSpatialResult={handleLoadSpatialResult}
+              onLocateSpatialResult={handleLocateSpatialResult}
+              onOpenSpatialResultTable={handleOpenSpatialResultTable}
+              onExportSpatialResult={handleExportSpatialResult}
+              onClearSpatialResult={handleClearSpatialResult}
               onExportMapPng={exportCurrentMapPng}
             />
           </ConfigProvider>
@@ -1156,4 +1533,29 @@ export default function MapPage() {
 async function mapFitBoundsOptions(_map: MapboxMap) {
   const { fitBoundsOptions } = await import("../map/mapViewport");
   return fitBoundsOptions();
+}
+
+function isLeftPanelTabKey(key: string): key is LeftPanelTabKey {
+  return leftPanelTabKeys.has(key);
+}
+
+function spatialFilterModeLabel(mode: SpatialFilter["mode"]) {
+  const labels: Record<SpatialFilter["mode"], string> = {
+    rectangle: "矩形范围",
+    circle: "圆形范围",
+    ellipse: "椭圆范围",
+    polygon: "多边形范围",
+  };
+  return labels[mode];
+}
+
+function spatialQueryMessage(result: ResourceQueryResult) {
+  const base = `空间查询命中 ${result.totalCount} 条，返回 ${result.returnedCount} 条`;
+  if (result.returnedCount === 0) {
+    return base;
+  }
+  if (result.limitExceeded) {
+    return `${base}，已按上限截断`;
+  }
+  return base;
 }

@@ -147,6 +147,7 @@ function renderHeader(
   props: Partial<React.ComponentProps<typeof WorkspaceHeader>> = {},
   contextUser: User = user,
   setUser: (user: User | null) => void = vi.fn(),
+  initialPath = "/",
 ) {
   window.localStorage.setItem(
     `huyang-system.workspace-tour.v1.${contextUser.id}.${contextUser.username}`,
@@ -164,7 +165,7 @@ function renderHeader(
             setUser,
           }}
         >
-          <MemoryRouter>
+          <MemoryRouter initialEntries={[initialPath]}>
             <WorkspaceHeader
               activeTab="map"
               canBrowseData
@@ -263,6 +264,19 @@ describe("WorkspaceHeader", () => {
     expect(screen.getByTestId("location-path")).toHaveTextContent(
       "/resources/data/import",
     );
+  });
+
+  it("returns to the geographic data workspace when the platform logo is clicked", () => {
+    renderHeader(
+      { activeTab: "resources" },
+      user,
+      vi.fn(),
+      "/resources/dashboard",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "返回地理数据主界面" }));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/map");
   });
 
   it("keeps the intelligent interpretation navigation button as a frontend placeholder", () => {

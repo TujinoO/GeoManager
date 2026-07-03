@@ -6,6 +6,7 @@ import {
   osmRasterTileMaxZoom,
   sanitizeStyleNumericAssertions,
   satelliteBasemapColorCorrection,
+  satelliteBasemapThumbnailFilter,
 } from "./basemapStyle";
 
 describe("basemapStyle", () => {
@@ -122,6 +123,12 @@ describe("basemapStyle", () => {
       Object.entries(satelliteBasemapColorCorrection).map(
         ([property, value]) => ["satellite", property, value],
       ),
+    );
+  });
+
+  it("derives thumbnail color correction from satellite raster settings", () => {
+    expect(satelliteBasemapThumbnailFilter).toBe(
+      "saturate(45%) contrast(90%) brightness(90%)",
     );
   });
 });

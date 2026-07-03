@@ -444,6 +444,13 @@ class RegistrationApiTests(TestCase):
 
         permissions = response.json()["user"]["permissions"]
         self.assertTrue(permissions["canViewSystemLogs"])
+        self.assertFalse(permissions["canManageDataBackup"])
+
+        superadmin, _group = ensure_superadmin_defaults()
+        self.client.force_login(superadmin)
+        response = self.client.get("/api/auth/me/")
+
+        permissions = response.json()["user"]["permissions"]
         self.assertTrue(permissions["canManageDataBackup"])
 
     def test_registered_user_after_initialization_is_standard_user(self):

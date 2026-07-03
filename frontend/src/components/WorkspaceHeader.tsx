@@ -983,7 +983,13 @@ export default function WorkspaceHeader({
     <header
       className={`workspace-header${navMeasured ? " workspace-header-nav-measured" : " workspace-header-nav-measuring"}${searchExpanded ? " workspace-header-search-active" : ""}${searchCompact ? " workspace-header-search-compact" : ""}${navCompressed ? " workspace-header-nav-compressed" : ""}`}
     >
-      <div className="brand-block">
+      <button
+        type="button"
+        className="brand-block"
+        onClick={() => navigateFromHeader("/map")}
+        aria-label="返回地理数据主界面"
+        title="返回地理数据主界面"
+      >
         <span className="brand-logo-frame">
           <img
             src={capfedLogoWhite}
@@ -996,7 +1002,7 @@ export default function WorkspaceHeader({
           <strong>CAPFED</strong>
           <Typography.Title level={4}>{platformChineseName}</Typography.Title>
         </div>
-      </div>
+      </button>
 
       <div
         ref={searchNavRef}

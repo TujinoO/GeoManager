@@ -1,6 +1,14 @@
 import type {
   AdminDashboard,
   AdminDashboardServer,
+  AdminBackupOverview,
+  AdminBackupRun,
+  AdminBackupRunCreate,
+  AdminBackupRunFilters,
+  AdminBackupSettings,
+  AdminBackupSettingsUpdate,
+  AdminBackupTargetTestPayload,
+  AdminBackupTargetTestResult,
   AdminDataResource,
   AdminDataResourceGroup,
   AdminDataResourceGroupUpdate,
@@ -437,6 +445,33 @@ export const api = {
   adminSettings: () => unwrap<AdminSettings>(sdk.getAdminSettings()),
   updateAdminSettings: (payload: AdminSettingsUpdate) =>
     unwrap<AdminSettings>(sdk.updateAdminSettings({ body: payload })),
+  adminBackupOverview: () =>
+    unwrap<AdminBackupOverview>(sdk.getAdminBackupOverview()),
+  adminBackupSettings: () =>
+    unwrap<AdminBackupSettings>(sdk.getAdminBackupSettings()),
+  updateAdminBackupSettings: (payload: AdminBackupSettingsUpdate) =>
+    unwrap<AdminBackupSettings>(
+      sdk.updateAdminBackupSettings({ body: payload }),
+    ),
+  testAdminBackupTarget: (payload: AdminBackupTargetTestPayload) =>
+    unwrap<AdminBackupTargetTestResult>(
+      sdk.testAdminBackupTarget({ body: payload }),
+    ),
+  adminBackupRuns: (filters: AdminBackupRunFilters = {}) =>
+    unwrap<PaginatedListResponse<AdminBackupRun>>(
+      sdk.listAdminBackupRuns({ query: filters }),
+    ),
+  createAdminBackupRun: (payload: AdminBackupRunCreate) =>
+    unwrap<AdminBackupRun>(sdk.createAdminBackupRun({ body: payload })),
+  adminBackupRun: (runId: number) =>
+    unwrap<AdminBackupRun>(sdk.getAdminBackupRun({ path: { runId } })),
+  downloadAdminBackupRun: (runId: number) =>
+    unwrapBlob(
+      sdk.downloadAdminBackupRun({
+        path: { runId },
+        parseAs: "blob",
+      }),
+    ),
   dataSchemaSummary: () =>
     unwrap<DataSchemaSummary>(sdk.getDataSchemaSummary()),
   germplasmAccessions: (filters: GermplasmAccessionFilters = {}) =>

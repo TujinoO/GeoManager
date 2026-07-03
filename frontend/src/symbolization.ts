@@ -312,7 +312,37 @@ export interface UniqueValueRenderer {
   normalizationNotes?: string[];
 }
 
-export type VectorRenderer = SingleSymbolRenderer | UniqueValueRenderer;
+export type GraduatedClassificationMethod = "equalInterval" | "quantile";
+export type GraduatedColorRamp = "green" | "blue" | "orange" | "purple";
+
+export interface GraduatedSymbolClass {
+  id: string;
+  label: string;
+  min: number | null;
+  max: number | null;
+  color: string;
+  iconImage: string;
+  size: number;
+  count: number;
+  visible: boolean;
+}
+
+export interface GraduatedRenderer {
+  type: "graduated";
+  field: string;
+  method: GraduatedClassificationMethod;
+  classCount: number;
+  precision: number;
+  colorRamp: GraduatedColorRamp;
+  updatedByUser?: boolean;
+  classes: GraduatedSymbolClass[];
+  defaultClass: GraduatedSymbolClass;
+}
+
+export type VectorRenderer =
+  | SingleSymbolRenderer
+  | UniqueValueRenderer
+  | GraduatedRenderer;
 
 export interface VectorSymbolization {
   opacity: number;
@@ -518,6 +548,18 @@ export const defaultUniqueValueClass: UniqueValueSymbolClass = {
   visible: true,
 };
 
+export const defaultGraduatedClass: GraduatedSymbolClass = {
+  id: "no-data",
+  label: "无数值/空值",
+  min: null,
+  max: null,
+  color: "#8A8F98",
+  iconImage: "gm-marker",
+  size: 0.9,
+  count: 0,
+  visible: true,
+};
+
 export const defaultRasterSymbolization: RasterSymbolization = {
   opacity: 90,
   mode: "gray",
@@ -592,6 +634,13 @@ export function cloneVectorRenderer(
       updatedByUser: renderer?.updatedByUser ?? false,
     };
   }
+  if (renderer.type === "graduated") {
+    return {
+      ...renderer,
+      classes: renderer.classes.map((item) => ({ ...item })),
+      defaultClass: { ...renderer.defaultClass },
+    };
+  }
   return {
     ...renderer,
     classes: renderer.classes.map((item) => ({
@@ -610,6 +659,12 @@ export function isUniqueValueRenderer(
   renderer: VectorRenderer | undefined,
 ): renderer is UniqueValueRenderer {
   return renderer?.type === "uniqueValue";
+}
+
+export function isGraduatedRenderer(
+  renderer: VectorRenderer | undefined,
+): renderer is GraduatedRenderer {
+  return renderer?.type === "graduated";
 }
 
 export function rasterSymbolizationFromRules(

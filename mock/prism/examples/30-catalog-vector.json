@@ -463,6 +463,14 @@
       "totalCount": 3,
       "returnedCount": 3,
       "limit": 30000,
+      "limitExceeded": false,
+      "bounds": [
+        87.6,
+        43.7951,
+        87.6428,
+        43.81245
+      ],
+      "elapsedMs": 38,
       "fields": [
         {
           "name": "sample_id",
@@ -772,6 +780,121 @@
           "rasterRules": {},
           "isActive": true,
           "updatedAt": "2026-07-01T12:00:00+08:00"
+        },
+        {
+          "id": 32,
+          "name": "胡杨样点海拔分级示例",
+          "code": "survey-elevation-graduated-2026",
+          "layerType": "vector",
+          "geometryType": "point",
+          "category": {
+            "id": 101,
+            "type": "data_category",
+            "code": "monitoring",
+            "name": "长期监测"
+          },
+          "dataResourceId": 3,
+          "sortOrder": 111,
+          "defaultVisible": false,
+          "defaultOpacity": 88,
+          "symbolization": {
+            "opacity": 88,
+            "pointMode": "symbol",
+            "renderer": {
+              "type": "graduated",
+              "field": "海拔",
+              "method": "equalInterval",
+              "classCount": 5,
+              "precision": 0,
+              "colorRamp": "green",
+              "updatedByUser": false,
+              "classes": [
+                {
+                  "id": "range-1",
+                  "label": "820 - 880",
+                  "min": 820,
+                  "max": 880,
+                  "color": "#E4F6D6",
+                  "iconImage": "gm-tree",
+                  "size": 0.88,
+                  "count": 18,
+                  "visible": true
+                },
+                {
+                  "id": "range-2",
+                  "label": "880 - 940",
+                  "min": 880,
+                  "max": 940,
+                  "color": "#B8E186",
+                  "iconImage": "gm-tree",
+                  "size": 0.96,
+                  "count": 24,
+                  "visible": true
+                },
+                {
+                  "id": "range-3",
+                  "label": "940 - 1000",
+                  "min": 940,
+                  "max": 1000,
+                  "color": "#7FBC61",
+                  "iconImage": "gm-tree",
+                  "size": 1.04,
+                  "count": 31,
+                  "visible": true
+                },
+                {
+                  "id": "range-4",
+                  "label": "1000 - 1060",
+                  "min": 1000,
+                  "max": 1060,
+                  "color": "#2F7D62",
+                  "iconImage": "gm-tree",
+                  "size": 1.12,
+                  "count": 22,
+                  "visible": true
+                },
+                {
+                  "id": "range-5",
+                  "label": "1060 - 1120",
+                  "min": 1060,
+                  "max": 1120,
+                  "color": "#145A46",
+                  "iconImage": "gm-tree",
+                  "size": 1.2,
+                  "count": 15,
+                  "visible": true
+                }
+              ],
+              "defaultClass": {
+                "id": "no-data",
+                "label": "无数值/空值",
+                "min": null,
+                "max": null,
+                "color": "#8A8F98",
+                "iconImage": "gm-tree",
+                "size": 0.9,
+                "count": 2,
+                "visible": true
+              }
+            },
+            "symbol": {
+              "iconImage": "gm-tree",
+              "iconColor": "#2F7D62",
+              "iconSize": 1,
+              "textField": "",
+              "textSize": 12
+            }
+          },
+          "bounds": [
+            87.6,
+            43.7951,
+            87.6428,
+            43.81245
+          ],
+          "legend": "按海拔字段进行 5 级等距数值分级，使用 gm-tree 平台图标和生态绿色连续色带。",
+          "rasterRules": {},
+          "isActive": true,
+          "updatedAt": "2026-07-03T12:00:00+08:00"
         }
       ]
     }

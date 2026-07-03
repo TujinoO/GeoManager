@@ -51,12 +51,16 @@ import {
   useLayerContext,
 } from "../hooks/LayerContext";
 import {
+  isGraduatedRenderer,
   isUniqueValueRenderer,
   type GroupSymbolization,
   type RasterSymbolization,
   type VectorSymbolization,
 } from "../symbolization";
-import { classValuesLabel } from "../symbolizationTemplates";
+import {
+  classValuesLabel,
+  graduatedRangeLabel,
+} from "../symbolizationTemplates";
 import type {
   ExportLayerItem,
   LoadedLayer,
@@ -1069,19 +1073,34 @@ function LayerItemNode({
 function LayerLegend({ layer }: { layer: LoadedLayer }) {
   if (layer.layerType !== "vector") return null;
   const renderer = layer.symbolization.renderer;
-  if (!isUniqueValueRenderer(renderer)) return null;
-  const visibleClasses = [...renderer.classes, renderer.defaultClass].filter(
-    (item) => item.visible,
-  );
+  const visibleClasses = isUniqueValueRenderer(renderer)
+    ? [...renderer.classes, renderer.defaultClass]
+        .filter((item) => item.visible)
+        .map((item) => ({
+          id: item.id,
+          label: item.label,
+          color: item.color,
+          count: item.count,
+          title: `${item.label}：${classValuesLabel(item)}`,
+        }))
+    : isGraduatedRenderer(renderer)
+      ? [...renderer.classes, renderer.defaultClass]
+          .filter((item) => item.visible)
+          .map((item) => ({
+            id: item.id,
+            label: item.label,
+            color: item.color,
+            count: item.count,
+            title: `${item.label}：${graduatedRangeLabel(item)}`,
+          }))
+      : [];
   if (visibleClasses.length === 0) return null;
   return (
     <div className="layer-legend-strip" aria-label={`${layer.name}图例`}>
       {visibleClasses.slice(0, 6).map((item) => (
         <span className="layer-legend-item" key={item.id}>
           <i style={{ backgroundColor: item.color }} />
-          <span title={`${item.label}：${classValuesLabel(item)}`}>
-            {item.label}
-          </span>
+          <span title={item.title}>{item.label}</span>
           <small>{item.count}</small>
         </span>
       ))}

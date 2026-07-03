@@ -10,8 +10,9 @@ import {
   thumbnailUrlTemplateWithRetry,
   thumbnailViewportForMapView,
   thumbnailViewportForMapTile,
+  nextEcoTabForSelectedFeature,
 } from "./RightSidePanel";
-import type { MapViewState } from "../types";
+import type { FeatureInfo, MapViewState } from "../types";
 
 const mapTile = {
   center: [82, 42] as [number, number],
@@ -255,5 +256,23 @@ describe("thumbnailViewportForMapView", () => {
     expect(thumbnail.tiles.every((tile) => tile.url.includes("/10/"))).toBe(
       true,
     );
+  });
+});
+
+describe("nextEcoTabForSelectedFeature", () => {
+  const feature: FeatureInfo = {
+    layerId: "layer-1",
+    layerName: "样地监测点",
+    properties: { 编号: "GA344" },
+  };
+
+  it("switches the ecology panel to the feature tab when a map feature is selected", () => {
+    expect(nextEcoTabForSelectedFeature("overview", feature)).toBe("feature");
+    expect(nextEcoTabForSelectedFeature("monitor", feature)).toBe("feature");
+  });
+
+  it("keeps the current tab when the selected feature is cleared", () => {
+    expect(nextEcoTabForSelectedFeature("feature", null)).toBe("feature");
+    expect(nextEcoTabForSelectedFeature("monitor", null)).toBe("monitor");
   });
 });

@@ -99,7 +99,7 @@ const pageMeta: Record<string, { title: string; subTitle: string }> = {
   },
   "/admin/backup": {
     title: "数据备份",
-    subTitle: "管理科研数据和平台数据的云端备份",
+    subTitle: "管理科研数据和平台数据的本地与云端备份",
   },
   "/admin/auth": {
     title: "认证授权",

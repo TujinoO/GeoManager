@@ -20,7 +20,7 @@ from django.contrib.auth.models import Group
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q, Sum
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 from django.views.decorators.http import require_GET, require_http_methods
@@ -56,7 +56,20 @@ from apps.core.initialization import (
     protected_group_permissions,
     superadmin_group_locked_permissions,
 )
-from apps.core.models import SystemSetting, UserProfile
+from apps.core.backup_config import (
+    BackupConfigError,
+    serialize_backup_settings,
+    update_backup_settings,
+)
+from apps.core.backup_service import (
+    BackupServiceError,
+    backup_scope_summaries,
+    local_backup_download_path,
+    serialize_backup_run,
+    start_backup_run,
+    test_backup_target,
+)
+from apps.core.models import BackupRun, SystemSetting, UserProfile
 from apps.core.passwords import generate_password, password_validation_errors
 from apps.core.permissions import (
     FEATURE_PERMISSION_NAMES,
@@ -765,6 +778,194 @@ def _reload_runtime_project_config() -> None:
     )
     settings.PROJECT_CONFIG = config
     settings.DATA_UPLOAD_MAX_MEMORY_SIZE = None
+
+
+@require_GET
+def admin_backup_overview(request):
+    denied = _backup_superadmin_denied(request)
+    if denied:
+        return denied
+    active_runs = BackupRun.objects.select_related("created_by").filter(
+        status__in=[BackupRun.Status.QUEUED, BackupRun.Status.RUNNING]
+    )[:5]
+    recent_runs = BackupRun.objects.select_related("created_by").order_by(
+        "-created_at"
+    )[:8]
+    return JsonResponse(
+        {
+            "settings": serialize_backup_settings(),
+            "summaries": backup_scope_summaries(),
+            "activeRuns": [serialize_backup_run(run) for run in active_runs],
+            "recentRuns": [serialize_backup_run(run) for run in recent_runs],
+            "generatedAt": timezone.localtime().isoformat(),
+        }
+    )
+
+
+@require_http_methods(["GET", "POST"])
+def admin_backup_settings(request):
+    denied = _backup_superadmin_denied(request)
+    if denied:
+        return denied
+    if request.method == "GET":
+        return JsonResponse(serialize_backup_settings())
+    payload = _json_payload(request)
+    if isinstance(payload, JsonResponse):
+        return payload
+    try:
+        updated = update_backup_settings(payload)
+    except BackupConfigError as exc:
+        log_operation(
+            request.user,
+            "数据备份",
+            "保存备份配置",
+            "failed",
+            str(exc),
+            request,
+        )
+        return JsonResponse({"detail": str(exc)}, status=400)
+    _reload_runtime_project_config()
+    log_operation(request.user, "数据备份", "保存备份配置", "success", "", request)
+    return JsonResponse(serialize_backup_settings(updated))
+
+
+@require_http_methods(["POST"])
+def admin_backup_target_test(request):
+    denied = _backup_superadmin_denied(request)
+    if denied:
+        return denied
+    payload = _json_payload(request)
+    if isinstance(payload, JsonResponse):
+        return payload
+    target_type = str(payload.get("targetType") or "").strip()
+    try:
+        test_backup_target(
+            target_type,
+            local=payload.get("local"),
+            object_storage=payload.get("objectStorage"),
+        )
+    except (BackupConfigError, BackupServiceError, Exception) as exc:
+        log_operation(
+            request.user,
+            "数据备份",
+            "测试备份目标",
+            "failed",
+            str(exc),
+            request,
+        )
+        return JsonResponse(
+            {
+                "targetType": target_type or "object_storage",
+                "status": "failed",
+                "message": str(exc),
+                "testedAt": timezone.localtime().isoformat(),
+            }
+        )
+    log_operation(
+        request.user,
+        "数据备份",
+        "测试备份目标",
+        "success",
+        target_type,
+        request,
+    )
+    return JsonResponse(
+        {
+            "targetType": target_type,
+            "status": "success",
+            "message": "备份目标连接测试成功",
+            "testedAt": timezone.localtime().isoformat(),
+        }
+    )
+
+
+@require_http_methods(["GET", "POST"])
+def admin_backup_runs(request):
+    denied = _backup_superadmin_denied(request)
+    if denied:
+        return denied
+    if request.method == "GET":
+        queryset = BackupRun.objects.select_related("created_by").order_by(
+            "-created_at"
+        )
+        queryset = _filter_backup_runs(queryset, request.GET)
+        if isinstance(queryset, JsonResponse):
+            return queryset
+        total = queryset.count()
+        current = _positive_query_int(request.GET.get("current"), default=1)
+        page_size = _positive_query_int(request.GET.get("pageSize"), default=20)
+        if isinstance(current, JsonResponse):
+            return current
+        if isinstance(page_size, JsonResponse):
+            return page_size
+        start = (current - 1) * page_size
+        end = start + page_size
+        return JsonResponse(
+            {
+                "items": [serialize_backup_run(run) for run in queryset[start:end]],
+                "total": total,
+            }
+        )
+
+    payload = _json_payload(request)
+    if isinstance(payload, JsonResponse):
+        return payload
+    try:
+        run = start_backup_run(
+            plan_type=str(payload.get("planType") or "").strip(),
+            target_type=str(payload.get("targetType") or "").strip() or None,
+            trigger=BackupRun.Trigger.MANUAL,
+            user=request.user,
+            include_logs=payload.get("includeLogs"),
+            run_async=True,
+        )
+    except BackupServiceError as exc:
+        log_operation(
+            request.user,
+            "数据备份",
+            "发起备份任务",
+            "failed",
+            str(exc),
+            request,
+        )
+        return JsonResponse({"detail": str(exc)}, status=400)
+    log_operation(
+        request.user,
+        "数据备份",
+        "发起备份任务",
+        "success",
+        f"任务 {run.id}：{run.plan_type} -> {run.target_type}",
+        request,
+    )
+    return JsonResponse(serialize_backup_run(run), status=202)
+
+
+@require_GET
+def admin_backup_run_detail(request, run_id: int):
+    denied = _backup_superadmin_denied(request)
+    if denied:
+        return denied
+    try:
+        run = BackupRun.objects.select_related("created_by").get(pk=run_id)
+    except BackupRun.DoesNotExist:
+        return JsonResponse({"detail": "备份任务不存在"}, status=404)
+    return JsonResponse(serialize_backup_run(run))
+
+
+@require_GET
+def admin_backup_run_download(request, run_id: int):
+    denied = _backup_superadmin_denied(request)
+    if denied:
+        return denied
+    path = local_backup_download_path(run_id)
+    if isinstance(path, JsonResponse):
+        return path
+    return FileResponse(
+        path.open("rb"),
+        as_attachment=True,
+        filename=path.name,
+        content_type="application/zip",
+    )
 
 
 @require_GET
@@ -1738,7 +1939,9 @@ def _data_resources_xlsx_response(
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center", vertical="center")
     for column_cells in sheet.columns:
-        values = ["" if cell.value is None else str(cell.value) for cell in column_cells]
+        values = [
+            "" if cell.value is None else str(cell.value) for cell in column_cells
+        ]
         width = min(max(max((len(value) for value in values), default=8) + 2, 10), 36)
         sheet.column_dimensions[get_column_letter(column_cells[0].column)].width = width
     for row in sheet.iter_rows(min_row=2):
@@ -1793,11 +1996,15 @@ def _data_resource_export_rows(
         uploader = _serialize_uploader(resource.maintainer, request_user)
         body.append(
             [
-                resource.inventory_group.name if resource.inventory_group else "默认分组",
+                resource.inventory_group.name
+                if resource.inventory_group
+                else "默认分组",
                 resource.name,
                 resource.code,
                 resource.get_data_type_display(),
-                resource.get_domain_type_display() if resource.domain_type else "未归类",
+                resource.get_domain_type_display()
+                if resource.domain_type
+                else "未归类",
                 resource.get_status_display(),
                 resource.category.name if resource.category else "未分类",
                 _export_text(resource.source, "未记录来源"),
@@ -2303,6 +2510,32 @@ def _tail_system_log_file(file_name: str, lines: int) -> str:
     return "\n".join(text.splitlines()[-lines:])
 
 
+def _filter_backup_runs(queryset, params):
+    plan_type = str(params.get("planType", "")).strip()
+    target_type = str(params.get("targetType", "")).strip()
+    status = str(params.get("status", "")).strip()
+    if plan_type:
+        if plan_type not in BackupRun.PlanType.values:
+            return JsonResponse(
+                {"detail": "planType 仅支持 platform 或 research"}, status=400
+            )
+        queryset = queryset.filter(plan_type=plan_type)
+    if target_type:
+        if target_type not in BackupRun.TargetType.values:
+            return JsonResponse(
+                {"detail": "targetType 仅支持 local 或 object_storage"}, status=400
+            )
+        queryset = queryset.filter(target_type=target_type)
+    if status:
+        if status not in BackupRun.Status.values:
+            return JsonResponse(
+                {"detail": "status 仅支持 queued、running、success 或 failed"},
+                status=400,
+            )
+        queryset = queryset.filter(status=status)
+    return queryset
+
+
 def _filter_operation_logs(queryset, params):
     user_id = params.get("userId")
     operator = str(params.get("operator", "")).strip()
@@ -2519,6 +2752,16 @@ def _ensure_profile(user):
         return user.profile
     except ObjectDoesNotExist:
         return UserProfile.objects.create(user=user)
+
+
+def _backup_superadmin_denied(request) -> JsonResponse | None:
+    if not request.user.is_authenticated:
+        return JsonResponse({"detail": "请先登录"}, status=401)
+    if not has_feature_perm(
+        request.user, "core.manage_data_backup"
+    ) or not is_superadmin_user(request.user):
+        return JsonResponse({"detail": "数据备份仅限超级管理员使用"}, status=403)
+    return None
 
 
 def _json_payload(request) -> dict[str, Any] | JsonResponse:

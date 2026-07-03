@@ -75,3 +75,77 @@ class SystemSetting(models.Model):
 
     def __str__(self):
         return "系统设置"
+
+
+class BackupRun(models.Model):
+    class PlanType(models.TextChoices):
+        PLATFORM = "platform", "平台数据"
+        RESEARCH = "research", "科研数据"
+
+    class TargetType(models.TextChoices):
+        LOCAL = "local", "本地目录"
+        OBJECT_STORAGE = "object_storage", "对象存储"
+
+    class Trigger(models.TextChoices):
+        MANUAL = "manual", "手动触发"
+        SCHEDULED = "scheduled", "计划触发"
+
+    class Status(models.TextChoices):
+        QUEUED = "queued", "等待中"
+        RUNNING = "running", "运行中"
+        SUCCESS = "success", "成功"
+        FAILED = "failed", "失败"
+
+    plan_type = models.CharField(
+        max_length=16, choices=PlanType.choices, verbose_name="备份类型"
+    )
+    target_type = models.CharField(
+        max_length=32, choices=TargetType.choices, verbose_name="备份目标"
+    )
+    trigger = models.CharField(
+        max_length=16, choices=Trigger.choices, verbose_name="触发方式"
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.QUEUED,
+        verbose_name="任务状态",
+    )
+    progress_percent = models.PositiveSmallIntegerField(
+        default=0, verbose_name="进度百分比"
+    )
+    messages = models.JSONField(default=list, blank=True, verbose_name="任务消息")
+    result = models.JSONField(null=True, blank=True, verbose_name="任务结果")
+    error_message = models.TextField(blank=True, verbose_name="错误信息")
+    archive_name = models.CharField(max_length=255, blank=True, verbose_name="归档名")
+    size_bytes = models.PositiveBigIntegerField(default=0, verbose_name="归档大小")
+    checksum_sha256 = models.CharField(
+        max_length=64, blank=True, verbose_name="SHA256 校验值"
+    )
+    object_key = models.CharField(max_length=1024, blank=True, verbose_name="对象路径")
+    local_path = models.CharField(max_length=1024, blank=True, verbose_name="本地路径")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="backup_runs",
+        verbose_name="创建人",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    started_at = models.DateTimeField(null=True, blank=True, verbose_name="开始时间")
+    finished_at = models.DateTimeField(null=True, blank=True, verbose_name="结束时间")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
+
+    class Meta:
+        verbose_name = "数据备份任务"
+        verbose_name_plural = "数据备份任务"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=("plan_type", "status")),
+            models.Index(fields=("target_type", "status")),
+            models.Index(fields=("trigger", "created_at")),
+        ]
+
+    def __str__(self):
+        return f"{self.get_plan_type_display()} {self.status}"

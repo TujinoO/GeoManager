@@ -1634,6 +1634,43 @@ body:has(.login-shell),
   min-width: 0;
 }
 
+.backup-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 16px;
+  min-width: 0;
+}
+
+.backup-summary-value {
+  margin: 0;
+}
+
+.backup-target-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(320px, 1.2fr);
+  gap: 24px;
+  min-width: 0;
+}
+
+.backup-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  column-gap: 16px;
+  min-width: 0;
+}
+
+.backup-plan-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  column-gap: 16px;
+  margin-top: 16px;
+}
+
+.backup-number-input,
+.backup-full-width {
+  width: 100%;
+}
+
 .backup-plan-card {
   min-width: 0;
 }
@@ -1656,6 +1693,10 @@ body:has(.login-shell),
 }
 
 @media (max-width: 760px) {
+  .backup-summary-grid,
+  .backup-target-grid,
+  .backup-form-grid,
+  .backup-plan-form,
   .backup-card-grid {
     grid-template-columns: 1fr;
   }
@@ -4015,7 +4056,26 @@ body:has(.login-shell),
   gap: 7px;
   flex: 0 0 auto;
   min-width: max-content;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
   padding-right: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.brand-block:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.brand-block:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(107, 226, 203, 0.64);
 }
 
 .brand-logo-frame {
@@ -5172,7 +5232,7 @@ body:has(.login-shell),
   --workspace-edge: var(--workspace-screen-edge);
   --workspace-gap: 8px;
   --side-panel-width: clamp(316px, 23vw, 386px);
-  --bottom-panel-height: clamp(190px, 19vh, 228px);
+  --bottom-panel-height: clamp(236px, 23vh, 284px);
   height: 100dvh;
   min-height: 0;
   position: relative;
@@ -7651,6 +7711,32 @@ body:has(.login-shell),
   gap: 9px;
 }
 
+.graduated-control-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.graduated-ramp-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.graduated-ramp-preview {
+  display: inline-flex;
+  width: 54px;
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgb(4 19 22 / 0.16);
+
+  & i {
+    flex: 1 1 0;
+  }
+}
+
 .unique-class-list {
   display: grid;
   gap: 6px;
@@ -7764,6 +7850,10 @@ body:has(.login-shell),
   font-size: 12px;
   text-align: left;
   white-space: nowrap;
+}
+
+.graduated-class-range {
+  font-variant-numeric: tabular-nums;
 }
 
 .symbol-icon-picker-trigger {
@@ -8113,6 +8203,10 @@ body:has(.login-shell),
     gap: 6px;
   }
 
+  .graduated-control-grid {
+    grid-template-columns: 1fr;
+  }
+
   .unique-class-row {
     grid-template-areas:
       "preview"
@@ -8213,6 +8307,307 @@ body:has(.login-shell),
 
   & .ant-tabs-tabpane {
     overflow: hidden;
+  }
+}
+
+.spatial-workbench {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 7px;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 8px 9px 9px;
+  color: var(--c-workspace-text);
+}
+
+.spatial-workbench .ant-typography {
+  color: var(--c-workspace-text);
+}
+
+.spatial-workbench .ant-typography-secondary {
+  color: rgb(var(--c-workspace-text-rgb) / 0.66);
+}
+
+.spatial-workbench-heading,
+.spatial-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.spatial-workbench-heading > span,
+.spatial-section-heading > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--c-workspace-text-strong);
+}
+
+.spatial-workbench-heading > .ant-typography {
+  max-width: 48%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.spatial-workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.9fr) minmax(210px, 0.72fr) minmax(
+      330px,
+      1.18fr
+    );
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.spatial-workbench-section {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  padding: 7px;
+  overflow: hidden;
+  border: 1px solid rgb(var(--c-workspace-border-rgb) / 0.16);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(18, 62, 70, 0.72), rgba(15, 52, 62, 0.58)),
+    rgb(var(--c-workspace-panel-soft-rgb) / 0.58);
+  box-shadow: inset 0 1px 0 rgb(var(--c-surface-rgb) / 0.06);
+}
+
+.spatial-workbench-result {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.spatial-workbench-section:has(.spatial-target-picker-row) {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.spatial-section-heading {
+  min-height: 20px;
+}
+
+.spatial-section-heading .ant-tag {
+  min-height: 20px;
+  line-height: 18px;
+  margin-inline-end: 0;
+  padding-inline: 6px;
+}
+
+.spatial-range-tools {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.spatial-range-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+
+.spatial-range-action-grid .ant-btn,
+.spatial-result-actions .ant-btn {
+  width: 100%;
+  min-width: 0;
+  padding-inline: 6px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.spatial-range-action-grid .ant-btn {
+  height: 28px;
+}
+
+.spatial-result-actions .ant-btn {
+  height: 30px;
+}
+
+.spatial-workbench-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  min-width: 0;
+  align-self: end;
+}
+
+.spatial-target-selector {
+  width: 100%;
+  min-height: 30px;
+  padding: 2px;
+  background: rgb(var(--c-workspace-panel-rgb) / 0.48);
+}
+
+.spatial-target-picker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  gap: 6px;
+  min-width: 0;
+}
+
+.spatial-target-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.spatial-target-picker-row .ant-btn {
+  width: 100%;
+  height: 28px;
+  padding-inline: 6px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.spatial-range-mode-selector {
+  min-height: 30px;
+}
+
+.spatial-workbench .ant-segmented-item-label {
+  min-height: 25px;
+  line-height: 25px;
+  font-size: 12px;
+}
+
+.spatial-target-card {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  min-height: 0;
+  padding: 7px;
+  overflow: hidden;
+  border: 1px solid rgb(var(--c-workspace-border-rgb) / 0.13);
+  border-radius: 8px;
+  background: rgb(var(--c-workspace-panel-rgb) / 0.42);
+}
+
+.spatial-target-card > .ant-typography {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.35;
+}
+
+.spatial-result-empty {
+  display: grid;
+  place-items: center;
+  margin: 0;
+  min-height: 0;
+  align-self: stretch;
+  padding: 0;
+}
+
+.spatial-result-empty .ant-empty-image {
+  display: none;
+}
+
+.spatial-result-empty .ant-empty-description {
+  color: rgb(var(--c-workspace-text-rgb) / 0.68);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.spatial-result-summary {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.spatial-result-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.spatial-result-title .ant-typography {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spatial-result-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  min-width: 0;
+}
+
+.spatial-result-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  min-width: 0;
+}
+
+.spatial-metric {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 5px;
+  align-items: center;
+  min-width: 0;
+  min-height: 22px;
+  padding: 2px 6px;
+  border: 1px solid rgb(var(--c-workspace-border-rgb) / 0.1);
+  border-radius: 6px;
+  background: rgb(var(--c-workspace-panel-rgb) / 0.32);
+}
+
+.spatial-metric .ant-typography {
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.spatial-metric .ant-typography:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+@media (max-width: 1320px) {
+  .spatial-workbench-heading > .ant-typography {
+    display: none;
+  }
+
+  .spatial-workbench-grid {
+    grid-template-columns: minmax(220px, 0.94fr) minmax(190px, 0.7fr) minmax(
+        300px,
+        1.1fr
+      );
+  }
+
+  .spatial-result-metrics,
+  .spatial-result-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-height: 820px) {
+  .workspace-body {
+    --bottom-panel-height: 248px;
+  }
+
+  .spatial-workbench-heading > .ant-typography {
+    display: none;
   }
 }
 
@@ -8433,7 +8828,7 @@ body:has(.login-shell),
 
 .spatial-range-mode-selector {
   width: 100%;
-  min-height: 34px;
+  min-height: 30px;
   padding: 2px;
   background: rgb(var(--c-workspace-panel-rgb) / 0.48);
 

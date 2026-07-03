@@ -13,6 +13,7 @@ from apps.core.initialization import (
     ensure_default_user_group,
     ensure_guest_user,
     ensure_superadmin_defaults,
+    is_superadmin_user,
 )
 from apps.core.passwords import password_validation_errors
 from apps.core.permissions import (
@@ -158,7 +159,8 @@ def serialize_user(user):
         "canManageSystemSettings": has_feature_perm(
             user, "core.manage_system_settings"
         ),
-        "canManageDataBackup": has_feature_perm(user, "core.manage_data_backup"),
+        "canManageDataBackup": has_feature_perm(user, "core.manage_data_backup")
+        and is_superadmin_user(user),
         "canManageAuth": has_feature_perm(user, "core.manage_auth"),
         "canViewDashboardResourceCard": has_feature_perm(
             user, "core.view_dashboard_resource_card"

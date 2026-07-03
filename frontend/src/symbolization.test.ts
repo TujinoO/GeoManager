@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { platformSymbolImageId } from "./map/symbolImages";
-import { germplasmDnaSexRenderer } from "./symbolizationTemplates";
+import {
+  buildGraduatedRenderer,
+  germplasmDnaSexRenderer,
+  numericValuesFromCounts,
+  parseNumericValue,
+  refreshGraduatedCounts,
+} from "./symbolizationTemplates";
 import {
   cloneDefaultGroupSymbolization,
   cloneDefaultRasterSymbolization,
@@ -12,6 +18,7 @@ import {
   platformSymbolIconGroups,
   platformSymbolIconIds,
   rasterSymbolizationFromRules,
+  isGraduatedRenderer,
   isUniqueValueRenderer,
 } from "./symbolization";
 
@@ -206,6 +213,62 @@ describe("germplasmDnaSexRenderer", () => {
     expect(renderer.classes[0]?.values).toEqual(["雌株", "雌株珠"]);
     expect(renderer.classes[0]?.count).toBe(302);
     expect(renderer.classes[1]?.count).toBe(361);
+  });
+});
+
+describe("graduated vector renderer", () => {
+  it("builds equal-interval classes for continuous values", () => {
+    const renderer = buildGraduatedRenderer("海拔", [100, 200, 300, 400, 500], {
+      classCount: 5,
+      method: "equalInterval",
+      colorRamp: "orange",
+      precision: 0,
+    });
+    expect(isGraduatedRenderer(renderer)).toBe(true);
+    expect(renderer.classes).toHaveLength(5);
+    expect(renderer.classes[0]).toMatchObject({
+      min: 100,
+      max: 180,
+      count: 1,
+      color: "#FFF2C6",
+    });
+    expect(renderer.classes[4]).toMatchObject({
+      min: 420,
+      max: 500,
+      count: 1,
+    });
+  });
+
+  it("builds quantile classes and refreshes no-data counts", () => {
+    const counts = new Map([
+      ["0.1", 2],
+      ["0.4", 1],
+      ["0.7", 1],
+      ["无", 3],
+    ]);
+    const { values, nonNumericCount } = numericValuesFromCounts(counts);
+    const renderer = buildGraduatedRenderer("NDVI", values, {
+      classCount: 3,
+      method: "quantile",
+      colorRamp: "green",
+    });
+    const refreshed = refreshGraduatedCounts(
+      renderer,
+      values,
+      nonNumericCount,
+    );
+    expect(refreshed.classes.length).toBeGreaterThanOrEqual(2);
+    expect(refreshed.classes.reduce((sum, item) => sum + item.count, 0)).toBe(
+      4,
+    );
+    expect(refreshed.defaultClass.count).toBe(3);
+  });
+
+  it("parses numeric strings with units and separators", () => {
+    expect(parseNumericValue("1,235.5 m")).toBe(1235.5);
+    expect(parseNumericValue("盐分 0.83%")).toBe(0.83);
+    expect(parseNumericValue("NDVI=-0.12")).toBe(-0.12);
+    expect(parseNumericValue("无数据")).toBeNull();
   });
 });
 

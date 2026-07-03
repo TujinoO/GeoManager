@@ -6,7 +6,11 @@ import {
 import { Tabs, Tag, Typography } from "antd";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SyntheticEvent } from "react";
-import type { MapBasemapConfig } from "../map/basemapStyle";
+import {
+  satelliteBasemapThumbnailFilter,
+  shouldUseMapboxBasemap,
+  type MapBasemapConfig,
+} from "../map/basemapStyle";
 import type { FeatureInfo, MapViewState } from "../types";
 import FeatureDetailPanel from "./FeatureDetailPanel";
 
@@ -144,11 +148,29 @@ interface Props {
   mapConfig: MapBasemapConfig;
 }
 
+type EcoTabKey = "overview" | "feature" | "monitor";
+
 export default function RightSidePanel({
   selectedFeature,
   currentView,
   mapConfig,
 }: Props) {
+  const [activeEcoTab, setActiveEcoTab] = useState<EcoTabKey>(() =>
+    nextEcoTabForSelectedFeature("overview", selectedFeature),
+  );
+
+  useEffect(() => {
+    setActiveEcoTab((currentTab) =>
+      nextEcoTabForSelectedFeature(currentTab, selectedFeature),
+    );
+  }, [selectedFeature]);
+
+  const handleEcoTabChange = useCallback((key: string) => {
+    if (isEcoTabKey(key)) {
+      setActiveEcoTab(key);
+    }
+  }, []);
+
   return (
     <div className="right-panel-stack">
       <section
@@ -173,6 +195,8 @@ export default function RightSidePanel({
         </div>
         <Tabs
           className="right-side-tabs"
+          activeKey={activeEcoTab}
+          onChange={handleEcoTabChange}
           size="small"
           items={[
             {
@@ -212,6 +236,17 @@ export default function RightSidePanel({
   );
 }
 
+export function nextEcoTabForSelectedFeature(
+  currentTab: EcoTabKey,
+  selectedFeature: FeatureInfo | null,
+): EcoTabKey {
+  return selectedFeature ? "feature" : currentTab;
+}
+
+function isEcoTabKey(key: string): key is EcoTabKey {
+  return key === "overview" || key === "feature" || key === "monitor";
+}
+
 function FlatMapThumbnail({
   currentView,
   mapConfig,
@@ -227,6 +262,9 @@ function FlatMapThumbnail({
     () => thumbnailMapTileForBasemap(mapConfig),
     [mapConfig],
   );
+  const tileFilter = shouldUseMapboxBasemap(mapConfig)
+    ? satelliteBasemapThumbnailFilter
+    : undefined;
   const retryingMapTile = useMemo(
     () => ({
       ...mapTile,
@@ -314,6 +352,7 @@ function FlatMapThumbnail({
               top: tile.top,
               width: tile.width,
               height: tile.height,
+              filter: tileFilter,
             }}
             onError={handleTileError}
             draggable={false}

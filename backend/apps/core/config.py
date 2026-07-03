@@ -8,7 +8,16 @@ from typing import Any
 import tomlkit
 from tomlkit.exceptions import TOMLKitError
 
-APP_SUBDIRS = ("database", "media", "uploads", "exports", "logs", "static", "config")
+APP_SUBDIRS = (
+    "database",
+    "media",
+    "uploads",
+    "exports",
+    "logs",
+    "static",
+    "config",
+    "backups",
+)
 RESEARCH_SUBDIRS = (
     "vector",
     "raster",

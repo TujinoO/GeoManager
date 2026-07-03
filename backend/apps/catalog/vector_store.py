@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from math import isfinite
 import sqlite3
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
 import pandas as pd
@@ -169,6 +171,7 @@ def resource_profile(resource: DataResource) -> ResourceProfile:
 def query_resource(resource: DataResource, payload: dict[str, Any]) -> dict[str, Any]:
     from apps.catalog.geojson_validation import validate_geojson_geometries
 
+    started_at = perf_counter()
     if resource.data_type != DataResource.DataType.VECTOR:
         raise DataQueryError("当前只支持矢量 GeoPackage 查询")
 
@@ -184,8 +187,9 @@ def query_resource(resource: DataResource, payload: dict[str, Any]) -> dict[str,
 
     limit = _limit(payload.get("limit"))
     total_count = len(gdf)
-    returned, warnings = validate_geojson_geometries(gdf)
-    returned = returned.head(limit).copy()
+    valid_gdf, warnings = validate_geojson_geometries(gdf)
+    returned = valid_gdf.head(limit).copy()
+    bounds = _returned_bounds(returned)
     returned = normalize_for_geojson(returned)
 
     return {
@@ -194,6 +198,9 @@ def query_resource(resource: DataResource, payload: dict[str, Any]) -> dict[str,
         "totalCount": total_count,
         "returnedCount": len(returned),
         "limit": limit,
+        "limitExceeded": total_count > limit,
+        "bounds": bounds,
+        "elapsedMs": max(0, round((perf_counter() - started_at) * 1000)),
         "fields": field_profiles(gdf, field_metadata),
         "geojson": json.loads(returned.to_json()),
         "warnings": warnings,
@@ -486,6 +493,15 @@ def normalize_for_geojson(gdf):
         else:
             normalized[column] = series.map(_json_value)
     return normalized
+
+
+def _returned_bounds(gdf) -> list[float]:
+    if len(gdf) == 0:
+        return []
+    bounds = [float(value) for value in gdf.total_bounds.tolist()]
+    if len(bounds) != 4 or not all(isfinite(value) for value in bounds):
+        return []
+    return [round(value, 6) for value in bounds]
 
 
 def _limit(value: Any) -> int:

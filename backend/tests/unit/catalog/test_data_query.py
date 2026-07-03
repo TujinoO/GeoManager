@@ -13,14 +13,17 @@ from apps.catalog.vector_store import (
     _coerce_value,
     _json_value,
     _limit,
+    _returned_bounds,
     _rtree_candidate_feature_ids,
     geometry_type,
     geopackage_layer_exists,
     geopackage_layer_metadata,
     geopackage_layer_names,
     normalize_for_geojson,
+    query_resource,
     read_field_metadata,
 )
+from apps.catalog.models import DataResource
 from apps.catalog.geojson_validation import validate_geojson_geometries
 
 
@@ -217,6 +220,53 @@ class NormalizeForGeojsonTests(SimpleTestCase):
         result = normalize_for_geojson(gdf)
         self.assertEqual(result["name"].iloc[0], "A")
         self.assertEqual(result["value"].iloc[0], 42)
+
+
+class QueryResourceSummaryTests(SimpleTestCase):
+    def test_returns_spatial_workbench_summary_fields(self):
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        resource = DataResource(
+            id=42,
+            name="sample resource",
+            data_type=DataResource.DataType.VECTOR,
+            storage_path="sample_layer",
+        )
+        gdf = gpd.GeoDataFrame(
+            [
+                {"name": "inside", "geometry": Point(87.6, 43.8)},
+                {"name": "outside", "geometry": Point(88.2, 44.1)},
+            ],
+            geometry="geometry",
+            crs="EPSG:4326",
+        )
+
+        with (
+            patch("apps.catalog.vector_store.read_resource", return_value=gdf),
+            patch("apps.catalog.vector_store.field_metadata_for_layer", return_value={}),
+            patch("apps.catalog.vector_store.runtime_query_result_limit", return_value=1),
+        ):
+            result = query_resource(
+                resource,
+                {"attributeFilters": [], "spatialFilter": None, "limit": 1},
+            )
+
+        self.assertEqual(result["resourceId"], 42)
+        self.assertEqual(result["totalCount"], 2)
+        self.assertEqual(result["returnedCount"], 1)
+        self.assertEqual(result["limit"], 1)
+        self.assertTrue(result["limitExceeded"])
+        self.assertEqual(result["bounds"], [87.6, 43.8, 87.6, 43.8])
+        self.assertIsInstance(result["elapsedMs"], int)
+        self.assertGreaterEqual(result["elapsedMs"], 0)
+
+    def test_returned_bounds_empty_for_empty_gdf(self):
+        import geopandas as gpd
+
+        gdf = gpd.GeoDataFrame(columns=["geometry"], geometry="geometry", crs="EPSG:4326")
+
+        self.assertEqual(_returned_bounds(gdf), [])
 
 
 class GeojsonGeometryValidationTests(SimpleTestCase):

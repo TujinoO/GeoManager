@@ -398,7 +398,7 @@ export type UserPermissions = {
      */
     canManageSystemSettings: boolean;
     /**
-     * 是否可管理数据备份，由 `core.manage_data_backup` 权限控制；默认仅超级管理员角色具备
+     * 是否可管理数据备份；仅内置 `超级管理员` 且具备 `core.manage_data_backup` 时为 true
      */
     canManageDataBackup: boolean;
     /**
@@ -1270,6 +1270,309 @@ export type AdminSettingsUpdateRequest = {
     map?: MapConfig;
     limits?: SystemLimits;
     raster?: AdminRasterSettings;
+};
+
+/**
+ * 备份内容类型；platform 表示平台业务数据，research 表示科研数据。
+ */
+export type BackupPlanType = 'platform' | 'research';
+
+/**
+ * 备份目标类型；local 为本地目录，object_storage 为云端对象存储。
+ */
+export type BackupTargetType = 'local' | 'object_storage';
+
+/**
+ * 云端对象存储提供方类型。当前实现支持 S3 兼容协议，后续可扩展具体云厂商适配。
+ */
+export type BackupProviderType = 's3_compatible';
+
+/**
+ * 备份任务状态。
+ */
+export type BackupRunStatus = 'queued' | 'running' | 'success' | 'failed';
+
+/**
+ * 备份触发方式；manual 为超级管理员手动触发，scheduled 为后端计划任务触发。
+ */
+export type BackupTriggerType = 'manual' | 'scheduled';
+
+export type AdminBackupPlanSettings = {
+    /**
+     * 是否启用该类数据的自动备份计划。
+     */
+    enabled: boolean;
+    /**
+     * 每日自动备份时间，格式为 HH:mm，按服务器时区执行。
+     */
+    dailyAt: string;
+    target: BackupTargetType;
+    /**
+     * 该计划在同一目标保留的成功备份数量。
+     */
+    retentionCount: number;
+    /**
+     * 是否包含业务数据根目录 logs/ 下运行日志；仅平台数据备份生效，科研数据备份固定为 false。
+     */
+    includeLogs: boolean;
+};
+
+export type AdminBackupPlans = {
+    platform: AdminBackupPlanSettings;
+    research: AdminBackupPlanSettings;
+};
+
+export type AdminBackupLocalTargetSettings = {
+    /**
+     * 本地备份目录；为空字符串时使用业务数据根目录下的 backups/local/。本地备份不推荐作为唯一容灾手段。
+     */
+    directory: string;
+    /**
+     * 本地目标是否具备可用配置。
+     */
+    configured: boolean;
+};
+
+export type AdminBackupObjectStorageSettings = {
+    provider: BackupProviderType;
+    /**
+     * 对象存储访问地址，例如 https://s3.example.com 或 https://oss-cn.example.com。
+     */
+    endpoint: string;
+    /**
+     * 对象存储区域，用于 S3 签名。
+     */
+    region: string;
+    /**
+     * 存储桶名称。
+     */
+    bucket: string;
+    /**
+     * 备份对象名前缀，例如 geomanager/prod/。
+     */
+    prefix: string;
+    /**
+     * 备份专用访问密钥 ID。
+     */
+    accessKeyId: string;
+    /**
+     * 是否已配置访问密钥 Secret。
+     */
+    secretConfigured: boolean;
+    /**
+     * Secret 脱敏预览；未配置时为空字符串。
+     */
+    secretPreview: string;
+    /**
+     * 对象存储目标是否具备可用于连接测试和上传的完整配置。
+     */
+    configured: boolean;
+};
+
+export type AdminBackupObjectStorageUpdate = {
+    provider?: BackupProviderType;
+    /**
+     * 对象存储访问地址。
+     */
+    endpoint?: string;
+    /**
+     * 对象存储区域。
+     */
+    region?: string;
+    /**
+     * 存储桶名称。
+     */
+    bucket?: string;
+    /**
+     * 备份对象名前缀。
+     */
+    prefix?: string;
+    /**
+     * 访问密钥 ID。
+     */
+    accessKeyId?: string;
+    /**
+     * 访问密钥 Secret；仅用于新增或更换密钥，接口响应永不返回明文。
+     */
+    secretAccessKey?: string;
+    /**
+     * 是否清空已保存 Secret。
+     */
+    clearSecret?: boolean;
+};
+
+export type AdminBackupSettingsResponse = {
+    plans: AdminBackupPlans;
+    local: AdminBackupLocalTargetSettings;
+    objectStorage: AdminBackupObjectStorageSettings;
+    /**
+     * 配置序列化时间。
+     */
+    updatedAt: string;
+};
+
+export type AdminBackupSettingsUpdateRequest = {
+    plans?: AdminBackupPlans;
+    local?: {
+        /**
+         * 本地备份目录；为空字符串时使用默认目录。
+         */
+        directory?: string;
+    };
+    objectStorage?: AdminBackupObjectStorageUpdate;
+};
+
+export type AdminBackupTargetTestRequest = {
+    targetType: BackupTargetType;
+    local?: {
+        /**
+         * 可选临时本地目录；为空时使用已保存配置或默认目录。
+         */
+        directory?: string;
+    };
+    objectStorage?: AdminBackupObjectStorageUpdate;
+};
+
+export type AdminBackupTargetTestResponse = {
+    targetType: BackupTargetType;
+    /**
+     * 测试结果。
+     */
+    status: 'success' | 'failed';
+    /**
+     * 面向管理员的连接测试结果说明。
+     */
+    message: string;
+    /**
+     * 测试完成时间。
+     */
+    testedAt: string;
+};
+
+export type AdminBackupScopeSummary = {
+    planType: BackupPlanType;
+    /**
+     * 备份范围中文名称。
+     */
+    label: string;
+    /**
+     * 数据来源摘要，不暴露服务器绝对路径。
+     */
+    source: string;
+    /**
+     * 当前数据根目录是否可读取。
+     */
+    available: boolean;
+    /**
+     * 当前范围内可备份文件数量估算。
+     */
+    fileCount: number;
+    /**
+     * 当前范围内可备份文件大小估算。
+     */
+    sizeBytes: number;
+};
+
+export type AdminBackupRun = {
+    /**
+     * 备份任务 ID。
+     */
+    id: number;
+    planType: BackupPlanType;
+    targetType: BackupTargetType;
+    trigger: BackupTriggerType;
+    status: BackupRunStatus;
+    /**
+     * 备份进度百分比。
+     */
+    progressPercent: number;
+    /**
+     * 最近任务消息。
+     */
+    messages: Array<string>;
+    /**
+     * 任务成功后的 manifest 摘要；未完成或失败时为 null。
+     */
+    result: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * 失败原因；非失败状态为空字符串。
+     */
+    error: string;
+    /**
+     * 备份归档文件名。
+     */
+    archiveName: string;
+    /**
+     * 归档文件大小。
+     */
+    sizeBytes: number;
+    /**
+     * 归档文件 SHA256 校验值。
+     */
+    checksumSha256: string;
+    /**
+     * 对象存储路径；本地目标为空字符串。
+     */
+    objectKey: string;
+    /**
+     * 本地备份路径摘要；对象存储目标为空字符串。
+     */
+    localPath: string;
+    /**
+     * 手动任务发起人显示名；计划任务为 null。
+     */
+    createdBy: string | null;
+    /**
+     * 任务创建时间。
+     */
+    createdAt: string;
+    /**
+     * 任务开始时间。
+     */
+    startedAt: string | null;
+    /**
+     * 任务结束时间。
+     */
+    finishedAt: string | null;
+};
+
+export type AdminBackupRunListResponse = {
+    items: Array<AdminBackupRun>;
+    /**
+     * 符合筛选条件的任务总数。
+     */
+    total: number;
+};
+
+export type AdminBackupRunCreateRequest = {
+    planType: BackupPlanType;
+    targetType?: BackupTargetType;
+    /**
+     * 手动平台备份是否包含运行日志；未提供时使用计划配置。
+     */
+    includeLogs?: boolean;
+};
+
+export type AdminBackupOverviewResponse = {
+    settings: AdminBackupSettingsResponse;
+    /**
+     * 平台数据和科研数据范围摘要。
+     */
+    summaries: Array<AdminBackupScopeSummary>;
+    /**
+     * 当前排队或运行中的备份任务。
+     */
+    activeRuns: Array<AdminBackupRun>;
+    /**
+     * 最近备份任务。
+     */
+    recentRuns: Array<AdminBackupRun>;
+    /**
+     * 概览生成时间。
+     */
+    generatedAt: string;
 };
 
 /**
@@ -2173,7 +2476,7 @@ export type VectorSymbolization = {
 /**
  * 矢量符号化渲染器；未提供时按单一符号处理
  */
-export type VectorRenderer = SingleSymbolRenderer | UniqueValueRenderer;
+export type VectorRenderer = SingleSymbolRenderer | UniqueValueRenderer | GraduatedRenderer;
 
 export type SingleSymbolRenderer = {
     /**
@@ -2225,6 +2528,87 @@ export type UniqueValueRenderer = {
      * 分类值合并或疑似别名提示，供前端展示给用户确认
      */
     normalizationNotes?: Array<string>;
+    [key: string]: unknown;
+};
+
+/**
+ * 按连续数值字段进行分级符号化，适用于海拔、NDVI、盐分等可转为数字的字段。 前端依据当前加载要素统计分级断点并生成 Mapbox GL JS case 表达式；服务端按 JSON 对象透传保存，不新增独立接口。
+ *
+ */
+export type GraduatedRenderer = {
+    /**
+     * 数值分级渲染
+     */
+    type: 'graduated';
+    /**
+     * 连续数值字段名，例如 `海拔`、`NDVI` 或 `盐分`
+     */
+    field: string;
+    /**
+     * 分级方法；equalInterval 为等距分级，quantile 为分位数分级
+     */
+    method: 'equalInterval' | 'quantile';
+    /**
+     * 分级数量，平台编辑器默认限制为 3 到 9 级
+     */
+    classCount: number;
+    /**
+     * 图例区间标签保留的小数位
+     */
+    precision: number;
+    /**
+     * 平台内置连续色带编码
+     */
+    colorRamp: 'green' | 'blue' | 'orange' | 'purple';
+    /**
+     * 用户是否已手动修改该数值分级方案
+     */
+    updatedByUser?: boolean;
+    /**
+     * 数值区间符号列表；最后一个区间包含最大值，其他区间为左闭右开
+     */
+    classes: Array<GraduatedSymbolClass>;
+    defaultClass: GraduatedSymbolClass;
+    [key: string]: unknown;
+};
+
+export type GraduatedSymbolClass = {
+    /**
+     * 区间类别稳定 ID，前端可用于编辑列表 key
+     */
+    id: string;
+    /**
+     * 图例显示名称，通常由区间端点自动生成
+     */
+    label: string;
+    /**
+     * 区间最小值；默认类使用 null 表示无数值或空值
+     */
+    min: number | null;
+    /**
+     * 区间最大值；默认类使用 null 表示无数值或空值
+     */
+    max: number | null;
+    /**
+     * 区间颜色；平台内置图标会按图标 ID 与颜色生成运行时图片 ID
+     */
+    color: string;
+    /**
+     * 图标 ID。平台内置图标必须使用 `gm-*` 英文 ID，并在 Mapbox 图层引用前通过 `addImage` 注册
+     */
+    iconImage: string;
+    /**
+     * 区间图标缩放或点半径倍率
+     */
+    size?: number;
+    /**
+     * 当前加载数据中落入该区间的要素数量；服务端持久化时可省略或置 0
+     */
+    count?: number;
+    /**
+     * 该区间是否在地图和图例中显示
+     */
+    visible: boolean;
     [key: string]: unknown;
 };
 
@@ -2917,6 +3301,18 @@ export type QueryResponse = {
      * 返回上限
      */
     limit: number;
+    /**
+     * 命中数量是否超过返回上限；为 true 时 geojson 仅包含前 limit 条有效结果。
+     */
+    limitExceeded: boolean;
+    /**
+     * 本次返回有效结果的 WGS84 边界 [minLng, minLat, maxLng, maxLat]；无有效返回结果时为空数组。
+     */
+    bounds: Array<number>;
+    /**
+     * 后端执行本次资源查询耗时，单位毫秒。
+     */
+    elapsedMs: number;
     /**
      * 查询结果字段
      */
@@ -4268,6 +4664,297 @@ export type UpdateAdminSettingsResponses = {
 };
 
 export type UpdateAdminSettingsResponse = UpdateAdminSettingsResponses[keyof UpdateAdminSettingsResponses];
+
+export type GetAdminBackupOverviewData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/admin/backups/overview/';
+};
+
+export type GetAdminBackupOverviewErrors = {
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type GetAdminBackupOverviewError = GetAdminBackupOverviewErrors[keyof GetAdminBackupOverviewErrors];
+
+export type GetAdminBackupOverviewResponses = {
+    /**
+     * 成功
+     */
+    200: AdminBackupOverviewResponse;
+};
+
+export type GetAdminBackupOverviewResponse = GetAdminBackupOverviewResponses[keyof GetAdminBackupOverviewResponses];
+
+export type GetAdminBackupSettingsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/admin/backups/settings/';
+};
+
+export type GetAdminBackupSettingsErrors = {
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type GetAdminBackupSettingsError = GetAdminBackupSettingsErrors[keyof GetAdminBackupSettingsErrors];
+
+export type GetAdminBackupSettingsResponses = {
+    /**
+     * 成功
+     */
+    200: AdminBackupSettingsResponse;
+};
+
+export type GetAdminBackupSettingsResponse = GetAdminBackupSettingsResponses[keyof GetAdminBackupSettingsResponses];
+
+export type UpdateAdminBackupSettingsData = {
+    body: AdminBackupSettingsUpdateRequest;
+    path?: never;
+    query?: never;
+    url: '/api/admin/backups/settings/';
+};
+
+export type UpdateAdminBackupSettingsErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type UpdateAdminBackupSettingsError = UpdateAdminBackupSettingsErrors[keyof UpdateAdminBackupSettingsErrors];
+
+export type UpdateAdminBackupSettingsResponses = {
+    /**
+     * 更新成功
+     */
+    200: AdminBackupSettingsResponse;
+};
+
+export type UpdateAdminBackupSettingsResponse = UpdateAdminBackupSettingsResponses[keyof UpdateAdminBackupSettingsResponses];
+
+export type TestAdminBackupTargetData = {
+    body: AdminBackupTargetTestRequest;
+    path?: never;
+    query?: never;
+    url: '/api/admin/backups/targets/test/';
+};
+
+export type TestAdminBackupTargetErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type TestAdminBackupTargetError = TestAdminBackupTargetErrors[keyof TestAdminBackupTargetErrors];
+
+export type TestAdminBackupTargetResponses = {
+    /**
+     * 测试完成
+     */
+    200: AdminBackupTargetTestResponse;
+};
+
+export type TestAdminBackupTargetResponse = TestAdminBackupTargetResponses[keyof TestAdminBackupTargetResponses];
+
+export type ListAdminBackupRunsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * 当前页码
+         */
+        current?: number;
+        /**
+         * 每页数量
+         */
+        pageSize?: number;
+        /**
+         * 按备份类型筛选
+         */
+        planType?: BackupPlanType;
+        /**
+         * 按备份目标筛选
+         */
+        targetType?: BackupTargetType;
+        /**
+         * 按任务状态筛选
+         */
+        status?: BackupRunStatus;
+    };
+    url: '/api/admin/backups/runs/';
+};
+
+export type ListAdminBackupRunsErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type ListAdminBackupRunsError = ListAdminBackupRunsErrors[keyof ListAdminBackupRunsErrors];
+
+export type ListAdminBackupRunsResponses = {
+    /**
+     * 成功
+     */
+    200: AdminBackupRunListResponse;
+};
+
+export type ListAdminBackupRunsResponse = ListAdminBackupRunsResponses[keyof ListAdminBackupRunsResponses];
+
+export type CreateAdminBackupRunData = {
+    body: AdminBackupRunCreateRequest;
+    path?: never;
+    query?: never;
+    url: '/api/admin/backups/runs/';
+};
+
+export type CreateAdminBackupRunErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type CreateAdminBackupRunError = CreateAdminBackupRunErrors[keyof CreateAdminBackupRunErrors];
+
+export type CreateAdminBackupRunResponses = {
+    /**
+     * 备份任务已创建
+     */
+    202: AdminBackupRun;
+};
+
+export type CreateAdminBackupRunResponse = CreateAdminBackupRunResponses[keyof CreateAdminBackupRunResponses];
+
+export type GetAdminBackupRunData = {
+    body?: never;
+    path: {
+        /**
+         * 备份任务 ID
+         */
+        runId: number;
+    };
+    query?: never;
+    url: '/api/admin/backups/runs/{runId}/';
+};
+
+export type GetAdminBackupRunErrors = {
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type GetAdminBackupRunError = GetAdminBackupRunErrors[keyof GetAdminBackupRunErrors];
+
+export type GetAdminBackupRunResponses = {
+    /**
+     * 成功
+     */
+    200: AdminBackupRun;
+};
+
+export type GetAdminBackupRunResponse = GetAdminBackupRunResponses[keyof GetAdminBackupRunResponses];
+
+export type DownloadAdminBackupRunData = {
+    body?: never;
+    path: {
+        /**
+         * 备份任务 ID
+         */
+        runId: number;
+    };
+    query?: never;
+    url: '/api/admin/backups/runs/{runId}/download/';
+};
+
+export type DownloadAdminBackupRunErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type DownloadAdminBackupRunError = DownloadAdminBackupRunErrors[keyof DownloadAdminBackupRunErrors];
+
+export type DownloadAdminBackupRunResponses = {
+    /**
+     * 备份归档文件
+     */
+    200: Blob | File;
+};
+
+export type DownloadAdminBackupRunResponse = DownloadAdminBackupRunResponses[keyof DownloadAdminBackupRunResponses];
 
 export type GetDataSchemaSummaryData = {
     body?: never;

@@ -6,7 +6,10 @@ import type {
 import type { LoadedLayer, LoadedVectorLayer } from "../types";
 import { clamp, sourceIdFor } from "../utils/geometry";
 import {
+  isGraduatedRenderer,
   isUniqueValueRenderer,
+  type GraduatedRenderer,
+  type GraduatedSymbolClass,
   type UniqueValueRenderer,
   type UniqueValueSymbolClass,
 } from "../symbolization";
@@ -38,6 +41,9 @@ export function addLoadedStyleLayers(
   const uniqueRenderer = isUniqueValueRenderer(style.renderer)
     ? style.renderer
     : null;
+  const graduatedRenderer = isGraduatedRenderer(style.renderer)
+    ? style.renderer
+    : null;
   const layerOpacity = clamp(style.opacity / 100, 0, 1);
   const {
     circleOpacity,
@@ -59,10 +65,22 @@ export function addLoadedStyleLayers(
       "fill-color": stateColor(
         uniqueRenderer
           ? buildUniqueColorExpression(uniqueRenderer, style.fill.fillColor)
+          : graduatedRenderer
+            ? buildGraduatedColorExpression(
+                graduatedRenderer,
+                style.fill.fillColor,
+              )
           : style.fill.fillColor,
       ),
       "fill-opacity": stateNumber(
-        fillOpacity,
+        uniqueRenderer
+          ? buildUniqueVisibilityExpression(uniqueRenderer, fillOpacity)
+          : graduatedRenderer
+            ? buildGraduatedVisibilityExpression(
+                graduatedRenderer,
+                fillOpacity,
+              )
+            : fillOpacity,
         clamp(fillOpacity + 0.16, 0, 1),
         clamp(fillOpacity + 0.08, 0, 1),
       ),
@@ -94,6 +112,11 @@ export function addLoadedStyleLayers(
       "line-color": stateColor(
         uniqueRenderer
           ? buildUniqueColorExpression(uniqueRenderer, style.line.lineColor)
+          : graduatedRenderer
+            ? buildGraduatedColorExpression(
+                graduatedRenderer,
+                style.line.lineColor,
+              )
           : style.line.lineColor,
       ),
       "line-width": stateNumber(
@@ -102,7 +125,14 @@ export function addLoadedStyleLayers(
         style.line.lineWidth + 1,
       ),
       "line-opacity": stateNumber(
-        lineOpacity,
+        uniqueRenderer
+          ? buildUniqueVisibilityExpression(uniqueRenderer, lineOpacity)
+          : graduatedRenderer
+            ? buildGraduatedVisibilityExpression(
+                graduatedRenderer,
+                lineOpacity,
+              )
+            : lineOpacity,
         clamp(lineOpacity + 0.16, 0, 1),
         clamp(lineOpacity + 0.08, 0, 1),
       ),
@@ -183,6 +213,11 @@ export function addLoadedStyleLayers(
                 uniqueRenderer,
                 style.circle.circleColor,
               )
+            : graduatedRenderer
+              ? buildGraduatedColorExpression(
+                  graduatedRenderer,
+                  style.circle.circleColor,
+                )
             : style.circle.circleColor,
         ),
         "circle-radius": stateNumber(
@@ -191,6 +226,11 @@ export function addLoadedStyleLayers(
                 uniqueRenderer,
                 style.circle.circleRadius,
               )
+            : graduatedRenderer
+              ? buildGraduatedSizeExpression(
+                  graduatedRenderer,
+                  style.circle.circleRadius,
+                )
             : style.circle.circleRadius,
           style.circle.circleRadius + 3,
           style.circle.circleRadius + 1.8,
@@ -198,6 +238,11 @@ export function addLoadedStyleLayers(
         "circle-blur": style.circle.circleBlur,
         "circle-opacity": uniqueRenderer
           ? buildUniqueVisibilityExpression(uniqueRenderer, circleOpacity)
+          : graduatedRenderer
+            ? buildGraduatedVisibilityExpression(
+                graduatedRenderer,
+                circleOpacity,
+              )
           : stateNumber(
               circleOpacity,
               clamp(circleOpacity + 0.16, 0, 1),
@@ -222,6 +267,8 @@ export function addLoadedStyleLayers(
     removeStyleLayer(map, `${sourceId}-point`);
     if (uniqueRenderer) {
       ensureUniqueValueSymbolImages(map, uniqueRenderer);
+    } else if (graduatedRenderer) {
+      ensureGraduatedSymbolImages(map, graduatedRenderer);
     } else {
       ensurePlatformSymbolImage(
         map,
@@ -235,9 +282,17 @@ export function addLoadedStyleLayers(
           style.symbol.iconImage,
           style.symbol.iconColor,
         )
-      : platformSymbolImageId(style.symbol.iconImage, style.symbol.iconColor);
+      : graduatedRenderer
+        ? buildGraduatedIconImageExpression(
+            graduatedRenderer,
+            style.symbol.iconImage,
+            style.symbol.iconColor,
+          )
+        : platformSymbolImageId(style.symbol.iconImage, style.symbol.iconColor);
     const usesPlatformSymbolImage = uniqueRenderer
       ? uniqueRendererUsesPlatformImages(uniqueRenderer)
+      : graduatedRenderer
+        ? graduatedRendererUsesPlatformImages(graduatedRenderer)
       : isPlatformSymbolImage(style.symbol.iconImage);
     const enableSymbolText =
       style.symbol.textField.trim().length > 0 && mapStyleSupportsGlyphs(map);
@@ -251,6 +306,11 @@ export function addLoadedStyleLayers(
     if (uniqueRenderer) {
       symbolLayout["icon-size"] = buildUniqueSizeExpression(
         uniqueRenderer,
+        style.symbol.iconSize,
+      );
+    } else if (graduatedRenderer) {
+      symbolLayout["icon-size"] = buildGraduatedSizeExpression(
+        graduatedRenderer,
         style.symbol.iconSize,
       );
     }
@@ -275,6 +335,17 @@ export function addLoadedStyleLayers(
       if (enableSymbolText) {
         symbolPaint["text-opacity"] = buildUniqueVisibilityExpression(
           uniqueRenderer,
+          symbolTextOpacity,
+        );
+      }
+    } else if (graduatedRenderer) {
+      symbolPaint["icon-opacity"] = buildGraduatedVisibilityExpression(
+        graduatedRenderer,
+        symbolIconOpacity,
+      );
+      if (enableSymbolText) {
+        symbolPaint["text-opacity"] = buildGraduatedVisibilityExpression(
+          graduatedRenderer,
           symbolTextOpacity,
         );
       }
@@ -387,6 +458,125 @@ function ensureUniqueValueSymbolImages(
 }
 
 function uniqueRendererUsesPlatformImages(renderer: UniqueValueRenderer) {
+  return [...renderer.classes, renderer.defaultClass].every((item) =>
+    isPlatformSymbolImage(item.iconImage),
+  );
+}
+
+function buildGraduatedColorExpression(
+  renderer: GraduatedRenderer,
+  fallback: string,
+) {
+  return buildGraduatedCaseExpression(
+    renderer,
+    (item) => item.color,
+    renderer.defaultClass.color || fallback,
+  );
+}
+
+function buildGraduatedSizeExpression(
+  renderer: GraduatedRenderer,
+  baseSize: number,
+) {
+  return buildGraduatedCaseExpression(
+    renderer,
+    (item) => Math.max(0.01, baseSize * (item.size || 1)),
+    Math.max(0.01, baseSize * (renderer.defaultClass.size || 1)),
+  );
+}
+
+function buildGraduatedVisibilityExpression(
+  renderer: GraduatedRenderer,
+  baseOpacity: number,
+) {
+  return buildGraduatedCaseExpression(
+    renderer,
+    (item) => (item.visible ? baseOpacity : 0),
+    renderer.defaultClass.visible ? baseOpacity : 0,
+  );
+}
+
+function buildGraduatedIconImageExpression(
+  renderer: GraduatedRenderer,
+  fallbackIcon: string,
+  fallbackColor: string,
+) {
+  const fallback = graduatedClassImageId(
+    renderer.defaultClass,
+    fallbackIcon,
+    fallbackColor,
+  );
+  return buildGraduatedCaseExpression(
+    renderer,
+    (item) => graduatedClassImageId(item, fallbackIcon, fallbackColor),
+    fallback,
+  );
+}
+
+function buildGraduatedCaseExpression<T>(
+  renderer: GraduatedRenderer,
+  output: (item: GraduatedSymbolClass) => T,
+  fallback: T,
+) {
+  const fieldValue = [
+    "to-number",
+    ["get", renderer.field],
+    graduatedFallbackNumber(renderer),
+  ];
+  const expression: unknown[] = ["case"];
+  renderer.classes.forEach((item, index) => {
+    if (!Number.isFinite(item.min) || !Number.isFinite(item.max)) return;
+    const min = item.min as number;
+    const max = item.max as number;
+    const includeMax = index === renderer.classes.length - 1;
+    expression.push(
+      [
+        "all",
+        [">=", fieldValue, min],
+        [includeMax ? "<=" : "<", fieldValue, max],
+      ],
+      output(item),
+    );
+  });
+  if (expression.length === 1) return fallback;
+  expression.push(fallback);
+  return expression as unknown as ExpressionSpecification;
+}
+
+function graduatedFallbackNumber(renderer: GraduatedRenderer) {
+  const limits = renderer.classes.flatMap((item) =>
+    [item.min, item.max].filter(
+      (value): value is number =>
+        typeof value === "number" && Number.isFinite(value),
+    ),
+  );
+  if (limits.length === 0) return -1;
+  const min = Math.min(...limits);
+  const max = Math.max(...limits);
+  return min - Math.max(Math.abs(max - min), 1) - 1;
+}
+
+function graduatedClassImageId(
+  item: GraduatedSymbolClass,
+  fallbackIcon: string,
+  fallbackColor: string,
+) {
+  return platformSymbolImageId(
+    item.iconImage || fallbackIcon,
+    item.color || fallbackColor,
+  );
+}
+
+function ensureGraduatedSymbolImages(
+  map: MapboxMap,
+  renderer: GraduatedRenderer,
+) {
+  for (const item of [...renderer.classes, renderer.defaultClass]) {
+    ensurePlatformSymbolImage(map, item.iconImage, item.color);
+  }
+}
+
+function graduatedRendererUsesPlatformImages(renderer: GraduatedRenderer) {
   return [...renderer.classes, renderer.defaultClass].every((item) =>
     isPlatformSymbolImage(item.iconImage),
   );
