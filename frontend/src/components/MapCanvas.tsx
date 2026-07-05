@@ -265,24 +265,34 @@ export default function MapCanvas({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map?.isStyleLoaded()) return;
-    if (spatialFilter) {
-      upsertPolygonLayer(
-        map,
-        spatialFilterSourceId,
-        spatialFilterFillId,
-        spatialFilterLineId,
-        spatialFilter.geometry,
-        spatialRangeStyle,
-      );
-    } else {
-      removeLayerGroup(
-        map,
-        spatialFilterSourceId,
-        [spatialFilterFillId, spatialFilterLineId],
-        { cleanInteraction: false },
-      );
+    if (!map) return;
+    const sync = () => {
+      if (spatialFilter) {
+        upsertPolygonLayer(
+          map,
+          spatialFilterSourceId,
+          spatialFilterFillId,
+          spatialFilterLineId,
+          spatialFilter.geometry,
+          spatialRangeStyle,
+        );
+      } else {
+        removeLayerGroup(
+          map,
+          spatialFilterSourceId,
+          [spatialFilterFillId, spatialFilterLineId],
+          { cleanInteraction: false },
+        );
+      }
+    };
+    if (map.isStyleLoaded()) {
+      sync();
+      return;
     }
+    map.once("load", sync);
+    return () => {
+      map.off("load", sync);
+    };
   }, [spatialFilter]);
 
   useEffect(() => {

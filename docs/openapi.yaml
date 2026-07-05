@@ -1201,7 +1201,7 @@ paths:
     get:
       tags: [数据目录]
       summary: 获取甲方数据分类与数据库架子摘要
-      description: 返回平台面向甲方确认数据类型的分类字典、数据库分层、核心实体和目录树建议。该接口用于前端展示数据管理体系和后续导入配置提示；需要 `core.browse_data`。当前接口只读，不创建或修改任何业务数据。
+      description: 返回平台面向甲方确认数据类型的分类字典、数据库分层、核心实体和目录树建议。该接口用于前端展示数据管理体系和后续导入配置提示；需要 `core.browse_data`。当前接口只读，不创建或修改任何业务数据；分类字典包含其他类型，用于承接暂未归入专门专题的数据资源。
       operationId: getDataSchemaSummary
       security:
         - sessionAuth: []
@@ -1662,7 +1662,7 @@ paths:
           in: query
           schema:
             $ref: '#/components/schemas/DataDomainType'
-          description: 按平台确认的业务数据类型筛选，例如种质数据、个体数据、遥感影像数据、分子数据或基因组数据；无效编码返回 400 ErrorResponse
+          description: 按平台确认的业务数据类型筛选，例如种质数据、个体数据、遥感影像数据、分子数据、基因组数据或其他类型；无效编码返回 400 ErrorResponse
         - name: category
           in: query
           schema:
@@ -4306,6 +4306,7 @@ components:
         - field_survey
         - remote_sensing
         - molecular
+        - other
       description: 甲方确认的业务数据类型编码。
 
     SpatialClass:

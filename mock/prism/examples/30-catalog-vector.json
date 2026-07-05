@@ -157,6 +157,28 @@
           "updatedAt": "2026-06-18T12:00:00+08:00",
           "sizeBytes": 1087239,
           "itemCount": 2927
+        },
+        {
+          "id": 14,
+          "name": "胡杨林项目临时资料汇总表",
+          "code": "other-project-notes-2026",
+          "dataType": "table",
+          "domainType": "other",
+          "category": null,
+          "source": "用户导入",
+          "provider": "中亚胡杨林生态系统保护项目组",
+          "dataDate": "2026-07-04",
+          "spatialExtent": "",
+          "coordinateSystem": "",
+          "fileFormat": "CSV",
+          "description": "暂未归入专门业务专题的项目资料，先按其他类型登记并保留字段说明。",
+          "qualityNote": "导入时未匹配到明确业务专题，可在后续数据治理中重新归类。",
+          "status": "active",
+          "isQueryable": true,
+          "isRenderable": false,
+          "updatedAt": "2026-07-04T10:20:00+08:00",
+          "sizeBytes": 18432,
+          "itemCount": 86
         }
       ]
     },

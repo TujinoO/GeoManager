@@ -682,6 +682,14 @@ describe("admin routes", () => {
           recommendedResourceTypes: ["gene", "table", "document"],
           coreEntities: ["MolecularSample", "MolecularAssay"],
         },
+        {
+          code: "other",
+          name: "其他类型",
+          spatialClass: "spatialized_table",
+          description: "暂未归入专门专题的数据资源。",
+          recommendedResourceTypes: ["vector", "table", "document", "image"],
+          coreEntities: ["DataResource", "SourceDataset", "SourceSheet"],
+        },
       ],
       layers: [
         {
@@ -710,6 +718,13 @@ describe("admin routes", () => {
           description: "群落调查和野外调查的空间锚点。",
           keyFields: ["plot_code", "longitude", "latitude"],
         },
+        {
+          name: "GenericImportedDataset",
+          label: "其他导入数据",
+          domainTypes: ["other"],
+          description: "承接暂未归入专门业务专题的数据资源。",
+          keyFields: ["data_resource_id", "source_file_name", "sheet_name"],
+        },
       ],
       catalogTree: [
         {
@@ -732,6 +747,13 @@ describe("admin routes", () => {
               spatialClass: "spatial",
               children: [],
             },
+            {
+              code: "geo-other",
+              name: "其他类型",
+              domainType: "other",
+              spatialClass: "spatialized_table",
+              children: [],
+            },
           ],
         },
         {
@@ -751,6 +773,13 @@ describe("admin routes", () => {
               code: "nongeo-genome",
               name: "基因组数据",
               domainType: "genome",
+              spatialClass: "non_spatial",
+              children: [],
+            },
+            {
+              code: "nongeo-other",
+              name: "其他类型",
+              domainType: "other",
               spatialClass: "non_spatial",
               children: [],
             },
@@ -1352,6 +1381,7 @@ describe("admin routes", () => {
         file,
         expect.objectContaining({
           name: "样地调查点位",
+          domainType: "other",
           importMode: "geographic",
           longitudeColumn: "longitude",
           latitudeColumn: "latitude",

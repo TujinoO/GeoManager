@@ -12,6 +12,7 @@ DATA_DOMAIN_TYPE_CHOICES = [
     ("field_survey", "野外调查数据"),
     ("remote_sensing", "遥感影像数据"),
     ("molecular", "分子数据"),
+    ("other", "其他类型"),
 ]
 
 

@@ -39,7 +39,14 @@ class DataSchemaSummaryApiTests(TestCase):
         self.assertIn("germplasm", domain_codes)
         self.assertIn("genome", domain_codes)
         self.assertIn("molecular", domain_codes)
+        self.assertIn("other", domain_codes)
         self.assertEqual(payload["catalogTree"][0]["code"], "geo")
+        catalog_domain_codes = {
+            child["domainType"]
+            for group in payload["catalogTree"]
+            for child in group["children"]
+        }
+        self.assertIn("other", catalog_domain_codes)
         self.assertTrue(
             any(entity["name"] == "GermplasmAccession" for entity in payload["entities"])
         )

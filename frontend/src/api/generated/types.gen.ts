@@ -1578,7 +1578,7 @@ export type AdminBackupOverviewResponse = {
 /**
  * 甲方确认的业务数据类型编码。
  */
-export type DataDomainType = 'germplasm' | 'genome' | 'individual' | 'community' | 'population' | 'field_survey' | 'remote_sensing' | 'molecular';
+export type DataDomainType = 'germplasm' | 'genome' | 'individual' | 'community' | 'population' | 'field_survey' | 'remote_sensing' | 'molecular' | 'other';
 
 /**
  * 数据与空间几何的关系。
@@ -5434,7 +5434,7 @@ export type GetResourcesData = {
          */
         dataType?: 'vector' | 'raster' | 'gene' | 'table' | 'document' | 'image';
         /**
-         * 按平台确认的业务数据类型筛选，例如种质数据、个体数据、遥感影像数据、分子数据或基因组数据；无效编码返回 400 ErrorResponse
+         * 按平台确认的业务数据类型筛选，例如种质数据、个体数据、遥感影像数据、分子数据、基因组数据或其他类型；无效编码返回 400 ErrorResponse
          */
         domainType?: DataDomainType;
         /**

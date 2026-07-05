@@ -18,6 +18,13 @@ const defaultRangeStyle: PolygonLayerStyle = {
   lineOpacity: 0.95,
   lineWidth: 2,
 };
+const polygonGeometryTypes = ["Polygon", "MultiPolygon"];
+const lineGeometryTypes = [
+  "LineString",
+  "MultiLineString",
+  "Polygon",
+  "MultiPolygon",
+];
 export type DrawMode = SpatialFilter["mode"];
 
 export interface PolygonLayerStyle {
@@ -135,7 +142,13 @@ export function upsertPolygonLayer(
       id: fillId,
       type: "fill",
       source: sourceId,
-      filter: ["==", ["geometry-type"], "Polygon"],
+      filter: [
+        "match",
+        ["geometry-type"],
+        polygonGeometryTypes,
+        true,
+        false,
+      ],
       paint: {
         "fill-color": style.fillColor,
         "fill-opacity": style.fillOpacity,
@@ -152,7 +165,7 @@ export function upsertPolygonLayer(
       filter: [
         "match",
         ["geometry-type"],
-        ["LineString", "Polygon"],
+        lineGeometryTypes,
         true,
         false,
       ],

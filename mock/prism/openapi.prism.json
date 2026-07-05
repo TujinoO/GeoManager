@@ -4359,7 +4359,7 @@
           "数据目录"
         ],
         "summary": "获取甲方数据分类与数据库架子摘要",
-        "description": "返回平台面向甲方确认数据类型的分类字典、数据库分层、核心实体和目录树建议。该接口用于前端展示数据管理体系和后续导入配置提示；需要 `core.browse_data`。当前接口只读，不创建或修改任何业务数据。",
+        "description": "返回平台面向甲方确认数据类型的分类字典、数据库分层、核心实体和目录树建议。该接口用于前端展示数据管理体系和后续导入配置提示；需要 `core.browse_data`。当前接口只读，不创建或修改任何业务数据；分类字典包含其他类型，用于承接暂未归入专门专题的数据资源。",
         "operationId": "getDataSchemaSummary",
         "security": [
           {
@@ -4501,6 +4501,23 @@
                         "MolecularAssay",
                         "MolecularResult",
                         "MolecularFile"
+                      ]
+                    },
+                    {
+                      "code": "other",
+                      "name": "其他类型",
+                      "spatialClass": "spatialized_table",
+                      "description": "暂未归入专门专题的数据资源，可先按空间点表、普通表、文档或图片统一登记，后续再补充字段映射和标准化归类。",
+                      "recommendedResourceTypes": [
+                        "vector",
+                        "table",
+                        "document",
+                        "image"
+                      ],
+                      "coreEntities": [
+                        "DataResource",
+                        "SourceDataset",
+                        "SourceSheet"
                       ]
                     }
                   ],
@@ -4698,6 +4715,20 @@
                         "assay_type",
                         "batch_code"
                       ]
+                    },
+                    {
+                      "name": "GenericImportedDataset",
+                      "label": "其他导入数据",
+                      "domainTypes": [
+                        "other"
+                      ],
+                      "description": "承接暂未归入专门业务专题的数据资源，保留源文件、工作表、字段说明和后续归类线索。",
+                      "keyFields": [
+                        "data_resource_id",
+                        "source_file_name",
+                        "sheet_name",
+                        "file_format"
+                      ]
                     }
                   ],
                   "catalogTree": [
@@ -4748,6 +4779,13 @@
                           "domainType": "remote_sensing",
                           "spatialClass": "spatial",
                           "children": []
+                        },
+                        {
+                          "code": "geo-other",
+                          "name": "其他类型",
+                          "domainType": "other",
+                          "spatialClass": "spatialized_table",
+                          "children": []
                         }
                       ]
                     },
@@ -4768,6 +4806,13 @@
                           "code": "nongeo-genome",
                           "name": "基因组数据",
                           "domainType": "genome",
+                          "spatialClass": "non_spatial",
+                          "children": []
+                        },
+                        {
+                          "code": "nongeo-other",
+                          "name": "其他类型",
+                          "domainType": "other",
                           "spatialClass": "non_spatial",
                           "children": []
                         }
@@ -5994,7 +6039,7 @@
             "schema": {
               "$ref": "#/components/schemas/DataDomainType"
             },
-            "description": "按平台确认的业务数据类型筛选，例如种质数据、个体数据、遥感影像数据、分子数据或基因组数据；无效编码返回 400 ErrorResponse"
+            "description": "按平台确认的业务数据类型筛选，例如种质数据、个体数据、遥感影像数据、分子数据、基因组数据或其他类型；无效编码返回 400 ErrorResponse"
           },
           {
             "name": "category",
@@ -6146,6 +6191,28 @@
                       "updatedAt": "2026-06-18T12:00:00+08:00",
                       "sizeBytes": 1087239,
                       "itemCount": 2927
+                    },
+                    {
+                      "id": 14,
+                      "name": "胡杨林项目临时资料汇总表",
+                      "code": "other-project-notes-2026",
+                      "dataType": "table",
+                      "domainType": "other",
+                      "category": null,
+                      "source": "用户导入",
+                      "provider": "中亚胡杨林生态系统保护项目组",
+                      "dataDate": "2026-07-04",
+                      "spatialExtent": "",
+                      "coordinateSystem": "",
+                      "fileFormat": "CSV",
+                      "description": "暂未归入专门业务专题的项目资料，先按其他类型登记并保留字段说明。",
+                      "qualityNote": "导入时未匹配到明确业务专题，可在后续数据治理中重新归类。",
+                      "status": "active",
+                      "isQueryable": true,
+                      "isRenderable": false,
+                      "updatedAt": "2026-07-04T10:20:00+08:00",
+                      "sizeBytes": 18432,
+                      "itemCount": 86
                     }
                   ]
                 }
@@ -11523,7 +11590,8 @@
           "population",
           "field_survey",
           "remote_sensing",
-          "molecular"
+          "molecular",
+          "other"
         ],
         "description": "甲方确认的业务数据类型编码。"
       },

@@ -33,7 +33,7 @@ import type {
   SpatialFilter,
 } from "../types";
 import { downloadBlob } from "../utils/download";
-import { extractCoordinates } from "../utils/geometry";
+import { extractCoordinates, rectangleGeometry } from "../utils/geometry";
 import { resourceSpatialExtent } from "../utils/resources";
 
 export type SpatialQueryTarget = "selectedResource" | "selectedLayer";
@@ -386,9 +386,13 @@ function TargetSection({
         </div>
       )}
       <div className="spatial-target-card">
-        <Typography.Text strong>{active.name}</Typography.Text>
-        <Typography.Text type="secondary">{active.description}</Typography.Text>
-        <Space size={6} wrap>
+        <Typography.Text className="spatial-target-name" strong>
+          {active.name}
+        </Typography.Text>
+        <Typography.Text className="spatial-target-description" type="secondary">
+          {active.description}
+        </Typography.Text>
+        <Space className="spatial-target-tags" size={6} wrap>
           <Tag color={active.ready ? "green" : "default"}>{active.typeLabel}</Tag>
           {active.extent ? <Tag>{active.extent}</Tag> : null}
         </Space>
@@ -567,11 +571,11 @@ function DrawingPanel({
     try {
       const geometry = geometryFromGeojson(JSON.parse(await file.text()));
       if (!geometry) {
-        message.warning("GeoJSON 中未找到可用的面状范围");
+        message.warning("GeoJSON 中未找到可用坐标范围");
         return;
       }
-      onImportSpatialFilter({ mode: inferSpatialMode(geometry), geometry });
-      message.success("空间范围已导入");
+      void onImportSpatialFilter({ mode: inferSpatialMode(geometry), geometry });
+      message.success("空间范围边界已导入");
     } catch (error) {
       message.error(
         error instanceof Error ? error.message : "GeoJSON 文件读取失败",
@@ -842,18 +846,89 @@ function spatialModeName(mode: SpatialFilter["mode"]) {
 
 function geometryFromGeojson(value: unknown): GeoJsonGeometry | null {
   if (!isGeojsonObject(value)) return null;
+  return firstSupportedGeometry(value) ?? boundaryGeometryFromGeojson(value);
+}
+
+function firstSupportedGeometry(value: unknown): GeoJsonGeometry | null {
+  if (!isGeojsonObject(value)) return null;
   if (isSupportedGeometry(value)) return value;
-  if (value.type === "Feature" && isSupportedGeometry(value.geometry)) {
-    return value.geometry;
+  if (value.type === "Feature") {
+    return firstSupportedGeometry(value.geometry);
   }
   if (value.type === "FeatureCollection" && Array.isArray(value.features)) {
     for (const feature of value.features) {
-      if (isGeojsonObject(feature) && isSupportedGeometry(feature.geometry)) {
-        return feature.geometry;
-      }
+      const geometry = firstSupportedGeometry(feature);
+      if (geometry) return geometry;
+    }
+  }
+  if (value.type === "GeometryCollection" && Array.isArray(value.geometries)) {
+    for (const geometryValue of value.geometries) {
+      const geometry = firstSupportedGeometry(geometryValue);
+      if (geometry) return geometry;
     }
   }
   return null;
+}
+
+function boundaryGeometryFromGeojson(value: unknown): GeoJsonGeometry | null {
+  const points: Array<[number, number]> = [];
+  collectGeojsonCoordinates(value, points);
+  const finitePoints = points.filter(([lng, lat]) =>
+    Number.isFinite(lng) && Number.isFinite(lat),
+  );
+  if (finitePoints.length === 0) return null;
+  const lngs = finitePoints.map((point) => point[0]);
+  const lats = finitePoints.map((point) => point[1]);
+  const bounds = expandFlatBounds([
+    Math.min(...lngs),
+    Math.min(...lats),
+    Math.max(...lngs),
+    Math.max(...lats),
+  ]);
+  return rectangleGeometry([bounds[0], bounds[1]], [bounds[2], bounds[3]]);
+}
+
+function expandFlatBounds(bounds: [number, number, number, number]) {
+  const [minLng, minLat, maxLng, maxLat] = bounds;
+  const lngSpan = maxLng - minLng;
+  const latSpan = maxLat - minLat;
+  const fallbackPadding = 0.0001;
+  const lngPadding =
+    lngSpan === 0 ? Math.max(Math.abs(latSpan) * 0.02, fallbackPadding) : 0;
+  const latPadding =
+    latSpan === 0 ? Math.max(Math.abs(lngSpan) * 0.02, fallbackPadding) : 0;
+  return [
+    minLng - lngPadding,
+    minLat - latPadding,
+    maxLng + lngPadding,
+    maxLat + latPadding,
+  ] as [number, number, number, number];
+}
+
+function collectGeojsonCoordinates(
+  value: unknown,
+  points: Array<[number, number]>,
+) {
+  if (!isGeojsonObject(value)) return;
+  if (value.type === "Feature") {
+    collectGeojsonCoordinates(value.geometry, points);
+    return;
+  }
+  if (value.type === "FeatureCollection" && Array.isArray(value.features)) {
+    for (const feature of value.features) {
+      collectGeojsonCoordinates(feature, points);
+    }
+    return;
+  }
+  if (value.type === "GeometryCollection" && Array.isArray(value.geometries)) {
+    for (const geometryValue of value.geometries) {
+      collectGeojsonCoordinates(geometryValue, points);
+    }
+    return;
+  }
+  if ("coordinates" in value) {
+    extractCoordinates(value.coordinates, points);
+  }
 }
 
 function isGeojsonObject(value: unknown): value is Record<string, unknown> {

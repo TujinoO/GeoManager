@@ -54,6 +54,7 @@ import type {
   DataResourceProfile,
   ExportLayerItem,
   FeatureInfo,
+  GeoJsonFeatureCollection,
   GeoJsonGeometry,
   LoadedLayer,
   LoadedRasterLayer,
@@ -975,6 +976,23 @@ export default function MapPage() {
   function handleImportSpatialFilter(filter: SpatialFilter) {
     setSpatialFilter(filter);
     setActiveDraw(null);
+    void locateImportedSpatialFilter(filter.geometry);
+  }
+
+  async function locateImportedSpatialFilter(geometry: GeoJsonGeometry) {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    try {
+      fitGeojsonBounds(
+        map,
+        geojsonFromGeometry(geometry),
+        bootstrap.map.defaultCenter,
+        bootstrap.map.defaultZoom,
+        await mapFitBoundsOptions(map),
+      );
+    } catch {
+      message.warning("空间范围已导入，但地图定位失败");
+    }
   }
 
   function clearSpatialQueryState() {
@@ -1533,6 +1551,21 @@ export default function MapPage() {
 async function mapFitBoundsOptions(_map: MapboxMap) {
   const { fitBoundsOptions } = await import("../map/mapViewport");
   return fitBoundsOptions();
+}
+
+function geojsonFromGeometry(
+  geometry: GeoJsonGeometry,
+): GeoJsonFeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        geometry,
+        properties: {},
+      },
+    ],
+  };
 }
 
 function isLeftPanelTabKey(key: string): key is LeftPanelTabKey {

@@ -65,6 +65,14 @@
           "description": "DNA/RNA 提取、PCR、分子标记、实验批次和实验结果文件；通过生物样品关联空间来源。",
           "recommendedResourceTypes": ["gene", "table", "document"],
           "coreEntities": ["MolecularSample", "MolecularAssay", "MolecularResult", "MolecularFile"]
+        },
+        {
+          "code": "other",
+          "name": "其他类型",
+          "spatialClass": "spatialized_table",
+          "description": "暂未归入专门专题的数据资源，可先按空间点表、普通表、文档或图片统一登记，后续再补充字段映射和标准化归类。",
+          "recommendedResourceTypes": ["vector", "table", "document", "image"],
+          "coreEntities": ["DataResource", "SourceDataset", "SourceSheet"]
         }
       ],
       "layers": [
@@ -166,6 +174,13 @@
           "domainTypes": ["molecular"],
           "description": "记录 PCR、分子标记、实验批次、实验室和结果状态。",
           "keyFields": ["assay_code", "molecular_sample_id", "assay_type", "batch_code"]
+        },
+        {
+          "name": "GenericImportedDataset",
+          "label": "其他导入数据",
+          "domainTypes": ["other"],
+          "description": "承接暂未归入专门业务专题的数据资源，保留源文件、工作表、字段说明和后续归类线索。",
+          "keyFields": ["data_resource_id", "source_file_name", "sheet_name", "file_format"]
         }
       ],
       "catalogTree": [
@@ -216,6 +231,13 @@
               "domainType": "remote_sensing",
               "spatialClass": "spatial",
               "children": []
+            },
+            {
+              "code": "geo-other",
+              "name": "其他类型",
+              "domainType": "other",
+              "spatialClass": "spatialized_table",
+              "children": []
             }
           ]
         },
@@ -236,6 +258,13 @@
               "code": "nongeo-genome",
               "name": "基因组数据",
               "domainType": "genome",
+              "spatialClass": "non_spatial",
+              "children": []
+            },
+            {
+              "code": "nongeo-other",
+              "name": "其他类型",
+              "domainType": "other",
               "spatialClass": "non_spatial",
               "children": []
             }

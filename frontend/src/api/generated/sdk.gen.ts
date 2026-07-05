@@ -618,7 +618,7 @@ export const downloadAdminBackupRun = <ThrowOnError extends boolean = false>(opt
 /**
  * 获取甲方数据分类与数据库架子摘要
  *
- * 返回平台面向甲方确认数据类型的分类字典、数据库分层、核心实体和目录树建议。该接口用于前端展示数据管理体系和后续导入配置提示；需要 `core.browse_data`。当前接口只读，不创建或修改任何业务数据。
+ * 返回平台面向甲方确认数据类型的分类字典、数据库分层、核心实体和目录树建议。该接口用于前端展示数据管理体系和后续导入配置提示；需要 `core.browse_data`。当前接口只读，不创建或修改任何业务数据；分类字典包含其他类型，用于承接暂未归入专门专题的数据资源。
  */
 export const getDataSchemaSummary = <ThrowOnError extends boolean = false>(options?: Options<GetDataSchemaSummaryData, ThrowOnError>): RequestResult<GetDataSchemaSummaryResponses, GetDataSchemaSummaryErrors, ThrowOnError> => (options?.client ?? client).get<GetDataSchemaSummaryResponses, GetDataSchemaSummaryErrors, ThrowOnError>({
     security: [{

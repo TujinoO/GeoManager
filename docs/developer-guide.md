@@ -524,7 +524,7 @@ for dir in directories:
 
 #### Step 1.1: 获取平台数据分类架构
 
-`GET /api/data-schema/summary/` 返回甲方确认后的平台业务数据分类、数据库分层、核心实体和前端目录树建议。该接口只读，不创建或修改业务数据；需要登录态和 `core.browse_data` 权限。当前分类包括地理数据中的种质数据、个体数据、群落数据、种群数据、野外调查数据、遥感影像数据，以及非地理数据中的分子数据和基因组数据。基因组数据不再放入地理数据目录；如需空间联动，应通过生物样品、采集地、个体或种群关联回地理对象。
+`GET /api/data-schema/summary/` 返回甲方确认后的平台业务数据分类、数据库分层、核心实体和前端目录树建议。该接口只读，不创建或修改业务数据；需要登录态和 `core.browse_data` 权限。当前分类包括地理数据中的种质数据、个体数据、群落数据、种群数据、野外调查数据、遥感影像数据，非地理数据中的分子数据和基因组数据，以及用于承接暂未归入专门专题资源的其他类型。基因组数据不再放入地理数据目录；如需空间联动，应通过生物样品、采集地、个体或种群关联回地理对象。
 
 ```javascript
 // JavaScript
@@ -547,7 +547,7 @@ console.log(schema.catalogTree);
 // JavaScript
 const params = new URLSearchParams({
   dataType: "vector",      // 数据类型: vector / raster / gene / table / document / image
-  domainType: "field_survey", // 业务数据类型: germplasm / individual / community / population / field_survey / remote_sensing / molecular / genome
+  domainType: "field_survey", // 业务数据类型: germplasm / individual / community / population / field_survey / remote_sensing / molecular / genome / other
   category: "vegetation",  // 分类代码
   q: "胡杨",              // 名称模糊搜索
 });
@@ -780,6 +780,7 @@ const formData = new FormData();
 formData.append("file", fileInput.files[0]);
 formData.append("payload", JSON.stringify({
   name: "样地调查点",
+  domainType: "field_survey",
   tableName: preview.suggestedTableName,  // 后台存储标识建议值；后端冲突时会自动改写为唯一值
   importMode: "geographic",
   longitudeColumn: "longitude",
@@ -823,6 +824,7 @@ with open("survey_data.xlsx", "rb") as f:
         files={"file": f},
         data={"payload": json.dumps({
             "name": "样地调查点",
+            "domainType": "field_survey",
             "tableName": preview["suggestedTableName"],
             "importMode": "geographic",
             "longitudeColumn": "longitude",
@@ -850,7 +852,7 @@ else:
 
 **非地理数据（Table）**：不包含坐标信息的纯表格数据，系统会将其写入 SQLite 数据库，并创建新的 `DataResource`。提交响应返回 `mode: "table"`、`resourceId`、`resourceName`、`tableName`，且 `layerId` 和 `coordinateStats` 为 `null`。
 
-后台存储标识每次预检都会生成不同建议值；提交时若后端发现该标识已被占用，会自动改写为唯一 GeoPackage 图层名或 SQLite 表名。重复目标检测按前端显示的数据名称执行：预检使用 `suggestedName`，校验和提交使用 payload 中的 `name`。`duplicateTarget.targetType` 固定为 `data_resource_name`。提交时若同名数据已存在且 `duplicateConfirmed=false`，后端会以 `400` 和 `duplicate_target` 问题阻止导入；用户在数据校验阶段确认重复名称并传入 `duplicateConfirmed=true` 后，后端允许继续导入并创建新的数据资源记录和唯一后台存储标识，旧数据资源不会被覆盖。
+后台存储标识每次预检都会生成不同建议值；提交时若后端发现该标识已被占用，会自动改写为唯一 GeoPackage 图层名或 SQLite 表名。重复目标检测按前端显示的数据名称执行：预检使用 `suggestedName`，校验和提交使用 payload 中的 `name`。`duplicateTarget.targetType` 固定为 `data_resource_name`。提交时若同名数据已存在且 `duplicateConfirmed=false`，后端会以 `400` 和 `duplicate_target` 问题阻止导入；用户在数据校验阶段确认重复名称并传入 `duplicateConfirmed=true` 后，后端允许继续导入并创建新的数据资源记录和唯一后台存储标识，旧数据资源不会被覆盖。`domainType` 必须来自 `DataDomainType`，可选择 `other` 作为暂未归入专门专题的数据类型；缺失或无效编码都会返回结构化 400 错误。
 
 ### 字段元数据规范
 
@@ -1170,6 +1172,8 @@ a.href = url;
 a.download = "export.zip";
 a.click();
 ```
+
+导出的 ZIP 中，矢量图层会包含空间文件（GeoJSON 或 Shapefile 组件文件）以及同名 `*-attributes.csv` 属性表。空间查询结果传入 `items[].geojson` 时，查询命中的 `features[].properties` 会写入该属性表，便于在 Excel/WPS 或统计软件中继续分析。
 
 ```python
 # Python

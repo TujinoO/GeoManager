@@ -1,9 +1,10 @@
+import csv
 import io
 import json
 import sqlite3
 import zipfile
 from datetime import date
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
@@ -119,6 +120,14 @@ class ResourceListDomainTypeTests(TestCase):
             maintainer=self.user,
             status=DataResource.Status.ACTIVE,
         )
+        DataResource.objects.create(
+            name="临时资料",
+            code="domain-other",
+            data_type=DataResource.DataType.TABLE,
+            domain_type="other",
+            maintainer=self.user,
+            status=DataResource.Status.ACTIVE,
+        )
 
         response = self.client.get(
             "/api/catalog/resources/", {"domainType": "germplasm"}
@@ -128,6 +137,13 @@ class ResourceListDomainTypeTests(TestCase):
         items = response.json()["items"]
         self.assertEqual([item["code"] for item in items], ["domain-germplasm"])
         self.assertEqual(items[0]["domainType"], "germplasm")
+
+        response = self.client.get("/api/catalog/resources/", {"domainType": "other"})
+
+        self.assertEqual(response.status_code, 200)
+        items = response.json()["items"]
+        self.assertEqual([item["code"] for item in items], ["domain-other"])
+        self.assertEqual(items[0]["domainType"], "other")
 
     def test_resources_endpoint_rejects_invalid_domain_type(self):
         response = self.client.get(
@@ -1751,6 +1767,43 @@ class ImportCommitDomainTypeApiTests(TestCase):
             ).exists()
         )
 
+    def test_import_commit_accepts_other_domain_type(self):
+        connection = MagicMock()
+        connection.__enter__.return_value = connection
+        connection.__exit__.return_value = False
+        with (
+            patch(
+                "apps.catalog.importer.unique_import_table_name",
+                return_value="other_domain_type_table",
+            ),
+            patch("apps.catalog.importer._ensure_table_can_be_written"),
+            patch("apps.catalog.importer.sqlite3.connect", return_value=connection),
+            patch("apps.catalog.importer.pd.DataFrame.to_sql"),
+            patch("apps.catalog.importer.write_sqlite_field_metadata"),
+        ):
+            response = self.client.post(
+                "/api/catalog/import/commit/",
+                data={
+                    "file": self._csv_file("notes.csv", "name,value\nA,42\n"),
+                    "payload": json.dumps(
+                        {
+                            "name": "其他类型资料表",
+                            "domainType": "other",
+                            "tableName": "other_domain_type_table",
+                            "importMode": "table",
+                            "duplicateConfirmed": False,
+                            "fieldMetadata": {"name": "名称", "value": "数值"},
+                        }
+                    ),
+                },
+            )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()["mode"], "table")
+        resource = DataResource.objects.get(storage_path="other_domain_type_table")
+        self.assertEqual(resource.domain_type, "other")
+        self.assertEqual(resource.name, "其他类型资料表")
+
     def _csv_file(self, name: str, content: str) -> SimpleUploadedFile:
         return SimpleUploadedFile(
             name, content.encode("utf-8"), content_type="text/csv"
@@ -1805,12 +1858,23 @@ class ExportApiTests(TestCase):
         self.assertEqual(response["Content-Type"], "application/zip")
         with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
             names = archive.namelist()
-            self.assertEqual(len(names), 1)
-            self.assertTrue(names[0].endswith(".geojson"))
-            exported = json.loads(archive.read(names[0]).decode("utf-8"))
+            self.assertEqual(len(names), 2)
+            geojson_name = next(name for name in names if name.endswith(".geojson"))
+            attributes_name = next(
+                name for name in names if name.endswith("-attributes.csv")
+            )
+            exported = json.loads(archive.read(geojson_name).decode("utf-8"))
+            expected_name = exported["features"][0]["properties"]["name"]
             self.assertEqual(
                 exported["features"][0]["properties"]["name"], "空间查询结果"
             )
+
+            rows = list(
+                csv.DictReader(
+                    io.StringIO(archive.read(attributes_name).decode("utf-8-sig"))
+                )
+            )
+            self.assertEqual(rows[0]["name"], expected_name)
 
     def _vector_item(self):
         return {

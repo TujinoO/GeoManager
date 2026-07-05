@@ -13,6 +13,7 @@ class DataDomainType(models.TextChoices):
     FIELD_SURVEY = "field_survey", "野外调查数据"
     REMOTE_SENSING = "remote_sensing", "遥感影像数据"
     MOLECULAR = "molecular", "分子数据"
+    OTHER = "other", "其他类型"
 
 
 class SpatialClass(models.TextChoices):

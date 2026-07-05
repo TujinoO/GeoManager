@@ -77,6 +77,7 @@ const domainColors: Record<DataDomainType, string> = {
   field_survey: "orange",
   remote_sensing: "blue",
   molecular: "purple",
+  other: "default",
 };
 
 const resourceTypeLabels: Record<string, string> = {
@@ -113,7 +114,11 @@ const fallbackDomainDefinitions: DomainDefinition[] = [
     spatialClass: "spatial",
     description: "单株或单个植株个体的位置、性别、健康状态和观测指标。",
     recommendedResourceTypes: ["vector", "table"],
-    coreEntities: ["IndividualOrganism", "TraitObservation", "BiologicalSample"],
+    coreEntities: [
+      "IndividualOrganism",
+      "TraitObservation",
+      "BiologicalSample",
+    ],
   },
   {
     code: "community",
@@ -142,7 +147,12 @@ const fallbackDomainDefinitions: DomainDefinition[] = [
     spatialClass: "spatialized_table",
     description: "调查任务、路线、样点、采集记录、野外照片和观察记录。",
     recommendedResourceTypes: ["vector", "table", "image"],
-    coreEntities: ["SurveyEvent", "FieldObservation", "SurveyRoute", "SpecimenRecord"],
+    coreEntities: [
+      "SurveyEvent",
+      "FieldObservation",
+      "SurveyRoute",
+      "SpecimenRecord",
+    ],
   },
   {
     code: "remote_sensing",
@@ -151,7 +161,11 @@ const fallbackDomainDefinitions: DomainDefinition[] = [
     description:
       "原始遥感影像、无人机影像、NDVI/NPP、生物量、分类和变化检测产品。",
     recommendedResourceTypes: ["raster", "vector"],
-    coreEntities: ["RasterDataset", "RemoteSensingProduct", "RasterSampleValue"],
+    coreEntities: [
+      "RasterDataset",
+      "RemoteSensingProduct",
+      "RasterSampleValue",
+    ],
   },
   {
     code: "molecular",
@@ -160,19 +174,100 @@ const fallbackDomainDefinitions: DomainDefinition[] = [
     description:
       "DNA/RNA 提取、PCR、分子标记、实验批次和实验结果文件；通过生物样品关联空间来源。",
     recommendedResourceTypes: ["gene", "table", "document"],
-    coreEntities: ["MolecularSample", "MolecularAssay", "MolecularResult", "MolecularFile"],
+    coreEntities: [
+      "MolecularSample",
+      "MolecularAssay",
+      "MolecularResult",
+      "MolecularFile",
+    ],
+  },
+  {
+    code: "other",
+    name: "其他类型",
+    spatialClass: "spatialized_table",
+    description:
+      "暂未归入专门专题的数据资源，可先按空间点表、普通表、文档或图片统一登记，后续再补充字段映射和标准化归类。",
+    recommendedResourceTypes: ["vector", "table", "document", "image"],
+    coreEntities: ["DataResource", "SourceDataset", "SourceSheet"],
   },
 ];
 
 const domainFieldHints: Record<DataDomainType, string[]> = {
-  germplasm: ["样品编号", "采集地点", "物种", "经度", "纬度", "海拔", "核心资源标记"],
-  genome: ["样品编号", "测序平台", "数据集类型", "文件角色", "参考组装", "质控状态"],
-  individual: ["个体编号", "物种", "性别", "经度", "纬度", "健康状态", "功能性状"],
-  community: ["样方编号", "群落类型", "物种组成", "盖度", "多样性指数", "调查时间"],
-  population: ["种群编号", "物种", "调查区域", "样方编号", "种群指标", "遥感采样值"],
-  field_survey: ["调查编号", "样点/路线", "采集日期", "调查人员", "经度", "纬度", "观测记录"],
-  remote_sensing: ["产品编号", "产品类型", "传感器", "时间范围", "空间分辨率", "坐标系"],
-  molecular: ["分子样品编号", "核酸类型", "实验类型", "批次编号", "位点/标记", "结果文件"],
+  germplasm: [
+    "样品编号",
+    "采集地点",
+    "物种",
+    "经度",
+    "纬度",
+    "海拔",
+    "核心资源标记",
+  ],
+  genome: [
+    "样品编号",
+    "测序平台",
+    "数据集类型",
+    "文件角色",
+    "参考组装",
+    "质控状态",
+  ],
+  individual: [
+    "个体编号",
+    "物种",
+    "性别",
+    "经度",
+    "纬度",
+    "健康状态",
+    "功能性状",
+  ],
+  community: [
+    "样方编号",
+    "群落类型",
+    "物种组成",
+    "盖度",
+    "多样性指数",
+    "调查时间",
+  ],
+  population: [
+    "种群编号",
+    "物种",
+    "调查区域",
+    "样方编号",
+    "种群指标",
+    "遥感采样值",
+  ],
+  field_survey: [
+    "调查编号",
+    "样点/路线",
+    "采集日期",
+    "调查人员",
+    "经度",
+    "纬度",
+    "观测记录",
+  ],
+  remote_sensing: [
+    "产品编号",
+    "产品类型",
+    "传感器",
+    "时间范围",
+    "空间分辨率",
+    "坐标系",
+  ],
+  molecular: [
+    "分子样品编号",
+    "核酸类型",
+    "实验类型",
+    "批次编号",
+    "位点/标记",
+    "结果文件",
+  ],
+  other: [
+    "资源编号",
+    "来源文件",
+    "工作表",
+    "字段说明",
+    "数据格式",
+    "后续归类建议",
+  ],
 };
 
 export default function AdminDataImportPage() {
@@ -252,7 +347,9 @@ export default function AdminDataImportPage() {
   const remoteSensingDomain = useMemo(
     () =>
       domainDefinitions.find((domain) => domain.code === "remote_sensing") ??
-      fallbackDomainDefinitions.find((domain) => domain.code === "remote_sensing"),
+      fallbackDomainDefinitions.find(
+        (domain) => domain.code === "remote_sensing",
+      ),
     [domainDefinitions],
   );
 
@@ -607,7 +704,9 @@ export default function AdminDataImportPage() {
       setImportKind("vector");
       setUnsupportedFile(selectedFile);
       setCurrentStep(1);
-      message.info("已识别为矢量数据，当前版本请走表格空间化或后续矢量导入流程。");
+      message.info(
+        "已识别为矢量数据，当前版本请走表格空间化或后续矢量导入流程。",
+      );
       return;
     }
     setImportKind("unsupported");
@@ -632,7 +731,10 @@ export default function AdminDataImportPage() {
         Object.fromEntries(data.columns.map((column) => [column, ""])),
       );
       setIncludedColumns(data.columns);
-      const inferredDomainType = inferDomainTypeFromFile(selectedFile.name, data);
+      const inferredDomainType = inferDomainTypeFromFile(
+        selectedFile.name,
+        data,
+      );
       const nextConfig: ImportFormValues = {
         name: data.suggestedName,
         domainType: inferredDomainType,
@@ -952,7 +1054,9 @@ export default function AdminDataImportPage() {
                 </Descriptions>
                 {(preview.sheets?.length ?? 0) > 1 && (
                   <section className="import-section import-sheet-section">
-                    <Typography.Title level={5}>工作表拆分结果</Typography.Title>
+                    <Typography.Title level={5}>
+                      工作表拆分结果
+                    </Typography.Title>
                     <Alert
                       type="info"
                       showIcon
@@ -1121,10 +1225,12 @@ export default function AdminDataImportPage() {
                   }
                 >
                   {({ getFieldValue }) => {
-                    const mode = getFieldValue("importMode") as ImportFormValues["importMode"] | undefined;
-                    const domainType = getFieldValue(
-                      "domainType",
-                    ) as DataDomainType | undefined;
+                    const mode = getFieldValue("importMode") as
+                      | ImportFormValues["importMode"]
+                      | undefined;
+                    const domainType = getFieldValue("domainType") as
+                      | DataDomainType
+                      | undefined;
                     const domain =
                       domainDefinitions.find(
                         (item) => item.code === domainType,
@@ -1357,34 +1463,34 @@ export default function AdminDataImportPage() {
 
           {currentStep === 1 &&
             (importKind === "unsupported" || importKind === "vector") && (
-            <section className="import-step-pane">
-              <Result
-                status={importKind === "vector" ? "info" : "warning"}
-                title={
-                  importKind === "vector"
-                    ? "已识别为矢量数据"
-                    : "暂不支持自动导入该文件类型"
-                }
-                subTitle={
-                  importKind === "vector" && unsupportedFile
-                    ? `${unsupportedFile.name} 属于矢量原始文件。当前页面已支持表格空间化和栅格预处理；矢量原始文件入库需要接入独立的几何校验、坐标系识别和字段映射流程。`
-                    : unsupportedFile
-                    ? `${unsupportedFile.name} 未匹配到当前可用的表格或栅格导入流程。`
-                    : "未匹配到当前可用的表格或栅格导入流程。"
-                }
-                extra={[
-                  <Button
-                    key="again"
-                    type="primary"
-                    icon={<ReloadOutlined />}
-                    onClick={resetImportState}
-                  >
-                    重新选择文件
-                  </Button>,
-                ]}
-              />
-            </section>
-          )}
+              <section className="import-step-pane">
+                <Result
+                  status={importKind === "vector" ? "info" : "warning"}
+                  title={
+                    importKind === "vector"
+                      ? "已识别为矢量数据"
+                      : "暂不支持自动导入该文件类型"
+                  }
+                  subTitle={
+                    importKind === "vector" && unsupportedFile
+                      ? `${unsupportedFile.name} 属于矢量原始文件。当前页面已支持表格空间化和栅格预处理；矢量原始文件入库需要接入独立的几何校验、坐标系识别和字段映射流程。`
+                      : unsupportedFile
+                        ? `${unsupportedFile.name} 未匹配到当前可用的表格或栅格导入流程。`
+                        : "未匹配到当前可用的表格或栅格导入流程。"
+                  }
+                  extra={[
+                    <Button
+                      key="again"
+                      type="primary"
+                      icon={<ReloadOutlined />}
+                      onClick={resetImportState}
+                    >
+                      重新选择文件
+                    </Button>,
+                  ]}
+                />
+              </section>
+            )}
 
           {currentStep === 2 && importKind === "tabular" && preview && (
             <section className="import-step-pane">
@@ -1782,19 +1888,22 @@ function storageSteps(mode?: ImportStorageMode, domain?: DomainDefinition) {
       {
         label: "资源登记",
         title: "DataResource.raster",
-        description: "在存量数据中生成栅格资源记录，保留上传者、大小、状态和后续权限维护入口。",
+        description:
+          "在存量数据中生成栅格资源记录，保留上传者、大小、状态和后续权限维护入口。",
         color: "blue",
       },
       {
         label: "物理存储",
         title: "RasterDataset + COG",
-        description: "后台预处理为可切片渲染的栅格文件，并创建可上图的地图图层。",
+        description:
+          "后台预处理为可切片渲染的栅格文件，并创建可上图的地图图层。",
         color: "geekblue",
       },
       {
         label: "标准化去向",
         title: standardTargets,
-        description: "后续可登记为遥感产品，并与样方、种群、群落或地点采样值关联。",
+        description:
+          "后续可登记为遥感产品，并与样方、种群、群落或地点采样值关联。",
         color: "green",
       },
     ];
@@ -1805,19 +1914,22 @@ function storageSteps(mode?: ImportStorageMode, domain?: DomainDefinition) {
       {
         label: "资源登记",
         title: "DataResource.vector",
-        description: "在存量数据中生成矢量资源记录，可维护权限、状态和默认可视化方案。",
+        description:
+          "在存量数据中生成矢量资源记录，可维护权限、状态和默认可视化方案。",
         color: "blue",
       },
       {
         label: "空间存储",
         title: "GeoPackage 点图层",
-        description: "经纬度列会生成点几何，进入地图数据目录并支持查询、过滤和上图分析。",
+        description:
+          "经纬度列会生成点几何，进入地图数据目录并支持查询、过滤和上图分析。",
         color: "cyan",
       },
       {
         label: "标准化去向",
         title: standardTargets,
-        description: "后续通过字段映射把原始列关联到样点、样方、个体、种质或样品等实体。",
+        description:
+          "后续通过字段映射把原始列关联到样点、样方、个体、种质或样品等实体。",
         color: "green",
       },
     ];
@@ -1833,13 +1945,15 @@ function storageSteps(mode?: ImportStorageMode, domain?: DomainDefinition) {
       {
         label: "表格存储",
         title: "table/data.sqlite",
-        description: "作为普通属性表保存，可按字段检索、导出和继续补充字段元数据。",
+        description:
+          "作为普通属性表保存，可按字段检索、导出和继续补充字段元数据。",
         color: "purple",
       },
       {
         label: "标准化去向",
         title: standardTargets,
-        description: "后续依靠样品编号、地点、样方编号或实验批次等字段与标准实体建立关联。",
+        description:
+          "后续依靠样品编号、地点、样方编号或实验批次等字段与标准实体建立关联。",
         color: "green",
       },
     ];
@@ -1848,7 +1962,8 @@ function storageSteps(mode?: ImportStorageMode, domain?: DomainDefinition) {
     {
       label: "待选择",
       title: "请选择入库方式",
-      description: "选择后系统会显示本次数据首先写入的资源类型、物理存储和后续标准化目标。",
+      description:
+        "选择后系统会显示本次数据首先写入的资源类型、物理存储和后续标准化目标。",
       color: "default",
     },
   ];
@@ -1919,11 +2034,27 @@ function inferDomainTypeFromFile(
   const rules: Array<{ type: DataDomainType; keywords: string[] }> = [
     {
       type: "remote_sensing",
-      keywords: ["遥感", "影像", "ndvi", "npp", "landsat", "sentinel", "无人机"],
+      keywords: [
+        "遥感",
+        "影像",
+        "ndvi",
+        "npp",
+        "landsat",
+        "sentinel",
+        "无人机",
+      ],
     },
     {
       type: "genome",
-      keywords: ["基因组", "genome", "sequencing", "sequence", "snp", "vcf", "assembly"],
+      keywords: [
+        "基因组",
+        "genome",
+        "sequencing",
+        "sequence",
+        "snp",
+        "vcf",
+        "assembly",
+      ],
     },
     {
       type: "molecular",
@@ -1956,7 +2087,7 @@ function inferDomainTypeFromFile(
   if (matched) {
     return matched.type;
   }
-  return preview?.detected.isGeographic ? "field_survey" : "germplasm";
+  return "other";
 }
 
 function fileExtension(name: string) {
@@ -1972,7 +2103,11 @@ function detectImportKind(file: File): ImportKind {
   if ([".tif", ".tiff", ".img", ".vrt"].includes(extension)) {
     return "raster";
   }
-  if ([".geojson", ".json", ".gpkg", ".kml", ".kmz", ".shp", ".zip"].includes(extension)) {
+  if (
+    [".geojson", ".json", ".gpkg", ".kml", ".kmz", ".shp", ".zip"].includes(
+      extension,
+    )
+  ) {
     return "vector";
   }
   return "unsupported";

@@ -1,5 +1,8 @@
+import csv
+import io
 import json
 import tempfile
+import zipfile
 from pathlib import Path
 
 from django.test import SimpleTestCase
@@ -7,6 +10,7 @@ from django.test import SimpleTestCase
 from apps.catalog.export import (
     ExportError,
     export_layers_zip,
+    export_vector_attributes_csv,
     export_vector_geojson,
     safe_filename,
     validate_epsg,
@@ -80,6 +84,44 @@ class ExportVectorGeojsonTests(SimpleTestCase):
                 export_vector_geojson({"type": "Feature"}, 4326, output)
 
 
+class ExportVectorAttributesCsvTests(SimpleTestCase):
+    def test_exports_feature_properties(self):
+        geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "name": "样点一",
+                        "height": 4.2,
+                        "tags": ["a", "b"],
+                    },
+                    "geometry": {"type": "Point", "coordinates": [80, 40]},
+                },
+                {
+                    "type": "Feature",
+                    "properties": {"name": "样点二", "health": None},
+                    "geometry": {"type": "Point", "coordinates": [81, 41]},
+                },
+            ],
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "attributes.csv"
+            export_vector_attributes_csv(geojson, output)
+
+            rows = list(
+                csv.DictReader(io.StringIO(output.read_text(encoding="utf-8-sig")))
+            )
+
+        self.assertEqual(rows[0]["feature_index"], "1")
+        self.assertEqual(rows[0]["name"], "样点一")
+        self.assertEqual(rows[0]["height"], "4.2")
+        self.assertEqual(rows[0]["tags"], '["a", "b"]')
+        self.assertEqual(rows[1]["feature_index"], "2")
+        self.assertEqual(rows[1]["name"], "样点二")
+        self.assertEqual(rows[1]["health"], "")
+
+
 class WriteCutlineTests(SimpleTestCase):
     def test_writes_valid_cutline(self):
         geometry = {
@@ -145,6 +187,18 @@ class ExportLayersZipTests(SimpleTestCase):
         result = export_layers_zip(items, 4326, reproject=False)
         self.assertIsInstance(result, bytes)
         self.assertTrue(len(result) > 0)
+        with zipfile.ZipFile(io.BytesIO(result)) as archive:
+            names = archive.namelist()
+            attributes_name = next(
+                name for name in names if name.endswith("-attributes.csv")
+            )
+            self.assertTrue(any(name.endswith(".geojson") for name in names))
+            rows = list(
+                csv.DictReader(
+                    io.StringIO(archive.read(attributes_name).decode("utf-8-sig"))
+                )
+            )
+            self.assertEqual(rows[0]["name"], "test")
 
     def test_rejects_unsupported_layer_type(self):
         items = [{"layerType": "unknown", "name": "test"}]

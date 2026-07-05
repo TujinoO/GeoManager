@@ -77,6 +77,14 @@ def domain_definitions() -> list[dict]:
             "recommendedResourceTypes": ["gene", "table", "document"],
             "coreEntities": ["MolecularSample", "MolecularAssay", "MolecularResult", "MolecularFile"],
         },
+        {
+            "code": DataDomainType.OTHER,
+            "name": "其他类型",
+            "spatialClass": SpatialClass.SPATIALIZED_TABLE,
+            "description": "暂未归入专门专题的数据资源，可先按空间点表、普通表、文档或图片统一登记，后续再补充字段映射和标准化归类。",
+            "recommendedResourceTypes": ["vector", "table", "document", "image"],
+            "coreEntities": ["DataResource", "SourceDataset", "SourceSheet"],
+        },
     ]
 
 
@@ -292,6 +300,13 @@ def schema_entities() -> list[dict]:
             "description": "登记分子实验产生的图谱、结果表和文档文件。",
             "keyFields": ["file_code", "assay_id", "file_type", "data_resource_id"],
         },
+        {
+            "name": "GenericImportedDataset",
+            "label": "其他导入数据",
+            "domainTypes": [DataDomainType.OTHER],
+            "description": "承接暂未归入专门业务专题的数据资源，保留源文件、工作表、字段说明和后续归类线索。",
+            "keyFields": ["data_resource_id", "source_file_name", "sheet_name", "file_format"],
+        },
     ]
 
 
@@ -309,6 +324,7 @@ def catalog_tree() -> list[dict]:
                 _node("geo-population", "种群数据", DataDomainType.POPULATION, SpatialClass.SPATIAL),
                 _node("geo-field-survey", "野外调查数据", DataDomainType.FIELD_SURVEY, SpatialClass.SPATIALIZED_TABLE),
                 _node("geo-remote-sensing", "遥感影像数据", DataDomainType.REMOTE_SENSING, SpatialClass.SPATIAL),
+                _node("geo-other", "其他类型", DataDomainType.OTHER, SpatialClass.SPATIALIZED_TABLE),
             ],
         },
         {
@@ -319,6 +335,7 @@ def catalog_tree() -> list[dict]:
             "children": [
                 _node("nongeo-molecular", "分子数据", DataDomainType.MOLECULAR, SpatialClass.NON_SPATIAL),
                 _node("nongeo-genome", "基因组数据", DataDomainType.GENOME, SpatialClass.NON_SPATIAL),
+                _node("nongeo-other", "其他类型", DataDomainType.OTHER, SpatialClass.NON_SPATIAL),
             ],
         },
     ]

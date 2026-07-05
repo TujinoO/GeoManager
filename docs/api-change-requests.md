@@ -29,6 +29,8 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260703-001 | Verified | `GET/POST /api/admin/backups/*` | new endpoint | Updated | Added | Implemented | Focused passed | Adds superadmin-only local/cloud data backup configuration, task execution, history, and target test APIs |
 | API-20260703-002 | Verified | `POST /api/catalog/resources/{id}/query/` | response fields | Updated | Updated | Implemented | Focused passed | Adds spatial-query-workbench summary fields for truncation, returned bounds, and backend elapsed time |
 | API-20260703-003 | Verified | `GET /api/layers/`, admin data-resource visualization payloads | schema clarification | Updated | Added | N/A | Passed | Adds vector graduated numeric symbolization under existing symbolization renderer without new endpoints |
+| API-20260704-001 | Verified | `GET /api/data-schema/summary/`, `GET /api/catalog/resources/`, `POST /api/catalog/import/commit/` | enum addition | Updated | Updated | Implemented | Focused passed | Adds `other` business data type across schema summary, resource filtering, and import commit |
+| API-20260704-002 | Verified | `POST /api/catalog/export/`, `POST /api/catalog/export/async/`, export download | archive content behavior | Updated | N/A | Implemented | Focused passed | Adds per-vector `*-attributes.csv` files to export ZIP packages |
 
 ## Entry Template
 
@@ -46,6 +48,19 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Verification: commands or response checks required before marking implemented
 - Result: current backend/frontend verification result
 ```
+
+## API-20260704-001 - Other Business Data Type
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET /api/data-schema/summary/`, `GET /api/catalog/resources/`, `POST /api/catalog/import/commit/`
+- Change type: enum addition | response fields | request body | mock data | backend model choices
+- OpenAPI change: Extends `DataDomainType` with `other`, documents that the data schema summary and resource filter support other-type resources, and keeps existing missing/invalid `domainType` error behavior unchanged.
+- Mock examples: `mock/prism/examples/45-domain-schema.json`, `mock/prism/examples/30-catalog-vector.json`
+- Frontend reason: The data import page needs a typed catch-all business classification for files that do not clearly match germplasm, community, survey, remote sensing, molecular, genome, or other specialized domains.
+- Backend implementation notes: Add `other` to standards and catalog domain choices, expose it in `GET /api/data-schema/summary/`, allow resource filtering by `domainType=other`, and save it during Excel/CSV import commits without adding new permissions.
+- Verification: run OpenAPI lint/generation, rebuild Prism mock, run API change request check, focused backend schema/resource/import tests, and focused frontend import tests/typecheck.
+- Result: Verified with OpenAPI lint, generated API types, Prism mock rebuild, API docs rebuild, API change request check, Django system check, focused backend schema/resource/import tests, frontend TypeScript checks, import value unit test, and mock example tests. Browser route test could not run because the local Playwright Chromium executable is not installed.
 
 ## API-20260703-001 - Superadmin Data Backup
 
@@ -88,7 +103,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 
 ## API-20260701-002 - Same-Origin Map Thumbnail Tiles
 
-- Status: BackendReady
+- Status: Verified
 - Owner: Backend implementer
 - Endpoints: `GET /api/map/thumbnail-tiles/{z}/{x}/{y}.png`
 - Change type: new endpoint
@@ -189,3 +204,16 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: No new endpoint or database migration is required; existing JSONField storage and serializers should pass the documented `symbolization` object through unchanged. Admin save-visualization payloads should continue to accept this JSON shape under the existing `core.custom_symbolization` UI permission and existing resource-management permissions.
 - Verification: run OpenAPI lint, regenerate API types, rebuild Prism mock, run focused frontend symbolization tests, frontend typecheck, and backend catalog layer serialization tests.
 - Result: Pending implementation and verification.
+
+## API-20260704-002 - Vector Export Attribute Table Packaging
+
+- Status: BackendReady
+- Owner: Frontend/backend implementer
+- Endpoints: `POST /api/catalog/export/`, `POST /api/catalog/export/async/`, `GET /api/catalog/export/jobs/{job_id}/download/`
+- Change type: documentation clarification | archive content behavior
+- OpenAPI change: Clarifies that vector export ZIP files include the requested spatial file plus a same-name `*-attributes.csv` file generated from `GeoJSONFeatureCollection.features[].properties`; request and response schemas are unchanged.
+- Mock examples: N/A; binary ZIP response schema is unchanged.
+- Frontend reason: The spatial query result export should provide a directly usable attribute table instead of only a GeoJSON file.
+- Backend implementation notes: While packaging each vector item, keep existing GeoJSON/Shapefile output and add a UTF-8 BOM CSV attribute table with one row per feature and stable property-column order.
+- Verification: run OpenAPI lint, regenerate API types, rebuild Prism mock, run frontend typecheck, and run focused backend export tests.
+- Result: Verified with direct OpenAPI lint, OpenAPI type generation, API change request check, Prism mock bundle injection, frontend TypeScript checks, backend export unit tests, and backend export API integration tests.

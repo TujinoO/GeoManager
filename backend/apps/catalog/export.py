@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import csv
 import json
 import re
 import zipfile
+from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Callable
@@ -94,6 +96,9 @@ def export_vector_layer(
         output = root / f"{prefix}.geojson"
         export_vector_geojson(geojson, epsg, output)
         archive.write(output, output.name)
+        attributes_output = root / f"{prefix}-attributes.csv"
+        export_vector_attributes_csv(geojson, attributes_output)
+        archive.write(attributes_output, attributes_output.name)
         return
 
     folder = root / prefix
@@ -102,6 +107,9 @@ def export_vector_layer(
     export_vector_shapefile(geojson, epsg, output)
     for file_path in folder.iterdir():
         archive.write(file_path, f"{prefix}/{file_path.name}")
+    attributes_output = root / f"{prefix}-attributes.csv"
+    export_vector_attributes_csv(geojson, attributes_output)
+    archive.write(attributes_output, f"{prefix}/{attributes_output.name}")
 
 
 def export_vector_geojson(geojson: Any, epsg: int, output: Path) -> None:
@@ -126,6 +134,62 @@ def export_vector_geojson(geojson: Any, epsg: int, output: Path) -> None:
         output.write_text(gdf.to_json(drop_id=True), encoding="utf-8")
     except Exception as exc:
         raise ExportError(f"导出矢量 GeoJSON 失败：{exc}") from exc
+
+
+def export_vector_attributes_csv(geojson: Any, output: Path) -> None:
+    if not isinstance(geojson, dict) or geojson.get("type") != "FeatureCollection":
+        raise ExportError("矢量图层缺少有效 GeoJSON，无法导出属性表")
+    features = geojson.get("features") or []
+    if not isinstance(features, list):
+        raise ExportError("矢量图层 GeoJSON features 必须是数组")
+
+    columns = attribute_columns(features)
+    index_column = unique_index_column(columns)
+    buffer = StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=[index_column, *columns])
+    writer.writeheader()
+    for index, feature in enumerate(features, start=1):
+        properties = {}
+        if isinstance(feature, dict) and isinstance(feature.get("properties"), dict):
+            properties = feature["properties"]
+        row = {index_column: index}
+        for column in columns:
+            row[column] = csv_value(properties.get(column))
+        writer.writerow(row)
+    output.write_text("\ufeff" + buffer.getvalue(), encoding="utf-8")
+
+
+def attribute_columns(features: list[Any]) -> list[str]:
+    columns: list[str] = []
+    seen: set[str] = set()
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        properties = feature.get("properties")
+        if not isinstance(properties, dict):
+            continue
+        for key in properties:
+            column = str(key)
+            if column in seen:
+                continue
+            seen.add(column)
+            columns.append(column)
+    return columns
+
+
+def unique_index_column(columns: list[str]) -> str:
+    column = "feature_index"
+    while column in columns:
+        column = f"_{column}"
+    return column
+
+
+def csv_value(value: Any) -> Any:
+    if value is None:
+        return ""
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    return json.dumps(value, ensure_ascii=False)
 
 
 def export_vector_shapefile(geojson: Any, epsg: int, output: Path) -> None:

@@ -1,7 +1,4 @@
-import {
-  DatabaseOutlined,
-  ReloadOutlined,
-} from "@ant-design/icons";
+import { DatabaseOutlined, ReloadOutlined } from "@ant-design/icons";
 import { ProCard } from "@ant-design/pro-components";
 import {
   Alert,
@@ -40,6 +37,7 @@ const domainColors: Record<string, string> = {
   field_survey: "orange",
   remote_sensing: "blue",
   molecular: "purple",
+  other: "default",
 };
 
 const resourceTypeLabels: Record<string, string> = {
@@ -143,9 +141,7 @@ export default function DataSchemaOverview({
         render: (_, record) => (
           <Space size={[4, 4]} wrap>
             {(domainCatalogByCode.get(record.code) ?? []).map((code) => (
-              <Tag key={code}>
-                {code === "geo" ? "地理数据" : "非地理数据"}
-              </Tag>
+              <Tag key={code}>{code === "geo" ? "地理数据" : "非地理数据"}</Tag>
             ))}
           </Space>
         ),
@@ -268,7 +264,12 @@ export default function DataSchemaOverview({
       }
     >
       {error && (
-        <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          style={{ marginBottom: 16 }}
+        />
       )}
       <Spin spinning={loading}>
         {schema ? (
@@ -342,13 +343,7 @@ export default function DataSchemaOverview({
   );
 }
 
-function SectionHeading({
-  title,
-  extra,
-}: {
-  title: string;
-  extra?: string;
-}) {
+function SectionHeading({ title, extra }: { title: string; extra?: string }) {
   return (
     <Space align="center" className="schema-section-heading">
       <Space size={8}>
@@ -373,7 +368,9 @@ function CatalogGroup({ group }: { group: CatalogNode }) {
             {catalogGroupNames[group.code] ?? group.name}
           </Typography.Text>
           {group.spatialClass && (
-            <Tag>{spatialClassLabels[group.spatialClass] ?? group.spatialClass}</Tag>
+            <Tag>
+              {spatialClassLabels[group.spatialClass] ?? group.spatialClass}
+            </Tag>
           )}
         </Space>
         <Typography.Text type="secondary" className="admin-table-subtext">

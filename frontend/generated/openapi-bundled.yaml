@@ -11,7 +11,7 @@ info:
     3. 后续请求携带 `sessionid` Cookie 和 `X-CSRFToken` 请求头
 
     ## 权限体系
-    - **功能权限**：36 项细粒度功能权限，通过用户组分配，按后台权限、日志权限、概览权限、数据权限、人员权限分组管理
+    - **功能权限**：30 余项细粒度功能权限，通过用户组分配，按后台权限、日志权限、概览权限、数据权限、人员权限分组管理
     - **数据访问权限**：基于 `access_groups` 的数据隔离
 
     ## 错误处理
@@ -100,6 +100,68 @@ paths:
                 $ref: '#/components/schemas/HealthResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+  /api/map/thumbnail-tiles/{z}/{x}/{y}.png:
+    get:
+      tags:
+        - 公共接口
+      summary: 获取地图缩略图同源瓦片
+      description: |
+        返回右侧当前视角平面缩略图使用的底图瓦片。浏览器只请求平台同源地址，
+        由服务器按当前 application.map 配置代理 Mapbox 或 OSM 瓦片并缓存到应用数据目录。
+        成功瓦片会缓存到应用数据目录，缓存命中时按图片文件头保留真实 MIME 类型。
+        当外部瓦片源暂时不可达且本地无缓存时，服务器返回本地生成的 Web Mercator 2D 世界地图瓦片，
+        保证客户端不会因为第三方瓦片域名访问失败而显示黑屏或前端内置兜底图。
+      operationId: getMapThumbnailTile
+      security: []
+      parameters:
+        - name: z
+          in: path
+          required: true
+          description: Web Mercator 瓦片层级，范围 0-12。
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 12
+        - name: x
+          in: path
+          required: true
+          description: Web Mercator 瓦片 X 坐标，必须在指定层级有效范围内。
+          schema:
+            type: integer
+            minimum: 0
+        - name: 'y'
+          in: path
+          required: true
+          description: Web Mercator 瓦片 Y 坐标，必须在指定层级有效范围内。
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: 成功返回图片瓦片。
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+            image/avif:
+              schema:
+                type: string
+                format: binary
+            image/svg+xml:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /api/auth/csrf/:
     get:
       tags:
@@ -145,7 +207,7 @@ paths:
         - 认证接口
       summary: 游客登录
       description: |
-        使用系统维护的专用 `guest` 账号建立游客会话。游客账号不可使用密码登录，只归属 `游客` 用户组，默认仅具备浏览、查询和图层加载权限。
+        使用系统维护的专用 `guest` 账号建立游客会话。游客账号不可使用密码登录，只归属 `游客` 用户组；游客用户组默认不具备任何功能权限，管理员可在认证授权中调整游客角色权限。
       operationId: guestLogin
       security: []
       responses:
@@ -771,7 +833,7 @@ paths:
       tags:
         - 用户管理
       summary: 获取用户组列表
-      description: 返回当前主体可见的 Django 用户组及其功能权限配置。非超级管理员主体不会返回超级管理员用户组。需要 `core.manage_auth`。
+      description: 返回当前主体可见的 Django 用户组及其功能权限配置，并确保内置角色（超级管理员、平台管理员、科研用户、普通用户、游客）存在。非超级管理员主体不会返回超级管理员用户组。需要 `core.manage_auth`。
       operationId: listGroups
       security:
         - sessionAuth: []
@@ -821,9 +883,9 @@ paths:
       description: |
         根据请求体中的 `action` 字段执行不同操作：
         - 不提供 `action`：更新用户组名称和功能权限
-        - `delete`：删除空用户组（仅当用户组没有任何关联用户时允许）
+        - `delete`：删除空用户组（仅当用户组没有任何关联用户且不是内置角色时允许）
 
-        非超级管理员主体不能看到、更新或删除超级管理员用户组。需要 `core.manage_auth`。
+        非超级管理员主体不能看到、更新或删除超级管理员用户组。超级管理员、平台管理员、科研用户、普通用户和游客属于系统内置角色，不能删除或重命名；其中只有超级管理员的权限集合被系统锁定为全量权限，其他内置角色允许调整权限。需要 `core.manage_auth`。删除仍有关联用户的角色、删除/重命名内置角色、或关闭超级管理员锁定权限时返回 `400 ErrorResponse`。
       operationId: updateOrDeleteGroup
       security:
         - sessionAuth: []
@@ -914,12 +976,322 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/admin/backups/overview/:
+    get:
+      tags:
+        - 管理后台
+      summary: 获取数据备份概览
+      description: 返回超级管理员数据备份页面所需的计划配置、数据范围摘要、运行中任务和最近历史。该接口仅允许平台内置“超级管理员”主体访问；即使普通用户被误授予 `core.manage_data_backup` 权限，后端也会拒绝访问。
+      operationId: getAdminBackupOverview
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBackupOverviewResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/admin/backups/settings/:
+    get:
+      tags:
+        - 管理后台
+      summary: 获取数据备份配置
+      description: 返回本地备份目标、云端对象存储目标和平台/科研数据备份计划。仅允许平台内置“超级管理员”主体访问；云端密钥永不回显，仅返回是否已配置和脱敏预览。
+      operationId: getAdminBackupSettings
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBackupSettingsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+        - 管理后台
+      summary: 更新数据备份配置
+      description: 将数据备份计划和目标配置写入运行 TOML 配置。仅允许平台内置“超级管理员”主体访问；`secretAccessKey` 只在提交时使用，读取配置时不会返回明文。
+      operationId: updateAdminBackupSettings
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminBackupSettingsUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBackupSettingsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/admin/backups/targets/test/:
+    post:
+      tags:
+        - 管理后台
+      summary: 测试备份目标连接
+      description: 测试本地备份目录写入能力或对象存储上传/删除能力。仅允许平台内置“超级管理员”主体访问；对象存储测试可以使用请求体中的临时参数，也可以使用已保存配置。
+      operationId: testAdminBackupTarget
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminBackupTargetTestRequest'
+      responses:
+        '200':
+          description: 测试完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBackupTargetTestResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/admin/backups/runs/:
+    get:
+      tags:
+        - 管理后台
+      summary: 查询数据备份历史
+      description: 分页返回手动和自动数据备份任务历史。仅允许平台内置“超级管理员”主体访问。
+      operationId: listAdminBackupRuns
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: current
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: 当前页码
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+          description: 每页数量
+        - name: planType
+          in: query
+          schema:
+            $ref: '#/components/schemas/BackupPlanType'
+          description: 按备份类型筛选
+        - name: targetType
+          in: query
+          schema:
+            $ref: '#/components/schemas/BackupTargetType'
+          description: 按备份目标筛选
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/BackupRunStatus'
+          description: 按任务状态筛选
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBackupRunListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+        - 管理后台
+      summary: 发起数据备份任务
+      description: 手动发起平台数据或科研数据备份任务。后端创建任务后异步生成归档并保存到本地或上传至对象存储；仅允许平台内置“超级管理员”主体访问。
+      operationId: createAdminBackupRun
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminBackupRunCreateRequest'
+      responses:
+        '202':
+          description: 备份任务已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBackupRun'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/admin/backups/runs/{runId}/:
+    get:
+      tags:
+        - 管理后台
+      summary: 获取数据备份任务详情
+      description: 返回指定备份任务的当前状态、进度、消息、归档信息和错误原因。仅允许平台内置“超级管理员”主体访问。
+      operationId: getAdminBackupRun
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 备份任务 ID
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBackupRun'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/admin/backups/runs/{runId}/download/:
+    get:
+      tags:
+        - 管理后台
+      summary: 下载本地数据备份归档
+      description: 下载本地备份目标保存的归档文件。对象存储目标不会通过该接口代理下载，应使用历史记录中的对象路径在云端管理后台查看；仅允许平台内置“超级管理员”主体访问。
+      operationId: downloadAdminBackupRun
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 备份任务 ID
+      responses:
+        '200':
+          description: 备份归档文件
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/data-schema/summary/:
+    get:
+      tags:
+        - 数据目录
+      summary: 获取甲方数据分类与数据库架子摘要
+      description: 返回平台面向甲方确认数据类型的分类字典、数据库分层、核心实体和目录树建议。该接口用于前端展示数据管理体系和后续导入配置提示；需要 `core.browse_data`。当前接口只读，不创建或修改任何业务数据；分类字典包含其他类型，用于承接暂未归入专门专题的数据资源。
+      operationId: getDataSchemaSummary
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataSchemaSummaryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/germplasm/accessions/:
+    get:
+      tags:
+        - 种质资源
+      summary: 获取种质资源基础清单
+      description: 返回当前用户可见的种质资源基础清单，支持按关键词、物种、采集地点和核心资源标记筛选。该接口读取标准化种质资源数据库架子，不直接扫描原始 Excel；需要 `core.browse_data`。无数据时返回空数组。
+      operationId: listGermplasmAccessions
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 按种质编号、样品编号、采集地点、备注模糊检索
+        - name: taxon
+          in: query
+          schema:
+            type: string
+          description: 按物种中文名或拉丁名模糊检索
+        - name: site
+          in: query
+          schema:
+            type: string
+          description: 按采集地点名称模糊检索
+        - name: isCore
+          in: query
+          schema:
+            type: boolean
+          description: 是否只返回核心种质资源
+        - name: current
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: 当前页码
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: 每页条数
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GermplasmAccessionListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /api/admin/data/resources/:
     get:
       tags:
         - 管理后台
       summary: 获取存量数据管理列表
-      description: 返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组和默认可视化方案查看。具备 `catalog.view_dataresource`、`catalog.change_dataresource`、`catalog.delete_dataresource` 或 `catalog.export_dataresource` 时，仅返回当前用户可见或本人上传且符合筛选条件的资源；超级管理员可查看全部资源；仅具备 `catalog.add_dataresource` 时只返回当前用户上传的数据资源，用于管理自己的数据可见范围。非超级管理员主体的响应不会返回超级管理员访问角色。
+      description: 返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组、存量数据内容分组和默认可视化方案查看。具备 `catalog.view_dataresource`、`catalog.change_dataresource`、`catalog.delete_dataresource` 或 `catalog.export_dataresource` 时，仅返回当前用户可见或本人上传且符合筛选条件的资源；超级管理员可查看全部资源；仅具备 `catalog.add_dataresource` 时只返回当前用户上传的数据资源，用于管理自己的数据可见范围。可手动配置的数据访问角色列表不会返回超级管理员角色，后端仍会强制保留超级管理员访问范围。
       operationId: listAdminDataResources
       security:
         - sessionAuth: []
@@ -999,6 +1371,73 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/admin/data/resource-groups/:
+    post:
+      tags:
+        - 管理后台
+      summary: 新建存量数据组别
+      description: 新建用于存量数据管理嵌套表格展示的内容组别。该组别不影响数据访问权限；需要 `catalog.change_dataresource`，成功操作会写入审计日志。
+      operationId: createAdminDataResourceGroup
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDataResourceGroupUpdateRequest'
+      responses:
+        '201':
+          description: 新建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDataResourceGroup'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/admin/data/resource-groups/{groupId}/:
+    post:
+      tags:
+        - 管理后台
+      summary: 操作存量数据组别
+      description: 更新或删除存量数据内容组别。删除组别时，后端会将组内数据的 `inventoryGroupId` 置为 null，使其回到默认分组，数据本身不会被删除。需要 `catalog.change_dataresource`，成功操作会写入审计日志。
+      operationId: updateAdminDataResourceGroup
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 存量数据组别 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminDataResourceGroupUpdateRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/AdminDataResourceGroup'
+                  - $ref: '#/components/schemas/DetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/admin/data/resources/export/:
     get:
       tags:
@@ -1093,7 +1532,7 @@ paths:
       tags:
         - 管理后台
       summary: 操作单个存量数据
-      description: 支持更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。目标数据必须对当前用户可见或由当前用户上传；不可见数据按不存在处理；超级管理员不受对象可见范围限制。启停、默认可视化和普通编辑需要 `catalog.change_dataresource`；删除需要 `catalog.delete_dataresource`；数据上传者本人或具备 `catalog.change_dataresource` 的用户可以通过 `updateAccess` 修改可见范围。非超级管理员主体的响应不会返回超级管理员访问角色。成功操作会写入审计日志。
+      description: 支持更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。目标数据必须对当前用户可见或由当前用户上传；不可见数据按不存在处理；超级管理员不受对象可见范围限制。启停、默认可视化和普通编辑需要 `catalog.change_dataresource`；删除需要 `catalog.delete_dataresource`；数据上传者本人或具备 `catalog.change_dataresource` 的用户可以通过 `updateAccess` 修改可见范围。可手动配置的数据访问角色列表不会返回超级管理员角色，后端仍会强制保留超级管理员访问范围。成功操作会写入审计日志。
       operationId: updateAdminDataResource
       security:
         - sessionAuth: []
@@ -1262,6 +1701,11 @@ paths:
               - document
               - image
           description: 数据类型筛选
+        - name: domainType
+          in: query
+          schema:
+            $ref: '#/components/schemas/DataDomainType'
+          description: 按平台确认的业务数据类型筛选，例如种质数据、个体数据、遥感影像数据、分子数据、基因组数据或其他类型；无效编码返回 400 ErrorResponse
         - name: category
           in: query
           schema:
@@ -1296,6 +1740,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourceListResponse'
+        '400':
+          description: 请求错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: 无效的数据业务类型
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1447,8 +1899,8 @@ paths:
         - 数据目录
       summary: 导入数据预检
       description: |
-        解析上传的 Excel/CSV 第一张表，按文本读取字段，自动推测经纬度列，
-        并返回样例行、字段列表、建议后台存储标识和建议数据名称是否重名。该接口不执行坐标数据校验，不写入数据。
+        解析上传的 Excel/CSV，Excel 会识别全部工作表并按当前工作表读取字段，自动推测经纬度列，
+        并返回样例行、字段列表、工作表清单、建议后台存储标识和建议数据名称是否重名。该接口不执行坐标数据校验，不写入数据。
         需要 `catalog.add_dataresource`。
       operationId: importPreview
       security:
@@ -1466,6 +1918,9 @@ paths:
                   type: string
                   format: binary
                   description: .csv / .xls / .xlsx 文件
+                sheetName:
+                  type: string
+                  description: 可选；Excel 工作表名称。为空时默认读取第一张工作表。
       responses:
         '200':
           description: 预检成功
@@ -1484,7 +1939,7 @@ paths:
       tags:
         - 数据目录
       summary: 上传数据校验
-      description: 按当前表单选择的数据名称、导入类型、后台存储标识和经纬度列校验上传文件，不写入数据。重复检测按前端显示的数据名称执行。需要 `catalog.add_dataresource`。
+      description: 按当前表单选择的数据名称、工作表、导入类型、后台存储标识和经纬度列校验上传文件，不写入数据。重复检测按前端显示的数据名称执行。需要 `catalog.add_dataresource`。
       operationId: importValidate
       security:
         - sessionAuth: []
@@ -1504,7 +1959,7 @@ paths:
                   description: 与预检一致的文件
                 payload:
                   type: string
-                  description: JSON 字符串，包含 name、importMode、tableName、longitudeColumn、latitudeColumn；name 是前端显示的数据名称，用于同名数据检测；tableName 是后台存储标识建议值。
+                  description: JSON 字符串，包含 name、sheetName、importMode、tableName、longitudeColumn、latitudeColumn；name 是前端显示的数据名称，用于同名数据检测；sheetName 是 Excel 工作表名称；tableName 是后台存储标识建议值。
       responses:
         '200':
           description: 校验成功
@@ -1526,6 +1981,8 @@ paths:
       description: |
         将预检后的 Excel/CSV 导入统一存储。选择地理数据时写入 GeoPackage，
         选择非地理数据时写入 SQLite。接口每次导入都会生成唯一后台存储标识并创建新的 DataResource。
+        `payload.domainType` 是必填字段，必须使用 `DataDomainType` 枚举值；后端会将该值保存为 DataResource.domainType，
+        资源列表页和地理/非地理数据分类筛选均以该字段为准。
         需要 `catalog.add_dataresource`；前端显示名已存在时必须在数据校验阶段确认，并在提交时显式传入 duplicateConfirmed=true 才允许继续导入。继续导入会创建新的 DataResource 和唯一后台存储标识，不覆盖已有数据。
       operationId: importCommit
       security:
@@ -1545,7 +2002,8 @@ paths:
                   format: binary
                 payload:
                   type: string
-                  description: JSON 字符串，包含导入配置；name 是前端显示的数据名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true 表示用户已在校验阶段确认重复名称；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。
+                  description: JSON 字符串，包含导入配置；name 是前端显示的数据名称，domainType 是必填的平台确认业务数据类型，sheetName 是 Excel 工作表名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true 表示用户已在校验阶段确认重复名称；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。domainType 缺失或编码无效时返回 400 ImportErrorResponse。
+                  example: '{"name":"胡杨群落样方数据","domainType":"community","importMode":"geographic","tableName":"community_plots","longitudeColumn":"Longitude","latitudeColumn":"Latitude","duplicateConfirmed":false,"includedColumns":["SamplePlot","Longitude","Latitude"],"fieldMetadata":{"SamplePlot":"样方编号"},"accessGroupIds":[]}'
       responses:
         '201':
           description: 导入成功
@@ -1559,6 +2017,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ImportErrorResponse'
+              examples:
+                missingDomainType:
+                  summary: 缺少业务数据类型
+                  value:
+                    detail: 请选择业务数据类型
+                invalidDomainType:
+                  summary: 业务数据类型编码无效
+                  value:
+                    detail: 无效的数据业务类型
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1594,7 +2061,7 @@ paths:
       tags:
         - 数据目录
       summary: 查询矢量数据
-      description: 对矢量数据资源执行属性 + 空间联合查询，返回 GeoJSON FeatureCollection
+      description: 对矢量数据资源执行属性 + 空间联合查询，返回 GeoJSON FeatureCollection 以及空间查询工作台展示所需的命中数量、返回范围、截断状态和查询耗时。需要当前用户同时具备 `core.query_data` 和 `core.load_vector_layer`，并且有权访问该数据资源。
       operationId: queryResource
       security:
         - sessionAuth: []
@@ -1778,6 +2245,8 @@ paths:
       tags:
         - 栅格数据
       summary: 导入栅格文件
+      description: |
+        导入或上传栅格源文件。上传文件会先按系统配置的 `application.limits.upload_max_mb` 校验文件大小，并读取栅格元信息校验单边像素长度不超过 `application.limits.max_raster_side_pixels`；校验失败返回 `400 ErrorResponse`，不会提交异步任务。
       operationId: importRaster
       security:
         - sessionAuth: []
@@ -1787,6 +2256,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/RasterImportRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RasterImportUploadRequest'
       responses:
         '201':
           description: 同步导入成功
@@ -1983,6 +2455,8 @@ paths:
               schema:
                 type: string
                 format: binary
+        '204':
+          description: 请求瓦片不在栅格空间范围内，无内容返回
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2367,6 +2841,7 @@ components:
       required:
         - uploadMaxMb
         - queryResultLimit
+        - maxRasterSidePixels
       properties:
         uploadMaxMb:
           type: integer
@@ -2376,6 +2851,10 @@ components:
           type: integer
           description: 单次查询返回结果上限
           example: 30000
+        maxRasterSidePixels:
+          type: integer
+          description: 栅格上传和导入允许的最大单边像素长度
+          example: 10000
     HealthResponse:
       type: object
       required:
@@ -2545,6 +3024,7 @@ components:
         - canViewGroupOperationLogs
         - canViewSystemLogs
         - canManageSystemSettings
+        - canManageDataBackup
         - canManageAuth
         - canViewDashboardResourceCard
         - canViewDashboardLayerCard
@@ -2563,6 +3043,7 @@ components:
         - canLoadVectorLayer
         - canLoadRasterLayer
         - canUseCustomSymbolization
+        - canUseAiInterpretation
         - canExportData
         - canViewWorkspaces
         - canCreateWorkspaces
@@ -2597,6 +3078,9 @@ components:
         canManageSystemSettings:
           type: boolean
           description: 是否可修改系统设置
+        canManageDataBackup:
+          type: boolean
+          description: 是否可管理数据备份；仅内置 `超级管理员` 且具备 `core.manage_data_backup` 时为 true
         canManageAuth:
           type: boolean
           description: 是否可修改认证授权
@@ -2620,7 +3104,7 @@ components:
           description: 是否可查看概览系统信息
         canViewDataOverview:
           type: boolean
-          description: 是否可查看总数据情况，包括数据大小、条目数和上传用户统计
+          description: 是否可查看数据概览中的“我可见”范围、兼容旧版的全局统计字段，以及超级管理员上传用户统计；当前用户自己的上传概览无需此权限
         canBrowseData:
           type: boolean
           description: 是否可浏览数据目录
@@ -2651,9 +3135,12 @@ components:
         canUseCustomSymbolization:
           type: boolean
           description: 是否可提交自定义符号化规则
+        canUseAiInterpretation:
+          type: boolean
+          description: 是否可使用 AI 智能解译功能，对应 `core.ai_interpretation`
         canExportData:
           type: boolean
-          description: 是否可导出数据
+          description: 是否可导出数据和当前视角地图 PNG，对应 `catalog.export_dataresource`
         canViewWorkspaces:
           type: boolean
           description: 是否可查看工程和专题，对应 `catalog.view_workspacescene`
@@ -2920,7 +3407,7 @@ components:
           $ref: '#/components/schemas/AdminDashboardUserCard'
         activeUsers:
           $ref: '#/components/schemas/AdminDashboardActiveUsers'
-      description: 按当前用户卡片权限返回的概览卡片数据；未授权卡片字段会被省略。
+      description: 按当前用户卡片权限返回的概览卡片数据；未授权卡片字段会被省略。dataOverview 始终包含当前用户自己的上传概览，其他范围由权限控制。
     AdminDashboardResourceCard:
       type: object
       required:
@@ -2964,40 +3451,34 @@ components:
     AdminDashboardDataOverviewCard:
       type: object
       required:
-        - totalResources
-        - activeResources
-        - totalSizeBytes
-        - totalItemCount
-        - typeBreakdown
         - ownUploads
-        - visibleResources
       properties:
         totalResources:
           type: integer
-          description: 系统数据资源总数，用于兼容旧版概览卡片；新版界面优先展示分组统计
+          description: 系统数据资源总数，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计
         activeResources:
           type: integer
-          description: 系统启用状态数据资源数量，用于兼容旧版概览卡片；新版界面优先展示分组统计
+          description: 系统启用状态数据资源数量，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计
         totalSizeBytes:
           type: integer
-          description: 系统数据总大小，单位字节，用于兼容旧版概览卡片；新版界面优先展示分组统计
+          description: 系统数据总大小，单位字节，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计
         totalItemCount:
           type: integer
-          description: 系统数据条目总数，用于兼容旧版概览卡片；新版界面优先展示分组统计
+          description: 系统数据条目总数，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计
         typeBreakdown:
           type: array
-          description: 系统按数据类型聚合的数据情况，用于兼容旧版概览卡片；新版界面优先展示分组统计
+          description: 系统按数据类型聚合的数据情况，用于兼容旧版概览卡片；仅具备 `core.view_data_overview` 权限时返回，新版界面优先展示分组统计
           items:
             $ref: '#/components/schemas/AdminDashboardDataTypeOverview'
         ownUploads:
           $ref: '#/components/schemas/AdminDashboardDataOverviewScope'
-          description: 当前用户上传的数据资源聚合统计
+          description: 当前用户上传的数据资源聚合统计；登录用户无需额外功能权限即可查看
         visibleResources:
           $ref: '#/components/schemas/AdminDashboardDataOverviewScope'
-          description: 当前用户可见的数据资源聚合统计；后端按数据可见范围和上传者本人规则裁剪
+          description: 当前用户可见的数据资源聚合统计；仅具备 `core.view_data_overview` 权限时返回，后端按数据可见范围和上传者本人规则裁剪
         uploaders:
           type: array
-          description: 超级管理员主体可见的上传用户统计；普通用户无该字段
+          description: 具备 `core.view_data_overview` 权限的超级管理员主体可见的上传用户统计；普通用户无该字段
           items:
             $ref: '#/components/schemas/AdminDashboardUploaderOverview'
     AdminDashboardDataOverviewScope:
@@ -3500,10 +3981,10 @@ components:
             type: string
         isProtected:
           type: boolean
-          description: 是否为系统受保护用户组，受保护组不能删除或重命名。初始化内置组包含超级管理员、普通用户和游客；游客权限允许编辑
+          description: 是否为系统受保护用户组，受保护组不能删除或重命名。初始化内置组包含超级管理员、平台管理员、科研用户、普通用户和游客；除超级管理员外，其他内置组权限允许编辑
         lockedPermissions:
           type: array
-          description: 受保护用户组中不可关闭的平台功能权限列表。游客用户组返回空列表
+          description: 受保护用户组中不可关闭的平台功能权限列表。当前仅超级管理员返回锁定权限，平台管理员、科研用户、普通用户和游客返回空列表
           items:
             type: string
     GroupListResponse:
@@ -3594,6 +4075,711 @@ components:
           $ref: '#/components/schemas/SystemLimits'
         raster:
           $ref: '#/components/schemas/AdminRasterSettings'
+    BackupPlanType:
+      type: string
+      enum:
+        - platform
+        - research
+      description: 备份内容类型；platform 表示平台业务数据，research 表示科研数据。
+    BackupTargetType:
+      type: string
+      enum:
+        - local
+        - object_storage
+      description: 备份目标类型；local 为本地目录，object_storage 为云端对象存储。
+    BackupProviderType:
+      type: string
+      enum:
+        - s3_compatible
+      description: 云端对象存储提供方类型。当前实现支持 S3 兼容协议，后续可扩展具体云厂商适配。
+    BackupRunStatus:
+      type: string
+      enum:
+        - queued
+        - running
+        - success
+        - failed
+      description: 备份任务状态。
+    BackupTriggerType:
+      type: string
+      enum:
+        - manual
+        - scheduled
+      description: 备份触发方式；manual 为超级管理员手动触发，scheduled 为后端计划任务触发。
+    AdminBackupPlanSettings:
+      type: object
+      required:
+        - enabled
+        - dailyAt
+        - target
+        - retentionCount
+        - includeLogs
+      properties:
+        enabled:
+          type: boolean
+          description: 是否启用该类数据的自动备份计划。
+        dailyAt:
+          type: string
+          pattern: ^([01]\d|2[0-3]):[0-5]\d$
+          description: 每日自动备份时间，格式为 HH:mm，按服务器时区执行。
+          example: '02:00'
+        target:
+          $ref: '#/components/schemas/BackupTargetType'
+        retentionCount:
+          type: integer
+          minimum: 1
+          maximum: 365
+          description: 该计划在同一目标保留的成功备份数量。
+        includeLogs:
+          type: boolean
+          description: 是否包含业务数据根目录 logs/ 下运行日志；仅平台数据备份生效，科研数据备份固定为 false。
+    AdminBackupPlans:
+      type: object
+      required:
+        - platform
+        - research
+      properties:
+        platform:
+          $ref: '#/components/schemas/AdminBackupPlanSettings'
+        research:
+          $ref: '#/components/schemas/AdminBackupPlanSettings'
+    AdminBackupLocalTargetSettings:
+      type: object
+      required:
+        - directory
+        - configured
+      properties:
+        directory:
+          type: string
+          description: 本地备份目录；为空字符串时使用业务数据根目录下的 backups/local/。本地备份不推荐作为唯一容灾手段。
+        configured:
+          type: boolean
+          description: 本地目标是否具备可用配置。
+    AdminBackupObjectStorageSettings:
+      type: object
+      required:
+        - provider
+        - endpoint
+        - region
+        - bucket
+        - prefix
+        - accessKeyId
+        - secretConfigured
+        - secretPreview
+        - configured
+      properties:
+        provider:
+          $ref: '#/components/schemas/BackupProviderType'
+        endpoint:
+          type: string
+          description: 对象存储访问地址，例如 https://s3.example.com 或 https://oss-cn.example.com。
+        region:
+          type: string
+          description: 对象存储区域，用于 S3 签名。
+        bucket:
+          type: string
+          description: 存储桶名称。
+        prefix:
+          type: string
+          description: 备份对象名前缀，例如 geomanager/prod/。
+        accessKeyId:
+          type: string
+          description: 备份专用访问密钥 ID。
+        secretConfigured:
+          type: boolean
+          description: 是否已配置访问密钥 Secret。
+        secretPreview:
+          type: string
+          description: Secret 脱敏预览；未配置时为空字符串。
+        configured:
+          type: boolean
+          description: 对象存储目标是否具备可用于连接测试和上传的完整配置。
+    AdminBackupObjectStorageUpdate:
+      type: object
+      properties:
+        provider:
+          $ref: '#/components/schemas/BackupProviderType'
+        endpoint:
+          type: string
+          description: 对象存储访问地址。
+        region:
+          type: string
+          description: 对象存储区域。
+        bucket:
+          type: string
+          description: 存储桶名称。
+        prefix:
+          type: string
+          description: 备份对象名前缀。
+        accessKeyId:
+          type: string
+          description: 访问密钥 ID。
+        secretAccessKey:
+          type: string
+          description: 访问密钥 Secret；仅用于新增或更换密钥，接口响应永不返回明文。
+        clearSecret:
+          type: boolean
+          description: 是否清空已保存 Secret。
+    AdminBackupSettingsResponse:
+      type: object
+      required:
+        - plans
+        - local
+        - objectStorage
+        - updatedAt
+      properties:
+        plans:
+          $ref: '#/components/schemas/AdminBackupPlans'
+        local:
+          $ref: '#/components/schemas/AdminBackupLocalTargetSettings'
+        objectStorage:
+          $ref: '#/components/schemas/AdminBackupObjectStorageSettings'
+        updatedAt:
+          type: string
+          format: date-time
+          description: 配置序列化时间。
+    AdminBackupSettingsUpdateRequest:
+      type: object
+      properties:
+        plans:
+          $ref: '#/components/schemas/AdminBackupPlans'
+        local:
+          type: object
+          properties:
+            directory:
+              type: string
+              description: 本地备份目录；为空字符串时使用默认目录。
+        objectStorage:
+          $ref: '#/components/schemas/AdminBackupObjectStorageUpdate'
+    AdminBackupTargetTestRequest:
+      type: object
+      required:
+        - targetType
+      properties:
+        targetType:
+          $ref: '#/components/schemas/BackupTargetType'
+        local:
+          type: object
+          properties:
+            directory:
+              type: string
+              description: 可选临时本地目录；为空时使用已保存配置或默认目录。
+        objectStorage:
+          $ref: '#/components/schemas/AdminBackupObjectStorageUpdate'
+    AdminBackupTargetTestResponse:
+      type: object
+      required:
+        - targetType
+        - status
+        - message
+        - testedAt
+      properties:
+        targetType:
+          $ref: '#/components/schemas/BackupTargetType'
+        status:
+          type: string
+          enum:
+            - success
+            - failed
+          description: 测试结果。
+        message:
+          type: string
+          description: 面向管理员的连接测试结果说明。
+        testedAt:
+          type: string
+          format: date-time
+          description: 测试完成时间。
+    AdminBackupScopeSummary:
+      type: object
+      required:
+        - planType
+        - label
+        - source
+        - available
+        - fileCount
+        - sizeBytes
+      properties:
+        planType:
+          $ref: '#/components/schemas/BackupPlanType'
+        label:
+          type: string
+          description: 备份范围中文名称。
+        source:
+          type: string
+          description: 数据来源摘要，不暴露服务器绝对路径。
+        available:
+          type: boolean
+          description: 当前数据根目录是否可读取。
+        fileCount:
+          type: integer
+          minimum: 0
+          description: 当前范围内可备份文件数量估算。
+        sizeBytes:
+          type: integer
+          minimum: 0
+          description: 当前范围内可备份文件大小估算。
+    AdminBackupRun:
+      type: object
+      required:
+        - id
+        - planType
+        - targetType
+        - trigger
+        - status
+        - progressPercent
+        - messages
+        - result
+        - error
+        - archiveName
+        - sizeBytes
+        - checksumSha256
+        - objectKey
+        - localPath
+        - createdBy
+        - createdAt
+        - startedAt
+        - finishedAt
+      properties:
+        id:
+          type: integer
+          description: 备份任务 ID。
+        planType:
+          $ref: '#/components/schemas/BackupPlanType'
+        targetType:
+          $ref: '#/components/schemas/BackupTargetType'
+        trigger:
+          $ref: '#/components/schemas/BackupTriggerType'
+        status:
+          $ref: '#/components/schemas/BackupRunStatus'
+        progressPercent:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 备份进度百分比。
+        messages:
+          type: array
+          description: 最近任务消息。
+          items:
+            type: string
+        result:
+          type:
+            - object
+            - 'null'
+          additionalProperties: true
+          description: 任务成功后的 manifest 摘要；未完成或失败时为 null。
+        error:
+          type: string
+          description: 失败原因；非失败状态为空字符串。
+        archiveName:
+          type: string
+          description: 备份归档文件名。
+        sizeBytes:
+          type: integer
+          minimum: 0
+          description: 归档文件大小。
+        checksumSha256:
+          type: string
+          description: 归档文件 SHA256 校验值。
+        objectKey:
+          type: string
+          description: 对象存储路径；本地目标为空字符串。
+        localPath:
+          type: string
+          description: 本地备份路径摘要；对象存储目标为空字符串。
+        createdBy:
+          type:
+            - string
+            - 'null'
+          description: 手动任务发起人显示名；计划任务为 null。
+        createdAt:
+          type: string
+          format: date-time
+          description: 任务创建时间。
+        startedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: 任务开始时间。
+        finishedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: 任务结束时间。
+    AdminBackupRunListResponse:
+      type: object
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminBackupRun'
+        total:
+          type: integer
+          minimum: 0
+          description: 符合筛选条件的任务总数。
+    AdminBackupRunCreateRequest:
+      type: object
+      required:
+        - planType
+      properties:
+        planType:
+          $ref: '#/components/schemas/BackupPlanType'
+        targetType:
+          $ref: '#/components/schemas/BackupTargetType'
+        includeLogs:
+          type: boolean
+          description: 手动平台备份是否包含运行日志；未提供时使用计划配置。
+    AdminBackupOverviewResponse:
+      type: object
+      required:
+        - settings
+        - summaries
+        - activeRuns
+        - recentRuns
+        - generatedAt
+      properties:
+        settings:
+          $ref: '#/components/schemas/AdminBackupSettingsResponse'
+        summaries:
+          type: array
+          description: 平台数据和科研数据范围摘要。
+          items:
+            $ref: '#/components/schemas/AdminBackupScopeSummary'
+        activeRuns:
+          type: array
+          description: 当前排队或运行中的备份任务。
+          items:
+            $ref: '#/components/schemas/AdminBackupRun'
+        recentRuns:
+          type: array
+          description: 最近备份任务。
+          items:
+            $ref: '#/components/schemas/AdminBackupRun'
+        generatedAt:
+          type: string
+          format: date-time
+          description: 概览生成时间。
+    DataDomainType:
+      type: string
+      enum:
+        - germplasm
+        - genome
+        - individual
+        - community
+        - population
+        - field_survey
+        - remote_sensing
+        - molecular
+        - other
+      description: 甲方确认的业务数据类型编码。
+    SpatialClass:
+      type: string
+      enum:
+        - spatial
+        - non_spatial
+        - spatialized_table
+        - derived_from_spatial
+      description: 数据与空间几何的关系。
+    DataGranularity:
+      type: string
+      enum:
+        - region
+        - site
+        - population
+        - individual
+        - plot
+        - observation
+        - sample
+        - molecular_assay
+        - genome_file
+        - raster_scene
+        - raster_product
+      description: 数据记录粒度。
+    StandardizationStatus:
+      type: string
+      enum:
+        - raw
+        - profiled
+        - mapped
+        - spatialized
+        - standardized
+        - published
+      description: 数据标准化状态。
+    DataDomainDefinition:
+      type: object
+      required:
+        - code
+        - name
+        - spatialClass
+        - description
+        - recommendedResourceTypes
+        - coreEntities
+      properties:
+        code:
+          $ref: '#/components/schemas/DataDomainType'
+        name:
+          type: string
+          description: 业务数据类型中文名称。
+        spatialClass:
+          $ref: '#/components/schemas/SpatialClass'
+        description:
+          type: string
+          description: 数据类型说明。
+        recommendedResourceTypes:
+          type: array
+          description: 推荐使用的 DataResource.dataType 类型。
+          items:
+            type: string
+            enum:
+              - vector
+              - raster
+              - gene
+              - table
+              - document
+              - image
+        coreEntities:
+          type: array
+          description: 该业务类型涉及的核心数据库实体名称。
+          items:
+            type: string
+    DataSchemaLayer:
+      type: object
+      required:
+        - name
+        - storage
+        - description
+      properties:
+        name:
+          type: string
+          description: 数据库层级名称。
+        storage:
+          type: string
+          description: 主要存储位置。
+        description:
+          type: string
+          description: 层级职责说明。
+    DataSchemaEntity:
+      type: object
+      required:
+        - name
+        - label
+        - domainTypes
+        - description
+        - keyFields
+      properties:
+        name:
+          type: string
+          description: 建议模型或表名。
+        label:
+          type: string
+          description: 中文名称。
+        domainTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataDomainType'
+          description: 关联的业务数据类型。
+        description:
+          type: string
+          description: 实体职责说明。
+        keyFields:
+          type: array
+          description: 建议关键字段。
+          items:
+            type: string
+    DataSchemaSummaryResponse:
+      type: object
+      required:
+        - domains
+        - layers
+        - entities
+        - catalogTree
+      properties:
+        domains:
+          type: array
+          description: 甲方确认数据类型定义。
+          items:
+            $ref: '#/components/schemas/DataDomainDefinition'
+        layers:
+          type: array
+          description: 推荐数据库分层。
+          items:
+            $ref: '#/components/schemas/DataSchemaLayer'
+        entities:
+          type: array
+          description: 推荐核心实体模型。
+          items:
+            $ref: '#/components/schemas/DataSchemaEntity'
+        catalogTree:
+          type: array
+          description: 面向前端目录展示的建议树。
+          items:
+            $ref: '#/components/schemas/DataSchemaCatalogNode'
+    DataSchemaCatalogNode:
+      type: object
+      required:
+        - code
+        - name
+        - children
+      properties:
+        code:
+          type: string
+          description: 目录节点编码。
+        name:
+          type: string
+          description: 目录节点名称。
+        domainType:
+          oneOf:
+            - $ref: '#/components/schemas/DataDomainType'
+            - type: 'null'
+          description: 节点对应的数据业务类型，分组节点可为 null。
+        spatialClass:
+          oneOf:
+            - $ref: '#/components/schemas/SpatialClass'
+            - type: 'null'
+          description: 节点空间属性，分组节点可为 null。
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/DataSchemaCatalogNode'
+          description: 子目录节点。
+    TaxonSummary:
+      type: object
+      required:
+        - id
+        - nameCn
+        - scientificName
+      properties:
+        id:
+          type: integer
+          description: 物种主表 ID。
+        nameCn:
+          type: string
+          description: 中文名。
+        scientificName:
+          type: string
+          description: 拉丁名或科学名。
+    SiteSummary:
+      type: object
+      required:
+        - id
+        - name
+        - longitude
+        - latitude
+        - altitude
+      properties:
+        id:
+          type: integer
+          description: 地点 ID。
+        name:
+          type: string
+          description: 采集地点或样地名称。
+        longitude:
+          type:
+            - number
+            - 'null'
+          description: 十进制度经度。
+        latitude:
+          type:
+            - number
+            - 'null'
+          description: 十进制度纬度。
+        altitude:
+          type:
+            - number
+            - 'null'
+          description: 海拔，单位米。
+    GermplasmAccession:
+      type: object
+      required:
+        - id
+        - accessionCode
+        - sampleCode
+        - taxon
+        - sourceSite
+        - materialType
+        - resourceType
+        - sex
+        - isCore
+        - storageStatus
+        - sourceResourceId
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+          description: 种质资源 ID。
+        accessionCode:
+          type: string
+          description: 平台种质资源编号。
+        sampleCode:
+          type: string
+          description: 甲方样品编号或 DNA 样本编号。
+        taxon:
+          oneOf:
+            - $ref: '#/components/schemas/TaxonSummary'
+            - type: 'null'
+          description: 关联物种，未标准化时为 null。
+        sourceSite:
+          oneOf:
+            - $ref: '#/components/schemas/SiteSummary'
+            - type: 'null'
+          description: 采集地点，未标准化时为 null。
+        materialType:
+          type: string
+          description: 材料类型，如 DNA、枝条、种子、叶片等。
+        resourceType:
+          type: string
+          description: 资源类型，如胡杨古树特异资源、胡杨群体种质资源、核心种质资源。
+        sex:
+          type: string
+          description: 性别或雌雄信息。
+        isCore:
+          type: boolean
+          description: 是否属于核心种质资源。
+        storageStatus:
+          type: string
+          description: 保存状态。
+        sourceResourceId:
+          type:
+            - integer
+            - 'null'
+          description: 来源 DataResource ID。
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间。
+        updatedAt:
+          type: string
+          format: date-time
+          description: 更新时间。
+    GermplasmAccessionListResponse:
+      type: object
+      required:
+        - items
+        - total
+        - current
+        - pageSize
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GermplasmAccession'
+        total:
+          type: integer
+          minimum: 0
+          description: 总条数。
+        current:
+          type: integer
+          minimum: 1
+          description: 当前页码。
+        pageSize:
+          type: integer
+          minimum: 1
+          description: 每页条数。
     DictionaryItem:
       type: object
       required:
@@ -3656,6 +4842,11 @@ components:
             - document
             - image
           description: 数据资源类型
+        domainType:
+          oneOf:
+            - $ref: '#/components/schemas/DataDomainType'
+            - type: 'null'
+          description: 平台确认的业务数据类型；历史资源或尚未归类资源为 null
         category:
           oneOf:
             - $ref: '#/components/schemas/DictionaryItem'
@@ -3776,9 +4967,7 @@ components:
           maximum: 100
           description: 默认透明度百分比
         symbolization:
-          type: object
-          additionalProperties: true
-          description: 矢量默认符号化方案
+          $ref: '#/components/schemas/VectorSymbolization'
         rasterRules:
           type: object
           additionalProperties: true
@@ -3807,6 +4996,7 @@ components:
         - sizeBytes
         - itemCount
         - status
+        - inventoryGroupId
         - accessGroups
         - canManageAccess
         - maintainer
@@ -3885,6 +5075,11 @@ components:
             - active
             - inactive
           description: 数据资源状态
+        inventoryGroupId:
+          type:
+            - integer
+            - 'null'
+          description: 存量数据内容组别 ID；为 null 时表示默认分组
         accessGroups:
           type: array
           description: 允许访问该数据资源且对当前主体可见的用户组；用户导入、目录扫描和栅格导入会在后台强制包含超级管理员用户组，上传者本人不依赖用户组也始终可见。
@@ -3895,12 +5090,12 @@ components:
           description: 当前用户是否可修改该资源的可见范围；上传者本人或具备 `catalog.change_dataresource` 时为 true
         maintainer:
           type: string
-          description: 维护人员显示名称
+          description: 维护人员显示名称；维护人是当前主体不可见的超级管理员用户时返回空字符串
         uploader:
           oneOf:
             - $ref: '#/components/schemas/AdminDataResourceUploader'
             - type: 'null'
-          description: 上传或维护该资源的用户；无法归属时为 null
+          description: 上传或维护该资源的用户；无法归属或维护人是当前主体不可见的超级管理员用户时为 null
         createdAt:
           type: string
           format: date-time
@@ -3936,6 +5131,7 @@ components:
         - items
         - total
         - availableAccessGroups
+        - inventoryGroups
       properties:
         items:
           type: array
@@ -3947,9 +5143,48 @@ components:
           description: 符合筛选条件的数据资源总数
         availableAccessGroups:
           type: array
-          description: 可用于配置数据访问范围且对当前主体可见的用户组列表；非超级管理员主体不会收到超级管理员用户组，后端仍会强制保留超级管理员访问范围
+          description: 可用于配置数据访问范围的额外用户组列表；该列表不会返回超级管理员用户组，后端仍会强制保留超级管理员访问范围
           items:
             $ref: '#/components/schemas/AdminDataResourceAccessGroup'
+        inventoryGroups:
+          type: array
+          description: 可用于存量数据管理内容分组的持久化组别列表；默认分组不在该数组中，资源 `inventoryGroupId` 为 null 时属于默认分组
+          items:
+            $ref: '#/components/schemas/AdminDataResourceGroup'
+    AdminDataResourceGroup:
+      type: object
+      required:
+        - id
+        - name
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+          description: 存量数据组别 ID
+        name:
+          type: string
+          description: 存量数据组别名称
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间
+        updatedAt:
+          type: string
+          format: date-time
+          description: 最后更新时间
+    AdminDataResourceGroupUpdateRequest:
+      type: object
+      properties:
+        action:
+          type: string
+          enum:
+            - update
+            - delete
+          description: 组别操作类型；新建接口忽略该字段，组别详情接口默认 update
+        name:
+          type: string
+          description: 新建或改名时写入的组别名称
     AdminDataResourceVisualization:
       type: object
       properties:
@@ -3965,9 +5200,7 @@ components:
           maximum: 100
           description: 默认透明度百分比
         symbolization:
-          type: object
-          additionalProperties: true
-          description: 矢量默认符号化方案
+          $ref: '#/components/schemas/VectorSymbolization'
         rasterRules:
           type: object
           additionalProperties: true
@@ -3984,6 +5217,7 @@ components:
             - setStatus
             - saveVisualization
             - updateAccess
+            - updateInventoryGroup
             - delete
           description: 操作类型
         status:
@@ -3996,9 +5230,14 @@ components:
           $ref: '#/components/schemas/AdminDataResourceVisualization'
         accessGroupIds:
           type: array
-          description: updateAccess 或 update 时写入的额外可见用户组 ID 列表；非超级管理员主体不能选择超级管理员用户组，后端会强制补齐超级管理员用户组，上传者本人不依赖用户组也始终可见。包含游客用户组时表示未登录用户可通过游客会话访问该数据。
+          description: updateAccess 或 update 时写入的额外可见用户组 ID 列表；调用方不能选择超级管理员用户组，后端会强制补齐超级管理员用户组，上传者本人不依赖用户组也始终可见。包含游客用户组时表示未登录用户可通过游客会话访问该数据。
           items:
             type: integer
+        inventoryGroupId:
+          type:
+            - integer
+            - 'null'
+          description: updateInventoryGroup 或 update 时写入的存量数据内容组别 ID；为 null 时表示移入默认分组
         confirmationName:
           type: string
           description: delete 操作要求传入与数据资源名称完全一致的确认文本
@@ -4281,13 +5520,7 @@ components:
           maximum: 100
           description: 默认透明度百分比
         symbolization:
-          type: object
-          additionalProperties:
-            oneOf:
-              - type: string
-              - type: number
-              - type: boolean
-          description: 矢量默认符号化配置
+          $ref: '#/components/schemas/VectorSymbolization'
         bounds:
           type: array
           description: 图层边界
@@ -4305,6 +5538,257 @@ components:
           type: string
           format: date-time
           description: 最后更新时间
+    VectorSymbolization:
+      type: object
+      additionalProperties: true
+      description: |
+        矢量图层符号化配置。平台继续兼容历史松散字段；新版本推荐使用 `renderer` 描述单一符号、唯一值分类和业务默认模板，前端根据该结构生成 Mapbox GL JS 表达式并在渲染前注册 `gm-*` 平台内置图标。
+      properties:
+        opacity:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 图层透明度百分比
+        pointMode:
+          type: string
+          enum:
+            - circle
+            - symbol
+            - heatmap
+          description: 点图层基础表达方式；唯一值分类点模板通常使用 symbol
+        renderer:
+          $ref: '#/components/schemas/VectorRenderer'
+        circle:
+          type: object
+          additionalProperties: true
+          description: 圆点图层基础样式，字段驱动渲染未覆盖的属性继续使用这里的值
+        symbol:
+          type: object
+          additionalProperties: true
+          description: 图标和标注图层基础样式；平台内置图标使用 `gm-*` 英文 ID
+        heatmap:
+          type: object
+          additionalProperties: true
+          description: 热力图样式和权重字段
+        cluster:
+          type: object
+          additionalProperties: true
+          description: Mapbox source 聚合配置
+        line:
+          type: object
+          additionalProperties: true
+          description: 线图层基础样式
+        fill:
+          type: object
+          additionalProperties: true
+          description: 面图层基础样式
+    VectorRenderer:
+      oneOf:
+        - $ref: '#/components/schemas/SingleSymbolRenderer'
+        - $ref: '#/components/schemas/UniqueValueRenderer'
+        - $ref: '#/components/schemas/GraduatedRenderer'
+      description: 矢量符号化渲染器；未提供时按单一符号处理
+    SingleSymbolRenderer:
+      type: object
+      required:
+        - type
+      additionalProperties: true
+      properties:
+        type:
+          type: string
+          enum:
+            - single
+          description: 单一符号渲染
+        templateId:
+          type: string
+          description: 来源模板 ID；空字符串表示未套用业务模板
+        businessType:
+          type: string
+          description: 业务类型编码，如 germplasm；用于提示默认模板来源
+        updatedByUser:
+          type: boolean
+          description: 用户是否已手动修改该符号化方案；为 true 时不应被默认模板自动覆盖
+    UniqueValueRenderer:
+      type: object
+      required:
+        - type
+        - field
+        - classes
+        - defaultClass
+      additionalProperties: true
+      properties:
+        type:
+          type: string
+          enum:
+            - uniqueValue
+          description: 按字段唯一值分类符号化
+        field:
+          type: string
+          description: 分类字段名，例如种质数据中的 `性别`
+        templateId:
+          type: string
+          description: 默认业务模板 ID，例如 `germplasm.dna-sex-tree.v1`
+        businessType:
+          type: string
+          description: 业务类型编码，例如 `germplasm`
+        updatedByUser:
+          type: boolean
+          description: 用户是否已手动修改该分类符号化方案
+        classes:
+          type: array
+          description: 分类符号列表；一个类别可包含多个原始字段值，用于别名归一化和分类值合并
+          items:
+            $ref: '#/components/schemas/UniqueValueSymbolClass'
+        defaultClass:
+          $ref: '#/components/schemas/UniqueValueSymbolClass'
+        normalizationNotes:
+          type: array
+          description: 分类值合并或疑似别名提示，供前端展示给用户确认
+          items:
+            type: string
+    GraduatedRenderer:
+      type: object
+      required:
+        - type
+        - field
+        - method
+        - classCount
+        - precision
+        - colorRamp
+        - classes
+        - defaultClass
+      additionalProperties: true
+      description: |
+        按连续数值字段进行分级符号化，适用于海拔、NDVI、盐分等可转为数字的字段。 前端依据当前加载要素统计分级断点并生成 Mapbox GL JS case 表达式；服务端按 JSON 对象透传保存，不新增独立接口。
+      properties:
+        type:
+          type: string
+          enum:
+            - graduated
+          description: 数值分级渲染
+        field:
+          type: string
+          description: 连续数值字段名，例如 `海拔`、`NDVI` 或 `盐分`
+        method:
+          type: string
+          enum:
+            - equalInterval
+            - quantile
+          description: 分级方法；equalInterval 为等距分级，quantile 为分位数分级
+        classCount:
+          type: integer
+          minimum: 3
+          maximum: 9
+          description: 分级数量，平台编辑器默认限制为 3 到 9 级
+        precision:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: 图例区间标签保留的小数位
+        colorRamp:
+          type: string
+          enum:
+            - green
+            - blue
+            - orange
+            - purple
+          description: 平台内置连续色带编码
+        updatedByUser:
+          type: boolean
+          description: 用户是否已手动修改该数值分级方案
+        classes:
+          type: array
+          description: 数值区间符号列表；最后一个区间包含最大值，其他区间为左闭右开
+          items:
+            $ref: '#/components/schemas/GraduatedSymbolClass'
+        defaultClass:
+          $ref: '#/components/schemas/GraduatedSymbolClass'
+    GraduatedSymbolClass:
+      type: object
+      required:
+        - id
+        - label
+        - min
+        - max
+        - color
+        - iconImage
+        - visible
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+          description: 区间类别稳定 ID，前端可用于编辑列表 key
+        label:
+          type: string
+          description: 图例显示名称，通常由区间端点自动生成
+        min:
+          type:
+            - number
+            - 'null'
+          description: 区间最小值；默认类使用 null 表示无数值或空值
+        max:
+          type:
+            - number
+            - 'null'
+          description: 区间最大值；默认类使用 null 表示无数值或空值
+        color:
+          type: string
+          pattern: ^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$
+          description: 区间颜色；平台内置图标会按图标 ID 与颜色生成运行时图片 ID
+        iconImage:
+          type: string
+          description: 图标 ID。平台内置图标必须使用 `gm-*` 英文 ID，并在 Mapbox 图层引用前通过 `addImage` 注册
+        size:
+          type: number
+          minimum: 0
+          description: 区间图标缩放或点半径倍率
+        count:
+          type: integer
+          minimum: 0
+          description: 当前加载数据中落入该区间的要素数量；服务端持久化时可省略或置 0
+        visible:
+          type: boolean
+          description: 该区间是否在地图和图例中显示
+    UniqueValueSymbolClass:
+      type: object
+      required:
+        - id
+        - label
+        - values
+        - color
+        - iconImage
+        - visible
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+          description: 类别稳定 ID，前端可用于编辑列表 key
+        label:
+          type: string
+          description: 图例显示名称
+        values:
+          type: array
+          description: 归入该类别的原始字段值；空数组仅用于默认类
+          items:
+            type: string
+        color:
+          type: string
+          pattern: ^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$
+          description: 类别颜色；平台内置图标会按图标 ID 与颜色生成运行时图片 ID
+        iconImage:
+          type: string
+          description: 图标 ID。平台内置图标必须使用 `gm-*` 英文 ID，并在 Mapbox 图层引用前通过 `addImage` 注册
+        size:
+          type: number
+          minimum: 0
+          description: 类别图标缩放或点半径倍率
+        count:
+          type: integer
+          minimum: 0
+          description: 当前加载数据中归入该类别的要素数量；服务端持久化时可省略或置 0
+        visible:
+          type: boolean
+          description: 该类别是否在地图和图例中显示
     RasterDataset:
       type: object
       required:
@@ -4649,6 +6133,8 @@ components:
         - rowCount
         - suggestedTableName
         - suggestedName
+        - activeSheetName
+        - sheets
         - duplicateTarget
         - detected
         - limitations
@@ -4674,6 +6160,16 @@ components:
         suggestedName:
           type: string
           description: 建议数据名称
+        activeSheetName:
+          type:
+            - string
+            - 'null'
+          description: 当前读取的 Excel 工作表名称；CSV 为 null
+        sheets:
+          type: array
+          description: Excel 工作表拆分清单；CSV 为空数组
+          items:
+            $ref: '#/components/schemas/ImportWorkbookSheet'
         duplicateTarget:
           oneOf:
             - $ref: '#/components/schemas/ImportDuplicateTarget'
@@ -4686,6 +6182,38 @@ components:
           description: 导入限制提示
           items:
             type: string
+    ImportWorkbookSheet:
+      type: object
+      required:
+        - name
+        - rowCount
+        - columnCount
+        - isGeographic
+        - longitudeColumn
+        - latitudeColumn
+      properties:
+        name:
+          type: string
+          description: 工作表名称
+        rowCount:
+          type: integer
+          description: 工作表总行数
+        columnCount:
+          type: integer
+          description: 工作表字段数
+        isGeographic:
+          type: boolean
+          description: 是否自动识别到可空间化经纬度列
+        longitudeColumn:
+          type:
+            - string
+            - 'null'
+          description: 自动识别的经度列
+        latitudeColumn:
+          type:
+            - string
+            - 'null'
+          description: 自动识别的纬度列
     ImportDetectedInfo:
       type: object
       required:
@@ -5079,6 +6607,9 @@ components:
         - totalCount
         - returnedCount
         - limit
+        - limitExceeded
+        - bounds
+        - elapsedMs
         - fields
         - geojson
         - warnings
@@ -5098,6 +6629,20 @@ components:
         limit:
           type: integer
           description: 返回上限
+        limitExceeded:
+          type: boolean
+          description: 命中数量是否超过返回上限；为 true 时 geojson 仅包含前 limit 条有效结果。
+        bounds:
+          type: array
+          minItems: 0
+          maxItems: 4
+          description: 本次返回有效结果的 WGS84 边界 [minLng, minLat, maxLng, maxLat]；无有效返回结果时为空数组。
+          items:
+            type: number
+        elapsedMs:
+          type: integer
+          minimum: 0
+          description: 后端执行本次资源查询耗时，单位毫秒。
         fields:
           type: array
           description: 查询结果字段
@@ -5224,11 +6769,23 @@ components:
           description: 源文件相对路径（相对于科研数据根目录）
         name:
           type: string
-          description: 数据集名称，默认取文件名
+          description: 前端显示的数据集名称；为空时默认取源文件名，不包含后端后台唯一存储文件名
         async:
           type: boolean
           default: true
           description: 是否异步执行
+    RasterImportUploadRequest:
+      type: object
+      required:
+        - file
+      properties:
+        file:
+          type: string
+          format: binary
+          description: 上传的栅格源文件，支持 GeoTIFF、IMG 和 VRT。文件大小不得超过系统配置的 upload_max_mb，单边像素长度不得超过 max_raster_side_pixels。后端保存到科研数据根目录的 raster/original/uploaded/ 后异步预处理。
+        name:
+          type: string
+          description: 前端显示的数据集名称；为空时默认取上传文件名，不展示后端保存到 uploaded/ 目录的唯一存储文件名
     RasterRenderRequest:
       type: object
       required:
