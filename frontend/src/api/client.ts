@@ -54,6 +54,7 @@ import type {
   ResourceListItem,
   ResourceQueryPayload,
   ResourceQueryResult,
+  ResourceVisualizationSummary,
   SearchResult,
   User,
   UserCreateRequest,
@@ -591,6 +592,16 @@ export const api = {
   resourceProfile: (resource: ResourceListItem) =>
     unwrap<DataResourceProfile>(
       sdk.getResourceProfile({ path: { id: resource.id } }),
+    ),
+  resourceVisualizationSummary: (
+    resource: ResourceListItem,
+    params: { topN?: number; histogramBins?: number } = {},
+  ) =>
+    unwrap<ResourceVisualizationSummary>(
+      sdk.getResourceVisualizationSummary({
+        path: { id: resource.id },
+        query: params,
+      }),
     ),
   queryResource: (resource: ResourceListItem, payload: ResourceQueryPayload) =>
     unwrap<ResourceQueryResult>(

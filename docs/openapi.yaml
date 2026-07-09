@@ -2005,6 +2005,150 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/catalog/resources/{id}/visualization-summary/:
+    get:
+      tags: [数据目录]
+      summary: 获取数据资源可视化聚合摘要
+      description: |
+        返回右侧数据洞察面板所需的轻量聚合统计，包括分类字段 TopN、数值字段分布、空间覆盖摘要、数据质量问题和监测功能占位信息。
+        矢量数据基于当前资源的 GeoPackage 图层聚合；栅格数据基于已登记的栅格元数据生成摘要。接口不返回原始 GeoJSON、栅格像元数组或查询结果数据本体。
+        需要 `core.browse_data`，并沿用数据资源访问范围校验；无权访问资源返回 403，资源不存在或未启用返回 404。
+      operationId: getResourceVisualizationSummary
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - name: topN
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 3
+            maximum: 20
+            default: 8
+          description: 每个分类字段返回的最高频类别数量。
+        - name: histogramBins
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 4
+            maximum: 20
+            default: 8
+          description: 数值字段直方图分箱数量。
+      responses:
+        '200':
+          description: 可视化聚合摘要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceVisualizationSummaryResponse'
+              examples:
+                vectorSummary:
+                  summary: 矢量生态数据聚合摘要
+                  value:
+                    resource:
+                      id: 7
+                      name: 塔里木河胡杨样地监测点
+                      code: tarim-populus-plots
+                      dataType: vector
+                      domainType: population
+                      category:
+                        id: 101
+                        type: data_category
+                        code: monitoring
+                        name: 长期监测
+                      source: 2026 塔里木河野外调查
+                      provider: 生态监测组
+                      dataDate: '2026-06-01'
+                      spatialExtent: 80.100000,40.100000,82.800000,41.900000
+                      coordinateSystem: EPSG:4326
+                      fileFormat: GPKG
+                      description: 由 Excel/CSV 导入的地理样地监测点数据。
+                      qualityNote: 坐标有效率 126/128。
+                      status: active
+                      isQueryable: true
+                      isRenderable: false
+                      updatedAt: '2026-07-03T09:30:00Z'
+                      sizeBytes: 245760
+                      itemCount: 128
+                    domainType: population
+                    generatedAt: '2026-07-07T09:30:00Z'
+                    source: backend_aggregate
+                    profile:
+                      featureCount: 128
+                      fieldCount: 16
+                      geometryType: Point
+                      bounds: [80.1, 40.1, 82.8, 41.9]
+                    categoryStats:
+                      - field: 栖息地类型
+                        label: 栖息地类型
+                        total: 128
+                        nullCount: 0
+                        uniqueCount: 4
+                        truncated: false
+                        items:
+                          - label: 林地
+                            count: 58
+                            ratio: 0.4531
+                          - label: 河沟
+                            count: 31
+                            ratio: 0.2422
+                    numericStats:
+                      - field: 重要值
+                        label: 重要值
+                        count: 128
+                        nullCount: 0
+                        min: 0.81
+                        max: 42.6
+                        mean: 11.24
+                        median: 8.73
+                        q1: 4.12
+                        q3: 16.4
+                        histogram:
+                          - min: 0.81
+                            max: 6.03
+                            count: 32
+                            label: 0.81-6.03
+                    spatialSummary:
+                      featureCount: 128
+                      validGeometryCount: 126
+                      nullGeometryCount: 2
+                      coordinateCoverageRatio: 0.9844
+                      bounds: [80.1, 40.1, 82.8, 41.9]
+                      geometryTypes:
+                        - label: Point
+                          count: 126
+                          ratio: 0.9844
+                      centroid: [81.42, 40.92]
+                    qualityIssues:
+                      - code: null_geometry
+                        severity: warning
+                        title: 空几何记录
+                        message: 存在 2 条记录没有可用空间几何。
+                        count: 2
+                        ratio: 0.0156
+                    recommendedCharts:
+                      - chartType: rank_bar
+                        title: 重要值 Top 排名
+                        description: 展示当前种群数据中优势物种或样方的重要值排序。
+                        fields: [重要值]
+                    monitorPreview:
+                      title: 监测能力预留
+                      status: planned
+                      items:
+                        - label: 阈值配置
+                          status: planned
+                          description: 后续支持为字段配置预警阈值。
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/catalog/resources/{id}/query/:
     post:
       tags: [数据目录]
@@ -6087,6 +6231,334 @@ components:
         description:
           type: string
           description: 字段描述
+
+    ResourceVisualizationSummaryResponse:
+      type: object
+      required:
+        [
+          resource,
+          domainType,
+          generatedAt,
+          source,
+          profile,
+          categoryStats,
+          numericStats,
+          spatialSummary,
+          qualityIssues,
+          recommendedCharts,
+          monitorPreview,
+        ]
+      properties:
+        resource:
+          $ref: '#/components/schemas/ResourceListItem'
+        domainType:
+          $ref: '#/components/schemas/DataDomainType'
+        generatedAt:
+          type: string
+          format: date-time
+          description: 聚合摘要生成时间。
+        source:
+          type: string
+          enum: [backend_aggregate, raster_metadata, profile_only]
+          description: 摘要生成来源；矢量为后端聚合，栅格为元数据推导，无法读取明细时为 profile_only。
+        profile:
+          $ref: '#/components/schemas/VisualizationResourceProfile'
+        categoryStats:
+          type: array
+          description: 可用于构成图、TopN 排名和分类筛选的字段统计。
+          items:
+            $ref: '#/components/schemas/VisualizationCategoryStat'
+        numericStats:
+          type: array
+          description: 可用于直方图、箱线图、雷达图和连续分级的数值字段统计。
+          items:
+            $ref: '#/components/schemas/VisualizationNumericStat'
+        spatialSummary:
+          $ref: '#/components/schemas/VisualizationSpatialSummary'
+        qualityIssues:
+          type: array
+          description: 数据质量监测问题清单。
+          items:
+            $ref: '#/components/schemas/VisualizationQualityIssue'
+        recommendedCharts:
+          type: array
+          description: 后端根据业务类型和字段结构推荐的图表卡片。
+          items:
+            $ref: '#/components/schemas/VisualizationChartRecommendation'
+        monitorPreview:
+          $ref: '#/components/schemas/VisualizationMonitorPreview'
+
+    VisualizationResourceProfile:
+      type: object
+      required: [featureCount, fieldCount, geometryType, bounds]
+      properties:
+        featureCount:
+          type: [integer, "null"]
+          description: 矢量要素数；栅格或无法计算时为 null。
+        fieldCount:
+          type: integer
+          description: 可分析字段数量。
+        geometryType:
+          type: string
+          description: 几何类型或 Raster。
+        bounds:
+          type: array
+          minItems: 0
+          maxItems: 4
+          description: WGS84 边界 [minLng, minLat, maxLng, maxLat]。
+          items:
+            type: number
+
+    VisualizationCategoryStat:
+      type: object
+      required: [field, label, total, nullCount, uniqueCount, truncated, items]
+      properties:
+        field:
+          type: string
+          description: 字段名。
+        label:
+          type: string
+          description: 前端显示名。
+        total:
+          type: integer
+          minimum: 0
+          description: 参与统计的总记录数。
+        nullCount:
+          type: integer
+          minimum: 0
+          description: 空值数量。
+        uniqueCount:
+          type: integer
+          minimum: 0
+          description: 非空唯一值数量。
+        truncated:
+          type: boolean
+          description: items 是否因为 topN 限制被截断。
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/VisualizationCategoryItem'
+
+    VisualizationCategoryItem:
+      type: object
+      required: [label, count, ratio]
+      properties:
+        label:
+          type: string
+          description: 分类值显示文本。
+        count:
+          type: integer
+          minimum: 0
+          description: 分类计数。
+        ratio:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: 分类占比，按 total 计算。
+
+    VisualizationNumericStat:
+      type: object
+      required: [field, label, count, nullCount, min, max, mean, median, q1, q3, histogram]
+      properties:
+        field:
+          type: string
+          description: 字段名。
+        label:
+          type: string
+          description: 前端显示名。
+        count:
+          type: integer
+          minimum: 0
+          description: 可解析为数值的记录数。
+        nullCount:
+          type: integer
+          minimum: 0
+          description: 空值或不可解析值数量。
+        min:
+          type: [number, "null"]
+          description: 最小值。
+        max:
+          type: [number, "null"]
+          description: 最大值。
+        mean:
+          type: [number, "null"]
+          description: 平均值。
+        median:
+          type: [number, "null"]
+          description: 中位数。
+        q1:
+          type: [number, "null"]
+          description: 第一四分位数。
+        q3:
+          type: [number, "null"]
+          description: 第三四分位数。
+        histogram:
+          type: array
+          description: 直方图分箱。
+          items:
+            $ref: '#/components/schemas/VisualizationHistogramBin'
+
+    VisualizationHistogramBin:
+      type: object
+      required: [min, max, count, label]
+      properties:
+        min:
+          type: number
+          description: 分箱下界。
+        max:
+          type: number
+          description: 分箱上界。
+        count:
+          type: integer
+          minimum: 0
+          description: 分箱计数。
+        label:
+          type: string
+          description: 分箱显示标签。
+
+    VisualizationSpatialSummary:
+      type: object
+      required:
+        [
+          featureCount,
+          validGeometryCount,
+          nullGeometryCount,
+          coordinateCoverageRatio,
+          bounds,
+          geometryTypes,
+          centroid,
+        ]
+      properties:
+        featureCount:
+          type: [integer, "null"]
+          description: 空间记录总数；栅格或无法计算时为 null。
+        validGeometryCount:
+          type: [integer, "null"]
+          description: 有效几何数量。
+        nullGeometryCount:
+          type: [integer, "null"]
+          description: 空几何数量。
+        coordinateCoverageRatio:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+          description: 有效空间几何覆盖率。
+        bounds:
+          type: array
+          minItems: 0
+          maxItems: 4
+          items:
+            type: number
+        geometryTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/VisualizationCategoryItem'
+        centroid:
+          oneOf:
+            - type: array
+              minItems: 2
+              maxItems: 2
+              items:
+                type: number
+            - type: "null"
+          description: 有效空间对象中心点 [lng, lat]；无法计算时为 null。
+
+    VisualizationQualityIssue:
+      type: object
+      required: [code, severity, title, message, count]
+      properties:
+        code:
+          type: string
+          description: 问题代码。
+        severity:
+          type: string
+          enum: [info, warning, error]
+          description: 问题级别。
+        title:
+          type: string
+          description: 问题标题。
+        message:
+          type: string
+          description: 问题说明。
+        count:
+          type: integer
+          minimum: 0
+          description: 影响记录数。
+        ratio:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+          description: 影响比例。
+        field:
+          type: [string, "null"]
+          description: 相关字段名。
+
+    VisualizationChartRecommendation:
+      type: object
+      required: [chartType, title, description, fields]
+      properties:
+        chartType:
+          type: string
+          enum:
+            [
+              gauge,
+              rank_bar,
+              stacked_bar,
+              donut,
+              histogram,
+              boxplot,
+              scatter,
+              radar,
+              heatmap,
+              treemap,
+              sunburst,
+              parallel,
+              raster_preview,
+              quality_list,
+            ]
+          description: 推荐图表类型。
+        title:
+          type: string
+          description: 图表标题。
+        description:
+          type: string
+          description: 适用说明。
+        fields:
+          type: array
+          description: 推荐使用字段。
+          items:
+            type: string
+
+    VisualizationMonitorPreview:
+      type: object
+      required: [title, status, items]
+      properties:
+        title:
+          type: string
+          description: 监测占位标题。
+        status:
+          type: string
+          enum: [planned, partial, ready]
+          description: 监测能力状态。
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/VisualizationMonitorItem'
+
+    VisualizationMonitorItem:
+      type: object
+      required: [label, status, description]
+      properties:
+        label:
+          type: string
+          description: 监测能力名称。
+        status:
+          type: string
+          enum: [planned, partial, ready]
+          description: 能力状态。
+        description:
+          type: string
+          description: 能力说明。
 
     QueryRequest:
       type: object

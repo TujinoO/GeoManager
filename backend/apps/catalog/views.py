@@ -48,6 +48,7 @@ from apps.catalog.serializers import (
 from apps.catalog.services import (
     scan_catalog_sources,
 )
+from apps.catalog.visualization import resource_visualization_summary
 from apps.core.permissions import feature_denied_response, has_feature_perm
 from apps.core.principal_visibility import visible_groups_for
 from apps.raster.services import (
@@ -847,6 +848,56 @@ def resource_profile(request, pk: int):
             "raster": profile.raster,
         }
     )
+
+
+@require_GET
+@api_login_required
+def resource_visualization_summary_view(request, pk: int):
+    if not has_feature_perm(request.user, "core.browse_data"):
+        return feature_denied_response(request.user)
+    resource = get_object_or_404(
+        DataResource.objects.select_related("category"),
+        pk=pk,
+        status=DataResource.Status.ACTIVE,
+    )
+    if not user_can_access(resource, request.user):
+        return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
+    try:
+        top_n = _bounded_int_query(request, "topN", 8, 3, 20)
+        histogram_bins = _bounded_int_query(request, "histogramBins", 8, 4, 20)
+        summary = resource_visualization_summary(
+            resource,
+            top_n=top_n,
+            histogram_bins=histogram_bins,
+        )
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    except DataQueryError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    log_operation(
+        request.user,
+        "数据查询",
+        "查看数据可视化摘要",
+        "success",
+        resource.name,
+        request,
+        target_type="data_resource",
+        target_id=resource.id,
+        target_code=resource.code,
+        target_name=resource.name,
+    )
+    return JsonResponse(summary)
+
+
+def _bounded_int_query(request, name: str, default: int, minimum: int, maximum: int):
+    raw_value = request.GET.get(name, default)
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} 必须是整数") from exc
+    if value < minimum or value > maximum:
+        raise ValueError(f"{name} 必须在 {minimum} 到 {maximum} 之间")
+    return value
 
 
 @require_POST

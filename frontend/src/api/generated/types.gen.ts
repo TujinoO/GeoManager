@@ -3238,6 +3238,271 @@ export type FieldInfo = {
     description: string;
 };
 
+export type ResourceVisualizationSummaryResponse = {
+    resource: DataResource;
+    domainType: DataDomainType;
+    /**
+     * 聚合摘要生成时间。
+     */
+    generatedAt: string;
+    /**
+     * 摘要生成来源；矢量为后端聚合，栅格为元数据推导，无法读取明细时为 profile_only。
+     */
+    source: 'backend_aggregate' | 'raster_metadata' | 'profile_only';
+    profile: VisualizationResourceProfile;
+    /**
+     * 可用于构成图、TopN 排名和分类筛选的字段统计。
+     */
+    categoryStats: Array<VisualizationCategoryStat>;
+    /**
+     * 可用于直方图、箱线图、雷达图和连续分级的数值字段统计。
+     */
+    numericStats: Array<VisualizationNumericStat>;
+    spatialSummary: VisualizationSpatialSummary;
+    /**
+     * 数据质量监测问题清单。
+     */
+    qualityIssues: Array<VisualizationQualityIssue>;
+    /**
+     * 后端根据业务类型和字段结构推荐的图表卡片。
+     */
+    recommendedCharts: Array<VisualizationChartRecommendation>;
+    monitorPreview: VisualizationMonitorPreview;
+};
+
+export type VisualizationResourceProfile = {
+    /**
+     * 矢量要素数；栅格或无法计算时为 null。
+     */
+    featureCount: number | null;
+    /**
+     * 可分析字段数量。
+     */
+    fieldCount: number;
+    /**
+     * 几何类型或 Raster。
+     */
+    geometryType: string;
+    /**
+     * WGS84 边界 [minLng, minLat, maxLng, maxLat]。
+     */
+    bounds: Array<number>;
+};
+
+export type VisualizationCategoryStat = {
+    /**
+     * 字段名。
+     */
+    field: string;
+    /**
+     * 前端显示名。
+     */
+    label: string;
+    /**
+     * 参与统计的总记录数。
+     */
+    total: number;
+    /**
+     * 空值数量。
+     */
+    nullCount: number;
+    /**
+     * 非空唯一值数量。
+     */
+    uniqueCount: number;
+    /**
+     * items 是否因为 topN 限制被截断。
+     */
+    truncated: boolean;
+    items: Array<VisualizationCategoryItem>;
+};
+
+export type VisualizationCategoryItem = {
+    /**
+     * 分类值显示文本。
+     */
+    label: string;
+    /**
+     * 分类计数。
+     */
+    count: number;
+    /**
+     * 分类占比，按 total 计算。
+     */
+    ratio: number;
+};
+
+export type VisualizationNumericStat = {
+    /**
+     * 字段名。
+     */
+    field: string;
+    /**
+     * 前端显示名。
+     */
+    label: string;
+    /**
+     * 可解析为数值的记录数。
+     */
+    count: number;
+    /**
+     * 空值或不可解析值数量。
+     */
+    nullCount: number;
+    /**
+     * 最小值。
+     */
+    min: number | null;
+    /**
+     * 最大值。
+     */
+    max: number | null;
+    /**
+     * 平均值。
+     */
+    mean: number | null;
+    /**
+     * 中位数。
+     */
+    median: number | null;
+    /**
+     * 第一四分位数。
+     */
+    q1: number | null;
+    /**
+     * 第三四分位数。
+     */
+    q3: number | null;
+    /**
+     * 直方图分箱。
+     */
+    histogram: Array<VisualizationHistogramBin>;
+};
+
+export type VisualizationHistogramBin = {
+    /**
+     * 分箱下界。
+     */
+    min: number;
+    /**
+     * 分箱上界。
+     */
+    max: number;
+    /**
+     * 分箱计数。
+     */
+    count: number;
+    /**
+     * 分箱显示标签。
+     */
+    label: string;
+};
+
+export type VisualizationSpatialSummary = {
+    /**
+     * 空间记录总数；栅格或无法计算时为 null。
+     */
+    featureCount: number | null;
+    /**
+     * 有效几何数量。
+     */
+    validGeometryCount: number | null;
+    /**
+     * 空几何数量。
+     */
+    nullGeometryCount: number | null;
+    /**
+     * 有效空间几何覆盖率。
+     */
+    coordinateCoverageRatio: number | null;
+    bounds: Array<number>;
+    geometryTypes: Array<VisualizationCategoryItem>;
+    /**
+     * 有效空间对象中心点 [lng, lat]；无法计算时为 null。
+     */
+    centroid: [
+        number,
+        number
+    ] | null;
+};
+
+export type VisualizationQualityIssue = {
+    /**
+     * 问题代码。
+     */
+    code: string;
+    /**
+     * 问题级别。
+     */
+    severity: 'info' | 'warning' | 'error';
+    /**
+     * 问题标题。
+     */
+    title: string;
+    /**
+     * 问题说明。
+     */
+    message: string;
+    /**
+     * 影响记录数。
+     */
+    count: number;
+    /**
+     * 影响比例。
+     */
+    ratio?: number | null;
+    /**
+     * 相关字段名。
+     */
+    field?: string | null;
+};
+
+export type VisualizationChartRecommendation = {
+    /**
+     * 推荐图表类型。
+     */
+    chartType: 'gauge' | 'rank_bar' | 'stacked_bar' | 'donut' | 'histogram' | 'boxplot' | 'scatter' | 'radar' | 'heatmap' | 'treemap' | 'sunburst' | 'parallel' | 'raster_preview' | 'quality_list';
+    /**
+     * 图表标题。
+     */
+    title: string;
+    /**
+     * 适用说明。
+     */
+    description: string;
+    /**
+     * 推荐使用字段。
+     */
+    fields: Array<string>;
+};
+
+export type VisualizationMonitorPreview = {
+    /**
+     * 监测占位标题。
+     */
+    title: string;
+    /**
+     * 监测能力状态。
+     */
+    status: 'planned' | 'partial' | 'ready';
+    items: Array<VisualizationMonitorItem>;
+};
+
+export type VisualizationMonitorItem = {
+    /**
+     * 监测能力名称。
+     */
+    label: string;
+    /**
+     * 能力状态。
+     */
+    status: 'planned' | 'partial' | 'ready';
+    /**
+     * 能力说明。
+     */
+    description: string;
+};
+
 export type QueryRequest = {
     /**
      * 属性过滤条件
@@ -5823,6 +6088,57 @@ export type GetResourceProfileResponses = {
 };
 
 export type GetResourceProfileResponse = GetResourceProfileResponses[keyof GetResourceProfileResponses];
+
+export type GetResourceVisualizationSummaryData = {
+    body?: never;
+    path: {
+        /**
+         * 资源 ID
+         */
+        id: number;
+    };
+    query?: {
+        /**
+         * 每个分类字段返回的最高频类别数量。
+         */
+        topN?: number;
+        /**
+         * 数值字段直方图分箱数量。
+         */
+        histogramBins?: number;
+    };
+    url: '/api/catalog/resources/{id}/visualization-summary/';
+};
+
+export type GetResourceVisualizationSummaryErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type GetResourceVisualizationSummaryError = GetResourceVisualizationSummaryErrors[keyof GetResourceVisualizationSummaryErrors];
+
+export type GetResourceVisualizationSummaryResponses = {
+    /**
+     * 可视化聚合摘要
+     */
+    200: ResourceVisualizationSummaryResponse;
+};
+
+export type GetResourceVisualizationSummaryResponse = GetResourceVisualizationSummaryResponses[keyof GetResourceVisualizationSummaryResponses];
 
 export type QueryResourceData = {
     body: QueryRequest;

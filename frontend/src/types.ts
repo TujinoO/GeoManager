@@ -53,6 +53,7 @@ import type {
   RasterRenderResult,
   ResourceListItem,
   ResourceProfileResponse,
+  ResourceVisualizationSummaryResponse,
   SearchResponse,
   UniqueValuesResponse,
   UserInfo,
@@ -220,6 +221,7 @@ export type WorkspaceSceneSnapshot = GeneratedWorkspaceSceneSnapshot & {
 };
 
 export type DataResourceProfile = ResourceProfileResponse;
+export type ResourceVisualizationSummary = ResourceVisualizationSummaryResponse;
 
 export interface ImportCommitPayload {
   name: string;

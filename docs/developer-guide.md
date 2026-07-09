@@ -631,11 +631,35 @@ print(f"空间范围: {profile['bounds']}")
 print(f"字段列表: {profile['fields']}")
 ```
 
+#### Step 3.1: 获取资源可视化聚合摘要
+
+`GET /api/catalog/resources/{id}/visualization-summary/` 返回右侧数据洞察面板使用的轻量聚合摘要。该接口只读，不返回原始 GeoJSON、栅格像元数组或查询结果数据本体；矢量资源基于 GeoPackage 图层计算分类 TopN、数值分布、空间覆盖和质量问题，栅格资源基于栅格元数据生成分辨率、波段范围和质量提示。接口需要登录态、`core.browse_data` 权限，并沿用资源访问范围校验。
+
+```javascript
+// JavaScript
+const params = new URLSearchParams({
+  topN: "8",
+  histogramBins: "8",
+});
+const response = await fetch(
+  `/api/catalog/resources/${resource.id}/visualization-summary/?${params}`,
+  { credentials: "include" },
+);
+const summary = await response.json();
+
+console.log(summary.categoryStats);
+console.log(summary.numericStats);
+console.log(summary.qualityIssues);
+```
+
+该接口对应地理数据右侧栏“第二阶段”的后端聚合能力。第一阶段在前端仍可利用当前已加载图层的 GeoJSON、资源 profile 和栅格 metadata 做即时本地洞察；当后端摘要可用时，前端应优先使用接口返回的聚合结果，并将本地图层数据作为当前视图或选中要素补充。
+
 ### 最佳实践
 
 - **缓存目录数据**：数据目录结构变化不频繁，建议在前端缓存，减少重复请求。
 - **分页处理**：资源列表可能较多，建议配合分页参数使用。
 - **字段元数据**：获取资源详情后，可以展示字段说明和样本值，帮助用户理解数据结构。
+- **可视化摘要**：右侧数据洞察面板应优先使用可视化聚合摘要接口，避免为了图表展示重复拉取大量原始要素。
 
 ### FAQ
 

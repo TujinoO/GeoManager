@@ -34,6 +34,11 @@ urlpatterns = [
         name="catalog-resource-profile",
     ),
     path(
+        "catalog/resources/<int:pk>/visualization-summary/",
+        views.resource_visualization_summary_view,
+        name="catalog-resource-visualization-summary",
+    ),
+    path(
         "catalog/resources/<int:pk>/query/",
         views.resource_query,
         name="catalog-resource-query",

@@ -5,6 +5,7 @@ import sqlite3
 import zipfile
 from datetime import date
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
@@ -320,9 +321,10 @@ class ResourceQueryApiTests(TestCase):
 
 class CatalogBusinessScenarioTests(TestCase):
     def setUp(self):
-        self.research_group = Group.objects.create(name="科研用户")
+        suffix = uuid4().hex[:8]
+        self.research_group = Group.objects.create(name=f"科研用户-{suffix}")
         self.researcher = get_user_model().objects.create_user(
-            username="tarim-researcher", password="pass12345"
+            username=f"tarim-researcher-{suffix}", password="pass12345"
         )
         self.researcher.groups.add(self.research_group)
         grant(
@@ -332,7 +334,7 @@ class CatalogBusinessScenarioTests(TestCase):
             ("core", "load_vector_layer"),
         )
         self.other_user = get_user_model().objects.create_user(
-            username="external-user", password="pass12345"
+            username=f"external-user-{suffix}", password="pass12345"
         )
         grant(
             self.other_user,
@@ -340,10 +342,9 @@ class CatalogBusinessScenarioTests(TestCase):
             ("core", "query_data"),
             ("core", "load_vector_layer"),
         )
-        self.layer_name = "tarim_poplar_monitoring_2026"
+        self.layer_name = f"tarim_poplar_monitoring_2026_{suffix}"
         self.path = vector_geopackage_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.unlink(missing_ok=True)
 
         import geopandas as gpd
 
@@ -377,7 +378,7 @@ class CatalogBusinessScenarioTests(TestCase):
         gdf.to_file(self.path, layer=self.layer_name, driver="GPKG")
         self.resource = DataResource.objects.create(
             name="塔里木河胡杨样地监测点",
-            code="tarim-poplar-monitoring-2026",
+            code=f"tarim-poplar-monitoring-2026-{suffix}",
             data_type=DataResource.DataType.VECTOR,
             source="2026 塔里木河野外调查",
             provider="生态监测组",
@@ -392,7 +393,7 @@ class CatalogBusinessScenarioTests(TestCase):
         self.resource.access_groups.add(self.research_group)
         MapLayer.objects.create(
             name="塔里木河胡杨样地监测点",
-            code="tarim-poplar-monitoring-layer",
+            code=f"tarim-poplar-monitoring-layer-{suffix}",
             layer_type=MapLayer.LayerType.VECTOR,
             geometry_type=MapLayer.GeometryType.POINT,
             data_resource=self.resource,
@@ -483,6 +484,54 @@ class CatalogBusinessScenarioTests(TestCase):
             ).exists()
         )
 
+    def test_visualization_summary_returns_vector_aggregates(self):
+        self.client.force_login(self.researcher)
+
+        response = self.client.get(
+            f"/api/catalog/resources/{self.resource.id}/visualization-summary/",
+            {"topN": "5", "histogramBins": "4"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["resource"]["id"], self.resource.id)
+        self.assertEqual(payload["source"], "backend_aggregate")
+        self.assertEqual(payload["profile"]["featureCount"], 3)
+        self.assertEqual(payload["spatialSummary"]["validGeometryCount"], 3)
+        self.assertEqual(payload["spatialSummary"]["coordinateCoverageRatio"], 1)
+
+        category_fields = {item["field"] for item in payload["categoryStats"]}
+        numeric_fields = {item["field"] for item in payload["numericStats"]}
+        self.assertIn("health", category_fields)
+        self.assertIn("dbh_cm", numeric_fields)
+
+        dbh_stat = next(
+            item for item in payload["numericStats"] if item["field"] == "dbh_cm"
+        )
+        self.assertEqual(dbh_stat["count"], 3)
+        self.assertGreaterEqual(len(dbh_stat["histogram"]), 1)
+        self.assertTrue(payload["recommendedCharts"])
+        self.assertEqual(payload["monitorPreview"]["status"], "planned")
+        self.assertTrue(
+            OperationLog.objects.filter(
+                user=self.researcher,
+                action="查看数据可视化摘要",
+                target_type="data_resource",
+                target_id=self.resource.id,
+            ).exists()
+        )
+
+    def test_visualization_summary_rejects_invalid_query_params(self):
+        self.client.force_login(self.researcher)
+
+        response = self.client.get(
+            f"/api/catalog/resources/{self.resource.id}/visualization-summary/",
+            {"topN": "99"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("topN", response.json()["detail"])
+
     def test_unauthorized_user_cannot_see_profile_or_query_restricted_resource(self):
         self.client.force_login(self.other_user)
 
@@ -490,6 +539,9 @@ class CatalogBusinessScenarioTests(TestCase):
         layer_response = self.client.get("/api/layers/")
         profile_response = self.client.get(
             f"/api/catalog/resources/{self.resource.id}/profile/"
+        )
+        summary_response = self.client.get(
+            f"/api/catalog/resources/{self.resource.id}/visualization-summary/"
         )
         query_response = self.client.post(
             f"/api/catalog/resources/{self.resource.id}/query/",
@@ -508,6 +560,8 @@ class CatalogBusinessScenarioTests(TestCase):
         self.assertNotIn(self.resource.id, layer_ids)
         self.assertEqual(profile_response.status_code, 403)
         self.assertEqual(profile_response.json()["detail"], "无权访问该数据资源")
+        self.assertEqual(summary_response.status_code, 403)
+        self.assertEqual(summary_response.json()["detail"], "无权访问该数据资源")
         self.assertEqual(query_response.status_code, 403)
         self.assertEqual(query_response.json()["detail"], "无权访问该数据资源")
 

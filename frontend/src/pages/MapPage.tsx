@@ -1,10 +1,13 @@
 import {
+  AimOutlined,
   ApartmentOutlined,
   AppstoreOutlined,
   DatabaseOutlined,
+  DownOutlined,
   FolderOpenOutlined,
+  UpOutlined,
 } from "@ant-design/icons";
-import { App, ConfigProvider, Layout, Spin, Tabs } from "antd";
+import { App, Button, ConfigProvider, Layout, Spin, Tabs, Tooltip } from "antd";
 import type { LngLatBounds, Map as MapboxMap } from "mapbox-gl";
 import {
   lazy,
@@ -63,6 +66,7 @@ import type {
   ResourceFilters,
   ResourceListItem,
   ResourceQueryResult,
+  ResourceVisualizationSummary,
   SpatialFilter,
 } from "../types";
 import { downloadBlob } from "../utils/download";
@@ -167,6 +171,13 @@ export default function MapPage() {
     useState<ResourceListItem | null>(null);
   const [resourceProfile, setResourceProfile] =
     useState<DataResourceProfile | null>(null);
+  const [spatialTargetResource, setSpatialTargetResource] =
+    useState<ResourceListItem | null>(null);
+  const [spatialTargetResourceProfile, setSpatialTargetResourceProfile] =
+    useState<DataResourceProfile | null>(null);
+  const [spatialTargetLayerId, setSpatialTargetLayerId] = useState<
+    string | null
+  >(null);
   const [spatialFilter, setSpatialFilter] = useState<SpatialFilter | null>(
     null,
   );
@@ -177,6 +188,7 @@ export default function MapPage() {
     useState<SpatialQueryContext | null>(null);
   const [spatialQueryResult, setSpatialQueryResult] =
     useState<SpatialQueryWorkbenchResult | null>(null);
+  const [spatialWorkbenchOpen, setSpatialWorkbenchOpen] = useState(false);
   const [activeDraw, setActiveDraw] = useState<{
     purpose: DrawPurpose;
     mode: NonNullable<DrawMode>;
@@ -186,6 +198,15 @@ export default function MapPage() {
   const [selectedFeature, setSelectedFeature] = useState<FeatureInfo | null>(
     null,
   );
+  const [visualizationSummary, setVisualizationSummary] =
+    useState<ResourceVisualizationSummary | null>(null);
+  const [visualizationSummaryLoading, setVisualizationSummaryLoading] =
+    useState(false);
+  const [visualizationSummaryError, setVisualizationSummaryError] = useState<
+    string | null
+  >(null);
+  const [loadingSpatialTargetProfile, setLoadingSpatialTargetProfile] =
+    useState(false);
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [activeLeftPanel, setActiveLeftPanel] =
     useState<LeftPanelTabKey>("data");
@@ -325,6 +346,89 @@ export default function MapPage() {
     return allLayers.find((layer) => layer.id === selectedLayerId) ?? null;
   }, [allLayers, selectedLayerId]);
 
+  const spatialTargetLayer = useMemo(() => {
+    if (!spatialTargetLayerId) {
+      return null;
+    }
+    return allLayers.find((layer) => layer.id === spatialTargetLayerId) ?? null;
+  }, [allLayers, spatialTargetLayerId]);
+
+  const rangeSourceLayer = spatialTargetLayer ?? selectedLayer;
+
+  const activeInsightLayer = useMemo(() => {
+    if (selectedFeature) {
+      return (
+        allLayers.find((layer) => layer.id === selectedFeature.layerId) ??
+        selectedLayer
+      );
+    }
+    return selectedLayer;
+  }, [allLayers, selectedFeature, selectedLayer]);
+
+  const activeInsightResource = useMemo(
+    () => activeInsightLayer?.sourceResource ?? selectedResource,
+    [activeInsightLayer, selectedResource],
+  );
+
+  const activeInsightProfile = useMemo(() => {
+    if (
+      !activeInsightResource ||
+      resourceProfile?.resource.id !== activeInsightResource.id
+    ) {
+      return null;
+    }
+    return resourceProfile;
+  }, [activeInsightResource, resourceProfile]);
+
+  const spatialWorkbenchStatus = activeDraw
+    ? "正在绘制空间范围"
+    : spatialQuerying
+      ? "正在执行空间查询"
+      : spatialQueryResult
+        ? `命中 ${spatialQueryResult.totalCount} 条，返回 ${spatialQueryResult.returnedCount} 条`
+        : spatialFilter
+          ? "已设置空间查询范围"
+          : "范围绘制、查询对象与结果加载";
+
+  useEffect(() => {
+    if (!permissions.canBrowseData || !activeInsightResource) {
+      setVisualizationSummary(null);
+      setVisualizationSummaryError(null);
+      setVisualizationSummaryLoading(false);
+      return;
+    }
+
+    let ignore = false;
+    setVisualizationSummaryLoading(true);
+    setVisualizationSummaryError(null);
+    api
+      .resourceVisualizationSummary(activeInsightResource, {
+        topN: 10,
+        histogramBins: 8,
+      })
+      .then((summary) => {
+        if (!ignore) {
+          setVisualizationSummary(summary);
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          setVisualizationSummary(null);
+          setVisualizationSummaryError(
+            error instanceof Error ? error.message : "可视化摘要加载失败",
+          );
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setVisualizationSummaryLoading(false);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [activeInsightResource, permissions.canBrowseData]);
+
   const setLayerExtentVisibility = useCallback(
     (layerId: string, visible: boolean) => {
       setVisibleLayerExtentIds((current) => {
@@ -351,6 +455,9 @@ export default function MapPage() {
       );
       return next.size === current.size ? current : next;
     });
+    setSpatialTargetLayerId((current) =>
+      current && !activeLayerIds.has(current) ? null : current,
+    );
   }, [allLayers]);
 
   const layerExtentOverlays = useMemo(() => {
@@ -388,6 +495,16 @@ export default function MapPage() {
             : current,
         );
         setResourceProfile((current) =>
+          current && !items.some((item) => item.id === current.resource.id)
+            ? null
+            : current,
+        );
+        setSpatialTargetResource((current) =>
+          current && !items.some((item) => item.id === current.id)
+            ? null
+            : current,
+        );
+        setSpatialTargetResourceProfile((current) =>
           current && !items.some((item) => item.id === current.resource.id)
             ? null
             : current,
@@ -500,6 +617,24 @@ export default function MapPage() {
       return null;
     } finally {
       setLoadingProfile(false);
+    }
+  }
+
+  async function fetchSpatialTargetResourceProfile(resource: ResourceListItem) {
+    setSpatialTargetResource(resource);
+    setLoadingSpatialTargetProfile(true);
+    try {
+      const profile = await api.resourceProfile(resource);
+      setSpatialTargetResourceProfile(profile);
+      return profile;
+    } catch (error) {
+      setSpatialTargetResourceProfile(null);
+      message.error(
+        error instanceof Error ? error.message : "读取查询对象元信息失败",
+      );
+      return null;
+    } finally {
+      setLoadingSpatialTargetProfile(false);
     }
   }
 
@@ -955,11 +1090,11 @@ export default function MapPage() {
   }
 
   function handleUseSelectedLayerRange() {
-    if (!selectedLayer) {
-      message.warning("请先在图层树选择图层");
+    if (!rangeSourceLayer) {
+      message.warning("请先在空间查询工作台或图层树选择图层");
       return;
     }
-    const geometry = layerExtentGeometryFor(selectedLayer);
+    const geometry = layerExtentGeometryFor(rangeSourceLayer);
     if (!geometry) {
       message.warning("当前图层没有可用空间范围");
       return;
@@ -1004,8 +1139,8 @@ export default function MapPage() {
   async function handleSelectSpatialTargetResource(resourceId: number | null) {
     clearSpatialQueryState();
     if (resourceId === null) {
-      setSelectedResource(null);
-      setResourceProfile(null);
+      setSpatialTargetResource(null);
+      setSpatialTargetResourceProfile(null);
       return;
     }
     const resource = resources.find((item) => item.id === resourceId);
@@ -1017,13 +1152,13 @@ export default function MapPage() {
       message.warning("请选择可查询的矢量资源");
       return;
     }
-    await fetchResourceProfile(resource);
+    await fetchSpatialTargetResourceProfile(resource);
   }
 
   function handleSelectSpatialTargetLayer(layerId: string | null) {
     clearSpatialQueryState();
     if (layerId === null) {
-      setSelectedLayerId(null);
+      setSpatialTargetLayerId(null);
       return;
     }
     const layer = allLayers.find((item) => item.id === layerId);
@@ -1031,7 +1166,7 @@ export default function MapPage() {
       message.warning("请选择已加载的矢量图层");
       return;
     }
-    setSelectedLayerId(layerId);
+    setSpatialTargetLayerId(layerId);
   }
 
   async function resolveSpatialQueryContext(
@@ -1043,32 +1178,32 @@ export default function MapPage() {
       spatialFilter: queryFilter,
     };
     if (target === "selectedResource") {
-      if (!selectedResource) {
-        message.warning("请先在左侧数据面板选择资源");
+      if (!spatialTargetResource) {
+        message.warning("请先在空间查询工作台选择资源");
         return null;
       }
       if (
-        selectedResource.dataType !== "vector" ||
-        !selectedResource.isQueryable ||
-        !resourceProfile
+        spatialTargetResource.dataType !== "vector" ||
+        !spatialTargetResource.isQueryable ||
+        !spatialTargetResourceProfile
       ) {
         message.warning("当前资源不是可查询的矢量资源");
         return null;
       }
       return {
         target,
-        targetName: selectedResource.name,
-        resource: selectedResource,
-        profile: resourceProfile,
+        targetName: spatialTargetResource.name,
+        resource: spatialTargetResource,
+        profile: spatialTargetResourceProfile,
         query,
       };
     }
 
-    if (!selectedLayer || selectedLayer.layerType !== "vector") {
-      message.warning("请先在图层树选择矢量图层");
+    if (!spatialTargetLayer || spatialTargetLayer.layerType !== "vector") {
+      message.warning("请先在空间查询工作台选择矢量图层");
       return null;
     }
-    const resource = selectedLayer.sourceResource;
+    const resource = spatialTargetLayer.sourceResource;
     if (
       resource.id <= 0 ||
       resource.dataType !== "vector" ||
@@ -1078,12 +1213,14 @@ export default function MapPage() {
       return null;
     }
     const profile =
-      selectedResource?.id === resource.id && resourceProfile
-        ? resourceProfile
-        : await api.resourceProfile(resource);
+      spatialTargetResource?.id === resource.id && spatialTargetResourceProfile
+        ? spatialTargetResourceProfile
+        : selectedResource?.id === resource.id && resourceProfile
+          ? resourceProfile
+          : await api.resourceProfile(resource);
     return {
       target,
-      targetName: selectedLayer.name,
+      targetName: spatialTargetLayer.name,
       resource,
       profile,
       query,
@@ -1175,7 +1312,9 @@ export default function MapPage() {
               : "当前资源",
           来源资源: spatialQueryContext.resource.name,
           空间范围: spatialQueryContext.query.spatialFilter
-            ? spatialFilterModeLabel(spatialQueryContext.query.spatialFilter.mode)
+            ? spatialFilterModeLabel(
+                spatialQueryContext.query.spatialFilter.mode,
+              )
             : "未设置",
           命中总数: spatialQueryData.totalCount,
           返回条数: spatialQueryData.returnedCount,
@@ -1254,7 +1393,8 @@ export default function MapPage() {
             `空间查询结果 - ${spatialQueryContext.targetName}`,
           resourceId: spatialQueryContext.resource.id,
           geojson: spatialQueryData.geojson,
-          sourceCrs: spatialQueryContext.resource.coordinateSystem || "EPSG:4326",
+          sourceCrs:
+            spatialQueryContext.resource.coordinateSystem || "EPSG:4326",
         },
       ],
       {
@@ -1385,7 +1525,13 @@ export default function MapPage() {
           }
         }}
       />
-      <div className="workspace-body">
+      <div
+        className={`workspace-body ${
+          spatialWorkbenchOpen
+            ? "workspace-body-spatial-open"
+            : "workspace-body-spatial-collapsed"
+        }`}
+      >
         <main className="map-stage">
           <Suspense
             fallback={
@@ -1498,49 +1644,96 @@ export default function MapPage() {
           <ConfigProvider theme={workspacePanelTheme}>
             <RightSidePanel
               selectedFeature={selectedFeature}
+              selectedResource={activeInsightResource}
+              selectedResourceProfile={activeInsightProfile}
+              selectedLayer={activeInsightLayer}
+              visualizationSummary={visualizationSummary}
+              visualizationSummaryLoading={visualizationSummaryLoading}
+              visualizationSummaryError={visualizationSummaryError}
               currentView={currentMapView}
               mapConfig={bootstrap.map}
             />
           </ConfigProvider>
         </aside>
         <aside
-          className="floating-panel-bottom"
+          id="spatial-query-workbench-panel"
+          className={`floating-panel-bottom spatial-workbench-panel ${
+            spatialWorkbenchOpen
+              ? "spatial-workbench-panel-open"
+              : "spatial-workbench-panel-collapsed"
+          }`}
           aria-label="空间查询面板"
+          aria-expanded={spatialWorkbenchOpen}
         >
           <ConfigProvider theme={workspacePanelTheme}>
-            <SpatialQueryWorkbench
-              resources={resources}
-              layers={allLayers}
-              selectedResource={selectedResource}
-              selectedResourceProfile={resourceProfile}
-              selectedLayer={selectedLayer}
-              exportClipGeometry={sharedSpatialGeometry}
-              spatialFilter={spatialFilter}
-              activeDraw={activeDraw}
-              spatialQuerying={spatialQuerying}
-              spatialQueryResult={spatialQueryResult}
-              canExportData={permissions.canExportData}
-              exportTileZoomRange={exportTileZoomRange}
-              canUseCurrentViewRange={Boolean(currentMapView)}
-              canUseSelectedLayerRange={Boolean(
-                selectedLayer && layerExtentGeometryFor(selectedLayer),
-              )}
-              loadingResourceProfile={loadingProfile}
-              onSelectTargetResource={handleSelectSpatialTargetResource}
-              onSelectTargetLayer={handleSelectSpatialTargetLayer}
-              onStartQueryDraw={setQueryDrawMode}
-              onClearSpatialFilter={handleClearSpatialFilter}
-              onImportSpatialFilter={handleImportSpatialFilter}
-              onUseCurrentViewRange={handleUseCurrentViewRange}
-              onUseSelectedLayerRange={handleUseSelectedLayerRange}
-              onRunSpatialQuery={handleRunSpatialQuery}
-              onLoadSpatialResult={handleLoadSpatialResult}
-              onLocateSpatialResult={handleLocateSpatialResult}
-              onOpenSpatialResultTable={handleOpenSpatialResultTable}
-              onExportSpatialResult={handleExportSpatialResult}
-              onClearSpatialResult={handleClearSpatialResult}
-              onExportMapPng={exportCurrentMapPng}
-            />
+            {spatialWorkbenchOpen ? (
+              <>
+                <Tooltip title="隐藏空间查询工作台">
+                  <Button
+                    className="spatial-workbench-collapse-button"
+                    type="text"
+                    icon={<DownOutlined style={{ fontSize: 14 }} />}
+                    aria-label="隐藏空间查询工作台"
+                    onClick={() => setSpatialWorkbenchOpen(false)}
+                  />
+                </Tooltip>
+                <SpatialQueryWorkbench
+                  resources={resources}
+                  layers={allLayers}
+                  selectedResource={spatialTargetResource}
+                  selectedResourceProfile={spatialTargetResourceProfile}
+                  selectedLayer={spatialTargetLayer}
+                  exportClipGeometry={sharedSpatialGeometry}
+                  spatialFilter={spatialFilter}
+                  activeDraw={activeDraw}
+                  spatialQuerying={spatialQuerying}
+                  spatialQueryResult={spatialQueryResult}
+                  canExportData={permissions.canExportData}
+                  exportTileZoomRange={exportTileZoomRange}
+                  canUseCurrentViewRange={Boolean(currentMapView)}
+                  canUseSelectedLayerRange={Boolean(
+                    rangeSourceLayer &&
+                    layerExtentGeometryFor(rangeSourceLayer),
+                  )}
+                  loadingResourceProfile={loadingSpatialTargetProfile}
+                  onSelectTargetResource={handleSelectSpatialTargetResource}
+                  onSelectTargetLayer={handleSelectSpatialTargetLayer}
+                  onStartQueryDraw={setQueryDrawMode}
+                  onClearSpatialFilter={handleClearSpatialFilter}
+                  onImportSpatialFilter={handleImportSpatialFilter}
+                  onUseCurrentViewRange={handleUseCurrentViewRange}
+                  onUseSelectedLayerRange={handleUseSelectedLayerRange}
+                  onRunSpatialQuery={handleRunSpatialQuery}
+                  onLoadSpatialResult={handleLoadSpatialResult}
+                  onLocateSpatialResult={handleLocateSpatialResult}
+                  onOpenSpatialResultTable={handleOpenSpatialResultTable}
+                  onExportSpatialResult={handleExportSpatialResult}
+                  onClearSpatialResult={handleClearSpatialResult}
+                  onExportMapPng={exportCurrentMapPng}
+                />
+              </>
+            ) : (
+              <button
+                className="spatial-workbench-peek-card"
+                type="button"
+                aria-label="打开空间查询工作台"
+                aria-controls="spatial-query-workbench-panel"
+                aria-expanded={spatialWorkbenchOpen}
+                onClick={() => setSpatialWorkbenchOpen(true)}
+              >
+                <span className="spatial-workbench-peek-icon" aria-hidden>
+                  <AimOutlined style={{ fontSize: 15 }} />
+                </span>
+                <span className="spatial-workbench-peek-copy">
+                  <strong>打开空间查询工作台</strong>
+                  <small>{spatialWorkbenchStatus}</small>
+                </span>
+                <span className="spatial-workbench-peek-action">
+                  <span>打开</span>
+                  <UpOutlined style={{ fontSize: 13 }} />
+                </span>
+              </button>
+            )}
           </ConfigProvider>
         </aside>
       </div>

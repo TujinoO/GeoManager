@@ -478,6 +478,168 @@
       ]
     }
   },
+  "GET /api/catalog/resources/{id}/visualization-summary/": {
+    "200": {
+      "resource": {
+        "id": 3,
+        "name": "塔里木河胡杨样地监测点",
+        "code": "survey-points-2026",
+        "dataType": "vector",
+        "domainType": "field_survey",
+        "category": {
+          "id": 101,
+          "type": "data_category",
+          "code": "monitoring",
+          "name": "长期监测"
+        },
+        "source": "2026 塔里木河野外调查",
+        "provider": "生态监测组",
+        "dataDate": "2026-06-01",
+        "spatialExtent": "87.600000,43.795100,87.642800,43.812450",
+        "coordinateSystem": "EPSG:4326",
+        "fileFormat": "GPKG",
+        "description": "由 Excel/CSV 导入的地理样地监测点数据。",
+        "qualityNote": "坐标有效 3/3 行。",
+        "status": "active",
+        "isQueryable": true,
+        "isRenderable": false,
+        "updatedAt": "2026-06-18T12:30:00+08:00",
+        "sizeBytes": 245760,
+        "itemCount": 3
+      },
+      "domainType": "field_survey",
+      "generatedAt": "2026-07-07T09:30:00+08:00",
+      "source": "backend_aggregate",
+      "profile": {
+        "featureCount": 3,
+        "fieldCount": 3,
+        "geometryType": "Point",
+        "bounds": [
+          87.6,
+          43.7951,
+          87.6428,
+          43.81245
+        ]
+      },
+      "categoryStats": [
+        {
+          "field": "health",
+          "label": "健康状况",
+          "total": 3,
+          "nullCount": 0,
+          "uniqueCount": 2,
+          "truncated": false,
+          "items": [
+            {
+              "label": "良好",
+              "count": 2,
+              "ratio": 0.6667
+            },
+            {
+              "label": "关注",
+              "count": 1,
+              "ratio": 0.3333
+            }
+          ]
+        }
+      ],
+      "numericStats": [
+        {
+          "field": "dbh_cm",
+          "label": "胸径（厘米）",
+          "count": 3,
+          "nullCount": 0,
+          "min": 21.8,
+          "max": 32.5,
+          "mean": 27.8,
+          "median": 29.1,
+          "q1": 25.45,
+          "q3": 30.8,
+          "histogram": [
+            {
+              "min": 21.8,
+              "max": 27.15,
+              "count": 1,
+              "label": "21.80-27.15"
+            },
+            {
+              "min": 27.15,
+              "max": 32.5,
+              "count": 2,
+              "label": "27.15-32.50"
+            }
+          ]
+        }
+      ],
+      "spatialSummary": {
+        "featureCount": 3,
+        "validGeometryCount": 3,
+        "nullGeometryCount": 0,
+        "coordinateCoverageRatio": 1,
+        "bounds": [
+          87.6,
+          43.7951,
+          87.6428,
+          43.81245
+        ],
+        "geometryTypes": [
+          {
+            "label": "Point",
+            "count": 3,
+            "ratio": 1
+          }
+        ],
+        "centroid": [
+          87.6214,
+          43.8038
+        ]
+      },
+      "qualityIssues": [
+        {
+          "code": "quality_ready",
+          "severity": "info",
+          "title": "基础质量良好",
+          "message": "当前资源坐标和主要字段可用于可视化分析。",
+          "count": 0,
+          "ratio": 0
+        }
+      ],
+      "recommendedCharts": [
+        {
+          "chartType": "rank_bar",
+          "title": "调查指标排行",
+          "description": "根据胸径、株数或盖度等字段展示重点样点。",
+          "fields": [
+            "dbh_cm"
+          ]
+        },
+        {
+          "chartType": "donut",
+          "title": "健康状态构成",
+          "description": "展示野外调查记录的分类结构。",
+          "fields": [
+            "health"
+          ]
+        }
+      ],
+      "monitorPreview": {
+        "title": "监测能力预留",
+        "status": "planned",
+        "items": [
+          {
+            "label": "阈值配置",
+            "status": "planned",
+            "description": "后续支持对胸径、盖度、重要值和遥感指数设置预警阈值。"
+          },
+          {
+            "label": "定时扫描",
+            "status": "planned",
+            "description": "后续支持定时扫描资源质量与生态指标异常。"
+          }
+        ]
+      }
+    }
+  },
   "POST /api/catalog/resources/{id}/query/": {
     "200": {
       "resourceId": 3,
