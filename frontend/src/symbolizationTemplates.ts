@@ -54,6 +54,28 @@ export const graduatedColorRamps = {
 
 export const germplasmDnaSexTemplateId = "germplasm.dna-sex-tree.v1";
 
+type BusinessSymbolizationType =
+  | "germplasm"
+  | "individual"
+  | "population"
+  | "community"
+  | "field_survey";
+
+const fieldAliases = {
+  sex: ["性别", "雌雄", "雌/雄", "DNA性别", "dna性别"],
+  altitude: ["海拔（米）", "海拔", "高程", "altitude", "elevation"],
+  species: ["物种中文名", "种", "species", "中文名"],
+  family: ["科中文名", "科"],
+  habitat: ["栖息地类型", "生境类型", "habitat"],
+  distribution: ["分布方式"],
+  importance: ["重要值", "IV", "importance"],
+  density: ["密度（某物种个体数/样方面积）", "密度", "density"],
+  communityGroup: ["样方分组", "分组", "group"],
+  shannon: ["Shannon 多样性指数", "Shannon", "shannon"],
+  richness: ["物种丰富度", "丰富度", "species richness", "richness"],
+  soilSalt: ["土壤总盐", "盐分", "soil_salinity", "salinity"],
+} as const;
+
 export function vectorSymbolizationWithDefaultTemplate({
   resource,
   fields,
@@ -67,35 +89,15 @@ export function vectorSymbolizationWithDefaultTemplate({
 }): VectorSymbolization {
   const next = base ? { ...base } : cloneDefaultVectorSymbolization();
   if (next.renderer?.updatedByUser) return next;
-  const sexField = findSexField(fields);
-  if (!sexField || !isGermplasmResource(resource, fields)) return next;
-  const counts = countFeatureValues(geojson.features, sexField.name);
-  return {
-    ...next,
-    pointMode: "symbol",
-    renderer: germplasmDnaSexRenderer(sexField.name, counts),
-    symbol: {
-      ...next.symbol,
-      iconImage: "gm-tree",
-      iconColor: "#2F7D62",
-      iconSize: 1.08,
-      textField: "",
-      textSize: 12,
-    },
-    circle: {
-      ...next.circle,
-      circleColor: "#2F7D62",
-      circleRadius: 7,
-    },
-  };
+  return applyBusinessDefaultTemplate(resource, fields, geojson, next) ?? next;
 }
 
 export function germplasmDnaSexRenderer(
   field: string,
   counts: Map<string, number>,
 ): UniqueValueRenderer {
-  const femaleValues = ["雌株", "雌株珠"];
-  const maleValues = ["雄株"];
+  const femaleValues = ["雌株", "雌株珠", "雌性", "♀"];
+  const maleValues = ["雄株", "雄性", "♂"];
   const assigned = new Set([...femaleValues, ...maleValues]);
   return {
     type: "uniqueValue",
@@ -270,6 +272,9 @@ export function rebuildGraduatedRenderer(
     ...renderer,
     ...patch,
   };
+  if (next.method === "manual") {
+    return buildManualGraduatedRenderer(next, values, patch);
+  }
   const rebuilt = buildGraduatedRenderer(next.field, values, {
     method: next.method,
     classCount: next.classCount,
@@ -294,6 +299,18 @@ export function rebuildGraduatedRenderer(
   };
 }
 
+export function resizeManualGraduatedRenderer(
+  renderer: GraduatedRenderer,
+  values: number[],
+  classCount: number,
+): GraduatedRenderer {
+  return buildManualGraduatedRenderer(
+    { ...renderer, method: "manual", classCount },
+    values,
+    { classCount },
+  );
+}
+
 export function refreshGraduatedCounts(
   renderer: GraduatedRenderer,
   values: number[],
@@ -313,7 +330,8 @@ export function refreshGraduatedCounts(
               cleanValues,
               item.min,
               item.max,
-              index === renderer.classes.length - 1,
+              index === renderer.classes.length - 1 ||
+                (renderer.method === "manual" && item.min === item.max),
             ),
     })),
     defaultClass: {
@@ -355,7 +373,15 @@ export function parseNumericValue(value: unknown): number | null {
 
 export function graduatedRangeLabel(item: GraduatedSymbolClass) {
   if (item.min === null || item.max === null) return "无数值/空值";
-  return item.label || formatRangeLabel(item.min, item.max, 2, false);
+  return item.label || formatGraduatedRangeLabel(item.min, item.max, 2);
+}
+
+export function formatGraduatedRangeLabel(
+  min: number,
+  max: number,
+  precision = 2,
+) {
+  return formatRangeLabel(min, max, precision, false);
 }
 
 export function countFeatureValues(
@@ -397,10 +423,499 @@ export function isGermplasmTemplateRenderer(
   );
 }
 
-function findSexField(fields: ResourceField[]) {
-  return fields.find((field) =>
-    ["性别", "雌雄", "雌/雄"].some((name) => field.name.includes(name)),
+function applyBusinessDefaultTemplate(
+  resource: ResourceListItem,
+  fields: ResourceField[],
+  geojson: GeoJsonFeatureCollection,
+  base: VectorSymbolization,
+) {
+  const businessType = inferBusinessSymbolizationType(resource, fields);
+  if (!businessType) return null;
+  switch (businessType) {
+    case "germplasm":
+      return germplasmDefaultTemplate(resource, fields, geojson, base);
+    case "individual":
+      return individualDefaultTemplate(fields, geojson, base);
+    case "population":
+      return populationDefaultTemplate(fields, geojson, base);
+    case "community":
+      return communityDefaultTemplate(fields, geojson, base);
+    case "field_survey":
+      return fieldSurveyDefaultTemplate(fields, geojson, base);
+    default:
+      return null;
+  }
+}
+
+function germplasmDefaultTemplate(
+  resource: ResourceListItem,
+  fields: ResourceField[],
+  geojson: GeoJsonFeatureCollection,
+  base: VectorSymbolization,
+) {
+  const sexField = findSexField(fields);
+  if (sexField && isGermplasmResource(resource, fields)) {
+    const counts = countFeatureValues(geojson.features, sexField.name);
+    return applyPointRenderer(base, {
+      renderer: germplasmDnaSexRenderer(sexField.name, counts),
+      iconImage: "gm-tree",
+      iconColor: "#2F7D62",
+      iconSize: 1.08,
+      circleColor: "#2F7D62",
+    });
+  }
+  const altitudeField = findFieldByAliases(fields, fieldAliases.altitude);
+  if (!altitudeField) return null;
+  return buildGraduatedTemplate(base, geojson, altitudeField.name, {
+    templateId: "germplasm.altitude.graduated.v1",
+    businessType: "germplasm",
+    iconImage: "gm-tree",
+    colorRamp: "blue",
+  });
+}
+
+function individualDefaultTemplate(
+  fields: ResourceField[],
+  geojson: GeoJsonFeatureCollection,
+  base: VectorSymbolization,
+) {
+  const speciesField = findFieldByAliases(fields, fieldAliases.species);
+  if (speciesField) {
+    return buildUniqueTemplate(base, geojson, speciesField.name, {
+      templateId: "individual.species.unique.v1",
+      businessType: "individual",
+      iconImage: "gm-species",
+      defaultLabel: "其他物种",
+      maxClasses: 24,
+      circleColor: "#2F7D62",
+    });
+  }
+  const familyField = findFieldByAliases(fields, fieldAliases.family);
+  if (familyField) {
+    return buildUniqueTemplate(base, geojson, familyField.name, {
+      templateId: "individual.family.unique.v1",
+      businessType: "individual",
+      iconImage: "gm-species",
+      defaultLabel: "其他科",
+      maxClasses: 16,
+      circleColor: "#2F7D62",
+    });
+  }
+  const altitudeField = findFieldByAliases(fields, fieldAliases.altitude);
+  if (!altitudeField) return null;
+  return buildGraduatedTemplate(base, geojson, altitudeField.name, {
+    templateId: "individual.altitude.graduated.v1",
+    businessType: "individual",
+    iconImage: "gm-species",
+    colorRamp: "blue",
+  });
+}
+
+function populationDefaultTemplate(
+  fields: ResourceField[],
+  geojson: GeoJsonFeatureCollection,
+  base: VectorSymbolization,
+) {
+  const importanceField = findFieldByAliases(fields, fieldAliases.importance);
+  const densityField = findFieldByAliases(fields, fieldAliases.density);
+  const numericField = importanceField ?? densityField;
+  if (numericField) {
+    return buildGraduatedTemplate(base, geojson, numericField.name, {
+      templateId: importanceField
+        ? "population.importance.graduated.v1"
+        : "population.density.graduated.v1",
+      businessType: "population",
+      iconImage: "gm-populus",
+      colorRamp: "green",
+    });
+  }
+  const habitatField = findFieldByAliases(fields, fieldAliases.habitat);
+  if (!habitatField) return null;
+  return buildHabitatTemplate(base, geojson, habitatField.name, {
+    templateId: "population.habitat.unique.v1",
+    businessType: "population",
+    iconImage: "gm-plot",
+  });
+}
+
+function communityDefaultTemplate(
+  fields: ResourceField[],
+  geojson: GeoJsonFeatureCollection,
+  base: VectorSymbolization,
+) {
+  const shannonField = findFieldByAliases(fields, fieldAliases.shannon);
+  const richnessField = findFieldByAliases(fields, fieldAliases.richness);
+  const diversityField = shannonField ?? richnessField;
+  if (diversityField) {
+    return buildGraduatedTemplate(base, geojson, diversityField.name, {
+      templateId: shannonField
+        ? "community.shannon.graduated.v1"
+        : "community.richness.graduated.v1",
+      businessType: "community",
+      iconImage: "gm-community",
+      colorRamp: "green",
+    });
+  }
+  const groupField = findFieldByAliases(fields, fieldAliases.communityGroup);
+  if (groupField) {
+    return buildCommunityGroupTemplate(base, geojson, groupField.name);
+  }
+  const saltField = findFieldByAliases(fields, fieldAliases.soilSalt);
+  if (!saltField) return null;
+  return buildGraduatedTemplate(base, geojson, saltField.name, {
+    templateId: "community.soil-salt.graduated.v1",
+    businessType: "community",
+    iconImage: "gm-salinity",
+    colorRamp: "orange",
+  });
+}
+
+function fieldSurveyDefaultTemplate(
+  fields: ResourceField[],
+  geojson: GeoJsonFeatureCollection,
+  base: VectorSymbolization,
+) {
+  const habitatField = findFieldByAliases(fields, fieldAliases.habitat);
+  if (habitatField) {
+    return buildHabitatTemplate(base, geojson, habitatField.name, {
+      templateId: "field_survey.habitat.unique.v1",
+      businessType: "field_survey",
+      iconImage: "gm-sample",
+    });
+  }
+  const distributionField = findFieldByAliases(fields, fieldAliases.distribution);
+  if (distributionField) {
+    return buildUniqueTemplate(base, geojson, distributionField.name, {
+      templateId: "field_survey.distribution.unique.v1",
+      businessType: "field_survey",
+      iconImage: "gm-sample",
+      defaultLabel: "其他分布",
+      maxClasses: 16,
+      circleColor: "#2F7D62",
+    });
+  }
+  const importanceField = findFieldByAliases(fields, fieldAliases.importance);
+  const densityField = findFieldByAliases(fields, fieldAliases.density);
+  const numericField = importanceField ?? densityField;
+  if (!numericField) return null;
+  return buildGraduatedTemplate(base, geojson, numericField.name, {
+    templateId: importanceField
+      ? "field_survey.importance.graduated.v1"
+      : "field_survey.density.graduated.v1",
+    businessType: "field_survey",
+    iconImage: "gm-plot",
+    colorRamp: "green",
+  });
+}
+
+function buildUniqueTemplate(
+  base: VectorSymbolization,
+  geojson: GeoJsonFeatureCollection,
+  fieldName: string,
+  {
+    templateId,
+    businessType,
+    iconImage,
+    defaultLabel,
+    maxClasses = 12,
+    circleColor,
+  }: {
+    templateId: string;
+    businessType: BusinessSymbolizationType;
+    iconImage: string;
+    defaultLabel: string;
+    maxClasses?: number;
+    circleColor: string;
+  },
+) {
+  const counts = countFeatureValues(geojson.features, fieldName);
+  const renderer = buildUniqueValueRenderer(fieldName, counts, iconImage);
+  const classes = renderer.classes.slice(0, maxClasses);
+  const assigned = new Set(classes.flatMap((item) => item.values));
+  return applyPointRenderer(base, {
+    renderer: {
+      ...renderer,
+      templateId,
+      businessType,
+      updatedByUser: false,
+      classes,
+      defaultClass: {
+        ...renderer.defaultClass,
+        id: "other",
+        label: defaultLabel,
+        iconImage,
+        count: countOtherValues(counts, assigned),
+      },
+    },
+    iconImage,
+    iconColor: "#2F7D62",
+    iconSize: 1,
+    circleColor,
+  });
+}
+
+function buildHabitatTemplate(
+  base: VectorSymbolization,
+  geojson: GeoJsonFeatureCollection,
+  fieldName: string,
+  {
+    templateId,
+    businessType,
+    iconImage,
+  }: {
+    templateId: string;
+    businessType: BusinessSymbolizationType;
+    iconImage: string;
+  },
+) {
+  const counts = countFeatureValues(geojson.features, fieldName);
+  const specs = [
+    {
+      id: "forest",
+      label: "林地",
+      values: ["林地"],
+      color: "#2F7D62",
+      iconImage: "gm-tree",
+      size: 1.06,
+    },
+    {
+      id: "grassland",
+      label: "草地",
+      values: ["草地"],
+      color: "#7FBC61",
+      iconImage: "gm-leaf",
+      size: 1,
+    },
+    {
+      id: "river",
+      label: "河沟",
+      values: ["河沟", "河道", "沟渠"],
+      color: "#2878B5",
+      iconImage: "gm-water",
+      size: 1,
+    },
+    {
+      id: "farmland",
+      label: "农田",
+      values: ["农田"],
+      color: "#D9912B",
+      iconImage,
+      size: 1,
+    },
+    {
+      id: "roadside",
+      label: "路旁",
+      values: ["路旁"],
+      color: "#8A8F98",
+      iconImage: "gm-marker",
+      size: 0.96,
+    },
+  ];
+  const classes = specs
+    .map((item) => ({
+      ...item,
+      count: countValues(counts, item.values),
+      visible: true,
+    }))
+    .filter((item) => item.count > 0);
+  if (classes.length === 0) {
+    return buildUniqueTemplate(base, geojson, fieldName, {
+      templateId,
+      businessType,
+      iconImage,
+      defaultLabel: "其他生境",
+      circleColor: "#2F7D62",
+    });
+  }
+  const assigned = new Set(classes.flatMap((item) => item.values));
+  return applyPointRenderer(base, {
+    renderer: {
+      type: "uniqueValue",
+      field: fieldName,
+      templateId,
+      businessType,
+      updatedByUser: false,
+      classes,
+      defaultClass: {
+        ...defaultUniqueValueClass,
+        id: "other",
+        label: "其他生境",
+        iconImage,
+        count: countOtherValues(counts, assigned),
+      },
+      normalizationNotes: [],
+    },
+    iconImage,
+    iconColor: "#2F7D62",
+    iconSize: 1,
+    circleColor: "#2F7D62",
+  });
+}
+
+function buildCommunityGroupTemplate(
+  base: VectorSymbolization,
+  geojson: GeoJsonFeatureCollection,
+  fieldName: string,
+) {
+  const counts = countFeatureValues(geojson.features, fieldName);
+  const specs = [
+    ["group-a", "A组", ["A"], "#2F7D62"],
+    ["group-b", "B组", ["B"], "#2878B5"],
+    ["group-c", "C组", ["C"], "#D9912B"],
+  ] as const;
+  const classes = specs
+    .map(([id, label, values, color]) => ({
+      id,
+      label,
+      values: [...values],
+      color,
+      iconImage: "gm-community",
+      size: 1,
+      count: countValues(counts, [...values]),
+      visible: true,
+    }))
+    .filter((item) => item.count > 0);
+  if (classes.length === 0) {
+    return buildUniqueTemplate(base, geojson, fieldName, {
+      templateId: "community.group.unique.v1",
+      businessType: "community",
+      iconImage: "gm-community",
+      defaultLabel: "其他样方",
+      circleColor: "#2F7D62",
+    });
+  }
+  const assigned = new Set(classes.flatMap((item) => item.values));
+  return applyPointRenderer(base, {
+    renderer: {
+      type: "uniqueValue",
+      field: fieldName,
+      templateId: "community.group.unique.v1",
+      businessType: "community",
+      updatedByUser: false,
+      classes,
+      defaultClass: {
+        ...defaultUniqueValueClass,
+        id: "other",
+        label: "其他样方",
+        iconImage: "gm-community",
+        count: countOtherValues(counts, assigned),
+      },
+      normalizationNotes: [],
+    },
+    iconImage: "gm-community",
+    iconColor: "#2F7D62",
+    iconSize: 1,
+    circleColor: "#2F7D62",
+  });
+}
+
+function buildGraduatedTemplate(
+  base: VectorSymbolization,
+  geojson: GeoJsonFeatureCollection,
+  fieldName: string,
+  {
+    templateId,
+    businessType,
+    iconImage,
+    colorRamp,
+  }: {
+    templateId: string;
+    businessType: BusinessSymbolizationType;
+    iconImage: string;
+    colorRamp: GraduatedColorRamp;
+  },
+) {
+  const { values, nonNumericCount } = numericValuesFromCounts(
+    countFeatureValues(geojson.features, fieldName),
   );
+  const renderer = refreshGraduatedCounts(
+    buildGraduatedRenderer(fieldName, values, {
+      method: "quantile",
+      colorRamp,
+      iconImage,
+    }),
+    values,
+    nonNumericCount,
+  );
+  const circleColor =
+    graduatedColorRamps[colorRamp].colors[
+      Math.max(0, graduatedColorRamps[colorRamp].colors.length - 2)
+    ] ?? "#2F7D62";
+  return applyPointRenderer(base, {
+    renderer: {
+      ...renderer,
+      templateId,
+      businessType,
+      updatedByUser: false,
+    },
+    iconImage,
+    iconColor: circleColor,
+    iconSize: 1,
+    circleColor,
+  });
+}
+
+function applyPointRenderer(
+  base: VectorSymbolization,
+  {
+    renderer,
+    iconImage,
+    iconColor,
+    iconSize,
+    circleColor,
+  }: {
+    renderer: UniqueValueRenderer | GraduatedRenderer;
+    iconImage: string;
+    iconColor: string;
+    iconSize: number;
+    circleColor: string;
+  },
+): VectorSymbolization {
+  return {
+    ...base,
+    pointMode: "symbol",
+    renderer,
+    symbol: {
+      ...base.symbol,
+      iconImage,
+      iconColor,
+      iconSize,
+      textField: "",
+      textSize: 12,
+    },
+    circle: {
+      ...base.circle,
+      circleColor,
+      circleRadius: 7,
+    },
+  };
+}
+
+function inferBusinessSymbolizationType(
+  resource: ResourceListItem,
+  fields: ResourceField[],
+): BusinessSymbolizationType | null {
+  if (isBusinessSymbolizationType(resource.domainType)) {
+    return resource.domainType;
+  }
+  if (isGermplasmResource(resource, fields)) return "germplasm";
+  return null;
+}
+
+function isBusinessSymbolizationType(
+  value: string | null | undefined,
+): value is BusinessSymbolizationType {
+  return (
+    value === "germplasm" ||
+    value === "individual" ||
+    value === "population" ||
+    value === "community" ||
+    value === "field_survey"
+  );
+}
+
+function findSexField(fields: ResourceField[]) {
+  return findFieldByAliases(fields, fieldAliases.sex);
 }
 
 function isGermplasmResource(
@@ -413,6 +928,33 @@ function isGermplasmResource(
     fieldNames.has("DNA样本编号") &&
     [...fieldNames].some((name) => name.includes("性别"))
   );
+}
+
+function findFieldByAliases(
+  fields: ResourceField[],
+  aliases: readonly string[],
+) {
+  const normalized = new Map(
+    fields.map((field) => [normalizeFieldName(field.name), field] as const),
+  );
+  for (const alias of aliases) {
+    const exact = normalized.get(normalizeFieldName(alias));
+    if (exact) return exact;
+  }
+  return fields.find((field) => {
+    const fieldName = normalizeFieldName(field.name);
+    return aliases.some((alias) => fieldName.includes(normalizeFieldName(alias)));
+  });
+}
+
+function normalizeFieldName(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/\s/g, "")
+    .replace(/_/g, "")
+    .replace(/-/g, "")
+    .replace(/（/g, "(")
+    .replace(/）/g, ")");
 }
 
 function countValues(counts: Map<string, number>, values: string[]) {
@@ -464,6 +1006,99 @@ function countNumericValues(
   return values.filter((value) =>
     includeMax ? value >= min && value <= max : value >= min && value < max,
   ).length;
+}
+
+function buildManualGraduatedRenderer(
+  renderer: GraduatedRenderer,
+  values: number[],
+  patch: Partial<
+    Pick<
+      GraduatedRenderer,
+      "field" | "method" | "classCount" | "colorRamp" | "precision"
+    >
+  >,
+): GraduatedRenderer {
+  const cleanValues = values
+    .filter((value) => Number.isFinite(value))
+    .sort((left, right) => left - right);
+  const safeClassCount = clampInteger(renderer.classCount, 1, 24);
+  const safePrecision = clampInteger(renderer.precision, 0, 6);
+  const suggestions = equalIntervalBreaks(
+    cleanValues,
+    Math.max(1, safeClassCount),
+  );
+  const colors = graduatedColorRamps[renderer.colorRamp].colors;
+  const iconImage =
+    renderer.classes[0]?.iconImage ||
+    renderer.defaultClass.iconImage ||
+    defaultGraduatedClass.iconImage;
+  const classes = Array.from({ length: safeClassCount }, (_, index) => {
+    const current = renderer.classes[index];
+    const suggestion =
+      suggestions[index] ??
+      suggestions[suggestions.length - 1] ??
+      manualFallbackRange(cleanValues, index);
+    const min =
+      current?.min !== null && current?.min !== undefined
+        ? current.min
+        : suggestion[0];
+    const max =
+      current?.max !== null && current?.max !== undefined
+        ? current.max
+        : suggestion[1];
+    const labelWasAuto =
+      current?.label ===
+      formatGraduatedRangeLabel(
+        current?.min ?? min,
+        current?.max ?? max,
+        safePrecision,
+      );
+    const label =
+      current && !labelWasAuto
+        ? current.label
+        : formatGraduatedRangeLabel(min, max, safePrecision);
+    return {
+      id: current?.id ?? `range-${index + 1}`,
+      label,
+      min,
+      max,
+      color:
+        current?.color ||
+        colors[Math.min(index, colors.length - 1)] ||
+        "#2F7D62",
+      iconImage: current?.iconImage || iconImage,
+      size: current?.size ?? 0.88 + index * 0.08,
+      count: countNumericValues(
+        cleanValues,
+        min,
+        max,
+        index === safeClassCount - 1 || min === max,
+      ),
+      visible: current?.visible ?? true,
+    } satisfies GraduatedSymbolClass;
+  });
+  return {
+    ...renderer,
+    ...patch,
+    type: "graduated",
+    method: "manual",
+    classCount: safeClassCount,
+    precision: safePrecision,
+    updatedByUser: true,
+    classes,
+    defaultClass: {
+      ...renderer.defaultClass,
+      iconImage: renderer.defaultClass.iconImage || iconImage,
+    },
+  };
+}
+
+function manualFallbackRange(values: number[], index: number): [number, number] {
+  if (values.length === 0) return [index, index + 1];
+  const min = values[0] ?? 0;
+  const max = values[values.length - 1] ?? min;
+  if (min === max) return [min + index, min + index + 1];
+  return [min, max];
 }
 
 function formatRangeLabel(

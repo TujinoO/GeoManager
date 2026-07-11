@@ -159,18 +159,33 @@ const fallbackDomainTypeOptions: Array<{
 
 const MapCanvas = lazy(() => import("../components/MapCanvas"));
 
+interface LastGeoInsightCache {
+  resource: ResourceListItem | null;
+  profile: DataResourceProfile | null;
+  layer: LoadedLayer | null;
+  feature: FeatureInfo | null;
+  summary: ResourceVisualizationSummary | null;
+}
+
+let lastGeoInsightCache: LastGeoInsightCache | null = null;
+
 export default function MapPage() {
   const { bootstrap, user } = useAppContext();
   const { message, notification } = App.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
+  const initialGeoInsightCache = lastGeoInsightCache;
 
   const [resources, setResources] = useState<ResourceListItem[]>([]);
   const [dataSchema, setDataSchema] = useState<DataSchemaSummary | null>(null);
   const [resourceSearchKeyword, setResourceSearchKeyword] = useState("");
   const [selectedResource, setSelectedResource] =
-    useState<ResourceListItem | null>(null);
+    useState<ResourceListItem | null>(
+      () => initialGeoInsightCache?.resource ?? null,
+    );
   const [resourceProfile, setResourceProfile] =
-    useState<DataResourceProfile | null>(null);
+    useState<DataResourceProfile | null>(
+      () => initialGeoInsightCache?.profile ?? null,
+    );
   const [spatialTargetResource, setSpatialTargetResource] =
     useState<ResourceListItem | null>(null);
   const [spatialTargetResourceProfile, setSpatialTargetResourceProfile] =
@@ -196,10 +211,12 @@ export default function MapPage() {
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [querying, setQuerying] = useState(false);
   const [selectedFeature, setSelectedFeature] = useState<FeatureInfo | null>(
-    null,
+    () => initialGeoInsightCache?.feature ?? null,
   );
   const [visualizationSummary, setVisualizationSummary] =
-    useState<ResourceVisualizationSummary | null>(null);
+    useState<ResourceVisualizationSummary | null>(
+      () => initialGeoInsightCache?.summary ?? null,
+    );
   const [visualizationSummaryLoading, setVisualizationSummaryLoading] =
     useState(false);
   const [visualizationSummaryError, setVisualizationSummaryError] = useState<
@@ -207,7 +224,11 @@ export default function MapPage() {
   >(null);
   const [loadingSpatialTargetProfile, setLoadingSpatialTargetProfile] =
     useState(false);
-  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(
+    () => initialGeoInsightCache?.layer?.id ?? null,
+  );
+  const [rememberedGeoInsight, setRememberedGeoInsight] =
+    useState<LastGeoInsightCache | null>(() => initialGeoInsightCache);
   const [activeLeftPanel, setActiveLeftPanel] =
     useState<LeftPanelTabKey>("data");
   const [tableLayer, setTableLayer] = useState<LoadedLayer | null>(null);
@@ -379,6 +400,86 @@ export default function MapPage() {
     }
     return resourceProfile;
   }, [activeInsightResource, resourceProfile]);
+
+  useEffect(() => {
+    if (
+      !activeInsightResource &&
+      !activeInsightLayer &&
+      !activeInsightProfile &&
+      !selectedFeature &&
+      !visualizationSummary
+    ) {
+      return;
+    }
+
+    setRememberedGeoInsight((current) => {
+      const nextResource =
+        activeInsightResource ?? activeInsightLayer?.sourceResource ?? current?.resource ?? null;
+      const nextProfile =
+        activeInsightProfile ??
+        (nextResource && current?.profile?.resource.id === nextResource.id
+          ? current.profile
+          : null);
+      const nextSummary =
+        visualizationSummary &&
+        nextResource &&
+        visualizationSummary.resource.id === nextResource.id
+          ? visualizationSummary
+          : nextResource && current?.summary?.resource.id === nextResource.id
+            ? current.summary
+            : null;
+      const nextLayer =
+        activeInsightLayer ??
+        (nextResource && current?.layer?.sourceResource.id === nextResource.id
+          ? current.layer
+          : null);
+      const nextFeature = selectedFeature ?? current?.feature ?? null;
+
+      if (!nextResource && !nextLayer && !nextSummary) {
+        return current;
+      }
+
+      const nextCache: LastGeoInsightCache = {
+        resource: nextResource,
+        profile: nextProfile,
+        layer: nextLayer,
+        feature: nextFeature,
+        summary: nextSummary,
+      };
+      lastGeoInsightCache = nextCache;
+      return nextCache;
+    });
+  }, [
+    activeInsightLayer,
+    activeInsightProfile,
+    activeInsightResource,
+    selectedFeature,
+    visualizationSummary,
+  ]);
+
+  const rightPanelSelectedLayer =
+    activeInsightLayer ?? rememberedGeoInsight?.layer ?? null;
+  const rightPanelSelectedResource =
+    activeInsightResource ??
+    rightPanelSelectedLayer?.sourceResource ??
+    rememberedGeoInsight?.resource ??
+    null;
+  const rightPanelSelectedResourceProfile =
+    activeInsightProfile ??
+    (rightPanelSelectedResource &&
+    rememberedGeoInsight?.profile?.resource.id === rightPanelSelectedResource.id
+      ? rememberedGeoInsight.profile
+      : null);
+  const rightPanelVisualizationSummary =
+    visualizationSummary ??
+    (rightPanelSelectedResource &&
+    rememberedGeoInsight?.summary?.resource.id === rightPanelSelectedResource.id
+      ? rememberedGeoInsight.summary
+      : null);
+  const rightPanelSelectedFeature =
+    selectedFeature ?? rememberedGeoInsight?.feature ?? null;
+  const rightPanelVisualizationSummaryLoading =
+    Boolean(activeInsightResource) && visualizationSummaryLoading;
 
   const spatialWorkbenchStatus = activeDraw
     ? "正在绘制空间范围"
@@ -1643,12 +1744,12 @@ export default function MapPage() {
         >
           <ConfigProvider theme={workspacePanelTheme}>
             <RightSidePanel
-              selectedFeature={selectedFeature}
-              selectedResource={activeInsightResource}
-              selectedResourceProfile={activeInsightProfile}
-              selectedLayer={activeInsightLayer}
-              visualizationSummary={visualizationSummary}
-              visualizationSummaryLoading={visualizationSummaryLoading}
+              selectedFeature={rightPanelSelectedFeature}
+              selectedResource={rightPanelSelectedResource}
+              selectedResourceProfile={rightPanelSelectedResourceProfile}
+              selectedLayer={rightPanelSelectedLayer}
+              visualizationSummary={rightPanelVisualizationSummary}
+              visualizationSummaryLoading={rightPanelVisualizationSummaryLoading}
               visualizationSummaryError={visualizationSummaryError}
               currentView={currentMapView}
               mapConfig={bootstrap.map}

@@ -622,6 +622,142 @@
           ]
         }
       ],
+      "recommendedSymbolizations": [
+        {
+          "templateId": "field_survey.habitat.unique.v1",
+          "name": "野外调查生境类型",
+          "description": "按栖息地类型区分调查样点，适合作为野外调查数据的默认地图表达。",
+          "businessType": "field_survey",
+          "rendererType": "uniqueValue",
+          "primaryField": "栖息地类型",
+          "matchedFields": [
+            "栖息地类型"
+          ],
+          "matchStatus": "matched",
+          "isPrimary": true,
+          "priority": 10,
+          "warnings": [],
+          "symbolization": {
+            "opacity": 90,
+            "pointMode": "symbol",
+            "renderer": {
+              "type": "uniqueValue",
+              "field": "栖息地类型",
+              "templateId": "field_survey.habitat.unique.v1",
+              "businessType": "field_survey",
+              "updatedByUser": false,
+              "classes": [
+                {
+                  "id": "forest",
+                  "label": "林地",
+                  "values": [
+                    "林地"
+                  ],
+                  "color": "#2F7D62",
+                  "iconImage": "gm-tree",
+                  "size": 1.06,
+                  "count": 17,
+                  "visible": true
+                },
+                {
+                  "id": "grassland",
+                  "label": "草地",
+                  "values": [
+                    "草地"
+                  ],
+                  "color": "#7FBC61",
+                  "iconImage": "gm-leaf",
+                  "size": 1,
+                  "count": 24,
+                  "visible": true
+                }
+              ],
+              "defaultClass": {
+                "id": "other",
+                "label": "其他生境",
+                "values": [],
+                "color": "#8A8F98",
+                "iconImage": "gm-sample",
+                "size": 0.92,
+                "count": 0,
+                "visible": true
+              }
+            },
+            "symbol": {
+              "iconImage": "gm-sample",
+              "iconSize": 1,
+              "textField": ""
+            },
+            "circle": {
+              "circleColor": "#2F7D62",
+              "circleRadius": 7
+            }
+          }
+        },
+        {
+          "templateId": "field_survey.importance.graduated.v1",
+          "name": "野外调查重要值分级",
+          "description": "按重要值进行连续分级，适合查看样点或物种优势度差异。",
+          "businessType": "field_survey",
+          "rendererType": "graduated",
+          "primaryField": "重要值",
+          "matchedFields": [
+            "重要值"
+          ],
+          "matchStatus": "matched",
+          "isPrimary": false,
+          "priority": 20,
+          "warnings": [],
+          "symbolization": {
+            "opacity": 90,
+            "pointMode": "symbol",
+            "renderer": {
+              "type": "graduated",
+              "field": "重要值",
+              "method": "quantile",
+              "classCount": 5,
+              "precision": 2,
+              "colorRamp": "green",
+              "templateId": "field_survey.importance.graduated.v1",
+              "businessType": "field_survey",
+              "updatedByUser": false,
+              "classes": [
+                {
+                  "id": "range-1",
+                  "label": "低重要值",
+                  "min": 0.62,
+                  "max": 4.86,
+                  "color": "#E4F6D6",
+                  "iconImage": "gm-plot",
+                  "size": 0.88,
+                  "count": 24,
+                  "visible": true
+                }
+              ],
+              "defaultClass": {
+                "id": "no-data",
+                "label": "无数值/空值",
+                "min": null,
+                "max": null,
+                "color": "#8A8F98",
+                "iconImage": "gm-plot",
+                "size": 0.9,
+                "count": 0,
+                "visible": true
+              }
+            },
+            "symbol": {
+              "iconImage": "gm-plot",
+              "iconSize": 1,
+              "textField": ""
+            },
+            "circle": {
+              "circleColor": "#2F7D62",
+              "circleRadius": 7
+            }
+          }
+        }
+      ],
       "monitorPreview": {
         "title": "监测能力预留",
         "status": "planned",
@@ -987,7 +1123,7 @@
             "renderer": {
               "type": "graduated",
               "field": "海拔",
-              "method": "equalInterval",
+              "method": "manual",
               "classCount": 5,
               "precision": 0,
               "colorRamp": "green",
@@ -995,9 +1131,9 @@
               "classes": [
                 {
                   "id": "range-1",
-                  "label": "820 - 880",
+                  "label": "低海拔",
                   "min": 820,
-                  "max": 880,
+                  "max": 900,
                   "color": "#E4F6D6",
                   "iconImage": "gm-tree",
                   "size": 0.88,
@@ -1006,9 +1142,9 @@
                 },
                 {
                   "id": "range-2",
-                  "label": "880 - 940",
-                  "min": 880,
-                  "max": 940,
+                  "label": "中低海拔",
+                  "min": 900,
+                  "max": 960,
                   "color": "#B8E186",
                   "iconImage": "gm-tree",
                   "size": 0.96,
@@ -1017,9 +1153,9 @@
                 },
                 {
                   "id": "range-3",
-                  "label": "940 - 1000",
-                  "min": 940,
-                  "max": 1000,
+                  "label": "中海拔",
+                  "min": 960,
+                  "max": 1040,
                   "color": "#7FBC61",
                   "iconImage": "gm-tree",
                   "size": 1.04,
@@ -1028,9 +1164,9 @@
                 },
                 {
                   "id": "range-4",
-                  "label": "1000 - 1060",
-                  "min": 1000,
-                  "max": 1060,
+                  "label": "中高海拔",
+                  "min": 1040,
+                  "max": 1080,
                   "color": "#2F7D62",
                   "iconImage": "gm-tree",
                   "size": 1.12,
@@ -1039,8 +1175,8 @@
                 },
                 {
                   "id": "range-5",
-                  "label": "1060 - 1120",
-                  "min": 1060,
+                  "label": "高海拔",
+                  "min": 1080,
                   "max": 1120,
                   "color": "#145A46",
                   "iconImage": "gm-tree",
@@ -1075,7 +1211,7 @@
             87.6428,
             43.81245
           ],
-          "legend": "按海拔字段进行 5 级等距数值分级，使用 gm-tree 平台图标和生态绿色连续色带。",
+          "legend": "按海拔字段进行 5 级自定义数值分级，使用 gm-tree 平台图标并为每个等级维护独立颜色和范围。",
           "rasterRules": {},
           "isActive": true,
           "updatedAt": "2026-07-03T12:00:00+08:00"

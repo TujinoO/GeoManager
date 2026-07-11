@@ -312,7 +312,10 @@ export interface UniqueValueRenderer {
   normalizationNotes?: string[];
 }
 
-export type GraduatedClassificationMethod = "equalInterval" | "quantile";
+export type GraduatedClassificationMethod =
+  | "equalInterval"
+  | "quantile"
+  | "manual";
 export type GraduatedColorRamp = "green" | "blue" | "orange" | "purple";
 
 export interface GraduatedSymbolClass {
@@ -334,6 +337,8 @@ export interface GraduatedRenderer {
   classCount: number;
   precision: number;
   colorRamp: GraduatedColorRamp;
+  templateId?: string;
+  businessType?: string;
   updatedByUser?: boolean;
   classes: GraduatedSymbolClass[];
   defaultClass: GraduatedSymbolClass;

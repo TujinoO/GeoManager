@@ -804,6 +804,10 @@ export type AdminDashboardDataOverviewScope = {
      * 该统计范围内按数据类型聚合的数据情况
      */
     typeBreakdown: Array<AdminDashboardDataTypeOverview>;
+    /**
+     * 该统计范围内可用于数据概览空间可视化的权限裁剪后空间摘要；仅基于当前分组内用户有权查看的数据资源计算
+     */
+    spatialSummary: AdminDashboardSpatialSummary;
 };
 
 export type AdminDashboardDataTypeOverview = {
@@ -821,6 +825,120 @@ export type AdminDashboardDataTypeOverview = {
     sizeBytes: number;
     /**
      * 该类型数据条目数
+     */
+    itemCount: number;
+};
+
+export type AdminDashboardSpatialSummary = {
+    /**
+     * 当前统计范围内具备有效经纬度 bbox 的空间数据资源数量
+     */
+    spatialResourceCount: number;
+    /**
+     * 当前统计范围内暂无可解析经纬度空间范围的数据资源数量
+     */
+    missingSpatialResourceCount: number;
+    /**
+     * 当前统计范围内所有有效空间范围合并后的经纬度 bbox，顺序为 `[minLng, minLat, maxLng, maxLat]`；没有空间范围时为空数组
+     */
+    totalBounds: Array<number>;
+    /**
+     * 当前统计范围内用于绘制空间覆盖框的数据资源摘要，后端最多返回 80 项并按覆盖面积优先；所有条目均已按当前用户权限裁剪
+     */
+    resourceExtents: Array<AdminDashboardResourceExtent>;
+    /**
+     * `resourceExtents` 是否因数量超过前端概览展示上限而被截断
+     */
+    resourceExtentsTruncated: boolean;
+    /**
+     * 当前统计范围内空间覆盖面积最大的前 10 个数据资源；所有条目均已按当前用户权限裁剪
+     */
+    coverageRanking: Array<AdminDashboardResourceExtent>;
+    /**
+     * 当前统计范围内按资源中心点聚合的热力网格；仅基于当前用户有权查看的数据资源生成，不包含未授权资源
+     */
+    heatmapCells: Array<AdminDashboardSpatialHeatmapCell>;
+};
+
+export type AdminDashboardResourceExtent = {
+    /**
+     * 数据资源 ID
+     */
+    resourceId: number;
+    /**
+     * 数据资源名称
+     */
+    name: string;
+    /**
+     * 数据类型
+     */
+    dataType: 'vector' | 'raster' | 'gene' | 'table' | 'document' | 'image';
+    /**
+     * 数据资源经纬度 bbox，顺序为 `[minLng, minLat, maxLng, maxLat]`
+     */
+    bounds: [
+        number,
+        number,
+        number,
+        number
+    ];
+    /**
+     * 数据资源 bbox 中心点，顺序为 `[lng, lat]`
+     */
+    center: [
+        number,
+        number
+    ];
+    /**
+     * 根据经纬度 bbox 估算的覆盖面积，单位平方公里，用于概览排行和相对比较
+     */
+    coverageAreaKm2: number;
+    /**
+     * 数据大小，单位字节
+     */
+    sizeBytes: number;
+    /**
+     * 数据条目数
+     */
+    itemCount: number;
+    /**
+     * 数据坐标系说明；未知时为空字符串
+     */
+    coordinateSystem: string;
+    /**
+     * 上传者或维护者展示名；未记录时返回“未记录”
+     */
+    uploaderName: string;
+    /**
+     * 数据资源最近更新时间
+     */
+    updatedAt: string;
+};
+
+export type AdminDashboardSpatialHeatmapCell = {
+    /**
+     * 热力网格列序号，从 0 开始
+     */
+    column: number;
+    /**
+     * 热力网格行序号，从 0 开始
+     */
+    row: number;
+    /**
+     * 热力网格经纬度 bbox，顺序为 `[minLng, minLat, maxLng, maxLat]`
+     */
+    bounds: [
+        number,
+        number,
+        number,
+        number
+    ];
+    /**
+     * 落入该网格的数据资源数量
+     */
+    resourceCount: number;
+    /**
+     * 落入该网格的数据资源条目数合计
      */
     itemCount: number;
 };
@@ -2545,11 +2663,11 @@ export type GraduatedRenderer = {
      */
     field: string;
     /**
-     * 分级方法；equalInterval 为等距分级，quantile 为分位数分级
+     * 分级方法；equalInterval 为等距分级，quantile 为分位数分级，manual 为用户自定义区间
      */
-    method: 'equalInterval' | 'quantile';
+    method: 'equalInterval' | 'quantile' | 'manual';
     /**
-     * 分级数量，平台编辑器默认限制为 3 到 9 级
+     * 分级数量；equalInterval/quantile 自动分级建议 3 到 9 级，manual 自定义分级允许 1 到 24 级
      */
     classCount: number;
     /**
@@ -2561,11 +2679,19 @@ export type GraduatedRenderer = {
      */
     colorRamp: 'green' | 'blue' | 'orange' | 'purple';
     /**
+     * 来源推荐模板 ID；空字符串表示未套用业务模板
+     */
+    templateId?: string;
+    /**
+     * 业务类型编码，例如 population、community 或 field_survey
+     */
+    businessType?: string;
+    /**
      * 用户是否已手动修改该数值分级方案
      */
     updatedByUser?: boolean;
     /**
-     * 数值区间符号列表；最后一个区间包含最大值，其他区间为左闭右开
+     * 数值区间符号列表；最后一个区间包含最大值，其他区间为左闭右开。manual 方法下由用户直接维护每个区间的 min/max、颜色、图标、大小和显隐
      */
     classes: Array<GraduatedSymbolClass>;
     defaultClass: GraduatedSymbolClass;
@@ -3267,7 +3393,56 @@ export type ResourceVisualizationSummaryResponse = {
      * 后端根据业务类型和字段结构推荐的图表卡片。
      */
     recommendedCharts: Array<VisualizationChartRecommendation>;
+    /**
+     * 后端根据业务类型、字段命中结果和字段统计推荐的矢量符号化模板。前端可直接预览并应用其中的 `symbolization`，保存仍沿用现有自定义符号化权限。
+     */
+    recommendedSymbolizations: Array<RecommendedSymbolizationTemplate>;
     monitorPreview: VisualizationMonitorPreview;
+};
+
+export type RecommendedSymbolizationTemplate = {
+    /**
+     * 推荐模板稳定 ID，格式建议为 `{businessType}.{fieldOrTheme}.{renderer}.v{version}`。
+     */
+    templateId: string;
+    /**
+     * 推荐模板中文名称。
+     */
+    name: string;
+    /**
+     * 推荐模板适用场景说明。
+     */
+    description: string;
+    businessType: DataDomainType;
+    /**
+     * 模板使用的矢量渲染器类型。
+     */
+    rendererType: 'single' | 'uniqueValue' | 'graduated';
+    /**
+     * 模板主要命中的字段；未命中任何字段时为 null。
+     */
+    primaryField: string | null;
+    /**
+     * 本模板命中的字段列表，包含主字段和参与备用说明的字段。
+     */
+    matchedFields: Array<string>;
+    /**
+     * 字段命中状态；matched 表示主字段命中，fallback 表示使用备用字段，unavailable 表示模板仅可作为提示但当前不可直接应用。
+     */
+    matchStatus: 'matched' | 'fallback' | 'unavailable';
+    /**
+     * 是否为该业务类型的默认首选推荐方案。
+     */
+    isPrimary: boolean;
+    /**
+     * 推荐排序值，数值越小越靠前。
+     */
+    priority: number;
+    symbolization: VectorSymbolization;
+    /**
+     * 字段缺失、别名归一化、类别截断或图标降级等提示。
+     */
+    warnings: Array<string>;
 };
 
 export type VisualizationResourceProfile = {

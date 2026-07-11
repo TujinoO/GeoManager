@@ -11,6 +11,7 @@ from django.utils import timezone
 from apps.catalog.data_query import DataQueryError, get_resource_profile, read_vector_resource
 from apps.catalog.models import DataResource
 from apps.catalog.serializers import serialize_resource
+from apps.catalog.symbolization_templates import recommended_symbolization_templates
 
 
 MAX_CATEGORY_FIELDS = 6
@@ -141,6 +142,9 @@ def _vector_summary(
         "recommendedCharts": _recommended_charts(
             resource.domain_type or "other", category_stats, numeric_stats, False
         ),
+        "recommendedSymbolizations": recommended_symbolization_templates(
+            resource.domain_type or "other", gdf, field_names
+        ),
         "monitorPreview": _monitor_preview(),
     }
 
@@ -229,6 +233,7 @@ def _raster_summary(resource: DataResource, profile: Any) -> dict[str, Any]:
         "recommendedCharts": _recommended_charts(
             resource.domain_type or "remote_sensing", category_stats, numeric_stats, True
         ),
+        "recommendedSymbolizations": [],
         "monitorPreview": _monitor_preview(),
     }
 
@@ -270,6 +275,7 @@ def _profile_only_summary(resource: DataResource, profile: Any) -> dict[str, Any
         "recommendedCharts": _recommended_charts(
             resource.domain_type or "other", [], [], False
         ),
+        "recommendedSymbolizations": [],
         "monitorPreview": _monitor_preview(),
     }
 

@@ -811,7 +811,7 @@ export default function WorkspaceHeader({
       {
         title: "关于我们",
         description:
-          "查看系统简介、团队介绍、团队成员、胡杨知识和帮助文档等占位栏目。",
+          "查看系统简介、团队介绍、团队成员、胡杨知识和帮助文档等平台资料。",
         target: () => aboutTabRef.current ?? document.body,
         placement: "bottom",
       },

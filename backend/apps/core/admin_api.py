@@ -1466,7 +1466,7 @@ def _data_overview_card(
         visible_resources = filter_accessible(DataResource.objects.all(), user)
         card.update(
             {
-                **_data_overview_scope(all_resources),
+                **_data_overview_scope(all_resources, include_spatial=False),
                 "visibleResources": _data_overview_scope(visible_resources),
             }
         )
@@ -1475,18 +1475,26 @@ def _data_overview_card(
     return card
 
 
-def _data_overview_scope(queryset) -> dict[str, Any]:
+MAX_DASHBOARD_SPATIAL_RESOURCES = 80
+DASHBOARD_HEATMAP_COLUMNS = 8
+DASHBOARD_HEATMAP_ROWS = 5
+
+
+def _data_overview_scope(queryset, *, include_spatial: bool = True) -> dict[str, Any]:
     aggregate = queryset.aggregate(
         total_size=Sum("size_bytes"),
         total_items=Sum("item_count"),
     )
-    return {
+    scope = {
         "totalResources": queryset.count(),
         "activeResources": queryset.filter(status=DataResource.Status.ACTIVE).count(),
         "totalSizeBytes": int(aggregate["total_size"] or 0),
         "totalItemCount": int(aggregate["total_items"] or 0),
         "typeBreakdown": _data_type_breakdown(queryset),
     }
+    if include_spatial:
+        scope["spatialSummary"] = _data_spatial_summary(queryset)
+    return scope
 
 
 def _data_type_breakdown(queryset) -> list[dict[str, Any]]:
@@ -1508,6 +1516,170 @@ def _data_type_breakdown(queryset) -> list[dict[str, Any]]:
         }
         for row in rows
     ]
+
+
+def _data_spatial_summary(queryset) -> dict[str, Any]:
+    resources = queryset.select_related("maintainer").prefetch_related(
+        "map_layers", "raster_datasets"
+    )
+    extents = []
+    missing_count = 0
+    for resource in resources:
+        bounds = _resource_bounds(resource)
+        if bounds is None:
+            missing_count += 1
+            continue
+        min_x, min_y, max_x, max_y = bounds
+        center = [(min_x + max_x) / 2, (min_y + max_y) / 2]
+        coverage_area = _bounds_area_km2(bounds)
+        extents.append(
+            {
+                "resourceId": resource.id,
+                "name": resource.name,
+                "dataType": resource.data_type,
+                "bounds": [round(value, 6) for value in bounds],
+                "center": [round(value, 6) for value in center],
+                "coverageAreaKm2": round(coverage_area, 3),
+                "sizeBytes": resource.size_bytes,
+                "itemCount": resource.item_count,
+                "coordinateSystem": resource.coordinate_system,
+                "uploaderName": _user_display_name(resource.maintainer),
+                "updatedAt": timezone.localtime(resource.updated_at).isoformat(),
+            }
+        )
+
+    total_bounds = _union_bounds(item["bounds"] for item in extents)
+    ranking = sorted(
+        extents,
+        key=lambda item: (-item["coverageAreaKm2"], item["name"], item["resourceId"]),
+    )
+    displayed_extents = ranking[:MAX_DASHBOARD_SPATIAL_RESOURCES]
+    return {
+        "spatialResourceCount": len(extents),
+        "missingSpatialResourceCount": missing_count,
+        "totalBounds": total_bounds or [],
+        "resourceExtents": displayed_extents,
+        "resourceExtentsTruncated": len(extents) > len(displayed_extents),
+        "coverageRanking": ranking[:10],
+        "heatmapCells": _spatial_heatmap_cells(extents, total_bounds),
+    }
+
+
+def _resource_bounds(resource: DataResource) -> list[float] | None:
+    bounds = _normalize_bounds(resource.spatial_extent)
+    if bounds is not None:
+        return bounds
+    for layer in resource.map_layers.all():
+        bounds = _normalize_bounds(layer.bounds)
+        if bounds is not None:
+            return bounds
+    for dataset in resource.raster_datasets.all():
+        bounds = _normalize_bounds(dataset.bounds_4326)
+        if bounds is not None:
+            return bounds
+    return None
+
+
+def _normalize_bounds(value: Any) -> list[float] | None:
+    if isinstance(value, str):
+        parts = re.split(r"[,，\s]+", value.strip())
+        raw_values = [part for part in parts if part]
+    elif isinstance(value, list | tuple):
+        raw_values = list(value)
+    else:
+        return None
+    if len(raw_values) != 4:
+        return None
+    try:
+        min_x, min_y, max_x, max_y = [float(item) for item in raw_values]
+    except (TypeError, ValueError):
+        return None
+    values = [min_x, min_y, max_x, max_y]
+    if not all(math.isfinite(item) for item in values):
+        return None
+    if min_x > max_x:
+        min_x, max_x = max_x, min_x
+    if min_y > max_y:
+        min_y, max_y = max_y, min_y
+    if min_x == max_x or min_y == max_y:
+        return None
+    if min_x < -180 or max_x > 180 or min_y < -90 or max_y > 90:
+        return None
+    return [min_x, min_y, max_x, max_y]
+
+
+def _union_bounds(bounds_items) -> list[float] | None:
+    bounds_list = list(bounds_items)
+    if not bounds_list:
+        return None
+    return [
+        round(min(bounds[0] for bounds in bounds_list), 6),
+        round(min(bounds[1] for bounds in bounds_list), 6),
+        round(max(bounds[2] for bounds in bounds_list), 6),
+        round(max(bounds[3] for bounds in bounds_list), 6),
+    ]
+
+
+def _bounds_area_km2(bounds: list[float]) -> float:
+    min_x, min_y, max_x, max_y = bounds
+    center_latitude = (min_y + max_y) / 2
+    lat_km = max_y - min_y
+    lon_km = (max_x - min_x) * max(math.cos(math.radians(center_latitude)), 0.01)
+    return abs(lat_km * lon_km) * 111.32 * 111.32
+
+
+def _spatial_heatmap_cells(
+    extents: list[dict[str, Any]], total_bounds: list[float] | None
+) -> list[dict[str, Any]]:
+    if not extents or not total_bounds:
+        return []
+    min_x, min_y, max_x, max_y = total_bounds
+    span_x = max(max_x - min_x, 0.000001)
+    span_y = max(max_y - min_y, 0.000001)
+    cells: dict[tuple[int, int], dict[str, Any]] = {}
+    for item in extents:
+        center_x, center_y = item["center"]
+        column = min(
+            DASHBOARD_HEATMAP_COLUMNS - 1,
+            max(0, int(((center_x - min_x) / span_x) * DASHBOARD_HEATMAP_COLUMNS)),
+        )
+        row = min(
+            DASHBOARD_HEATMAP_ROWS - 1,
+            max(0, int(((center_y - min_y) / span_y) * DASHBOARD_HEATMAP_ROWS)),
+        )
+        cell = cells.setdefault(
+            (column, row),
+            {
+                "column": column,
+                "row": row,
+                "bounds": [
+                    min_x + (span_x / DASHBOARD_HEATMAP_COLUMNS) * column,
+                    min_y + (span_y / DASHBOARD_HEATMAP_ROWS) * row,
+                    min_x + (span_x / DASHBOARD_HEATMAP_COLUMNS) * (column + 1),
+                    min_y + (span_y / DASHBOARD_HEATMAP_ROWS) * (row + 1),
+                ],
+                "resourceCount": 0,
+                "itemCount": 0,
+            },
+        )
+        cell["resourceCount"] += 1
+        cell["itemCount"] += item["itemCount"]
+    return [
+        {
+            **cell,
+            "bounds": [round(value, 6) for value in cell["bounds"]],
+        }
+        for cell in sorted(
+            cells.values(),
+            key=lambda item: (-item["resourceCount"], item["column"], item["row"]),
+        )
+    ]
+
+
+def _user_display_name(user) -> str:
+    if not user:
+        return "未记录"
+    return user.get_full_name() or user.get_username() or "未记录"
 
 
 def _uploader_stats() -> list[dict[str, Any]]:

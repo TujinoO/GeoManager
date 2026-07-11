@@ -2061,6 +2061,8 @@ class FeaturePermissionTests(TestCase):
             name="本人上传",
             code="overview-own",
             data_type=DataResource.DataType.RASTER,
+            spatial_extent="80,40,81,41",
+            coordinate_system="EPSG:4326",
             size_bytes=30,
             item_count=3,
             maintainer=manager,
@@ -2069,6 +2071,8 @@ class FeaturePermissionTests(TestCase):
             name="点位",
             code="overview-vector",
             data_type=DataResource.DataType.VECTOR,
+            spatial_extent="82,42,83,43",
+            coordinate_system="EPSG:4326",
             size_bytes=100,
             item_count=5,
             maintainer=uploader,
@@ -2096,13 +2100,30 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(overview["ownUploads"]["totalSizeBytes"], 30)
         self.assertEqual(overview["ownUploads"]["totalItemCount"], 3)
         self.assertEqual(
+            overview["ownUploads"]["spatialSummary"]["spatialResourceCount"],
+            1,
+        )
+        self.assertEqual(
+            overview["ownUploads"]["spatialSummary"]["totalBounds"],
+            [80.0, 40.0, 81.0, 41.0],
+        )
+        self.assertEqual(
             overview["ownUploads"]["typeBreakdown"][0]["dataType"],
             DataResource.DataType.RASTER,
         )
         self.assertEqual(overview["visibleResources"]["totalResources"], 2)
         self.assertEqual(overview["visibleResources"]["totalSizeBytes"], 130)
         self.assertEqual(overview["visibleResources"]["totalItemCount"], 8)
+        visible_spatial = overview["visibleResources"]["spatialSummary"]
+        self.assertEqual(visible_spatial["spatialResourceCount"], 2)
+        self.assertEqual(visible_spatial["missingSpatialResourceCount"], 0)
+        self.assertEqual(visible_spatial["totalBounds"], [80.0, 40.0, 83.0, 43.0])
+        self.assertEqual(
+            {item["name"] for item in visible_spatial["coverageRanking"]},
+            {"本人上传", "点位"},
+        )
         self.assertNotIn("uploaders", overview)
+        self.assertNotIn("spatialSummary", overview)
 
         super_group, _ = Group.objects.get_or_create(name=SUPERADMIN_GROUP_NAME)
         superadmin = get_user_model().objects.create_user(
@@ -2137,6 +2158,7 @@ class FeaturePermissionTests(TestCase):
             name="本人无需权限上传",
             code="own-overview-upload",
             data_type=DataResource.DataType.TABLE,
+            spatial_extent="84,41,85,42",
             size_bytes=64,
             item_count=6,
             maintainer=manager,
@@ -2158,6 +2180,10 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(overview["ownUploads"]["totalResources"], 1)
         self.assertEqual(overview["ownUploads"]["totalSizeBytes"], 64)
         self.assertEqual(overview["ownUploads"]["totalItemCount"], 6)
+        self.assertEqual(
+            overview["ownUploads"]["spatialSummary"]["totalBounds"],
+            [84.0, 41.0, 85.0, 42.0],
+        )
         self.assertNotIn("visibleResources", overview)
         self.assertNotIn("totalResources", overview)
         self.assertNotIn("uploaders", overview)

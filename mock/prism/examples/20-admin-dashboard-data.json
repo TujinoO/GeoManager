@@ -141,7 +141,78 @@
                 "sizeBytes": 66355,
                 "itemCount": 8
               }
-            ]
+            ],
+            "spatialSummary": {
+              "spatialResourceCount": 1,
+              "missingSpatialResourceCount": 2,
+              "totalBounds": [
+                84.88,
+                40.46,
+                85.36,
+                40.88
+              ],
+              "resourceExtents": [
+                {
+                  "resourceId": 11,
+                  "name": "塔里木河胡杨林样地监测点",
+                  "dataType": "vector",
+                  "bounds": [
+                    84.88,
+                    40.46,
+                    85.36,
+                    40.88
+                  ],
+                  "center": [
+                    85.12,
+                    40.67
+                  ],
+                  "coverageAreaKm2": 2117.42,
+                  "sizeBytes": 180224,
+                  "itemCount": 120,
+                  "coordinateSystem": "EPSG:4326",
+                  "uploaderName": "系统管理员",
+                  "updatedAt": "2026-06-14T09:20:00+08:00"
+                }
+              ],
+              "resourceExtentsTruncated": false,
+              "coverageRanking": [
+                {
+                  "resourceId": 11,
+                  "name": "塔里木河胡杨林样地监测点",
+                  "dataType": "vector",
+                  "bounds": [
+                    84.88,
+                    40.46,
+                    85.36,
+                    40.88
+                  ],
+                  "center": [
+                    85.12,
+                    40.67
+                  ],
+                  "coverageAreaKm2": 2117.42,
+                  "sizeBytes": 180224,
+                  "itemCount": 120,
+                  "coordinateSystem": "EPSG:4326",
+                  "uploaderName": "系统管理员",
+                  "updatedAt": "2026-06-14T09:20:00+08:00"
+                }
+              ],
+              "heatmapCells": [
+                {
+                  "column": 3,
+                  "row": 2,
+                  "bounds": [
+                    85.06,
+                    40.628,
+                    85.12,
+                    40.712
+                  ],
+                  "resourceCount": 1,
+                  "itemCount": 120
+                }
+              ]
+            }
           },
           "visibleResources": {
             "totalResources": 8,
@@ -167,7 +238,186 @@
                 "sizeBytes": 65536,
                 "itemCount": 130
               }
-            ]
+            ],
+            "spatialSummary": {
+              "spatialResourceCount": 4,
+              "missingSpatialResourceCount": 4,
+              "totalBounds": [
+                80.18,
+                39.78,
+                89.24,
+                43.12
+              ],
+              "resourceExtents": [
+                {
+                  "resourceId": 15,
+                  "name": "塔里木河流域胡杨林分布范围",
+                  "dataType": "vector",
+                  "bounds": [
+                    80.18,
+                    39.78,
+                    89.24,
+                    43.12
+                  ],
+                  "center": [
+                    84.71,
+                    41.45
+                  ],
+                  "coverageAreaKm2": 277365.48,
+                  "sizeBytes": 245760,
+                  "itemCount": 128,
+                  "coordinateSystem": "EPSG:4326",
+                  "uploaderName": "李数据管理员",
+                  "updatedAt": "2026-06-12T16:10:00+08:00"
+                },
+                {
+                  "resourceId": 12,
+                  "name": "Traim",
+                  "dataType": "raster",
+                  "bounds": [
+                    88.328434,
+                    40.079174,
+                    88.401642,
+                    40.160831
+                  ],
+                  "center": [
+                    88.365038,
+                    40.120003
+                  ],
+                  "coverageAreaKm2": 56.95,
+                  "sizeBytes": 138412032,
+                  "itemCount": 1,
+                  "coordinateSystem": "EPSG:3857",
+                  "uploaderName": "李数据管理员",
+                  "updatedAt": "2026-06-07T11:34:08+08:00"
+                },
+                {
+                  "resourceId": 11,
+                  "name": "塔里木河胡杨林样地监测点",
+                  "dataType": "vector",
+                  "bounds": [
+                    84.88,
+                    40.46,
+                    85.36,
+                    40.88
+                  ],
+                  "center": [
+                    85.12,
+                    40.67
+                  ],
+                  "coverageAreaKm2": 2117.42,
+                  "sizeBytes": 245760,
+                  "itemCount": 126,
+                  "coordinateSystem": "EPSG:4326",
+                  "uploaderName": "系统管理员",
+                  "updatedAt": "2026-06-14T09:20:00+08:00"
+                }
+              ],
+              "resourceExtentsTruncated": false,
+              "coverageRanking": [
+                {
+                  "resourceId": 15,
+                  "name": "塔里木河流域胡杨林分布范围",
+                  "dataType": "vector",
+                  "bounds": [
+                    80.18,
+                    39.78,
+                    89.24,
+                    43.12
+                  ],
+                  "center": [
+                    84.71,
+                    41.45
+                  ],
+                  "coverageAreaKm2": 277365.48,
+                  "sizeBytes": 245760,
+                  "itemCount": 128,
+                  "coordinateSystem": "EPSG:4326",
+                  "uploaderName": "李数据管理员",
+                  "updatedAt": "2026-06-12T16:10:00+08:00"
+                },
+                {
+                  "resourceId": 11,
+                  "name": "塔里木河胡杨林样地监测点",
+                  "dataType": "vector",
+                  "bounds": [
+                    84.88,
+                    40.46,
+                    85.36,
+                    40.88
+                  ],
+                  "center": [
+                    85.12,
+                    40.67
+                  ],
+                  "coverageAreaKm2": 2117.42,
+                  "sizeBytes": 245760,
+                  "itemCount": 126,
+                  "coordinateSystem": "EPSG:4326",
+                  "uploaderName": "系统管理员",
+                  "updatedAt": "2026-06-14T09:20:00+08:00"
+                },
+                {
+                  "resourceId": 12,
+                  "name": "Traim",
+                  "dataType": "raster",
+                  "bounds": [
+                    88.328434,
+                    40.079174,
+                    88.401642,
+                    40.160831
+                  ],
+                  "center": [
+                    88.365038,
+                    40.120003
+                  ],
+                  "coverageAreaKm2": 56.95,
+                  "sizeBytes": 138412032,
+                  "itemCount": 1,
+                  "coordinateSystem": "EPSG:3857",
+                  "uploaderName": "李数据管理员",
+                  "updatedAt": "2026-06-07T11:34:08+08:00"
+                }
+              ],
+              "heatmapCells": [
+                {
+                  "column": 4,
+                  "row": 2,
+                  "bounds": [
+                    84.71,
+                    41.116,
+                    85.8425,
+                    41.784
+                  ],
+                  "resourceCount": 1,
+                  "itemCount": 128
+                },
+                {
+                  "column": 4,
+                  "row": 1,
+                  "bounds": [
+                    84.71,
+                    40.448,
+                    85.8425,
+                    41.116
+                  ],
+                  "resourceCount": 1,
+                  "itemCount": 126
+                },
+                {
+                  "column": 7,
+                  "row": 0,
+                  "bounds": [
+                    88.1075,
+                    39.78,
+                    89.24,
+                    40.448
+                  ],
+                  "resourceCount": 1,
+                  "itemCount": 1
+                }
+              ]
+            }
           },
           "uploaders": [
             {

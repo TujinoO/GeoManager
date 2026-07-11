@@ -44,6 +44,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { api } from "../api/client";
 import {
   type DropPlacement,
   type ExportFormat,
@@ -67,6 +68,8 @@ import type {
   LoadedLayerGroup,
   RasterBandMetadata,
   ResourceField,
+  ResourceListItem,
+  ResourceVisualizationSummary,
   WorkspaceSceneKind,
 } from "../types";
 import { createEmptyLayerGroup } from "../utils/layerFactory";
@@ -1009,6 +1012,9 @@ function LayerItemNode({
             fields={layer.fields}
             fieldValueCounts={fieldValueCounts}
             geometryType={layer.geometryType}
+            sourceResource={
+              layer.layerType === "vector" ? layer.sourceResource : undefined
+            }
             rasterBands={
               layer.layerType === "raster"
                 ? (layer.rasterMetadata?.bands ?? [])
@@ -1149,6 +1155,7 @@ interface NodeActionProps {
   fields: ResourceField[];
   fieldValueCounts?: Record<string, Record<string, number>>;
   geometryType?: string;
+  sourceResource?: ResourceListItem;
   rasterBands?: RasterBandMetadata[];
   rasterDatasetId?: number;
   subjectName: string;
@@ -1168,6 +1175,7 @@ function NodeActions({
   fields,
   fieldValueCounts,
   geometryType,
+  sourceResource,
   rasterBands = [],
   rasterDatasetId,
   subjectName,
@@ -1194,9 +1202,23 @@ function NodeActions({
   const [exportRunning, setExportRunning] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [exportMessages, setExportMessages] = useState<string[]>([]);
+  const [recommendedSymbolizations, setRecommendedSymbolizations] = useState<
+    ResourceVisualizationSummary["recommendedSymbolizations"]
+  >([]);
+  const [
+    recommendedSymbolizationsLoading,
+    setRecommendedSymbolizationsLoading,
+  ] = useState(false);
+  const [recommendedSymbolizationsError, setRecommendedSymbolizationsError] =
+    useState<string | null>(null);
+  const recommendedRequestRef = useRef(0);
   const isDeferredSymbolization =
     isVectorSymbolization(symbolization) ||
     isRasterSymbolization(symbolization);
+  const canPreviewRecommendedSymbolizations =
+    isVectorSymbolization(symbolization) && Boolean(sourceResource);
+  const canOpenSymbolization =
+    canUseCustomSymbolization || canPreviewRecommendedSymbolizations;
 
   useEffect(() => {
     if (!symbolizationOpen) {
@@ -1205,10 +1227,39 @@ function NodeActions({
   }, [symbolization, symbolizationOpen]);
 
   function openSymbolizationModal() {
-    if (!canUseCustomSymbolization) return;
+    if (!canOpenSymbolization) return;
     committedSymbolizationRef.current = symbolization;
     setDraftSymbolization(symbolization);
     setSymbolizationOpen(true);
+    if (isVectorSymbolization(symbolization) && sourceResource) {
+      void loadRecommendedSymbolizations(sourceResource);
+    } else {
+      setRecommendedSymbolizations([]);
+      setRecommendedSymbolizationsError(null);
+      setRecommendedSymbolizationsLoading(false);
+    }
+  }
+
+  async function loadRecommendedSymbolizations(resource: ResourceListItem) {
+    const requestId = recommendedRequestRef.current + 1;
+    recommendedRequestRef.current = requestId;
+    setRecommendedSymbolizationsLoading(true);
+    setRecommendedSymbolizationsError(null);
+    try {
+      const summary = await api.resourceVisualizationSummary(resource);
+      if (recommendedRequestRef.current !== requestId) return;
+      setRecommendedSymbolizations(summary.recommendedSymbolizations ?? []);
+    } catch (error) {
+      if (recommendedRequestRef.current !== requestId) return;
+      setRecommendedSymbolizations([]);
+      setRecommendedSymbolizationsError(
+        error instanceof Error ? error.message : "无法获取推荐符号化方案",
+      );
+    } finally {
+      if (recommendedRequestRef.current === requestId) {
+        setRecommendedSymbolizationsLoading(false);
+      }
+    }
   }
 
   function closeSymbolizationModal() {
@@ -1283,6 +1334,7 @@ function NodeActions({
   }
 
   function previewVectorSymbolization(next: VectorSymbolization) {
+    if (!canUseCustomSymbolization) return;
     setDraftSymbolization(next);
     onSymbolizationChange(next);
   }
@@ -1295,8 +1347,17 @@ function NodeActions({
           fields={fields}
           fieldValueCounts={fieldValueCounts}
           geometryType={geometryType}
-          onChange={previewVectorSymbolization}
-          onApply={applyDraftSymbolization}
+          recommendedSymbolizations={recommendedSymbolizations}
+          recommendedSymbolizationsLoading={recommendedSymbolizationsLoading}
+          recommendedSymbolizationsError={recommendedSymbolizationsError}
+          readOnly={!canUseCustomSymbolization}
+          canApplyRecommendedSymbolizations={canUseCustomSymbolization}
+          onChange={
+            canUseCustomSymbolization ? previewVectorSymbolization : () => {}
+          }
+          onApply={
+            canUseCustomSymbolization ? applyDraftSymbolization : undefined
+          }
         />
       );
     }
@@ -1383,15 +1444,23 @@ function NodeActions({
             </LayerTooltip>
           </Popover>
         )}
-        {canUseCustomSymbolization && (
-          <LayerTooltip title="符号化">
+        {canOpenSymbolization && (
+          <LayerTooltip
+            title={
+              canUseCustomSymbolization ? "符号化" : "推荐符号化预览"
+            }
+          >
             <Button
               className={`action-btn symbolization-action-btn${
                 symbolizationOpen ? " is-active" : ""
               }`}
               type="text"
               size="small"
-              aria-label={`${subjectName}符号化`}
+              aria-label={
+                canUseCustomSymbolization
+                  ? `${subjectName}符号化`
+                  : `${subjectName}推荐符号化预览`
+              }
               aria-expanded={symbolizationOpen}
               aria-haspopup="dialog"
               icon={<BgColorsOutlined style={{ fontSize: 14 }} />}
@@ -1410,9 +1479,13 @@ function NodeActions({
           />
         </LayerTooltip>
       </div>
-      {canUseCustomSymbolization && (
+      {canOpenSymbolization && (
         <Modal
-          title={`${subjectName}符号化`}
+          title={
+            canUseCustomSymbolization
+              ? `${subjectName}符号化`
+              : `${subjectName}推荐符号化预览`
+          }
           open={symbolizationOpen}
           footer={null}
           width="min(760px, calc(100vw - 32px))"

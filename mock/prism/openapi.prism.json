@@ -1903,7 +1903,78 @@
                             "sizeBytes": 66355,
                             "itemCount": 8
                           }
-                        ]
+                        ],
+                        "spatialSummary": {
+                          "spatialResourceCount": 1,
+                          "missingSpatialResourceCount": 2,
+                          "totalBounds": [
+                            84.88,
+                            40.46,
+                            85.36,
+                            40.88
+                          ],
+                          "resourceExtents": [
+                            {
+                              "resourceId": 11,
+                              "name": "塔里木河胡杨林样地监测点",
+                              "dataType": "vector",
+                              "bounds": [
+                                84.88,
+                                40.46,
+                                85.36,
+                                40.88
+                              ],
+                              "center": [
+                                85.12,
+                                40.67
+                              ],
+                              "coverageAreaKm2": 2117.42,
+                              "sizeBytes": 180224,
+                              "itemCount": 120,
+                              "coordinateSystem": "EPSG:4326",
+                              "uploaderName": "系统管理员",
+                              "updatedAt": "2026-06-14T09:20:00+08:00"
+                            }
+                          ],
+                          "resourceExtentsTruncated": false,
+                          "coverageRanking": [
+                            {
+                              "resourceId": 11,
+                              "name": "塔里木河胡杨林样地监测点",
+                              "dataType": "vector",
+                              "bounds": [
+                                84.88,
+                                40.46,
+                                85.36,
+                                40.88
+                              ],
+                              "center": [
+                                85.12,
+                                40.67
+                              ],
+                              "coverageAreaKm2": 2117.42,
+                              "sizeBytes": 180224,
+                              "itemCount": 120,
+                              "coordinateSystem": "EPSG:4326",
+                              "uploaderName": "系统管理员",
+                              "updatedAt": "2026-06-14T09:20:00+08:00"
+                            }
+                          ],
+                          "heatmapCells": [
+                            {
+                              "column": 3,
+                              "row": 2,
+                              "bounds": [
+                                85.06,
+                                40.628,
+                                85.12,
+                                40.712
+                              ],
+                              "resourceCount": 1,
+                              "itemCount": 120
+                            }
+                          ]
+                        }
                       },
                       "visibleResources": {
                         "totalResources": 8,
@@ -1929,7 +2000,186 @@
                             "sizeBytes": 65536,
                             "itemCount": 130
                           }
-                        ]
+                        ],
+                        "spatialSummary": {
+                          "spatialResourceCount": 4,
+                          "missingSpatialResourceCount": 4,
+                          "totalBounds": [
+                            80.18,
+                            39.78,
+                            89.24,
+                            43.12
+                          ],
+                          "resourceExtents": [
+                            {
+                              "resourceId": 15,
+                              "name": "塔里木河流域胡杨林分布范围",
+                              "dataType": "vector",
+                              "bounds": [
+                                80.18,
+                                39.78,
+                                89.24,
+                                43.12
+                              ],
+                              "center": [
+                                84.71,
+                                41.45
+                              ],
+                              "coverageAreaKm2": 277365.48,
+                              "sizeBytes": 245760,
+                              "itemCount": 128,
+                              "coordinateSystem": "EPSG:4326",
+                              "uploaderName": "李数据管理员",
+                              "updatedAt": "2026-06-12T16:10:00+08:00"
+                            },
+                            {
+                              "resourceId": 12,
+                              "name": "Traim",
+                              "dataType": "raster",
+                              "bounds": [
+                                88.328434,
+                                40.079174,
+                                88.401642,
+                                40.160831
+                              ],
+                              "center": [
+                                88.365038,
+                                40.120003
+                              ],
+                              "coverageAreaKm2": 56.95,
+                              "sizeBytes": 138412032,
+                              "itemCount": 1,
+                              "coordinateSystem": "EPSG:3857",
+                              "uploaderName": "李数据管理员",
+                              "updatedAt": "2026-06-07T11:34:08+08:00"
+                            },
+                            {
+                              "resourceId": 11,
+                              "name": "塔里木河胡杨林样地监测点",
+                              "dataType": "vector",
+                              "bounds": [
+                                84.88,
+                                40.46,
+                                85.36,
+                                40.88
+                              ],
+                              "center": [
+                                85.12,
+                                40.67
+                              ],
+                              "coverageAreaKm2": 2117.42,
+                              "sizeBytes": 245760,
+                              "itemCount": 126,
+                              "coordinateSystem": "EPSG:4326",
+                              "uploaderName": "系统管理员",
+                              "updatedAt": "2026-06-14T09:20:00+08:00"
+                            }
+                          ],
+                          "resourceExtentsTruncated": false,
+                          "coverageRanking": [
+                            {
+                              "resourceId": 15,
+                              "name": "塔里木河流域胡杨林分布范围",
+                              "dataType": "vector",
+                              "bounds": [
+                                80.18,
+                                39.78,
+                                89.24,
+                                43.12
+                              ],
+                              "center": [
+                                84.71,
+                                41.45
+                              ],
+                              "coverageAreaKm2": 277365.48,
+                              "sizeBytes": 245760,
+                              "itemCount": 128,
+                              "coordinateSystem": "EPSG:4326",
+                              "uploaderName": "李数据管理员",
+                              "updatedAt": "2026-06-12T16:10:00+08:00"
+                            },
+                            {
+                              "resourceId": 11,
+                              "name": "塔里木河胡杨林样地监测点",
+                              "dataType": "vector",
+                              "bounds": [
+                                84.88,
+                                40.46,
+                                85.36,
+                                40.88
+                              ],
+                              "center": [
+                                85.12,
+                                40.67
+                              ],
+                              "coverageAreaKm2": 2117.42,
+                              "sizeBytes": 245760,
+                              "itemCount": 126,
+                              "coordinateSystem": "EPSG:4326",
+                              "uploaderName": "系统管理员",
+                              "updatedAt": "2026-06-14T09:20:00+08:00"
+                            },
+                            {
+                              "resourceId": 12,
+                              "name": "Traim",
+                              "dataType": "raster",
+                              "bounds": [
+                                88.328434,
+                                40.079174,
+                                88.401642,
+                                40.160831
+                              ],
+                              "center": [
+                                88.365038,
+                                40.120003
+                              ],
+                              "coverageAreaKm2": 56.95,
+                              "sizeBytes": 138412032,
+                              "itemCount": 1,
+                              "coordinateSystem": "EPSG:3857",
+                              "uploaderName": "李数据管理员",
+                              "updatedAt": "2026-06-07T11:34:08+08:00"
+                            }
+                          ],
+                          "heatmapCells": [
+                            {
+                              "column": 4,
+                              "row": 2,
+                              "bounds": [
+                                84.71,
+                                41.116,
+                                85.8425,
+                                41.784
+                              ],
+                              "resourceCount": 1,
+                              "itemCount": 128
+                            },
+                            {
+                              "column": 4,
+                              "row": 1,
+                              "bounds": [
+                                84.71,
+                                40.448,
+                                85.8425,
+                                41.116
+                              ],
+                              "resourceCount": 1,
+                              "itemCount": 126
+                            },
+                            {
+                              "column": 7,
+                              "row": 0,
+                              "bounds": [
+                                88.1075,
+                                39.78,
+                                89.24,
+                                40.448
+                              ],
+                              "resourceCount": 1,
+                              "itemCount": 1
+                            }
+                          ]
+                        }
                       },
                       "uploaders": [
                         {
@@ -6995,6 +7245,581 @@
         }
       }
     },
+    "/api/catalog/resources/{id}/visualization-summary/": {
+      "get": {
+        "tags": [
+          "数据目录"
+        ],
+        "summary": "获取数据资源可视化聚合摘要",
+        "description": "返回右侧数据洞察面板所需的轻量聚合统计，包括分类字段 TopN、数值字段分布、空间覆盖摘要、数据质量问题和监测功能占位信息。\n矢量数据基于当前资源的 GeoPackage 图层聚合；栅格数据基于已登记的栅格元数据生成摘要。接口不返回原始 GeoJSON、栅格像元数组或查询结果数据本体。\n需要 `core.browse_data`，并沿用数据资源访问范围校验；无权访问资源返回 403，资源不存在或未启用返回 404。\n",
+        "operationId": "getResourceVisualizationSummary",
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ResourceId"
+          },
+          {
+            "name": "topN",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 3,
+              "maximum": 20,
+              "default": 8
+            },
+            "description": "每个分类字段返回的最高频类别数量。"
+          },
+          {
+            "name": "histogramBins",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 20,
+              "default": 8
+            },
+            "description": "数值字段直方图分箱数量。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "可视化聚合摘要",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceVisualizationSummaryResponse"
+                },
+                "examples": {
+                  "vectorSummary": {
+                    "summary": "矢量生态数据聚合摘要",
+                    "value": {
+                      "resource": {
+                        "id": 7,
+                        "name": "塔里木河胡杨样地监测点",
+                        "code": "tarim-populus-plots",
+                        "dataType": "vector",
+                        "domainType": "population",
+                        "category": {
+                          "id": 101,
+                          "type": "data_category",
+                          "code": "monitoring",
+                          "name": "长期监测"
+                        },
+                        "source": "2026 塔里木河野外调查",
+                        "provider": "生态监测组",
+                        "dataDate": "2026-06-01",
+                        "spatialExtent": "80.100000,40.100000,82.800000,41.900000",
+                        "coordinateSystem": "EPSG:4326",
+                        "fileFormat": "GPKG",
+                        "description": "由 Excel/CSV 导入的地理样地监测点数据。",
+                        "qualityNote": "坐标有效率 126/128。",
+                        "status": "active",
+                        "isQueryable": true,
+                        "isRenderable": false,
+                        "updatedAt": "2026-07-03T09:30:00Z",
+                        "sizeBytes": 245760,
+                        "itemCount": 128
+                      },
+                      "domainType": "population",
+                      "generatedAt": "2026-07-07T09:30:00Z",
+                      "source": "backend_aggregate",
+                      "profile": {
+                        "featureCount": 128,
+                        "fieldCount": 16,
+                        "geometryType": "Point",
+                        "bounds": [
+                          80.1,
+                          40.1,
+                          82.8,
+                          41.9
+                        ]
+                      },
+                      "categoryStats": [
+                        {
+                          "field": "栖息地类型",
+                          "label": "栖息地类型",
+                          "total": 128,
+                          "nullCount": 0,
+                          "uniqueCount": 4,
+                          "truncated": false,
+                          "items": [
+                            {
+                              "label": "林地",
+                              "count": 58,
+                              "ratio": 0.4531
+                            },
+                            {
+                              "label": "河沟",
+                              "count": 31,
+                              "ratio": 0.2422
+                            }
+                          ]
+                        }
+                      ],
+                      "numericStats": [
+                        {
+                          "field": "重要值",
+                          "label": "重要值",
+                          "count": 128,
+                          "nullCount": 0,
+                          "min": 0.81,
+                          "max": 42.6,
+                          "mean": 11.24,
+                          "median": 8.73,
+                          "q1": 4.12,
+                          "q3": 16.4,
+                          "histogram": [
+                            {
+                              "min": 0.81,
+                              "max": 6.03,
+                              "count": 32,
+                              "label": "0.81-6.03"
+                            }
+                          ]
+                        }
+                      ],
+                      "spatialSummary": {
+                        "featureCount": 128,
+                        "validGeometryCount": 126,
+                        "nullGeometryCount": 2,
+                        "coordinateCoverageRatio": 0.9844,
+                        "bounds": [
+                          80.1,
+                          40.1,
+                          82.8,
+                          41.9
+                        ],
+                        "geometryTypes": [
+                          {
+                            "label": "Point",
+                            "count": 126,
+                            "ratio": 0.9844
+                          }
+                        ],
+                        "centroid": [
+                          81.42,
+                          40.92
+                        ]
+                      },
+                      "qualityIssues": [
+                        {
+                          "code": "null_geometry",
+                          "severity": "warning",
+                          "title": "空几何记录",
+                          "message": "存在 2 条记录没有可用空间几何。",
+                          "count": 2,
+                          "ratio": 0.0156
+                        }
+                      ],
+                      "recommendedCharts": [
+                        {
+                          "chartType": "rank_bar",
+                          "title": "重要值 Top 排名",
+                          "description": "展示当前种群数据中优势物种或样方的重要值排序。",
+                          "fields": [
+                            "重要值"
+                          ]
+                        }
+                      ],
+                      "recommendedSymbolizations": [
+                        {
+                          "templateId": "population.importance.graduated.v1",
+                          "name": "种群重要值分级",
+                          "description": "按重要值将种群样点划分为 5 个等级，突出优势度差异。",
+                          "businessType": "population",
+                          "rendererType": "graduated",
+                          "primaryField": "重要值",
+                          "matchedFields": [
+                            "重要值"
+                          ],
+                          "matchStatus": "matched",
+                          "isPrimary": true,
+                          "priority": 10,
+                          "warnings": [],
+                          "symbolization": {
+                            "opacity": 90,
+                            "pointMode": "symbol",
+                            "renderer": {
+                              "type": "graduated",
+                              "field": "重要值",
+                              "method": "quantile",
+                              "classCount": 5,
+                              "precision": 2,
+                              "colorRamp": "green",
+                              "templateId": "population.importance.graduated.v1",
+                              "businessType": "population",
+                              "updatedByUser": false,
+                              "classes": [
+                                {
+                                  "id": "range-1",
+                                  "label": "低重要值",
+                                  "min": 0.81,
+                                  "max": 6.03,
+                                  "color": "#E4F6D6",
+                                  "iconImage": "gm-populus",
+                                  "size": 0.88,
+                                  "count": 32,
+                                  "visible": true
+                                }
+                              ],
+                              "defaultClass": {
+                                "id": "no-data",
+                                "label": "无数值/空值",
+                                "min": null,
+                                "max": null,
+                                "color": "#8A8F98",
+                                "iconImage": "gm-populus",
+                                "size": 0.9,
+                                "count": 0,
+                                "visible": true
+                              }
+                            },
+                            "symbol": {
+                              "iconImage": "gm-populus",
+                              "iconSize": 1,
+                              "textField": ""
+                            },
+                            "circle": {
+                              "circleColor": "#2F7D62",
+                              "circleRadius": 7
+                            }
+                          }
+                        }
+                      ],
+                      "monitorPreview": {
+                        "title": "监测能力预留",
+                        "status": "planned",
+                        "items": [
+                          {
+                            "label": "阈值配置",
+                            "status": "planned",
+                            "description": "后续支持为字段配置预警阈值。"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "resource": {
+                    "id": 3,
+                    "name": "塔里木河胡杨样地监测点",
+                    "code": "survey-points-2026",
+                    "dataType": "vector",
+                    "domainType": "field_survey",
+                    "category": {
+                      "id": 101,
+                      "type": "data_category",
+                      "code": "monitoring",
+                      "name": "长期监测"
+                    },
+                    "source": "2026 塔里木河野外调查",
+                    "provider": "生态监测组",
+                    "dataDate": "2026-06-01",
+                    "spatialExtent": "87.600000,43.795100,87.642800,43.812450",
+                    "coordinateSystem": "EPSG:4326",
+                    "fileFormat": "GPKG",
+                    "description": "由 Excel/CSV 导入的地理样地监测点数据。",
+                    "qualityNote": "坐标有效 3/3 行。",
+                    "status": "active",
+                    "isQueryable": true,
+                    "isRenderable": false,
+                    "updatedAt": "2026-06-18T12:30:00+08:00",
+                    "sizeBytes": 245760,
+                    "itemCount": 3
+                  },
+                  "domainType": "field_survey",
+                  "generatedAt": "2026-07-07T09:30:00+08:00",
+                  "source": "backend_aggregate",
+                  "profile": {
+                    "featureCount": 3,
+                    "fieldCount": 3,
+                    "geometryType": "Point",
+                    "bounds": [
+                      87.6,
+                      43.7951,
+                      87.6428,
+                      43.81245
+                    ]
+                  },
+                  "categoryStats": [
+                    {
+                      "field": "health",
+                      "label": "健康状况",
+                      "total": 3,
+                      "nullCount": 0,
+                      "uniqueCount": 2,
+                      "truncated": false,
+                      "items": [
+                        {
+                          "label": "良好",
+                          "count": 2,
+                          "ratio": 0.6667
+                        },
+                        {
+                          "label": "关注",
+                          "count": 1,
+                          "ratio": 0.3333
+                        }
+                      ]
+                    }
+                  ],
+                  "numericStats": [
+                    {
+                      "field": "dbh_cm",
+                      "label": "胸径（厘米）",
+                      "count": 3,
+                      "nullCount": 0,
+                      "min": 21.8,
+                      "max": 32.5,
+                      "mean": 27.8,
+                      "median": 29.1,
+                      "q1": 25.45,
+                      "q3": 30.8,
+                      "histogram": [
+                        {
+                          "min": 21.8,
+                          "max": 27.15,
+                          "count": 1,
+                          "label": "21.80-27.15"
+                        },
+                        {
+                          "min": 27.15,
+                          "max": 32.5,
+                          "count": 2,
+                          "label": "27.15-32.50"
+                        }
+                      ]
+                    }
+                  ],
+                  "spatialSummary": {
+                    "featureCount": 3,
+                    "validGeometryCount": 3,
+                    "nullGeometryCount": 0,
+                    "coordinateCoverageRatio": 1,
+                    "bounds": [
+                      87.6,
+                      43.7951,
+                      87.6428,
+                      43.81245
+                    ],
+                    "geometryTypes": [
+                      {
+                        "label": "Point",
+                        "count": 3,
+                        "ratio": 1
+                      }
+                    ],
+                    "centroid": [
+                      87.6214,
+                      43.8038
+                    ]
+                  },
+                  "qualityIssues": [
+                    {
+                      "code": "quality_ready",
+                      "severity": "info",
+                      "title": "基础质量良好",
+                      "message": "当前资源坐标和主要字段可用于可视化分析。",
+                      "count": 0,
+                      "ratio": 0
+                    }
+                  ],
+                  "recommendedCharts": [
+                    {
+                      "chartType": "rank_bar",
+                      "title": "调查指标排行",
+                      "description": "根据胸径、株数或盖度等字段展示重点样点。",
+                      "fields": [
+                        "dbh_cm"
+                      ]
+                    },
+                    {
+                      "chartType": "donut",
+                      "title": "健康状态构成",
+                      "description": "展示野外调查记录的分类结构。",
+                      "fields": [
+                        "health"
+                      ]
+                    }
+                  ],
+                  "recommendedSymbolizations": [
+                    {
+                      "templateId": "field_survey.habitat.unique.v1",
+                      "name": "野外调查生境类型",
+                      "description": "按栖息地类型区分调查样点，适合作为野外调查数据的默认地图表达。",
+                      "businessType": "field_survey",
+                      "rendererType": "uniqueValue",
+                      "primaryField": "栖息地类型",
+                      "matchedFields": [
+                        "栖息地类型"
+                      ],
+                      "matchStatus": "matched",
+                      "isPrimary": true,
+                      "priority": 10,
+                      "warnings": [],
+                      "symbolization": {
+                        "opacity": 90,
+                        "pointMode": "symbol",
+                        "renderer": {
+                          "type": "uniqueValue",
+                          "field": "栖息地类型",
+                          "templateId": "field_survey.habitat.unique.v1",
+                          "businessType": "field_survey",
+                          "updatedByUser": false,
+                          "classes": [
+                            {
+                              "id": "forest",
+                              "label": "林地",
+                              "values": [
+                                "林地"
+                              ],
+                              "color": "#2F7D62",
+                              "iconImage": "gm-tree",
+                              "size": 1.06,
+                              "count": 17,
+                              "visible": true
+                            },
+                            {
+                              "id": "grassland",
+                              "label": "草地",
+                              "values": [
+                                "草地"
+                              ],
+                              "color": "#7FBC61",
+                              "iconImage": "gm-leaf",
+                              "size": 1,
+                              "count": 24,
+                              "visible": true
+                            }
+                          ],
+                          "defaultClass": {
+                            "id": "other",
+                            "label": "其他生境",
+                            "values": [],
+                            "color": "#8A8F98",
+                            "iconImage": "gm-sample",
+                            "size": 0.92,
+                            "count": 0,
+                            "visible": true
+                          }
+                        },
+                        "symbol": {
+                          "iconImage": "gm-sample",
+                          "iconSize": 1,
+                          "textField": ""
+                        },
+                        "circle": {
+                          "circleColor": "#2F7D62",
+                          "circleRadius": 7
+                        }
+                      }
+                    },
+                    {
+                      "templateId": "field_survey.importance.graduated.v1",
+                      "name": "野外调查重要值分级",
+                      "description": "按重要值进行连续分级，适合查看样点或物种优势度差异。",
+                      "businessType": "field_survey",
+                      "rendererType": "graduated",
+                      "primaryField": "重要值",
+                      "matchedFields": [
+                        "重要值"
+                      ],
+                      "matchStatus": "matched",
+                      "isPrimary": false,
+                      "priority": 20,
+                      "warnings": [],
+                      "symbolization": {
+                        "opacity": 90,
+                        "pointMode": "symbol",
+                        "renderer": {
+                          "type": "graduated",
+                          "field": "重要值",
+                          "method": "quantile",
+                          "classCount": 5,
+                          "precision": 2,
+                          "colorRamp": "green",
+                          "templateId": "field_survey.importance.graduated.v1",
+                          "businessType": "field_survey",
+                          "updatedByUser": false,
+                          "classes": [
+                            {
+                              "id": "range-1",
+                              "label": "低重要值",
+                              "min": 0.62,
+                              "max": 4.86,
+                              "color": "#E4F6D6",
+                              "iconImage": "gm-plot",
+                              "size": 0.88,
+                              "count": 24,
+                              "visible": true
+                            }
+                          ],
+                          "defaultClass": {
+                            "id": "no-data",
+                            "label": "无数值/空值",
+                            "min": null,
+                            "max": null,
+                            "color": "#8A8F98",
+                            "iconImage": "gm-plot",
+                            "size": 0.9,
+                            "count": 0,
+                            "visible": true
+                          }
+                        },
+                        "symbol": {
+                          "iconImage": "gm-plot",
+                          "iconSize": 1,
+                          "textField": ""
+                        },
+                        "circle": {
+                          "circleColor": "#2F7D62",
+                          "circleRadius": 7
+                        }
+                      }
+                    }
+                  ],
+                  "monitorPreview": {
+                    "title": "监测能力预留",
+                    "status": "planned",
+                    "items": [
+                      {
+                        "label": "阈值配置",
+                        "status": "planned",
+                        "description": "后续支持对胸径、盖度、重要值和遥感指数设置预警阈值。"
+                      },
+                      {
+                        "label": "定时扫描",
+                        "status": "planned",
+                        "description": "后续支持定时扫描资源质量与生态指标异常。"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/api/catalog/resources/{id}/query/": {
       "post": {
         "tags": [
@@ -7556,7 +8381,7 @@
                         "renderer": {
                           "type": "graduated",
                           "field": "海拔",
-                          "method": "equalInterval",
+                          "method": "manual",
                           "classCount": 5,
                           "precision": 0,
                           "colorRamp": "green",
@@ -7564,9 +8389,9 @@
                           "classes": [
                             {
                               "id": "range-1",
-                              "label": "820 - 880",
+                              "label": "低海拔",
                               "min": 820,
-                              "max": 880,
+                              "max": 900,
                               "color": "#E4F6D6",
                               "iconImage": "gm-tree",
                               "size": 0.88,
@@ -7575,9 +8400,9 @@
                             },
                             {
                               "id": "range-2",
-                              "label": "880 - 940",
-                              "min": 880,
-                              "max": 940,
+                              "label": "中低海拔",
+                              "min": 900,
+                              "max": 960,
                               "color": "#B8E186",
                               "iconImage": "gm-tree",
                               "size": 0.96,
@@ -7586,9 +8411,9 @@
                             },
                             {
                               "id": "range-3",
-                              "label": "940 - 1000",
-                              "min": 940,
-                              "max": 1000,
+                              "label": "中海拔",
+                              "min": 960,
+                              "max": 1040,
                               "color": "#7FBC61",
                               "iconImage": "gm-tree",
                               "size": 1.04,
@@ -7597,9 +8422,9 @@
                             },
                             {
                               "id": "range-4",
-                              "label": "1000 - 1060",
-                              "min": 1000,
-                              "max": 1060,
+                              "label": "中高海拔",
+                              "min": 1040,
+                              "max": 1080,
                               "color": "#2F7D62",
                               "iconImage": "gm-tree",
                               "size": 1.12,
@@ -7608,8 +8433,8 @@
                             },
                             {
                               "id": "range-5",
-                              "label": "1060 - 1120",
-                              "min": 1060,
+                              "label": "高海拔",
+                              "min": 1080,
                               "max": 1120,
                               "color": "#145A46",
                               "iconImage": "gm-tree",
@@ -7644,7 +8469,7 @@
                         87.6428,
                         43.81245
                       ],
-                      "legend": "按海拔字段进行 5 级等距数值分级，使用 gm-tree 平台图标和生态绿色连续色带。",
+                      "legend": "按海拔字段进行 5 级自定义数值分级，使用 gm-tree 平台图标并为每个等级维护独立颜色和范围。",
                       "rasterRules": {},
                       "isActive": true,
                       "updatedAt": "2026-07-03T12:00:00+08:00"
@@ -10237,7 +11062,8 @@
           "activeResources",
           "totalSizeBytes",
           "totalItemCount",
-          "typeBreakdown"
+          "typeBreakdown",
+          "spatialSummary"
         ],
         "properties": {
           "totalResources": {
@@ -10262,6 +11088,10 @@
             "items": {
               "$ref": "#/components/schemas/AdminDashboardDataTypeOverview"
             }
+          },
+          "spatialSummary": {
+            "$ref": "#/components/schemas/AdminDashboardSpatialSummary",
+            "description": "该统计范围内可用于数据概览空间可视化的权限裁剪后空间摘要；仅基于当前分组内用户有权查看的数据资源计算"
           }
         }
       },
@@ -10297,6 +11127,179 @@
           "itemCount": {
             "type": "integer",
             "description": "该类型数据条目数"
+          }
+        }
+      },
+      "AdminDashboardSpatialSummary": {
+        "type": "object",
+        "required": [
+          "spatialResourceCount",
+          "missingSpatialResourceCount",
+          "totalBounds",
+          "resourceExtents",
+          "resourceExtentsTruncated",
+          "coverageRanking",
+          "heatmapCells"
+        ],
+        "properties": {
+          "spatialResourceCount": {
+            "type": "integer",
+            "description": "当前统计范围内具备有效经纬度 bbox 的空间数据资源数量"
+          },
+          "missingSpatialResourceCount": {
+            "type": "integer",
+            "description": "当前统计范围内暂无可解析经纬度空间范围的数据资源数量"
+          },
+          "totalBounds": {
+            "type": "array",
+            "description": "当前统计范围内所有有效空间范围合并后的经纬度 bbox，顺序为 `[minLng, minLat, maxLng, maxLat]`；没有空间范围时为空数组",
+            "maxItems": 4,
+            "items": {
+              "type": "number"
+            }
+          },
+          "resourceExtents": {
+            "type": "array",
+            "description": "当前统计范围内用于绘制空间覆盖框的数据资源摘要，后端最多返回 80 项并按覆盖面积优先；所有条目均已按当前用户权限裁剪",
+            "items": {
+              "$ref": "#/components/schemas/AdminDashboardResourceExtent"
+            }
+          },
+          "resourceExtentsTruncated": {
+            "type": "boolean",
+            "description": "`resourceExtents` 是否因数量超过前端概览展示上限而被截断"
+          },
+          "coverageRanking": {
+            "type": "array",
+            "description": "当前统计范围内空间覆盖面积最大的前 10 个数据资源；所有条目均已按当前用户权限裁剪",
+            "items": {
+              "$ref": "#/components/schemas/AdminDashboardResourceExtent"
+            }
+          },
+          "heatmapCells": {
+            "type": "array",
+            "description": "当前统计范围内按资源中心点聚合的热力网格；仅基于当前用户有权查看的数据资源生成，不包含未授权资源",
+            "items": {
+              "$ref": "#/components/schemas/AdminDashboardSpatialHeatmapCell"
+            }
+          }
+        }
+      },
+      "AdminDashboardResourceExtent": {
+        "type": "object",
+        "required": [
+          "resourceId",
+          "name",
+          "dataType",
+          "bounds",
+          "center",
+          "coverageAreaKm2",
+          "sizeBytes",
+          "itemCount",
+          "coordinateSystem",
+          "uploaderName",
+          "updatedAt"
+        ],
+        "properties": {
+          "resourceId": {
+            "type": "integer",
+            "description": "数据资源 ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "数据资源名称"
+          },
+          "dataType": {
+            "type": "string",
+            "enum": [
+              "vector",
+              "raster",
+              "gene",
+              "table",
+              "document",
+              "image"
+            ],
+            "description": "数据类型"
+          },
+          "bounds": {
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
+            "description": "数据资源经纬度 bbox，顺序为 `[minLng, minLat, maxLng, maxLat]`",
+            "items": {
+              "type": "number"
+            }
+          },
+          "center": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "数据资源 bbox 中心点，顺序为 `[lng, lat]`",
+            "items": {
+              "type": "number"
+            }
+          },
+          "coverageAreaKm2": {
+            "type": "number",
+            "description": "根据经纬度 bbox 估算的覆盖面积，单位平方公里，用于概览排行和相对比较"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "description": "数据大小，单位字节"
+          },
+          "itemCount": {
+            "type": "integer",
+            "description": "数据条目数"
+          },
+          "coordinateSystem": {
+            "type": "string",
+            "description": "数据坐标系说明；未知时为空字符串"
+          },
+          "uploaderName": {
+            "type": "string",
+            "description": "上传者或维护者展示名；未记录时返回“未记录”"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "数据资源最近更新时间"
+          }
+        }
+      },
+      "AdminDashboardSpatialHeatmapCell": {
+        "type": "object",
+        "required": [
+          "column",
+          "row",
+          "bounds",
+          "resourceCount",
+          "itemCount"
+        ],
+        "properties": {
+          "column": {
+            "type": "integer",
+            "description": "热力网格列序号，从 0 开始"
+          },
+          "row": {
+            "type": "integer",
+            "description": "热力网格行序号，从 0 开始"
+          },
+          "bounds": {
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
+            "description": "热力网格经纬度 bbox，顺序为 `[minLng, minLat, maxLng, maxLat]`",
+            "items": {
+              "type": "number"
+            }
+          },
+          "resourceCount": {
+            "type": "integer",
+            "description": "落入该网格的数据资源数量"
+          },
+          "itemCount": {
+            "type": "integer",
+            "description": "落入该网格的数据资源条目数合计"
           }
         }
       },
@@ -13226,15 +14229,16 @@
             "type": "string",
             "enum": [
               "equalInterval",
-              "quantile"
+              "quantile",
+              "manual"
             ],
-            "description": "分级方法；equalInterval 为等距分级，quantile 为分位数分级"
+            "description": "分级方法；equalInterval 为等距分级，quantile 为分位数分级，manual 为用户自定义区间"
           },
           "classCount": {
             "type": "integer",
-            "minimum": 3,
-            "maximum": 9,
-            "description": "分级数量，平台编辑器默认限制为 3 到 9 级"
+            "minimum": 1,
+            "maximum": 24,
+            "description": "分级数量；equalInterval/quantile 自动分级建议 3 到 9 级，manual 自定义分级允许 1 到 24 级"
           },
           "precision": {
             "type": "integer",
@@ -13252,13 +14256,21 @@
             ],
             "description": "平台内置连续色带编码"
           },
+          "templateId": {
+            "type": "string",
+            "description": "来源推荐模板 ID；空字符串表示未套用业务模板"
+          },
+          "businessType": {
+            "type": "string",
+            "description": "业务类型编码，例如 population、community 或 field_survey"
+          },
           "updatedByUser": {
             "type": "boolean",
             "description": "用户是否已手动修改该数值分级方案"
           },
           "classes": {
             "type": "array",
-            "description": "数值区间符号列表；最后一个区间包含最大值，其他区间为左闭右开",
+            "description": "数值区间符号列表；最后一个区间包含最大值，其他区间为左闭右开。manual 方法下由用户直接维护每个区间的 min/max、颜色、图标、大小和显隐",
             "items": {
               "$ref": "#/components/schemas/GraduatedSymbolClass"
             }
@@ -14431,6 +15443,623 @@
           "description": {
             "type": "string",
             "description": "字段描述"
+          }
+        }
+      },
+      "ResourceVisualizationSummaryResponse": {
+        "type": "object",
+        "required": [
+          "resource",
+          "domainType",
+          "generatedAt",
+          "source",
+          "profile",
+          "categoryStats",
+          "numericStats",
+          "spatialSummary",
+          "qualityIssues",
+          "recommendedCharts",
+          "recommendedSymbolizations",
+          "monitorPreview"
+        ],
+        "properties": {
+          "resource": {
+            "$ref": "#/components/schemas/DataResource"
+          },
+          "domainType": {
+            "$ref": "#/components/schemas/DataDomainType"
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "聚合摘要生成时间。"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "backend_aggregate",
+              "raster_metadata",
+              "profile_only"
+            ],
+            "description": "摘要生成来源；矢量为后端聚合，栅格为元数据推导，无法读取明细时为 profile_only。"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/VisualizationResourceProfile"
+          },
+          "categoryStats": {
+            "type": "array",
+            "description": "可用于构成图、TopN 排名和分类筛选的字段统计。",
+            "items": {
+              "$ref": "#/components/schemas/VisualizationCategoryStat"
+            }
+          },
+          "numericStats": {
+            "type": "array",
+            "description": "可用于直方图、箱线图、雷达图和连续分级的数值字段统计。",
+            "items": {
+              "$ref": "#/components/schemas/VisualizationNumericStat"
+            }
+          },
+          "spatialSummary": {
+            "$ref": "#/components/schemas/VisualizationSpatialSummary"
+          },
+          "qualityIssues": {
+            "type": "array",
+            "description": "数据质量监测问题清单。",
+            "items": {
+              "$ref": "#/components/schemas/VisualizationQualityIssue"
+            }
+          },
+          "recommendedCharts": {
+            "type": "array",
+            "description": "后端根据业务类型和字段结构推荐的图表卡片。",
+            "items": {
+              "$ref": "#/components/schemas/VisualizationChartRecommendation"
+            }
+          },
+          "recommendedSymbolizations": {
+            "type": "array",
+            "description": "后端根据业务类型、字段命中结果和字段统计推荐的矢量符号化模板。前端可直接预览并应用其中的 `symbolization`，保存仍沿用现有自定义符号化权限。",
+            "items": {
+              "$ref": "#/components/schemas/RecommendedSymbolizationTemplate"
+            }
+          },
+          "monitorPreview": {
+            "$ref": "#/components/schemas/VisualizationMonitorPreview"
+          }
+        }
+      },
+      "RecommendedSymbolizationTemplate": {
+        "type": "object",
+        "required": [
+          "templateId",
+          "name",
+          "description",
+          "businessType",
+          "rendererType",
+          "primaryField",
+          "matchedFields",
+          "matchStatus",
+          "isPrimary",
+          "priority",
+          "symbolization",
+          "warnings"
+        ],
+        "properties": {
+          "templateId": {
+            "type": "string",
+            "description": "推荐模板稳定 ID，格式建议为 `{businessType}.{fieldOrTheme}.{renderer}.v{version}`。"
+          },
+          "name": {
+            "type": "string",
+            "description": "推荐模板中文名称。"
+          },
+          "description": {
+            "type": "string",
+            "description": "推荐模板适用场景说明。"
+          },
+          "businessType": {
+            "$ref": "#/components/schemas/DataDomainType"
+          },
+          "rendererType": {
+            "type": "string",
+            "enum": [
+              "single",
+              "uniqueValue",
+              "graduated"
+            ],
+            "description": "模板使用的矢量渲染器类型。"
+          },
+          "primaryField": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "模板主要命中的字段；未命中任何字段时为 null。"
+          },
+          "matchedFields": {
+            "type": "array",
+            "description": "本模板命中的字段列表，包含主字段和参与备用说明的字段。",
+            "items": {
+              "type": "string"
+            }
+          },
+          "matchStatus": {
+            "type": "string",
+            "enum": [
+              "matched",
+              "fallback",
+              "unavailable"
+            ],
+            "description": "字段命中状态；matched 表示主字段命中，fallback 表示使用备用字段，unavailable 表示模板仅可作为提示但当前不可直接应用。"
+          },
+          "isPrimary": {
+            "type": "boolean",
+            "description": "是否为该业务类型的默认首选推荐方案。"
+          },
+          "priority": {
+            "type": "integer",
+            "description": "推荐排序值，数值越小越靠前。"
+          },
+          "symbolization": {
+            "$ref": "#/components/schemas/VectorSymbolization"
+          },
+          "warnings": {
+            "type": "array",
+            "description": "字段缺失、别名归一化、类别截断或图标降级等提示。",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "VisualizationResourceProfile": {
+        "type": "object",
+        "required": [
+          "featureCount",
+          "fieldCount",
+          "geometryType",
+          "bounds"
+        ],
+        "properties": {
+          "featureCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "矢量要素数；栅格或无法计算时为 null。"
+          },
+          "fieldCount": {
+            "type": "integer",
+            "description": "可分析字段数量。"
+          },
+          "geometryType": {
+            "type": "string",
+            "description": "几何类型或 Raster。"
+          },
+          "bounds": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 4,
+            "description": "WGS84 边界 [minLng, minLat, maxLng, maxLat]。",
+            "items": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "VisualizationCategoryStat": {
+        "type": "object",
+        "required": [
+          "field",
+          "label",
+          "total",
+          "nullCount",
+          "uniqueCount",
+          "truncated",
+          "items"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "字段名。"
+          },
+          "label": {
+            "type": "string",
+            "description": "前端显示名。"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "参与统计的总记录数。"
+          },
+          "nullCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "空值数量。"
+          },
+          "uniqueCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "非空唯一值数量。"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "items 是否因为 topN 限制被截断。"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VisualizationCategoryItem"
+            }
+          }
+        }
+      },
+      "VisualizationCategoryItem": {
+        "type": "object",
+        "required": [
+          "label",
+          "count",
+          "ratio"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "分类值显示文本。"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "分类计数。"
+          },
+          "ratio": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "分类占比，按 total 计算。"
+          }
+        }
+      },
+      "VisualizationNumericStat": {
+        "type": "object",
+        "required": [
+          "field",
+          "label",
+          "count",
+          "nullCount",
+          "min",
+          "max",
+          "mean",
+          "median",
+          "q1",
+          "q3",
+          "histogram"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "字段名。"
+          },
+          "label": {
+            "type": "string",
+            "description": "前端显示名。"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "可解析为数值的记录数。"
+          },
+          "nullCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "空值或不可解析值数量。"
+          },
+          "min": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "最小值。"
+          },
+          "max": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "最大值。"
+          },
+          "mean": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "平均值。"
+          },
+          "median": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "中位数。"
+          },
+          "q1": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "第一四分位数。"
+          },
+          "q3": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "第三四分位数。"
+          },
+          "histogram": {
+            "type": "array",
+            "description": "直方图分箱。",
+            "items": {
+              "$ref": "#/components/schemas/VisualizationHistogramBin"
+            }
+          }
+        }
+      },
+      "VisualizationHistogramBin": {
+        "type": "object",
+        "required": [
+          "min",
+          "max",
+          "count",
+          "label"
+        ],
+        "properties": {
+          "min": {
+            "type": "number",
+            "description": "分箱下界。"
+          },
+          "max": {
+            "type": "number",
+            "description": "分箱上界。"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "分箱计数。"
+          },
+          "label": {
+            "type": "string",
+            "description": "分箱显示标签。"
+          }
+        }
+      },
+      "VisualizationSpatialSummary": {
+        "type": "object",
+        "required": [
+          "featureCount",
+          "validGeometryCount",
+          "nullGeometryCount",
+          "coordinateCoverageRatio",
+          "bounds",
+          "geometryTypes",
+          "centroid"
+        ],
+        "properties": {
+          "featureCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "空间记录总数；栅格或无法计算时为 null。"
+          },
+          "validGeometryCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "有效几何数量。"
+          },
+          "nullGeometryCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "空几何数量。"
+          },
+          "coordinateCoverageRatio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1,
+            "description": "有效空间几何覆盖率。"
+          },
+          "bounds": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 4,
+            "items": {
+              "type": "number"
+            }
+          },
+          "geometryTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VisualizationCategoryItem"
+            }
+          },
+          "centroid": {
+            "oneOf": [
+              {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "number"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "有效空间对象中心点 [lng, lat]；无法计算时为 null。"
+          }
+        }
+      },
+      "VisualizationQualityIssue": {
+        "type": "object",
+        "required": [
+          "code",
+          "severity",
+          "title",
+          "message",
+          "count"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "问题代码。"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "error"
+            ],
+            "description": "问题级别。"
+          },
+          "title": {
+            "type": "string",
+            "description": "问题标题。"
+          },
+          "message": {
+            "type": "string",
+            "description": "问题说明。"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "影响记录数。"
+          },
+          "ratio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1,
+            "description": "影响比例。"
+          },
+          "field": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "相关字段名。"
+          }
+        }
+      },
+      "VisualizationChartRecommendation": {
+        "type": "object",
+        "required": [
+          "chartType",
+          "title",
+          "description",
+          "fields"
+        ],
+        "properties": {
+          "chartType": {
+            "type": "string",
+            "enum": [
+              "gauge",
+              "rank_bar",
+              "stacked_bar",
+              "donut",
+              "histogram",
+              "boxplot",
+              "scatter",
+              "radar",
+              "heatmap",
+              "treemap",
+              "sunburst",
+              "parallel",
+              "raster_preview",
+              "quality_list"
+            ],
+            "description": "推荐图表类型。"
+          },
+          "title": {
+            "type": "string",
+            "description": "图表标题。"
+          },
+          "description": {
+            "type": "string",
+            "description": "适用说明。"
+          },
+          "fields": {
+            "type": "array",
+            "description": "推荐使用字段。",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "VisualizationMonitorPreview": {
+        "type": "object",
+        "required": [
+          "title",
+          "status",
+          "items"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "监测占位标题。"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "partial",
+              "ready"
+            ],
+            "description": "监测能力状态。"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VisualizationMonitorItem"
+            }
+          }
+        }
+      },
+      "VisualizationMonitorItem": {
+        "type": "object",
+        "required": [
+          "label",
+          "status",
+          "description"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "监测能力名称。"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "partial",
+              "ready"
+            ],
+            "description": "能力状态。"
+          },
+          "description": {
+            "type": "string",
+            "description": "能力说明。"
           }
         }
       },

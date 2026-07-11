@@ -234,7 +234,7 @@ frontend/src/
 - 透明度在子图层符号化面板中配置；图层组不再提供单独透明度配置入口。
 - 点要素符号化按 Mapbox Style Specification 的 `circle` 和 `symbol` 图层拆分：`circle` 参数覆盖颜色、半径、描边、模糊、位移、pitch、sort key、emissive 等；`symbol` 参数覆盖 icon/text 的 layout 与 paint 配置。
 - 线、面要素继续使用 Mapbox `line`、`fill` 图层表达，符号化面板同步暴露线色、线宽、线型、填充色、透明度、位移、sort key 等参数。
-- 矢量 `renderer.type` 当前支持 `single`、`uniqueValue` 和 `graduated`。唯一值分类使用 Mapbox `match` 表达式，数值分级使用 `case + to-number` 表达式；空值或无法转数字的属性落入 `defaultClass`。两者的 `gm-*` 图标都会在写入 `icon-image` 前注册为按颜色区分的运行时图片。
+- 矢量 `renderer.type` 当前支持 `single`、`uniqueValue` 和 `graduated`。唯一值分类使用 Mapbox `match` 表达式，数值分级使用 `case + to-number` 表达式；空值或无法转数字的属性落入 `defaultClass`。两者的 `gm-*` 图标都会在写入 `icon-image` 前注册为按颜色区分的运行时图片。`graduated.method=manual` 表示自定义分级，前端只维护和刷新 `classes[].min/max`，不再按等距或分位数重排区间。
 - 每个前端加载的 GeoJSON source 使用 `generateId`，所有矢量 style layer 注册统一交互：鼠标覆盖仅改变指针并高亮要素，单击要素后选中并在右侧导航面板的"要素属性"标签中展示该单条记录属性。
 - 主界面侧栏参考 `docs/ui-redesign-mockups.html` 的 V2 布局：左侧统一为 `数据`、`图层`、`工程`、`专题` 四个切换页；右侧拆成上方平面缩略图窗口和下方生态数据窗口，下方包含 `概览`、`要素`、`监测` 三个切换页，其中 `要素` 继续承载地图单击要素属性；底部面板改为空间查询工作区，包含 `空间查询`、`结果`、`时间`、`图例` 标签，`空间查询` 内按左右区域组织范围绘制/导入导出与查询状态/图例占位。共享空间范围仍同时用于空间查询和导出裁切，当前选中图层范围开关继续将 `minLng,minLat,maxLng,maxLat` 范围绘制为地图覆盖层。
 - 当前符号化模型位于 `frontend/src/symbolization.ts`，编辑界面位于 `frontend/src/components/SymbolizationEditor.tsx`，Mapbox 转换逻辑位于 `frontend/src/map/vectorLayerSync.ts`。
@@ -541,3 +541,4 @@ CREATE TABLE gpkg_data_columns (
 - 矢量 `symbolization.renderer` 增加 `graduated` 类型，继续复用现有 `MapLayer.symbolization` JSONField、图层序列化和默认可视化保存链路，不新增数据库迁移或分类接口。
 - 前端符号化面板支持按海拔、NDVI、盐分等连续字段生成等距分级或分位数分级；字段类型不是数值但当前属性值可解析为数字时也允许分级，无法解析的值进入默认“无数值/空值”类。
 - Mapbox 渲染使用 `case + to-number` 表达式驱动点、线、面颜色、大小和可见性；点图标仍使用 `gm-*--color` 运行时图片 ID 并在渲染前注册，避免平台内置图标加载失败。
+- 自定义分级复用同一个 `GraduatedRenderer`，以 `method=manual` 标记。用户调整等级数量时只增删 `classes`，已有区间、颜色、图标、大小和显隐保持不变；调整任一区间上下限后，前端即时刷新该区间计数和 Mapbox 表达式。

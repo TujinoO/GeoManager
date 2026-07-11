@@ -12,6 +12,7 @@ import {
   Select,
   Slider,
   Space,
+  Spin,
   Switch,
   Tag,
   Tabs,
@@ -46,6 +47,7 @@ import {
   buildGraduatedRenderer,
   buildUniqueValueRenderer,
   classValuesLabel,
+  formatGraduatedRangeLabel,
   fieldValueOptions,
   germplasmDnaSexRenderer,
   germplasmDnaSexTemplateId,
@@ -56,7 +58,11 @@ import {
   refreshGraduatedCounts,
   refreshUniqueValueCounts,
 } from "../symbolizationTemplates";
-import type { RasterBandMetadata, ResourceField } from "../types";
+import type {
+  RasterBandMetadata,
+  ResourceField,
+  ResourceVisualizationSummary,
+} from "../types";
 
 const anchorOptions: Anchor[] = [
   "center",
@@ -76,6 +82,8 @@ type IconPickerGroup = {
 };
 
 type VectorExpressionMode = "single" | "uniqueValue" | "graduated" | "heatmap";
+type RecommendedSymbolizationTemplate =
+  ResourceVisualizationSummary["recommendedSymbolizations"][number];
 
 const rgbBandLabels = ["R", "G", "B"] as const;
 const heatmapPalettes = [
@@ -327,6 +335,11 @@ export function VectorSymbolizationEditor({
   fields,
   fieldValueCounts,
   geometryType,
+  recommendedSymbolizations = [],
+  recommendedSymbolizationsLoading = false,
+  recommendedSymbolizationsError = null,
+  readOnly = false,
+  canApplyRecommendedSymbolizations = true,
   onChange,
   onApply,
 }: {
@@ -334,6 +347,11 @@ export function VectorSymbolizationEditor({
   fields: ResourceField[];
   fieldValueCounts?: Record<string, Record<string, number>>;
   geometryType?: string;
+  recommendedSymbolizations?: ResourceVisualizationSummary["recommendedSymbolizations"];
+  recommendedSymbolizationsLoading?: boolean;
+  recommendedSymbolizationsError?: string | null;
+  readOnly?: boolean;
+  canApplyRecommendedSymbolizations?: boolean;
   onChange: (value: VectorSymbolization) => void;
   onApply?: () => void;
 }) {
@@ -408,6 +426,15 @@ export function VectorSymbolizationEditor({
 
   function updateRenderer(renderer: VectorSymbolization["renderer"]) {
     onChange({ ...value, renderer });
+  }
+
+  function applyRecommendedSymbolization(
+    template: RecommendedSymbolizationTemplate,
+  ) {
+    if (!canApplyRecommendedSymbolizations) return;
+    const next = mergeRecommendedSymbolization(value, template);
+    onChange(next);
+    message.success(`已应用推荐方案：${template.name}`);
   }
 
   function countsForField(fieldName: string) {
@@ -536,12 +563,53 @@ export function VectorSymbolizationEditor({
     classId: string,
     patch: Partial<GraduatedSymbolClass>,
   ) {
-    updateGraduatedRenderer((renderer) => ({
-      ...renderer,
-      classes: renderer.classes.map((item) =>
-        item.id === classId ? { ...item, ...patch } : item,
-      ),
-    }));
+    updateGraduatedRenderer((renderer) => {
+      const nextRenderer = {
+        ...renderer,
+        classes: renderer.classes.map((item) =>
+          item.id === classId ? { ...item, ...patch } : item,
+        ),
+      };
+      const { values, nonNumericCount } = numericDataForField(renderer.field);
+      return refreshGraduatedCounts(nextRenderer, values, nonNumericCount);
+    });
+  }
+
+  function updateManualGraduatedRange(
+    classId: string,
+    key: "min" | "max",
+    nextValue: number | null,
+  ) {
+    updateGraduatedRenderer((renderer) => {
+      const precision = renderer.precision;
+      const nextClasses = renderer.classes.map((item) => {
+        if (item.id !== classId) return item;
+        const oldAutoLabel = formatGraduatedRangeLabel(
+          item.min ?? 0,
+          item.max ?? 0,
+          precision,
+        );
+        const nextItem = {
+          ...item,
+          [key]: typeof nextValue === "number" ? nextValue : item[key],
+        };
+        const shouldSyncLabel =
+          !item.label || item.label === oldAutoLabel;
+        return {
+          ...nextItem,
+          label: shouldSyncLabel
+            ? formatGraduatedRangeLabel(
+                nextItem.min ?? 0,
+                nextItem.max ?? 0,
+                precision,
+              )
+            : nextItem.label,
+        };
+      });
+      const nextRenderer = { ...renderer, classes: nextClasses };
+      const { values, nonNumericCount } = numericDataForField(renderer.field);
+      return refreshGraduatedCounts(nextRenderer, values, nonNumericCount);
+    });
   }
 
   function updateDefaultGraduatedClass(
@@ -788,6 +856,15 @@ export function VectorSymbolizationEditor({
     });
   }
 
+  const visibleRecommendedSymbolizations = recommendedSymbolizations
+    .filter((item) => item.matchStatus !== "unavailable")
+    .slice(0, 4);
+  const showRecommendedSection =
+    readOnly ||
+    recommendedSymbolizationsLoading ||
+    Boolean(recommendedSymbolizationsError) ||
+    visibleRecommendedSymbolizations.length > 0;
+
   type LinePattern = "solid" | "dash" | "dot";
   const dashHead = value.line.lineDasharray[0] ?? 1;
   const dashGap = value.line.lineDasharray[1] ?? 0;
@@ -875,9 +952,119 @@ export function VectorSymbolizationEditor({
     <Card
       className="symbolization-card symbolization-card-redesigned"
       size="small"
-      title={<SymbolizationTitle title="图层样式" onApply={onApply} />}
+      title={<SymbolizationTitle title="图层样式" onApply={readOnly ? undefined : onApply} />}
     >
       <Space orientation="vertical" className="full-width symbolization-stack">
+        {showRecommendedSection && (
+          <section className="symbolization-section recommended-symbolization-section">
+            <div className="symbolization-section-head">
+              <div>
+                <Typography.Text strong>推荐方案</Typography.Text>
+                <Typography.Text type="secondary">
+                  根据业务类型和字段命中结果生成，可应用后继续细调
+                </Typography.Text>
+              </div>
+            </div>
+            {recommendedSymbolizationsLoading && (
+              <div className="recommended-symbolization-loading">
+                <Spin size="small" />
+                <Typography.Text type="secondary">
+                  正在读取后端推荐模板
+                </Typography.Text>
+              </div>
+            )}
+            {recommendedSymbolizationsError && (
+              <Alert
+                type="warning"
+                showIcon
+                message="推荐方案暂时不可用"
+                description={recommendedSymbolizationsError}
+              />
+            )}
+            {visibleRecommendedSymbolizations.length > 0 && (
+              <div className="recommended-symbolization-list">
+                {visibleRecommendedSymbolizations.map((template) => (
+                  <div
+                    className="recommended-symbolization-item"
+                    key={template.templateId}
+                  >
+                    <div className="recommended-symbolization-main">
+                      <div className="recommended-symbolization-title-row">
+                        <Typography.Text strong>
+                          {template.name}
+                        </Typography.Text>
+                        <Space size={4}>
+                          {template.isPrimary && (
+                            <Tag color="green">默认</Tag>
+                          )}
+                          <Tag>
+                            {recommendedRendererLabel(template.rendererType)}
+                          </Tag>
+                        </Space>
+                      </div>
+                      <Typography.Text type="secondary">
+                        {template.primaryField
+                          ? `字段：${template.primaryField}`
+                          : "未命中主字段"}
+                      </Typography.Text>
+                      <Typography.Paragraph
+                        className="recommended-symbolization-description"
+                        type="secondary"
+                      >
+                        {template.description}
+                      </Typography.Paragraph>
+                      {template.warnings.length > 0 && (
+                        <Typography.Text type="warning">
+                          {template.warnings[0]}
+                        </Typography.Text>
+                      )}
+                      <div className="recommended-symbolization-preview">
+                        {recommendedClassPreviews(template).map((item) => (
+                          <span
+                            className="recommended-symbolization-chip"
+                            key={item.id}
+                            title={item.label}
+                          >
+                            <i style={{ backgroundColor: item.color }} />
+                            <span>{item.label}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    {canApplyRecommendedSymbolizations ? (
+                      <Button
+                        size="small"
+                        type={template.isPrimary ? "primary" : "default"}
+                        onClick={() => applyRecommendedSymbolization(template)}
+                      >
+                        应用
+                      </Button>
+                    ) : (
+                      <Tag color="blue">仅预览</Tag>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {!recommendedSymbolizationsLoading &&
+              !recommendedSymbolizationsError &&
+              visibleRecommendedSymbolizations.length === 0 && (
+                <Typography.Text type="secondary">
+                  当前资源暂无可直接应用的推荐符号化模板。
+                </Typography.Text>
+              )}
+          </section>
+        )}
+
+        {readOnly ? (
+          <Alert
+            type="info"
+            showIcon
+            message="当前账号仅可查看推荐方案"
+            description="应用或保存符号化模板需要自定义符号化权限。"
+          />
+        ) : (
+          <>
         <section className="symbolization-section">
           <div className="symbolization-section-head">
             <div>
@@ -1180,6 +1367,7 @@ export function VectorSymbolizationEditor({
                   options={[
                     { value: "equalInterval", label: "等距分级" },
                     { value: "quantile", label: "分位数" },
+                    { value: "manual", label: "自定义" },
                   ]}
                   onChange={(method) =>
                     updateGraduatedRenderer((renderer) =>
@@ -1195,14 +1383,16 @@ export function VectorSymbolizationEditor({
                   <InputNumber
                     className="full-width"
                     value={graduatedRenderer.classCount}
-                    min={3}
-                    max={9}
+                    min={graduatedRenderer.method === "manual" ? 1 : 3}
+                    max={graduatedRenderer.method === "manual" ? 24 : 9}
                     step={1}
                     onChange={(classCount) =>
                       updateGraduatedRenderer((renderer) =>
                         rebuildGraduatedWith(renderer, {
                           classCount:
-                            typeof classCount === "number" ? classCount : 5,
+                            typeof classCount === "number"
+                              ? classCount
+                              : renderer.classes.length || 5,
                         }),
                       )
                     }
@@ -1226,7 +1416,11 @@ export function VectorSymbolizationEditor({
                   />
                 </ControlRow>
               </div>
-              <ControlRow label="色带">
+              <ControlRow
+                label={
+                  graduatedRenderer.method === "manual" ? "新增级色带" : "色带"
+                }
+              >
                 <Select
                   className="full-width"
                   value={graduatedRenderer.colorRamp}
@@ -1277,12 +1471,39 @@ export function VectorSymbolizationEditor({
                         })
                       }
                     />
-                    <Typography.Text
-                      className="unique-class-values-readonly graduated-class-range"
-                      title={graduatedRangeLabel(item)}
-                    >
-                      {graduatedRangeLabel(item)}
-                    </Typography.Text>
+                    {graduatedRenderer.method === "manual" ? (
+                      <Space.Compact className="graduated-range-editor">
+                        <InputNumber
+                          value={item.min}
+                          step={1}
+                          onChange={(next) =>
+                            updateManualGraduatedRange(
+                              item.id,
+                              "min",
+                              typeof next === "number" ? next : null,
+                            )
+                          }
+                        />
+                        <InputNumber
+                          value={item.max}
+                          step={1}
+                          onChange={(next) =>
+                            updateManualGraduatedRange(
+                              item.id,
+                              "max",
+                              typeof next === "number" ? next : null,
+                            )
+                          }
+                        />
+                      </Space.Compact>
+                    ) : (
+                      <Typography.Text
+                        className="unique-class-values-readonly graduated-class-range"
+                        title={graduatedRangeLabel(item)}
+                      >
+                        {graduatedRangeLabel(item)}
+                      </Typography.Text>
+                    )}
                     <ColorPicker
                       value={item.color}
                       onChangeComplete={(color) =>
@@ -2018,9 +2239,105 @@ export function VectorSymbolizationEditor({
             )}
           </Space>
         </details>
+          </>
+        )}
       </Space>
     </Card>
   );
+}
+
+function mergeRecommendedSymbolization(
+  current: VectorSymbolization,
+  template: RecommendedSymbolizationTemplate,
+): VectorSymbolization {
+  const symbolization =
+    template.symbolization as Partial<VectorSymbolization>;
+  const renderer = symbolization.renderer
+    ? markRendererUpdated(
+        symbolization.renderer as VectorSymbolization["renderer"],
+      )
+    : current.renderer;
+  return {
+    ...current,
+    ...symbolization,
+    pointMode: symbolization.pointMode ?? current.pointMode,
+    renderer,
+    circle: {
+      ...current.circle,
+      ...(symbolization.circle ?? {}),
+    },
+    symbol: {
+      ...current.symbol,
+      ...(symbolization.symbol ?? {}),
+    },
+    heatmap: {
+      ...current.heatmap,
+      ...(symbolization.heatmap ?? {}),
+    },
+    cluster: {
+      ...(current.cluster ?? defaultVectorSymbolization.cluster),
+      ...(symbolization.cluster ?? {}),
+    },
+    line: {
+      ...current.line,
+      ...(symbolization.line ?? {}),
+    },
+    fill: {
+      ...current.fill,
+      ...(symbolization.fill ?? {}),
+    },
+  };
+}
+
+function markRendererUpdated(
+  renderer: VectorSymbolization["renderer"],
+): VectorSymbolization["renderer"] {
+  if (!renderer) return renderer;
+  return { ...renderer, updatedByUser: true };
+}
+
+function recommendedRendererLabel(
+  rendererType: RecommendedSymbolizationTemplate["rendererType"],
+) {
+  if (rendererType === "uniqueValue") return "唯一值";
+  if (rendererType === "graduated") return "数值分级";
+  return "单一符号";
+}
+
+function recommendedClassPreviews(template: RecommendedSymbolizationTemplate) {
+  const renderer = (template.symbolization as Partial<VectorSymbolization>)
+    .renderer as VectorSymbolization["renderer"];
+  if (isUniqueValueRenderer(renderer)) {
+    return [...renderer.classes, renderer.defaultClass]
+      .filter((item) => item.visible)
+      .slice(0, 5)
+      .map((item) => ({
+        id: item.id,
+        label: item.label,
+        color: item.color,
+      }));
+  }
+  if (isGraduatedRenderer(renderer)) {
+    return [...renderer.classes, renderer.defaultClass]
+      .filter((item) => item.visible)
+      .slice(0, 5)
+      .map((item) => ({
+        id: item.id,
+        label: item.label,
+        color: item.color,
+      }));
+  }
+  const symbolization = template.symbolization as Partial<VectorSymbolization>;
+  return [
+    {
+      id: "single",
+      label: template.name,
+      color:
+        symbolization.circle?.circleColor ??
+        symbolization.symbol?.iconColor ??
+        "#2F7D62",
+    },
+  ];
 }
 
 export function RasterSymbolizationEditor({

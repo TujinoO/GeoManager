@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import { platformSymbolImageId } from "./map/symbolImages";
 import {
   buildGraduatedRenderer,
+  rebuildGraduatedRenderer,
   germplasmDnaSexRenderer,
   numericValuesFromCounts,
   parseNumericValue,
   refreshGraduatedCounts,
+  resizeManualGraduatedRenderer,
+  vectorSymbolizationWithDefaultTemplate,
 } from "./symbolizationTemplates";
 import {
   cloneDefaultGroupSymbolization,
@@ -210,10 +213,139 @@ describe("germplasmDnaSexRenderer", () => {
     );
     expect(isUniqueValueRenderer(renderer)).toBe(true);
     expect(renderer.classes[0]?.label).toBe("雌性");
-    expect(renderer.classes[0]?.values).toEqual(["雌株", "雌株珠"]);
+    expect(renderer.classes[0]?.values).toEqual([
+      "雌株",
+      "雌株珠",
+      "雌性",
+      "♀",
+    ]);
     expect(renderer.classes[0]?.count).toBe(302);
     expect(renderer.classes[1]?.count).toBe(361);
   });
+});
+
+describe("vectorSymbolizationWithDefaultTemplate", () => {
+  it("uses the germplasm sex template for germplasm resources", () => {
+    const style = vectorSymbolizationWithDefaultTemplate({
+      resource: resource("germplasm"),
+      fields: [field("DNA样本编号"), field("性别"), field("海拔（米）", "Real")],
+      geojson: featureCollection([
+        { DNA样本编号: "A001", 性别: "雌株" },
+        { DNA样本编号: "A002", 性别: "雄株" },
+      ]),
+    });
+
+    expect(style.pointMode).toBe("symbol");
+    expect(style.symbol.iconImage).toBe("gm-tree");
+    expect(isUniqueValueRenderer(style.renderer)).toBe(true);
+    expect(style.renderer?.templateId).toBe("germplasm.dna-sex-tree.v1");
+  });
+
+  it("uses species classification for individual resources", () => {
+    const style = vectorSymbolizationWithDefaultTemplate({
+      resource: resource("individual"),
+      fields: [field("物种中文名"), field("科中文名"), field("海拔", "Real")],
+      geojson: featureCollection([
+        { 物种中文名: "胡杨" },
+        { 物种中文名: "灰叶胡杨" },
+        { 物种中文名: "胡杨" },
+      ]),
+    });
+
+    expect(isUniqueValueRenderer(style.renderer)).toBe(true);
+    expect(style.renderer?.templateId).toBe("individual.species.unique.v1");
+    expect(style.symbol.iconImage).toBe("gm-species");
+  });
+
+  it("uses importance graduated rendering for population resources", () => {
+    const style = vectorSymbolizationWithDefaultTemplate({
+      resource: resource("population"),
+      fields: [field("栖息地类型"), field("重要值", "Real"), field("密度", "Real")],
+      geojson: featureCollection([
+        { 栖息地类型: "林地", 重要值: 0.2 },
+        { 栖息地类型: "草地", 重要值: 0.4 },
+        { 栖息地类型: "河沟", 重要值: 0.8 },
+      ]),
+    });
+
+    expect(isGraduatedRenderer(style.renderer)).toBe(true);
+    expect(style.renderer?.templateId).toBe(
+      "population.importance.graduated.v1",
+    );
+    expect(style.renderer?.businessType).toBe("population");
+    expect(style.symbol.iconImage).toBe("gm-populus");
+  });
+
+  it("uses diversity graduated rendering for community resources", () => {
+    const style = vectorSymbolizationWithDefaultTemplate({
+      resource: resource("community"),
+      fields: [
+        field("样方分组"),
+        field("Shannon 多样性指数", "Real"),
+        field("土壤总盐", "Real"),
+      ],
+      geojson: featureCollection([
+        { 样方分组: "A", "Shannon 多样性指数": 1.2 },
+        { 样方分组: "B", "Shannon 多样性指数": 1.9 },
+        { 样方分组: "C", "Shannon 多样性指数": 2.4 },
+      ]),
+    });
+
+    expect(isGraduatedRenderer(style.renderer)).toBe(true);
+    expect(style.renderer?.templateId).toBe("community.shannon.graduated.v1");
+    expect(style.symbol.iconImage).toBe("gm-community");
+  });
+
+  it("uses habitat classification for field survey resources", () => {
+    const style = vectorSymbolizationWithDefaultTemplate({
+      resource: resource("field_survey"),
+      fields: [field("栖息地类型"), field("重要值", "Real")],
+      geojson: featureCollection([
+        { 栖息地类型: "林地", 重要值: 0.2 },
+        { 栖息地类型: "草地", 重要值: 0.4 },
+        { 栖息地类型: "河沟", 重要值: 0.8 },
+      ]),
+    });
+
+    expect(isUniqueValueRenderer(style.renderer)).toBe(true);
+    expect(style.renderer?.templateId).toBe("field_survey.habitat.unique.v1");
+    expect(style.symbol.iconImage).toBe("gm-sample");
+  });
+
+  function resource(domainType: string) {
+    return {
+      id: 1,
+      name: `${domainType} resource`,
+      code: `${domainType}-resource`,
+      dataType: "vector",
+      domainType,
+    } as never;
+  }
+
+  function field(name: string, type = "String") {
+    return {
+      name,
+      type,
+      nullable: false,
+      sampleValues: [],
+      description: name,
+    };
+  }
+
+  function featureCollection(items: Array<Record<string, unknown>>) {
+    return {
+      type: "FeatureCollection",
+      features: items.map((properties, index) => ({
+        type: "Feature",
+        id: index + 1,
+        properties,
+        geometry: {
+          type: "Point",
+          coordinates: [87 + index * 0.01, 43 + index * 0.01],
+        },
+      })),
+    } as never;
+  }
 });
 
 describe("graduated vector renderer", () => {
@@ -269,6 +401,69 @@ describe("graduated vector renderer", () => {
     expect(parseNumericValue("盐分 0.83%")).toBe(0.83);
     expect(parseNumericValue("NDVI=-0.12")).toBe(-0.12);
     expect(parseNumericValue("无数据")).toBeNull();
+  });
+
+  it("preserves manual ranges and styles when resizing classes", () => {
+    const values = [100, 180, 260, 420, 760, 980];
+    const auto = buildGraduatedRenderer("海拔", values, {
+      classCount: 3,
+      method: "equalInterval",
+      colorRamp: "green",
+      precision: 0,
+    });
+    const manual = rebuildGraduatedRenderer(auto, values, {
+      method: "manual",
+    });
+    const customized = {
+      ...manual,
+      classes: manual.classes.map((item, index) =>
+        index === 0
+          ? {
+              ...item,
+              label: "自定义低值",
+              min: 100,
+              max: 250,
+              color: "#123456",
+              iconImage: "gm-tree",
+              size: 1.4,
+            }
+          : item,
+      ),
+    };
+    const resized = resizeManualGraduatedRenderer(customized, values, 4);
+    expect(resized.method).toBe("manual");
+    expect(resized.classes).toHaveLength(4);
+    expect(resized.classes[0]).toMatchObject({
+      label: "自定义低值",
+      min: 100,
+      max: 250,
+      color: "#123456",
+      iconImage: "gm-tree",
+      size: 1.4,
+    });
+    expect(resized.classes[0]?.count).toBe(2);
+    expect(resized.classes[3]?.id).toBe("range-4");
+  });
+
+  it("counts single-value manual ranges", () => {
+    const renderer = buildGraduatedRenderer("盐分", [1, 2, 2, 3], {
+      classCount: 3,
+      method: "manual",
+    });
+    const refreshed = refreshGraduatedCounts(
+      {
+        ...renderer,
+        classes: [
+          {
+            ...renderer.classes[0]!,
+            min: 2,
+            max: 2,
+          },
+        ],
+      },
+      [1, 2, 2, 3],
+    );
+    expect(refreshed.classes[0]?.count).toBe(2);
   });
 });
 

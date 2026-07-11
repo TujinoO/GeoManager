@@ -31,6 +31,9 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260703-003 | Verified | `GET /api/layers/`, admin data-resource visualization payloads | schema clarification | Updated | Added | N/A | Passed | Adds vector graduated numeric symbolization under existing symbolization renderer without new endpoints |
 | API-20260704-001 | Verified | `GET /api/data-schema/summary/`, `GET /api/catalog/resources/`, `POST /api/catalog/import/commit/` | enum addition | Updated | Updated | Implemented | Focused passed | Adds `other` business data type across schema summary, resource filtering, and import commit |
 | API-20260704-002 | Verified | `POST /api/catalog/export/`, `POST /api/catalog/export/async/`, export download | archive content behavior | Updated | N/A | Implemented | Focused passed | Adds per-vector `*-attributes.csv` files to export ZIP packages |
+| API-20260710-001 | Verified | `GET /api/layers/`, admin data-resource visualization payloads | schema clarification | Updated | Updated | N/A | Passed | Adds manual graduated numeric classes under existing vector symbolization renderer |
+| API-20260710-002 | Verified | `GET /api/admin/dashboard/` | response fields | Updated | Updated | Implemented | Focused passed | Adds permission-scoped data overview spatial summary for coverage map, heatmap, and coverage ranking |
+| API-20260710-003 | Verified | `GET /api/catalog/resources/{id}/visualization-summary/` | response fields | Updated | Updated | Implemented | Focused passed | Adds recommended symbolization templates for five coordinate-bearing business table types |
 
 ## Entry Template
 
@@ -48,6 +51,32 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Verification: commands or response checks required before marking implemented
 - Result: current backend/frontend verification result
 ```
+
+## API-20260710-002 - Data Overview Spatial Summary
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET /api/admin/dashboard/`
+- Change type: response fields | mock data | documentation clarification
+- OpenAPI change: Extends `AdminDashboardDataOverviewScope` with required `spatialSummary`, plus typed `AdminDashboardSpatialSummary`, `AdminDashboardResourceExtent`, and `AdminDashboardSpatialHeatmapCell` schemas. The field is returned separately under `ownUploads` and permission-gated `visibleResources`; legacy top-level system total fields remain unchanged.
+- Mock examples: `mock/prism/examples/20-admin-dashboard-data.json`
+- Frontend reason: The data management overview needs first-stage visualizations for spatial coverage, heatmap distribution, data type composition, coverage ranking, and uploader contribution without fetching full resource geometry or bypassing permission scope.
+- Backend implementation notes: Compute `spatialSummary` only after the relevant queryset has been scoped to the current user (`maintainer=current user` for `ownUploads`, `filter_accessible(...)` for `visibleResources`). Use registered resource/layer/raster bbox metadata only; do not scan raw feature data in the dashboard request. Ordinary users must never receive all-platform spatial summaries or uploader rankings.
+- Verification: run OpenAPI generation, Prism mock build, focused dashboard backend tests, frontend typecheck, and route/browser checks for the data overview page. Do not run scripts containing bulk delete commands.
+- Result: Verified with OpenAPI lint/generation, Prism bundle/example injection, API change request check, focused dashboard backend tests, Django system check, frontend typecheck, targeted lint/format checks for touched frontend files, and Vite production build. Browser route test could not run because the local Playwright Chromium executable is not installed.
+
+## API-20260710-001 - Vector Manual Graduated Symbolization
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET /api/layers/`, `POST /api/admin/data/resources/{id}/`
+- Change type: response fields | request body | mock data | documentation clarification
+- OpenAPI change: Extends `GraduatedRenderer.method` with `manual`. Manual graduated symbolization continues to use existing `classes[].min/max/color/iconImage/size/visible` fields, with no new endpoint or backend model.
+- Mock examples: `mock/prism/examples/30-catalog-vector.json` changes the elevation graduated vector example to `method="manual"` with custom range labels and custom min/max boundaries.
+- Frontend reason: Users need to define non-equal, domain-specific numeric ranges for fields such as elevation, NDVI, and salinity, while still editing colors, icons, sizes, and visibility per class.
+- Backend implementation notes: Existing JSONField storage and serializers should pass the documented `symbolization` object through unchanged. Permission behavior remains the same as other custom symbolization edits.
+- Verification: run OpenAPI type generation, Prism mock build, API change request check, focused frontend symbolization tests, frontend typecheck, backend Django check, and production build.
+- Result: Verified with OpenAPI type generation, Prism mock bundle injection, Redocly lint, API change request check, focused frontend symbolization tests, frontend TypeScript checks, Django system check, and Vite production build. Redocly still reports two pre-existing unused schema warnings unrelated to this change.
 
 ## API-20260704-001 - Other Business Data Type
 
@@ -217,3 +246,16 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: While packaging each vector item, keep existing GeoJSON/Shapefile output and add a UTF-8 BOM CSV attribute table with one row per feature and stable property-column order.
 - Verification: run OpenAPI lint, regenerate API types, rebuild Prism mock, run frontend typecheck, and run focused backend export tests.
 - Result: Verified with direct OpenAPI lint, OpenAPI type generation, API change request check, Prism mock bundle injection, frontend TypeScript checks, backend export unit tests, and backend export API integration tests.
+
+## API-20260710-003 - Recommended Vector Symbolization Templates
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET /api/catalog/resources/{id}/visualization-summary/`
+- Change type: response fields | schema fields | mock data | documentation clarification
+- OpenAPI change: Adds required `recommendedSymbolizations` to `ResourceVisualizationSummaryResponse`, defines `RecommendedSymbolizationTemplate`, and documents `GraduatedRenderer.templateId/businessType` so unique-value and graduated recommended templates share the same metadata contract.
+- Mock examples: `mock/prism/examples/30-catalog-vector.json` includes field-survey habitat and importance recommended symbolization examples under the visualization summary response.
+- Frontend reason: The symbolization panel needs typed recommended default templates for germplasm, individual, population, community, and field-survey vector resources, while still allowing users to customize the applied style.
+- Backend implementation notes: Generate recommendations from the existing visualization summary read path using resource `domainType`, field alias matching, category counts, numeric distributions, and the platform `gm-*` icon whitelist. No new write endpoint or database migration is required.
+- Verification: run OpenAPI lint, regenerate API types, run frontend TypeScript checks, run focused frontend symbolization tests, run backend template unit tests, and compile the touched backend modules.
+- Result: Verified with direct Redocly lint, direct OpenAPI type generation, frontend TypeScript checks, `src/symbolization.test.ts`, `backend/tests/unit/catalog/test_symbolization_templates.py`, and Python module compilation. `pnpm run check:api` was not run because the script contains `rm -rf`, which conflicts with the workspace deletion policy.

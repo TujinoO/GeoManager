@@ -528,7 +528,9 @@ function buildGraduatedCaseExpression<T>(
     if (!Number.isFinite(item.min) || !Number.isFinite(item.max)) return;
     const min = item.min as number;
     const max = item.max as number;
-    const includeMax = index === renderer.classes.length - 1;
+    const includeMax =
+      index === renderer.classes.length - 1 ||
+      (renderer.method === "manual" && min === max);
     expression.push(
       [
         "all",
