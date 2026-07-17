@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Route thematic map basemaps through the platform tile proxy/cache, wait for complete tiles, retry transient failures and cancel stale auto-preview renders instead of exporting partial black maps
 - Unified thematic inventory around `MapComposition`; removed the duplicate legacy `WorkspaceScene(topic)` creation and display flow
 - Kept draft and unpublished thematic maps private to their owners, platform administrators and super administrators
 - Preserve unsaved map-composition edits when the live map view or source summary changes

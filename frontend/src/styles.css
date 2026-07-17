@@ -8924,6 +8924,329 @@ body:has(.login-shell),
   }
 }
 
+.about-page-knowledge-map-section .about-page-knowledge-graph {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  min-height: 0;
+  padding: 12px;
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      rgb(var(--c-workspace-accent-strong-rgb) / 0.1),
+      transparent 34%
+    ),
+    linear-gradient(135deg, rgb(var(--c-primary-rgb) / 0.06), transparent 62%),
+    rgb(var(--c-surface-rgb) / 0.72);
+}
+
+.about-page-graph-board {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-areas:
+    "genome genome genome"
+    "leaf hub stress"
+    "conservation conservation conservation";
+  grid-template-columns: minmax(170px, 1fr) minmax(170px, 0.82fr) minmax(
+      170px,
+      1fr
+    );
+  gap: 12px;
+  min-height: 460px;
+  padding: 14px;
+  overflow: hidden;
+  border: 1px solid rgb(var(--c-primary-dark-rgb) / 0.08);
+  border-radius: 8px;
+  background:
+    linear-gradient(rgba(47, 125, 98, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(47, 125, 98, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 50% 50%, rgb(34 125 98 / 0.12), transparent 28%),
+    radial-gradient(circle at 18% 52%, rgb(46 132 184 / 0.1), transparent 24%),
+    radial-gradient(circle at 82% 52%, rgb(190 138 54 / 0.12), transparent 24%),
+    radial-gradient(circle at 50% 84%, rgb(78 142 75 / 0.1), transparent 24%),
+    rgb(var(--c-surface-rgb) / 0.7);
+  background-size:
+    32px 32px,
+    32px 32px,
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    100% 100%;
+
+  &::before,
+  &::after {
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+    content: "";
+  }
+
+  &::before {
+    top: 50%;
+    right: 16%;
+    left: 16%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(var(--c-primary-rgb) / 0.28),
+      transparent
+    );
+  }
+
+  &::after {
+    top: 16%;
+    bottom: 14%;
+    left: 50%;
+    width: 1px;
+    background: linear-gradient(
+      180deg,
+      transparent,
+      rgb(var(--c-primary-rgb) / 0.26),
+      transparent
+    );
+  }
+}
+
+.about-page-graph-domain {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgb(var(--c-primary-rgb) / 0.12);
+  border-radius: 8px;
+  background:
+    linear-gradient(
+      180deg,
+      rgb(var(--c-surface-rgb) / 0.88),
+      rgb(248 252 250 / 0.7)
+    ),
+    rgb(var(--c-surface-rgb) / 0.82);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--c-surface-rgb) / 0.78),
+    0 12px 26px rgb(var(--c-shadow-rgb) / 0.06);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+
+  & header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+  }
+
+  & header > span {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: rgb(var(--c-primary-rgb) / 0.08);
+    color: var(--c-data-accent);
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  & header strong {
+    display: block;
+    color: var(--c-primary-dark);
+    font-size: 15px;
+    line-height: 1.35;
+  }
+
+  & header small {
+    display: block;
+    margin-top: 4px;
+    color: var(--c-text-muted);
+    line-height: 1.5;
+  }
+}
+
+.about-page-graph-domain-active {
+  border-color: rgb(var(--c-workspace-accent-strong-rgb) / 0.42);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--c-surface-rgb) / 0.86),
+    0 16px 34px rgb(var(--c-shadow-rgb) / 0.1),
+    0 0 0 3px rgb(var(--c-workspace-accent-strong-rgb) / 0.08);
+  transform: translateY(-1px);
+}
+
+.about-page-graph-domain-genome {
+  grid-area: genome;
+}
+
+.about-page-graph-domain-leaf {
+  grid-area: leaf;
+}
+
+.about-page-graph-domain-stress {
+  grid-area: stress;
+}
+
+.about-page-graph-domain-conservation {
+  grid-area: conservation;
+}
+
+.about-page-graph-chain {
+  display: grid;
+  gap: 8px;
+}
+
+.about-page-graph-domain-genome .about-page-graph-chain {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.about-page-graph-domain-conservation .about-page-graph-chain {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.about-page-graph-chip {
+  position: relative;
+  appearance: none;
+  display: grid;
+  place-items: center;
+  min-height: 40px;
+  padding: 8px 9px;
+  border: 1px solid rgb(var(--c-primary-rgb) / 0.18);
+  border-radius: 8px;
+  background: rgb(var(--c-surface-rgb) / 0.86);
+  color: var(--c-primary-dark);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.35;
+  text-align: center;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.about-page-graph-chip:hover,
+.about-page-graph-chip:focus-visible,
+.about-page-graph-chip-active {
+  border-color: rgb(var(--c-workspace-accent-strong-rgb) / 0.58);
+  background: rgb(var(--c-surface-rgb) / 0.98);
+  box-shadow:
+    0 12px 24px rgb(var(--c-shadow-rgb) / 0.12),
+    0 0 0 3px rgb(var(--c-workspace-accent-strong-rgb) / 0.08);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.about-page-graph-chip-genome {
+  border-color: rgba(34, 125, 98, 0.26);
+  background: rgba(220, 246, 236, 0.86);
+}
+
+.about-page-graph-chip-leaf {
+  border-color: rgba(46, 132, 184, 0.26);
+  background: rgba(226, 243, 251, 0.86);
+}
+
+.about-page-graph-chip-stress {
+  border-color: rgba(190, 138, 54, 0.28);
+  background: rgba(251, 241, 222, 0.88);
+}
+
+.about-page-graph-chip-conservation {
+  border-color: rgba(78, 142, 75, 0.26);
+  background: rgba(238, 248, 219, 0.86);
+}
+
+.about-page-graph-hub-card {
+  position: relative;
+  z-index: 2;
+  grid-area: hub;
+  place-self: center stretch;
+  appearance: none;
+  display: grid;
+  gap: 7px;
+  min-height: 142px;
+  padding: 16px;
+  border: 1px solid rgb(var(--c-workspace-accent-strong-rgb) / 0.56);
+  border-radius: 8px;
+  background:
+    linear-gradient(
+      135deg,
+      rgb(var(--c-primary-dark-rgb) / 0.94),
+      rgb(var(--c-primary-rgb) / 0.88)
+    ),
+    rgb(var(--c-primary-dark-rgb) / 0.9);
+  color: var(--c-text-on-dark);
+  cursor: pointer;
+  font: inherit;
+  text-align: center;
+  box-shadow:
+    0 18px 36px rgb(var(--c-shadow-rgb) / 0.2),
+    0 0 0 6px rgb(var(--c-workspace-accent-strong-rgb) / 0.1),
+    0 0 34px rgb(var(--c-workspace-accent-strong-rgb) / 0.22);
+  transition:
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+
+  & span {
+    width: fit-content;
+    justify-self: center;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgb(var(--c-surface-rgb) / 0.12);
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  & strong {
+    font-size: 18px;
+    line-height: 1.35;
+  }
+
+  & small {
+    color: rgb(var(--c-workspace-text-rgb) / 0.84);
+    line-height: 1.5;
+  }
+}
+
+.about-page-graph-hub-card:hover,
+.about-page-graph-hub-card:focus-visible,
+.about-page-graph-hub-card-active {
+  outline: none;
+  box-shadow:
+    0 20px 40px rgb(var(--c-shadow-rgb) / 0.24),
+    0 0 0 7px rgb(var(--c-workspace-accent-strong-rgb) / 0.14),
+    0 0 42px rgb(var(--c-workspace-accent-strong-rgb) / 0.26);
+  transform: translateY(-1px);
+}
+
+.about-page-knowledge-map-section .about-page-graph-detail {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+
+  & > div {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  & > div small {
+    color: var(--c-text-muted);
+    font-weight: 800;
+  }
+}
+
 .about-page-knowledge-legend {
   display: grid;
   align-content: start;
@@ -9423,6 +9746,34 @@ body:has(.login-shell),
   }
 }
 
+.about-page-help-audience-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 2px;
+
+  & article {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid rgb(var(--c-primary-dark-rgb) / 0.08);
+    border-radius: 8px;
+    background: rgb(var(--c-surface-rgb) / 0.64);
+  }
+
+  & strong {
+    color: var(--c-primary-dark);
+    font-size: 13px;
+  }
+
+  & span {
+    color: var(--c-text-muted);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+}
+
 .about-page-help-download {
   display: grid;
   align-content: center;
@@ -9572,6 +9923,46 @@ body:has(.login-shell),
   padding: 12px;
   border-radius: 8px;
   background: rgb(var(--c-primary-rgb) / 0.045);
+}
+
+.about-page-help-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid rgb(var(--c-primary-rgb) / 0.1);
+  border-radius: 8px;
+  background: rgb(var(--c-surface-rgb) / 0.76);
+}
+
+.about-page-help-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  color: var(--c-data-text);
+  font-size: 13px;
+  line-height: 1.55;
+
+  & th,
+  & td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgb(var(--c-primary-rgb) / 0.09);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  & th {
+    background: rgb(var(--c-primary-rgb) / 0.08);
+    color: var(--c-primary-dark);
+    font-weight: 900;
+  }
+
+  & tr:last-child td {
+    border-bottom: 0;
+  }
+
+  & td:first-child {
+    color: var(--c-primary-dark);
+    font-weight: 700;
+  }
 }
 
 .about-page-help-steps {
@@ -9918,6 +10309,10 @@ body:has(.login-shell),
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .about-page-help-audience-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .about-page-help-shell {
     grid-template-columns: 204px minmax(0, 1fr);
   }
@@ -9985,7 +10380,8 @@ body:has(.login-shell),
   .about-page-knowledge-value-grid,
   .about-page-docs-layout,
   .about-page-help-shell,
-  .about-page-help-side {
+  .about-page-help-side,
+  .about-page-help-audience-grid {
     grid-template-columns: 1fr;
   }
 
@@ -10096,6 +10492,32 @@ body:has(.login-shell),
     grid-template-columns: 1fr;
     min-height: 0;
     padding: 10px;
+  }
+
+  .about-page-graph-board {
+    grid-template-areas:
+      "hub"
+      "genome"
+      "leaf"
+      "stress"
+      "conservation";
+    grid-template-columns: 1fr;
+    min-height: 0;
+    padding: 12px;
+
+    &::before,
+    &::after {
+      display: none;
+    }
+  }
+
+  .about-page-graph-domain-genome .about-page-graph-chain,
+  .about-page-graph-domain-conservation .about-page-graph-chain {
+    grid-template-columns: 1fr;
+  }
+
+  .about-page-graph-hub-card {
+    min-height: 118px;
   }
 
   .about-page-graph-stage {

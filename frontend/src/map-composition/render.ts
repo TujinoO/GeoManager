@@ -21,6 +21,7 @@ export interface CompositionIssue {
 export interface CompositionRenderOptions {
   outputDpi?: number;
   mapDpi?: number;
+  signal?: AbortSignal;
 }
 
 export async function renderCompositionPng(
@@ -53,6 +54,7 @@ export async function renderCompositionPng(
     Math.ceil(mapRenderBox.width),
     Math.ceil(mapRenderBox.height),
     accessToken,
+    options.signal,
   );
   try {
     context.save();
@@ -87,6 +89,7 @@ export async function renderCompositionPng(
       Math.ceil(overviewRenderBox.width),
       Math.ceil(overviewRenderBox.height),
       accessToken,
+      options.signal,
     );
     try {
       context.save();

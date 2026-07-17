@@ -5,7 +5,10 @@ import mapboxgl, {
 } from "mapbox-gl";
 import type { GeoJsonGeometry } from "../types";
 import { extractCoordinates } from "../utils/geometry";
-import { sanitizeStyleNumericAssertions } from "./basemapStyle";
+import {
+  sanitizeStyleNumericAssertions,
+  satelliteBasemapColorCorrection,
+} from "./basemapStyle";
 import {
   bindPlatformSymbolImageFallback,
   registerPlatformSymbolImages,
@@ -17,6 +20,13 @@ const maxExportDimension = 8192;
 const maxExportPixels = 36_000_000;
 const minMercatorLatitude = -85.05112878;
 const maxMercatorLatitude = 85.05112878;
+const platformBasemapSourceId = "map-export-platform-basemap";
+const platformBasemapLayerId = "map-export-platform-basemap";
+const platformBasemapBackgroundLayerId = "map-export-background";
+const platformBasemapTileUrl = "/api/map/thumbnail-tiles/{z}/{x}/{y}.png";
+const mapStyleLoadTimeoutMs = 8000;
+const mapTileLoadTimeoutMs = 25_000;
+const mapExportMaxAttempts = 2;
 const rangeOverlaySourcePrefixes = [
   "query-spatial-filter",
   "query-draw-preview",
@@ -30,6 +40,7 @@ export interface MapImageExportOptions {
   tileZoom: number;
   format: MapImageExportFormat;
   accessToken?: string;
+  signal?: AbortSignal;
 }
 
 export interface MapRangeExportPlan {
@@ -53,8 +64,31 @@ export async function exportMapRangeImage(
   options: MapImageExportOptions,
 ): Promise<Blob> {
   const plan = createMapRangeExportPlan(geometry, options);
+  const sourceStyle = map.getStyle();
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= mapExportMaxAttempts; attempt += 1) {
+    throwIfAborted(options.signal);
+    try {
+      return await exportMapRangeImageAttempt(sourceStyle, plan, options);
+    } catch (error) {
+      if (isAbortError(error)) throw error;
+      lastError = error;
+      if (attempt >= mapExportMaxAttempts) break;
+      await abortableDelay(750 * attempt, options.signal);
+    }
+  }
+
+  throw mapExportFailure(lastError);
+}
+
+async function exportMapRangeImageAttempt(
+  sourceStyle: StyleSpecification,
+  plan: MapRangeExportPlan,
+  options: MapImageExportOptions,
+): Promise<Blob> {
   const container = createExportContainer(plan);
-  const exportStyle = createExportStyle(map.getStyle());
+  const exportStyle = createExportStyle(sourceStyle);
   let exportMap: MapboxMap | null = null;
   let unbindSymbolFallback: (() => void) | null = null;
 
@@ -81,7 +115,7 @@ export async function exportMapRangeImage(
 
     exportMap = new mapboxgl.Map(mapOptions);
     unbindSymbolFallback = bindPlatformSymbolImageFallback(exportMap);
-    await waitForStyleLoad(exportMap);
+    await waitForStyleLoad(exportMap, mapStyleLoadTimeoutMs, options.signal);
     registerPlatformSymbolImages(exportMap);
     exportMap.setProjection("mercator");
     exportMap.jumpTo({
@@ -90,8 +124,9 @@ export async function exportMapRangeImage(
       pitch: 0,
       bearing: 0,
     });
-    await waitForMapIdle(exportMap, 6000);
+    await waitForMapReady(exportMap, mapTileLoadTimeoutMs, options.signal);
     await nextAnimationFrame();
+    throwIfAborted(options.signal);
     return await mapCanvasToImageBlob(exportMap.getCanvas(), plan, options);
   } finally {
     unbindSymbolFallback?.();
@@ -245,15 +280,53 @@ export function createExportStyle(
 ): StyleSpecification {
   const next = sanitizeStyleNumericAssertions(style);
   next.projection = { name: "mercator" };
-  next.layers = (next.layers ?? []).filter(
-    (layer) => !isRangeOverlayId(layer.id),
+  const basemapSourceIds = new Set(
+    Object.entries(next.sources ?? {})
+      .filter(([sourceId, source]) => isExternalBasemapSource(sourceId, source))
+      .map(([sourceId]) => sourceId),
   );
-  if (next.sources) {
-    for (const sourceId of Object.keys(next.sources)) {
-      if (isRangeOverlayId(sourceId)) {
-        delete next.sources[sourceId];
-      }
+  const usesSatelliteBasemap = Object.entries(next.sources ?? {}).some(
+    ([sourceId, source]) => isSatelliteBasemapSource(sourceId, source),
+  );
+  next.sources ??= {};
+  next.layers = (next.layers ?? []).filter((layer) => {
+    if (isRangeOverlayId(layer.id) || layer.type === "background") {
+      return false;
     }
+    const sourceId = sourceIdForStyleLayer(layer);
+    return !sourceId || !basemapSourceIds.has(sourceId);
+  });
+  for (const sourceId of Object.keys(next.sources)) {
+    if (isRangeOverlayId(sourceId) || basemapSourceIds.has(sourceId)) {
+      delete next.sources[sourceId];
+    }
+  }
+  next.sources[platformBasemapSourceId] = {
+    type: "raster",
+    tiles: [platformBasemapTileUrl],
+    tileSize: 256,
+    minzoom: 0,
+    maxzoom: 12,
+    attribution: "平台缓存底图",
+  };
+  next.layers = [
+    {
+      id: platformBasemapBackgroundLayerId,
+      type: "background",
+      paint: { "background-color": "#d9e0e3" },
+    },
+    {
+      id: platformBasemapLayerId,
+      type: "raster",
+      source: platformBasemapSourceId,
+      ...(usesSatelliteBasemap
+        ? { paint: { ...satelliteBasemapColorCorrection } }
+        : {}),
+    },
+    ...(next.layers ?? []),
+  ];
+  if (next.terrain && basemapSourceIds.has(next.terrain.source)) {
+    delete next.terrain;
   }
   return next;
 }
@@ -378,29 +451,203 @@ function canvasToImageBlob(
   });
 }
 
-function waitForStyleLoad(map: MapboxMap) {
-  return new Promise<void>((resolve) => {
+function waitForStyleLoad(
+  map: MapboxMap,
+  timeoutMs: number,
+  signal?: AbortSignal,
+) {
+  return new Promise<void>((resolve, reject) => {
     if (map.isStyleLoaded()) {
       resolve();
       return;
     }
-    map.once("style.load", () => resolve());
+    let settled = false;
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      map.off("style.load", handleLoad);
+      map.off("error", handleError);
+      signal?.removeEventListener("abort", handleAbort);
+      if (error) reject(error);
+      else resolve();
+    };
+    const handleLoad = () => finish();
+    const handleError = (event: { error?: unknown }) =>
+      finish(new Error(`底图样式加载失败：${mapLoadErrorText(event.error)}`));
+    const handleAbort = () => finish(abortError());
+    const timeoutId = window.setTimeout(
+      () => finish(new Error("底图样式加载超时")),
+      timeoutMs,
+    );
+    map.once("style.load", handleLoad);
+    map.on("error", handleError);
+    signal?.addEventListener("abort", handleAbort, { once: true });
+    if (signal?.aborted) handleAbort();
   });
 }
 
-function waitForMapIdle(map: MapboxMap, timeoutMs: number) {
-  return new Promise<void>((resolve) => {
-    let timeoutId: number | null = null;
-    const finish = () => {
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-      }
-      map.off("idle", finish);
-      resolve();
+function waitForMapReady(
+  map: MapboxMap,
+  timeoutMs: number,
+  signal?: AbortSignal,
+) {
+  return new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const loadErrors: string[] = [];
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      map.off("idle", checkReady);
+      map.off("render", checkReady);
+      map.off("error", handleError);
+      signal?.removeEventListener("abort", handleAbort);
+      if (error) reject(error);
+      else resolve();
     };
-    timeoutId = window.setTimeout(finish, timeoutMs);
-    map.once("idle", finish);
+    const checkReady = () => {
+      if (!map.isStyleLoaded() || !map.loaded() || !map.areTilesLoaded()) {
+        return;
+      }
+      if (loadErrors.length > 0) {
+        finish(
+          new Error(
+            `底图或业务瓦片加载失败：${loadErrors.slice(0, 3).join("；")}`,
+          ),
+        );
+        return;
+      }
+      finish();
+    };
+    const handleError = (event: { error?: unknown }) => {
+      const message = mapLoadErrorText(event.error);
+      if (!loadErrors.includes(message)) loadErrors.push(message);
+    };
+    const handleAbort = () => finish(abortError());
+    const timeoutId = window.setTimeout(() => {
+      const detail = loadErrors.length
+        ? `：${loadErrors.slice(0, 3).join("；")}`
+        : "";
+      finish(
+        new Error(`底图瓦片在 ${timeoutMs / 1000} 秒内未加载完整${detail}`),
+      );
+    }, timeoutMs);
+    map.on("idle", checkReady);
+    map.on("render", checkReady);
+    map.on("error", handleError);
+    signal?.addEventListener("abort", handleAbort, { once: true });
+    if (signal?.aborted) {
+      handleAbort();
+      return;
+    }
+    checkReady();
   });
+}
+
+function isExternalBasemapSource(sourceId: string, source: unknown) {
+  const normalizedId = sourceId.toLowerCase();
+  if (
+    normalizedId === "composite" ||
+    normalizedId === "satellite" ||
+    normalizedId === "osm-raster" ||
+    normalizedId.startsWith("mapbox")
+  ) {
+    return true;
+  }
+  if (typeof source !== "object" || source === null) return false;
+  const candidate = source as { url?: unknown; tiles?: unknown };
+  if (
+    typeof candidate.url === "string" &&
+    (candidate.url.startsWith("mapbox://") ||
+      candidate.url.includes("openfreemap.org"))
+  ) {
+    return true;
+  }
+  if (!Array.isArray(candidate.tiles) || candidate.tiles.length === 0) {
+    return false;
+  }
+  return candidate.tiles.every(
+    (tile) =>
+      typeof tile === "string" &&
+      (tile.includes("api.mapbox.com") ||
+        tile.includes("tile.openstreetmap.org") ||
+        tile.includes("openfreemap.org")),
+  );
+}
+
+function isSatelliteBasemapSource(sourceId: string, source: unknown) {
+  if (sourceId.toLowerCase().includes("satellite")) return true;
+  if (typeof source !== "object" || source === null) return false;
+  const candidate = source as { url?: unknown; tiles?: unknown };
+  if (
+    typeof candidate.url === "string" &&
+    candidate.url.toLowerCase().includes("satellite")
+  ) {
+    return true;
+  }
+  return (
+    Array.isArray(candidate.tiles) &&
+    candidate.tiles.some(
+      (tile) =>
+        typeof tile === "string" && tile.toLowerCase().includes("satellite"),
+    )
+  );
+}
+
+function mapLoadErrorText(value: unknown, depth = 0): string {
+  if (depth > 2 || value == null) return "未知瓦片错误";
+  if (typeof value === "string") return value;
+  if (value instanceof Error) return value.message || value.name;
+  if (typeof value !== "object") return String(value);
+  const record = value as Record<string, unknown>;
+  const messages = ["message", "url", "status", "statusText", "error"]
+    .map((key) => mapLoadErrorText(record[key], depth + 1))
+    .filter((item) => item !== "未知瓦片错误");
+  return messages.join(" ") || "未知瓦片错误";
+}
+
+function mapExportFailure(error: unknown) {
+  const detail = error instanceof Error ? error.message : String(error ?? "");
+  return new Error(
+    `出图底图加载失败，平台已自动重试但仍未获得完整瓦片${detail ? `：${detail}` : ""}。请稍后重试或检查服务器外网与底图服务配置。`,
+  );
+}
+
+function abortableDelay(timeoutMs: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortError());
+      return;
+    }
+    const handleAbort = () => {
+      window.clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", handleAbort);
+      reject(abortError());
+    };
+    const timeoutId = window.setTimeout(() => {
+      signal?.removeEventListener("abort", handleAbort);
+      resolve();
+    }, timeoutMs);
+    signal?.addEventListener("abort", handleAbort, { once: true });
+  });
+}
+
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) throw abortError();
+}
+
+function abortError() {
+  return new DOMException("出图预览已取消", "AbortError");
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException
+    ? error.name === "AbortError"
+    : typeof error === "object" &&
+        error !== null &&
+        "name" in error &&
+        error.name === "AbortError";
 }
 
 function nextAnimationFrame() {

@@ -9,6 +9,7 @@ export async function renderBoundsImage(
   targetWidth: number,
   targetHeight: number,
   accessToken?: string,
+  signal?: AbortSignal,
 ): Promise<ImageBitmap> {
   const tileZoom = tileZoomForTarget(bounds, targetWidth, targetHeight);
   const blob = await exportMapRangeImage(map, boundsGeometry(bounds), {
@@ -16,6 +17,7 @@ export async function renderBoundsImage(
     tileZoom,
     format: "png",
     accessToken,
+    signal,
   });
   return createImageBitmap(blob);
 }

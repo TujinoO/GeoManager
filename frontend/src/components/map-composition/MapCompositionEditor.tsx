@@ -63,6 +63,7 @@ export default function MapCompositionEditor({
   const initializedCompositionId = useRef<number | null>(null);
   const previewSequence = useRef(0);
   const previewUrlRef = useRef("");
+  const previewAbortController = useRef<AbortController | null>(null);
   const legendItems = useMemo(() => compositionLegendItems(groups), [groups]);
   const issues = useMemo(
     () => compositionIssues(layout, legendItems),
@@ -78,6 +79,8 @@ export default function MapCompositionEditor({
     }
     if (initializedCompositionId.current === composition.id) return;
     initializedCompositionId.current = composition.id;
+    previewAbortController.current?.abort();
+    previewAbortController.current = null;
     previewSequence.current += 1;
     setPreviewUrl((current) => {
       if (current) URL.revokeObjectURL(current);
@@ -100,6 +103,8 @@ export default function MapCompositionEditor({
 
   useEffect(
     () => () => {
+      previewAbortController.current?.abort();
+      previewAbortController.current = null;
       previewSequence.current += 1;
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     },
@@ -113,6 +118,9 @@ export default function MapCompositionEditor({
     }
     const sequence = previewSequence.current + 1;
     previewSequence.current = sequence;
+    previewAbortController.current?.abort();
+    const controller = new AbortController();
+    previewAbortController.current = controller;
     setPreviewing(true);
     try {
       const blob = await renderCompositionPng(
@@ -123,6 +131,7 @@ export default function MapCompositionEditor({
         {
           outputDpi: 96,
           mapDpi: Math.min(layout.page.dpi, 300),
+          signal: controller.signal,
         },
       );
       if (sequence !== previewSequence.current) return;
@@ -133,20 +142,30 @@ export default function MapCompositionEditor({
       });
     } catch (error) {
       if (sequence !== previewSequence.current) return;
+      if (isAbortError(error)) return;
       message.error(error instanceof Error ? error.message : "专题图预览失败");
     } finally {
+      if (previewAbortController.current === controller) {
+        previewAbortController.current = null;
+      }
       if (sequence === previewSequence.current) setPreviewing(false);
     }
   }, [accessToken, layout, legendItems, map, message]);
 
   useEffect(() => {
+    previewAbortController.current?.abort();
+    previewAbortController.current = null;
     previewSequence.current += 1;
     if (!open || !map || !composition) {
       setPreviewing(false);
       return;
     }
     const timer = window.setTimeout(() => void refreshPreview(), 420);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      previewAbortController.current?.abort();
+      previewAbortController.current = null;
+    };
   }, [composition, map, open, refreshPreview]);
 
   const updateLayout = useCallback((next: MapCompositionLayout) => {
@@ -182,6 +201,10 @@ export default function MapCompositionEditor({
       if (hasErrors) message.warning("请先处理出图检查中的错误");
       return;
     }
+    previewAbortController.current?.abort();
+    previewAbortController.current = null;
+    previewSequence.current += 1;
+    setPreviewing(false);
     setExporting(true);
     try {
       await api.updateMapComposition(composition.id, {
@@ -292,4 +315,13 @@ export default function MapCompositionEditor({
       </div>
     </Modal>
   );
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException
+    ? error.name === "AbortError"
+    : typeof error === "object" &&
+        error !== null &&
+        "name" in error &&
+        error.name === "AbortError";
 }

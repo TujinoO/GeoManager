@@ -115,6 +115,7 @@ class MapThumbnailTileApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "image/png")
+        self.assertEqual(response["Cache-Control"], "public, max-age=86400")
         self.assertEqual(response.content, b"png-data")
         self.assertEqual(cached_response.content, b"png-data")
         fetch_tile.assert_called_once()
@@ -173,6 +174,7 @@ class MapThumbnailTileApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "image/svg+xml")
+        self.assertEqual(response["Cache-Control"], "public, max-age=60")
         self.assertIn(b"<svg", response.content)
         self.assertIn(b'data-local-basemap="world-mercator"', response.content)
 

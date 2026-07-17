@@ -63,6 +63,8 @@ describe("mapExport", () => {
     const style = createExportStyle({
       version: 8,
       sources: {
+        composite: { type: "vector", url: "mapbox://mapbox.mapbox-streets-v8" },
+        satellite: { type: "raster", url: "mapbox://mapbox.satellite" },
         "query-spatial-filter": { type: "geojson", data: emptyFeatures() },
         "query-draw-preview": { type: "geojson", data: emptyFeatures() },
         "loaded-vector": { type: "geojson", data: emptyFeatures() },
@@ -73,6 +75,9 @@ describe("mapExport", () => {
         },
       },
       layers: [
+        { id: "background", type: "background" },
+        { id: "satellite", type: "raster", source: "satellite" },
+        { id: "road-label", type: "symbol", source: "composite" },
         {
           id: "query-spatial-filter-fill",
           type: "fill",
@@ -90,9 +95,27 @@ describe("mapExport", () => {
 
     expect(style.sources).not.toHaveProperty("query-spatial-filter");
     expect(style.sources).not.toHaveProperty("query-draw-preview");
+    expect(style.sources).not.toHaveProperty("composite");
+    expect(style.sources).not.toHaveProperty("satellite");
     expect(style.sources).toHaveProperty("loaded-vector");
     expect(style.sources).toHaveProperty("loaded-raster");
+    expect(style.sources).toHaveProperty("map-export-platform-basemap");
+    expect(style.sources?.["map-export-platform-basemap"]).toMatchObject({
+      type: "raster",
+      tiles: ["/api/map/thumbnail-tiles/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      maxzoom: 12,
+    });
+    expect(style.layers[1]).toMatchObject({
+      id: "map-export-platform-basemap",
+      paint: {
+        "raster-saturation": -0.55,
+        "raster-contrast": -0.1,
+      },
+    });
     expect(style.layers.map((layer) => layer.id)).toEqual([
+      "map-export-background",
+      "map-export-platform-basemap",
       "loaded-vector-fill",
       "loaded-raster-raster",
     ]);

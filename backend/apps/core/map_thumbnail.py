@@ -11,7 +11,7 @@ from django.conf import settings
 from apps.core.config import load_runtime_config_document
 
 THUMBNAIL_TILE_MAX_ZOOM = 12
-THUMBNAIL_TILE_TIMEOUT_SECONDS = 8
+THUMBNAIL_TILE_TIMEOUT_SECONDS = 4
 THUMBNAIL_TILE_SIZE = 256
 THUMBNAIL_MAX_MERCATOR_LAT = 85.05112878
 MAPBOX_SATELLITE_STYLE = "mapbox/satellite-streets-v12"

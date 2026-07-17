@@ -29,6 +29,7 @@ import {
   aboutSections,
   contactRows,
   coreMembers,
+  helpAudienceCards,
   helpArticles,
   helpCategories,
   helpDocumentDownload,
@@ -37,8 +38,6 @@ import {
   type HelpArticle,
   type HelpArticleBlock,
   knowledgeGraphNodes,
-  knowledgeGraphEdges,
-  knowledgeGraphClusters,
   knowledgeGraphLegend,
   knowledgeMechanisms,
   knowledgePapers,
@@ -549,13 +548,36 @@ function KnowledgeSection({ section }: { section: AboutSection }) {
   const graphNodeById = new Map(
     knowledgeGraphNodes.map((node) => [node.id, node]),
   );
-  const graphEdges = knowledgeGraphEdges.flatMap((edge) => {
-    const from = graphNodeById.get(edge.from);
-    const to = graphNodeById.get(edge.to);
-    return from && to
-      ? [{ ...edge, from, to, key: `${edge.from}-${edge.to}` }]
-      : [];
-  });
+  const graphDomains = [
+    {
+      group: "genome",
+      index: "01",
+      title: "基因组机制",
+      summary: "雌雄基因组、性别决定区域与鉴定标记构成分子识别链条。",
+      nodeIds: ["genome", "slr", "arr17", "marker"],
+    },
+    {
+      group: "leaf",
+      index: "02",
+      title: "异形叶调控",
+      summary: "从异形叶发育进入甲基化调控与转录组响应，解释叶形适应。",
+      nodeIds: ["leaf", "methyl", "transcriptome"],
+    },
+    {
+      group: "stress",
+      index: "03",
+      title: "抗逆适应",
+      summary: "围绕盐旱胁迫、WOX 基因家族和灰杨比较研究形成抗逆证据链。",
+      nodeIds: ["stress", "wox", "pruinosa"],
+    },
+    {
+      group: "conservation",
+      index: "04",
+      title: "保护应用",
+      summary: "将遥感监测、种质保育和生态修复连接到平台的数据服务场景。",
+      nodeIds: ["monitoring", "germplasm", "restoration"],
+    },
+  ];
   const featuredPapers = knowledgePapers.slice(0, 2);
   const supportingPapers = knowledgePapers.slice(2);
   const defaultGraphNode =
@@ -567,6 +589,11 @@ function KnowledgeSection({ section }: { section: AboutSection }) {
   const activeGraphNodeGroup =
     knowledgeGraphLegend.find((item) => item.group === activeGraphNode.group)
       ?.label ?? "知识节点";
+  const activeGraphDomain =
+    graphDomains.find((domain) => domain.group === activeGraphNode.group) ??
+    graphDomains[0]!;
+  const activeGraphDomainTitle =
+    activeGraphNode.group === "hub" ? "联合知识体系" : activeGraphDomain.title;
 
   return (
     <>
@@ -688,83 +715,76 @@ function KnowledgeSection({ section }: { section: AboutSection }) {
           </div>
         </div>
         <div className="about-page-knowledge-graph">
-          <div className="about-page-graph-stage">
-            <div className="about-page-graph-clusters" aria-hidden="true">
-              {knowledgeGraphClusters.map((cluster) => (
-                <span
-                  className={`about-page-graph-cluster about-page-graph-cluster-${cluster.group}`}
-                  key={cluster.group}
+          <div className="about-page-graph-board">
+            {graphDomains.map((domain) => {
+              const isActiveDomain = activeGraphNode.group === domain.group;
+              return (
+                <article
+                  className={`about-page-graph-domain about-page-graph-domain-${domain.group}${
+                    isActiveDomain ? " about-page-graph-domain-active" : ""
+                  }`}
+                  key={domain.group}
                 >
-                  {cluster.label}
-                </span>
-              ))}
-            </div>
-            <svg aria-hidden="true" viewBox="0 0 100 100">
-              <defs>
-                <filter
-                  id="about-page-graph-glow"
-                  x="-20%"
-                  y="-20%"
-                  width="140%"
-                  height="140%"
-                >
-                  <feGaussianBlur result="blur" stdDeviation="0.7" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-                <marker
-                  id="about-page-graph-arrow"
-                  markerHeight="5"
-                  markerWidth="5"
-                  orient="auto"
-                  refX="4.4"
-                  refY="2.5"
-                  viewBox="0 0 5 5"
-                >
-                  <path d="M 0 0 L 5 2.5 L 0 5 z" />
-                </marker>
-              </defs>
-              {graphEdges.map((edge) => {
-                const isActiveEdge =
-                  activeGraphNode.id === edge.from.id ||
-                  activeGraphNode.id === edge.to.id;
-                return (
-                  <g
-                    className={`about-page-graph-edge-group about-page-graph-edge-${edge.tone}${
-                      isActiveEdge ? " about-page-graph-edge-active" : ""
-                    }`}
-                    key={edge.key}
-                  >
-                    <path d={getKnowledgeGraphPath(edge)} />
-                  </g>
-                );
-              })}
-            </svg>
-            {knowledgeGraphNodes.map((node) => (
-              <button
-                aria-label={`${node.label}：${node.detail}`}
-                className={`about-page-graph-node about-page-graph-${node.group}${
-                  activeGraphNode.id === node.id ? " about-page-graph-node-active" : ""
-                }`}
-                key={node.id}
-                type="button"
-                style={{ left: `${node.x}%`, top: `${node.y}%` }}
-                title={node.detail}
-                onBlur={() => setHoveredGraphNodeId(null)}
-                onFocus={() => setHoveredGraphNodeId(node.id)}
-                onMouseEnter={() => setHoveredGraphNodeId(node.id)}
-                onMouseLeave={() => setHoveredGraphNodeId(null)}
-              >
-                <strong>{node.label}</strong>
-              </button>
-            ))}
+                  <header>
+                    <span>{domain.index}</span>
+                    <div>
+                      <strong>{domain.title}</strong>
+                      <small>{domain.summary}</small>
+                    </div>
+                  </header>
+                  <div className="about-page-graph-chain">
+                    {domain.nodeIds.map((nodeId) => {
+                      const node = graphNodeById.get(nodeId);
+                      if (!node) {
+                        return null;
+                      }
+                      return (
+                        <button
+                          aria-label={`${node.label}：${node.detail}`}
+                          className={`about-page-graph-chip about-page-graph-chip-${node.group}${
+                            activeGraphNode.id === node.id
+                              ? " about-page-graph-chip-active"
+                              : ""
+                          }`}
+                          key={node.id}
+                          title={node.detail}
+                          type="button"
+                          onClick={() => setHoveredGraphNodeId(node.id)}
+                          onFocus={() => setHoveredGraphNodeId(node.id)}
+                          onMouseEnter={() => setHoveredGraphNodeId(node.id)}
+                        >
+                          {node.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </article>
+              );
+            })}
+            <button
+              aria-label={`${defaultGraphNode.label}：${defaultGraphNode.detail}`}
+              className={`about-page-graph-hub-card${
+                activeGraphNode.id === defaultGraphNode.id
+                  ? " about-page-graph-hub-card-active"
+                  : ""
+              }`}
+              type="button"
+              onClick={() => setHoveredGraphNodeId(defaultGraphNode.id)}
+              onFocus={() => setHoveredGraphNodeId(defaultGraphNode.id)}
+              onMouseEnter={() => setHoveredGraphNodeId(defaultGraphNode.id)}
+            >
+              <span>知识枢纽</span>
+              <strong>{defaultGraphNode.label}</strong>
+              <small>整合论文证据、平台数据与应用场景</small>
+            </button>
           </div>
           <aside
             className={`about-page-graph-detail about-page-graph-detail-${activeGraphNode.group}`}
           >
-            <span>{activeGraphNodeGroup}</span>
+            <div>
+              <span>{activeGraphNodeGroup}</span>
+              <small>{activeGraphDomainTitle}</small>
+            </div>
             <strong>{activeGraphNode.label}</strong>
             <p>{activeGraphNode.detail}</p>
           </aside>
@@ -829,34 +849,6 @@ function KnowledgeSection({ section }: { section: AboutSection }) {
   );
 }
 
-function getKnowledgeGraphPath(edge: {
-  bend?: number;
-  from: { x: number; y: number };
-  to: { x: number; y: number };
-}) {
-  const bend = edge.bend ?? 0;
-  const { x, y } = getKnowledgeGraphControlPoint(edge, bend);
-  return `M ${edge.from.x} ${edge.from.y} Q ${x} ${y} ${edge.to.x} ${edge.to.y}`;
-}
-
-function getKnowledgeGraphControlPoint(
-  edge: {
-    from: { x: number; y: number };
-    to: { x: number; y: number };
-  },
-  bend: number,
-) {
-  const midX = (edge.from.x + edge.to.x) / 2;
-  const midY = (edge.from.y + edge.to.y) / 2;
-  const dx = edge.to.x - edge.from.x;
-  const dy = edge.to.y - edge.from.y;
-  const distance = Math.hypot(dx, dy) || 1;
-  return {
-    x: midX + (-dy / distance) * bend,
-    y: midY + (dx / distance) * bend,
-  };
-}
-
 function DocsSection({ section }: { section: AboutSection }) {
   const [activeArticleId, setActiveArticleId] = useState("platform-guide");
   const [searchKeyword, setSearchKeyword] = useState("");
@@ -891,6 +883,17 @@ function DocsSection({ section }: { section: AboutSection }) {
           <span className="about-page-kicker">{section.eyebrow}</span>
           <Typography.Title level={2}>{section.title}</Typography.Title>
           <Typography.Paragraph>{section.summary}</Typography.Paragraph>
+          <div
+            className="about-page-help-audience-grid"
+            aria-label="帮助文档适用对象"
+          >
+            {helpAudienceCards.map((card) => (
+              <article key={card.title}>
+                <strong>{card.title}</strong>
+                <span>{card.description}</span>
+              </article>
+            ))}
+          </div>
           <div className="about-page-help-actions">
             {helpQuickLinks.map((quickLink) => (
               <button
@@ -984,6 +987,20 @@ function DocsSection({ section }: { section: AboutSection }) {
         </article>
 
         <aside className="about-page-help-side">
+          <section className="about-page-help-side-panel about-page-help-download-panel">
+            <FilePdfOutlined />
+            <strong>PDF 帮助文档</strong>
+            <p>{helpDocumentDownload.meta}</p>
+            <Button
+              download={helpDocumentDownload.filename}
+              href={helpDocumentDownload.href}
+              icon={<DownloadOutlined />}
+              block
+              type="primary"
+            >
+              下载 PDF
+            </Button>
+          </section>
           <section className="about-page-help-side-panel">
             <div className="about-page-block-title">
               <BookOutlined />
@@ -998,21 +1015,9 @@ function DocsSection({ section }: { section: AboutSection }) {
               ))}
             </div>
           </section>
-          <section className="about-page-help-side-panel about-page-help-download-panel">
-            <FilePdfOutlined />
-            <strong>PDF 版本</strong>
-            <p>{helpDocumentDownload.meta}</p>
-            <Button
-              download={helpDocumentDownload.filename}
-              href={helpDocumentDownload.href}
-              icon={<DownloadOutlined />}
-              block
-            >
-              下载 PDF
-            </Button>
-          </section>
           <section className="about-page-pro-tip">
-            提交问题时请附上资源名称、操作路径、截图和复现步骤，便于管理员快速定位。
+            反馈问题时请附上账号角色、页面路径、资源名称、截图和复现步骤；导入或栅格任务请同时提供任务
+            ID。
           </section>
         </aside>
       </section>
@@ -1043,6 +1048,34 @@ function HelpArticleBlockView({ block }: { block: HelpArticleBlock }) {
       <section className="about-page-help-note">
         <strong>{block.title}</strong>
         <p>{block.body}</p>
+      </section>
+    );
+  }
+
+  if (block.type === "table") {
+    return (
+      <section className="about-page-help-block">
+        <Typography.Title level={4}>{block.title}</Typography.Title>
+        <div className="about-page-help-table-wrap">
+          <table className="about-page-help-table">
+            <thead>
+              <tr>
+                {block.columns.map((column) => (
+                  <th key={column}>{column}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row) => (
+                <tr key={row.join("|")}>
+                  {row.map((cell, index) => (
+                    <td key={`${index}-${cell}`}>{cell}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     );
   }
@@ -1094,6 +1127,9 @@ function helpBlockText(block: HelpArticleBlock) {
   }
   if (block.type === "note") {
     return [block.title, block.body];
+  }
+  if (block.type === "table") {
+    return [block.title, ...block.columns, ...block.rows.flat()];
   }
   return [block.title, ...block.items];
 }

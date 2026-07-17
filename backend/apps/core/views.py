@@ -116,7 +116,11 @@ def map_thumbnail_tile(request, z: int, x: int, y: int):
         return JsonResponse({"detail": str(exc)}, status=400)
 
     response = HttpResponse(data, content_type=content_type)
-    response["Cache-Control"] = "public, max-age=86400"
+    response["Cache-Control"] = (
+        "public, max-age=60"
+        if content_type == "image/svg+xml"
+        else "public, max-age=86400"
+    )
     return response
 
 

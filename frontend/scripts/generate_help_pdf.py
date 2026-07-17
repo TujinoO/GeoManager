@@ -154,22 +154,40 @@ def build_styles() -> dict[str, ParagraphStyle]:
 def build_story(markdown: str, styles: dict[str, ParagraphStyle]) -> list:
     lines = markdown.splitlines()
     title = clean_inline(lines[0].lstrip("# ").strip())
+    metadata = read_metadata(lines)
     story: list = [
-        Spacer(1, 32),
+        cover_band("CAPFED Help Center", styles),
+        Spacer(1, 22),
         Paragraph(title, styles["cover_title"]),
-        Paragraph("Help Center / 用户帮助中心", styles["cover_meta"]),
-        Spacer(1, 12),
-        Paragraph("面向普通用户、科研用户、数据管理员和系统管理员", styles["cover_meta"]),
-        Paragraph("版本 v1.0 - 2026年7月10日", styles["cover_meta"]),
+        Paragraph(
+            "面向普通用户、科研用户、数据管理员和系统管理员的使用说明、操作流程与常见问题。",
+            styles["cover_meta"],
+        ),
+        Spacer(1, 16),
+        build_cover_table(metadata, styles),
+        Spacer(1, 18),
+        Paragraph(
+            "本版文档按平台当前功能重新整理，侧重用户实际操作，不列出源码路径和内部资料清单；需要反馈问题时，请提供页面、数据名称、截图和复现步骤。",
+            styles["body"],
+        ),
+        Spacer(1, 10),
+        Paragraph("阅读路径", styles["h3"]),
+        build_cover_reading_table(styles),
         PageBreak(),
     ]
 
     index = 1
+    skipped_metadata = False
     while index < len(lines):
       line = lines[index].strip()
       if not line:
           story.append(Spacer(1, 3))
           index += 1
+          continue
+      if not skipped_metadata and is_table_start(lines, index):
+          while index < len(lines) and lines[index].strip().startswith("|"):
+              index += 1
+          skipped_metadata = True
           continue
       if is_table_start(lines, index):
           table_lines: list[str] = []
@@ -191,6 +209,84 @@ def build_story(markdown: str, styles: dict[str, ParagraphStyle]) -> list:
           story.append(Paragraph(clean_inline(line), styles["body"]))
       index += 1
     return story
+
+
+def read_metadata(lines: list[str]) -> dict[str, str]:
+    metadata: dict[str, str] = {}
+    for line in lines:
+        if not line.strip().startswith("|"):
+            continue
+        parts = [part.strip() for part in line.strip("|").split("|")]
+        if len(parts) >= 2 and parts[0] not in {"项目", "---"}:
+            metadata[parts[0]] = parts[1]
+    return metadata
+
+
+def cover_band(text: str, styles: dict[str, ParagraphStyle]) -> Table:
+    table = Table([[Paragraph(text, styles["cell_head"])]], colWidths=[A4[0] - 36 * mm])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#0B4F46")),
+                ("BOX", (0, 0), (-1, -1), 0, colors.HexColor("#0B4F46")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+            ]
+        )
+    )
+    return table
+
+
+def build_cover_table(metadata: dict[str, str], styles: dict[str, ParagraphStyle]) -> Table:
+    rows = [
+        ["文档版本", metadata.get("文档版本", "")],
+        ["更新日期", metadata.get("更新日期", "")],
+        ["适用平台", metadata.get("适用平台", "")],
+        ["适用对象", metadata.get("适用对象", "")],
+    ]
+    data = [[Paragraph(clean_inline(cell), styles["cell"]) for cell in row] for row in rows]
+    table = Table(data, colWidths=[34 * mm, A4[0] - 70 * mm])
+    table.setStyle(
+        TableStyle(
+            [
+                ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#cddbd8")),
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#e8f1ee")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]
+        )
+    )
+    return table
+
+
+def build_cover_reading_table(styles: dict[str, ParagraphStyle]) -> Table:
+    rows = [
+        ["普通用户", "快速上手、地理数据工作台、空间查询"],
+        ["科研用户", "数据准备规范、数据导入、工程与专题管理"],
+        ["数据管理员", "存量数据维护、工程与专题管理、权限与日志"],
+        ["系统管理员", "后台管理、备份与安全、常见问题"],
+    ]
+    data = [[Paragraph(clean_inline(cell), styles["cell"]) for cell in row] for row in rows]
+    table = Table(data, colWidths=[30 * mm, A4[0] - 66 * mm])
+    table.setStyle(
+        TableStyle(
+            [
+                ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#d4e1de")),
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f1f7f5")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    return table
 
 
 def is_table_start(lines: list[str], index: int) -> bool:
