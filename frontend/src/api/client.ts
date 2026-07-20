@@ -54,6 +54,7 @@ import type {
   MapLayerListItem,
   MapComposition,
   MapCompositionCreateRequest,
+  MapCompositionDeleteResponse,
   MapCompositionListResponse,
   MapCompositionPublishRequest,
   MapCompositionRestoreProjectRequest,
@@ -605,6 +606,13 @@ export const api = {
       sdk.updateMapComposition({
         path: { compositionId },
         body: payload,
+      }),
+    ),
+  deleteMapComposition: (compositionId: number) =>
+    unwrap<MapCompositionDeleteResponse>(
+      sdk.updateMapComposition({
+        path: { compositionId },
+        body: { action: "delete" },
       }),
     ),
   publishMapComposition: (

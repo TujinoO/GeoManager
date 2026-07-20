@@ -616,7 +616,7 @@ export type UserPermissions = {
      */
     canChangeMapCompositions: boolean;
     /**
-     * 是否可归档出图稿，对应 `catalog.delete_mapcomposition`
+     * 是否可永久删除出图稿，对应 `catalog.delete_mapcomposition`
      */
     canDeleteMapCompositions: boolean;
     /**
@@ -2829,7 +2829,7 @@ export type MapComposition = {
     canUnpublish: boolean;
     canRestoreProject: boolean;
     canLoadSourceProject: boolean;
-    canArchive: boolean;
+    canDelete: boolean;
     publishedAt?: string | null;
     publishedBy?: WorkspaceSceneOwner | null;
     /**
@@ -2871,7 +2871,7 @@ export type MapCompositionCreateRequest = {
 
 export type MapCompositionUpdateRequest = {
     /**
-     * update 更新版式；delete 归档
+     * update 更新版式；delete 永久删除专题、全部版本记录和成果文件
      */
     action?: 'update' | 'delete';
     /**
@@ -2883,6 +2883,21 @@ export type MapCompositionUpdateRequest = {
      */
     description?: string;
     layout?: MapCompositionLayout;
+};
+
+export type MapCompositionDeleteResponse = {
+    /**
+     * 是否已完成永久删除
+     */
+    deleted: true;
+    /**
+     * 已删除的出图稿 ID
+     */
+    id: number;
+    /**
+     * 删除结果说明
+     */
+    detail: string;
 };
 
 export type MapCompositionVersionCreatePayload = {
@@ -7311,7 +7326,7 @@ export type UpdateMapCompositionResponses = {
     /**
      * 操作成功
      */
-    200: MapComposition | DetailResponse;
+    200: MapComposition | MapCompositionDeleteResponse;
 };
 
 export type UpdateMapCompositionResponse = UpdateMapCompositionResponses[keyof UpdateMapCompositionResponses];

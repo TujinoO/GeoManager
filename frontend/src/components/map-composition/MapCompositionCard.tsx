@@ -19,7 +19,7 @@ interface Props {
   onUnpublish: () => void;
   onRestore: () => void;
   onLoadSource: () => void;
-  onArchive: () => void;
+  onDelete: () => void;
 }
 
 export default function MapCompositionCard({
@@ -31,7 +31,7 @@ export default function MapCompositionCard({
   onUnpublish,
   onRestore,
   onLoadSource,
-  onArchive,
+  onDelete,
 }: Props) {
   const previewVersion = composition.currentVersion;
   return (
@@ -116,15 +116,16 @@ export default function MapCompositionCard({
             来源工程
           </Button>
         ) : null}
-        {composition.canArchive ? (
+        {composition.canDelete ? (
           <Popconfirm
-            title="归档出图稿"
-            description={`确认归档“${composition.name}”？成果文件将保留用于审计。`}
-            okText="归档"
+            title="删除出图稿"
+            description={`确认删除“${composition.name}”？专题、全部版本记录和成果文件将被永久删除且不可恢复。`}
+            okText="删除"
             cancelText="取消"
-            onConfirm={onArchive}
+            okButtonProps={{ danger: true }}
+            onConfirm={onDelete}
           >
-            <Tooltip title="归档">
+            <Tooltip title="删除">
               <Button size="small" danger icon={<DeleteOutlined />} />
             </Tooltip>
           </Popconfirm>

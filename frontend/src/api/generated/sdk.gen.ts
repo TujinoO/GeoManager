@@ -790,7 +790,7 @@ export const listAdminWorkspaces = <ThrowOnError extends boolean = false>(option
 /**
  * 操作单个工程
  *
- * 支持更新工程状态、基础信息、访问用户组和删除确认。启停和信息修改需要 `catalog.change_workspacescene`；删除需要 `catalog.delete_workspacescene`；所属用户、超级管理员和平台管理员可以修改可见范围。成功操作会写入审计日志。
+ * 支持更新工程状态、基础信息、访问用户组和删除确认。启停和信息修改需要 `catalog.change_workspacescene`；删除需要 `catalog.delete_workspacescene`；所属用户、超级管理员和平台管理员可以修改可见范围。删除无关联工程时移除记录；若工程已被专题出图稿引用，则转为停用以保留成果来源。成功操作会写入审计日志。
  */
 export const updateAdminWorkspace = <ThrowOnError extends boolean = false>(options: Options<UpdateAdminWorkspaceData, ThrowOnError>): RequestResult<UpdateAdminWorkspaceResponses, UpdateAdminWorkspaceErrors, ThrowOnError> => (options.client ?? client).post<UpdateAdminWorkspaceResponses, UpdateAdminWorkspaceErrors, ThrowOnError>({
     security: [{
@@ -903,7 +903,7 @@ export const getCatalogWorkspace = <ThrowOnError extends boolean = false>(option
 /**
  * 更新或删除工程
  *
- * 所属用户可以维护自己的工程；超级管理员和平台管理员可以维护全部工程。名称、说明、类型和快照更新需要 `catalog.change_workspacescene`，删除需要 `catalog.delete_workspacescene`；后端始终保留管理员访问，snapshot 不得包含原始 GeoJSON 要素集合或查询结果数据本体。
+ * 所属用户可以维护自己的工程；超级管理员和平台管理员可以维护全部工程。名称、说明、类型和快照更新需要 `catalog.change_workspacescene`，删除需要 `catalog.delete_workspacescene`；若工程已被专题出图稿引用，删除会转为停用隐藏以保留成果来源；后端始终保留管理员访问，snapshot 不得包含原始 GeoJSON 要素集合或查询结果数据本体。
  */
 export const updateCatalogWorkspace = <ThrowOnError extends boolean = false>(options: Options<UpdateCatalogWorkspaceData, ThrowOnError>): RequestResult<UpdateCatalogWorkspaceResponses, UpdateCatalogWorkspaceErrors, ThrowOnError> => (options.client ?? client).post<UpdateCatalogWorkspaceResponses, UpdateCatalogWorkspaceErrors, ThrowOnError>({
     security: [{
@@ -1052,9 +1052,9 @@ export const getMapComposition = <ThrowOnError extends boolean = false>(options:
 });
 
 /**
- * 更新或归档出图稿
+ * 更新或删除出图稿
  *
- * 更新名称、说明和轻量版式，或执行 delete 归档。仅所属用户、超级管理员和平台管理员可以修改对象。发布和下架使用独立接口。
+ * 更新名称、说明和轻量版式，或执行 delete 永久删除专题、全部版本记录和成果文件。仅所属用户、超级管理员和平台管理员可以修改对象。发布和下架使用独立接口。
  */
 export const updateMapComposition = <ThrowOnError extends boolean = false>(options: Options<UpdateMapCompositionData, ThrowOnError>): RequestResult<UpdateMapCompositionResponses, UpdateMapCompositionErrors, ThrowOnError> => (options.client ?? client).post<UpdateMapCompositionResponses, UpdateMapCompositionErrors, ThrowOnError>({
     security: [{

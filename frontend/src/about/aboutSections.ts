@@ -301,7 +301,7 @@ export const teamNewsItems = [
 export const contactRows = [
   [
     "数据使用咨询 / 权限申请",
-    "请发送邮件至 wanghaoyu191@mails.ucas.ac.cn，说明姓名、单位、数据用途与所需权限。",
+    "请发送邮件至 lizhijun0202@126.com，说明姓名、单位、数据用途与所需权限。",
   ],
   [
     "数据资料提交",
@@ -309,7 +309,7 @@ export const contactRows = [
   ],
   [
     "平台故障报修",
-    "请通过 wanghaoyu191@mails.ucas.ac.cn 反馈问题描述、截图、浏览器环境和复现步骤。",
+    "请通过 lizhijun0202@126.com 反馈问题描述、截图、浏览器环境和复现步骤。",
   ],
   ["通信地址", "新疆阿拉尔市塔里木大学生命科学与技术学院，843300"],
 ];

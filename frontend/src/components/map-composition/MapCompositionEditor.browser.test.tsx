@@ -36,7 +36,7 @@ const composition: MapComposition = {
   canUnpublish: false,
   canRestoreProject: false,
   canLoadSourceProject: true,
-  canArchive: true,
+  canDelete: true,
   createdAt: "2026-07-14T10:00:00+08:00",
   updatedAt: "2026-07-14T10:00:00+08:00",
 };

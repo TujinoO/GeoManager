@@ -218,7 +218,6 @@ class MapComposition(models.Model):
         DRAFT = "draft", "草稿"
         COMPLETED = "completed", "已生成成果"
         PUBLISHED = "published", "已发布"
-        ARCHIVED = "archived", "已归档"
 
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,

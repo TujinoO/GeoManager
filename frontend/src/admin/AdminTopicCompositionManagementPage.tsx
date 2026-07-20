@@ -12,6 +12,7 @@ import {
   Form,
   Input,
   Modal,
+  Popconfirm,
   Select,
   Space,
   Table,
@@ -257,16 +258,16 @@ export default function AdminTopicCompositionManagementPage() {
     }
   }
 
-  async function archive(composition: MapComposition) {
+  async function deleteComposition(composition: MapComposition) {
     try {
-      await api.updateMapComposition(composition.id, { action: "delete" });
+      await api.deleteMapComposition(composition.id);
       setItems((current) =>
         current.filter((item) => item.id !== composition.id),
       );
       notifyWorkspaceInventoryChanged("composition");
-      message.success("专题已归档");
+      message.success("专题已删除");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "专题归档失败");
+      message.error(error instanceof Error ? error.message : "专题删除失败");
     }
   }
 
@@ -369,14 +370,19 @@ export default function AdminTopicCompositionManagementPage() {
               下架
             </Button>
           ) : null}
-          <Button
-            type="link"
-            danger
-            disabled={!record.canArchive}
-            onClick={() => void archive(record)}
+          <Popconfirm
+            title="删除专题"
+            description={`确认删除“${record.name}”？专题、全部版本记录和成果文件将被永久删除且不可恢复。`}
+            okText="删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+            disabled={!record.canDelete}
+            onConfirm={() => void deleteComposition(record)}
           >
-            归档
-          </Button>
+            <Button type="link" danger disabled={!record.canDelete}>
+              删除
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },

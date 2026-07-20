@@ -1899,7 +1899,7 @@ export default function MapPage() {
                         onLoadSource={handleLoadMapCompositionSource}
                         onRestored={handleRestoredMapCompositionProject}
                         onChanged={mapCompositions.update}
-                        onArchived={mapCompositions.archive}
+                        onDeleted={mapCompositions.remove}
                       />
                     ),
                   },

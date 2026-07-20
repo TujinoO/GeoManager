@@ -2172,8 +2172,8 @@ paths:
           $ref: '#/components/responses/NotFound'
     post:
       tags: [专题制图]
-      summary: 更新或归档出图稿
-      description: 更新名称、说明和轻量版式，或执行 delete 归档。仅所属用户、超级管理员和平台管理员可以修改对象。发布和下架使用独立接口。
+      summary: 更新或删除出图稿
+      description: 更新名称、说明和轻量版式，或执行 delete 永久删除专题、全部版本记录和成果文件。仅所属用户、超级管理员和平台管理员可以修改对象。发布和下架使用独立接口。
       operationId: updateMapComposition
       security:
         - sessionAuth: []
@@ -2198,7 +2198,7 @@ paths:
               schema:
                 oneOf:
                   - $ref: '#/components/schemas/MapComposition'
-                  - $ref: '#/components/schemas/DetailResponse'
+                  - $ref: '#/components/schemas/MapCompositionDeleteResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -3979,7 +3979,7 @@ components:
           description: 是否可编辑出图稿版式，对应 `catalog.change_mapcomposition`
         canDeleteMapCompositions:
           type: boolean
-          description: 是否可归档出图稿，对应 `catalog.delete_mapcomposition`
+          description: 是否可永久删除出图稿，对应 `catalog.delete_mapcomposition`
         canExportMapCompositions:
           type: boolean
           description: 是否可生成并下载 PNG、JPG 或 PDF 专题成果，对应 `catalog.export_mapcomposition`
@@ -6357,7 +6357,7 @@ components:
 
     MapComposition:
       type: object
-      required: [id, projectId, projectName, name, description, status, layout, owner, audienceGroups, versions, isOwner, canPreview, canDownload, canEditLayout, canPublish, canUnpublish, canRestoreProject, canLoadSourceProject, canArchive, createdAt, updatedAt]
+      required: [id, projectId, projectName, name, description, status, layout, owner, audienceGroups, versions, isOwner, canPreview, canDownload, canEditLayout, canPublish, canUnpublish, canRestoreProject, canLoadSourceProject, canDelete, createdAt, updatedAt]
       properties:
         id:
           type: integer
@@ -6416,7 +6416,7 @@ components:
           type: boolean
         canLoadSourceProject:
           type: boolean
-        canArchive:
+        canDelete:
           type: boolean
         publishedAt:
           type: [string, 'null']
@@ -6474,7 +6474,7 @@ components:
           type: string
           enum: [update, delete]
           default: update
-          description: update 更新版式；delete 归档
+          description: update 更新版式；delete 永久删除专题、全部版本记录和成果文件
         name:
           type: string
           maxLength: 160
@@ -6485,6 +6485,21 @@ components:
           description: 更新后的专题图说明
         layout:
           $ref: '#/components/schemas/MapCompositionLayout'
+
+    MapCompositionDeleteResponse:
+      type: object
+      required: [deleted, id, detail]
+      properties:
+        deleted:
+          type: boolean
+          const: true
+          description: 是否已完成永久删除
+        id:
+          type: integer
+          description: 已删除的出图稿 ID
+        detail:
+          type: string
+          description: 删除结果说明
 
     MapCompositionVersionCreatePayload:
       type: object

@@ -7875,7 +7875,7 @@
                       "canUnpublish": false,
                       "canRestoreProject": true,
                       "canLoadSourceProject": true,
-                      "canArchive": true,
+                      "canDelete": true,
                       "createdAt": "2026-07-14T14:00:00+08:00",
                       "updatedAt": "2026-07-14T15:30:00+08:00"
                     }
@@ -7968,7 +7968,7 @@
                   "canUnpublish": false,
                   "canRestoreProject": false,
                   "canLoadSourceProject": true,
-                  "canArchive": true,
+                  "canDelete": true,
                   "createdAt": "2026-07-14T16:00:00+08:00",
                   "updatedAt": "2026-07-14T16:00:00+08:00"
                 }
@@ -8046,7 +8046,7 @@
                   "canUnpublish": false,
                   "canRestoreProject": false,
                   "canLoadSourceProject": true,
-                  "canArchive": true,
+                  "canDelete": true,
                   "createdAt": "2026-07-14T14:00:00+08:00",
                   "updatedAt": "2026-07-14T15:30:00+08:00"
                 }
@@ -8068,8 +8068,8 @@
         "tags": [
           "专题制图"
         ],
-        "summary": "更新或归档出图稿",
-        "description": "更新名称、说明和轻量版式，或执行 delete 归档。仅所属用户、超级管理员和平台管理员可以修改对象。发布和下架使用独立接口。",
+        "summary": "更新或删除出图稿",
+        "description": "更新名称、说明和轻量版式，或执行 delete 永久删除专题、全部版本记录和成果文件。仅所属用户、超级管理员和平台管理员可以修改对象。发布和下架使用独立接口。",
         "operationId": "updateMapComposition",
         "security": [
           {
@@ -8108,7 +8108,7 @@
                       "$ref": "#/components/schemas/MapComposition"
                     },
                     {
-                      "$ref": "#/components/schemas/DetailResponse"
+                      "$ref": "#/components/schemas/MapCompositionDeleteResponse"
                     }
                   ]
                 },
@@ -8146,7 +8146,7 @@
                   "canUnpublish": true,
                   "canRestoreProject": false,
                   "canLoadSourceProject": true,
-                  "canArchive": true,
+                  "canDelete": true,
                   "createdAt": "2026-07-14T14:00:00+08:00",
                   "updatedAt": "2026-07-14T16:20:00+08:00"
                 }
@@ -8333,7 +8333,7 @@
                   "canUnpublish": true,
                   "canRestoreProject": false,
                   "canLoadSourceProject": true,
-                  "canArchive": true,
+                  "canDelete": true,
                   "publishedAt": "2026-07-14T16:40:00+08:00",
                   "publishedBy": {
                     "id": 1,
@@ -12622,7 +12622,7 @@
           },
           "canDeleteMapCompositions": {
             "type": "boolean",
-            "description": "是否可归档出图稿，对应 `catalog.delete_mapcomposition`"
+            "description": "是否可永久删除出图稿，对应 `catalog.delete_mapcomposition`"
           },
           "canExportMapCompositions": {
             "type": "boolean",
@@ -16258,7 +16258,7 @@
           "canUnpublish",
           "canRestoreProject",
           "canLoadSourceProject",
-          "canArchive",
+          "canDelete",
           "createdAt",
           "updatedAt"
         ],
@@ -16352,7 +16352,7 @@
           "canLoadSourceProject": {
             "type": "boolean"
           },
-          "canArchive": {
+          "canDelete": {
             "type": "boolean"
           },
           "publishedAt": {
@@ -16444,7 +16444,7 @@
               "delete"
             ],
             "default": "update",
-            "description": "update 更新版式；delete 归档"
+            "description": "update 更新版式；delete 永久删除专题、全部版本记录和成果文件"
           },
           "name": {
             "type": "string",
@@ -16458,6 +16458,29 @@
           },
           "layout": {
             "$ref": "#/components/schemas/MapCompositionLayout"
+          }
+        }
+      },
+      "MapCompositionDeleteResponse": {
+        "type": "object",
+        "required": [
+          "deleted",
+          "id",
+          "detail"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "是否已完成永久删除"
+          },
+          "id": {
+            "type": "integer",
+            "description": "已删除的出图稿 ID"
+          },
+          "detail": {
+            "type": "string",
+            "description": "删除结果说明"
           }
         }
       },

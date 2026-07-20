@@ -117,6 +117,7 @@ export type {
   WorkspaceSceneUpdateRequest,
   MapComposition,
   MapCompositionCreateRequest,
+  MapCompositionDeleteResponse,
   MapCompositionUpdateRequest,
   MapCompositionVersion,
   MapCompositionVersionCreatePayload,

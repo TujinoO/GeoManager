@@ -65,7 +65,7 @@ class MapCompositionApiTests(TestCase):
             },
         }
 
-    def test_create_update_version_publish_preview_and_archive(self):
+    def test_create_update_version_publish_preview_and_delete(self):
         response = self.client.post(
             "/api/catalog/map-compositions/",
             data=json.dumps(
@@ -192,21 +192,97 @@ class MapCompositionApiTests(TestCase):
         )
         self.assertEqual(restored.snapshot, self.workspace_snapshot)
 
-        archive_response = self.client.post(
+        delete_response = self.client.post(
             f"/api/catalog/map-compositions/{composition_id}/",
             data=json.dumps({"action": "delete"}),
             content_type="application/json",
         )
-        self.assertEqual(archive_response.status_code, 200)
+        self.assertEqual(delete_response.status_code, 200)
         self.assertEqual(
-            MapComposition.objects.get(pk=composition_id).status,
-            MapComposition.Status.ARCHIVED,
+            delete_response.json(),
+            {"deleted": True, "id": composition_id, "detail": "出图稿已删除"},
+        )
+        self.assertFalse(MapComposition.objects.filter(pk=composition_id).exists())
+        self.assertFalse(
+            MapCompositionVersion.objects.filter(composition_id=composition_id).exists()
         )
         self.assertTrue(
             OperationLog.objects.filter(
-                target_type="map_composition", target_id=composition_id
+                target_type="map_composition",
+                target_id=composition_id,
+                target_code="deleted",
             ).exists()
         )
+
+    def test_delete_removes_files_and_allows_same_name_to_be_created_again(self):
+        composition = MapComposition.objects.create(
+            owner=self.user,
+            project=self.project,
+            name="可重复生成的专题图",
+            layout=self.layout,
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = replace(
+                settings.PROJECT_CONFIG,
+                app_data=Path(tmpdir) / "app",
+                research_data_root=Path(tmpdir) / "research",
+            )
+            with override_settings(PROJECT_CONFIG=config):
+                version_response = self.client.post(
+                    f"/api/catalog/map-compositions/{composition.id}/versions/",
+                    data={
+                        "image": png_file(200, 100),
+                        "payload": json.dumps(
+                            {
+                                "format": "pdf",
+                                "dpi": 150,
+                                "widthPx": 200,
+                                "heightPx": 100,
+                                "workspaceSnapshot": self.workspace_snapshot,
+                            }
+                        ),
+                    },
+                )
+                self.assertEqual(version_response.status_code, 201)
+                version = MapCompositionVersion.objects.get(composition=composition)
+                preview_path = config.app_path(*version.preview_path.split("/"))
+                artifact_path = config.app_path(*version.artifact_path.split("/"))
+                self.assertTrue(preview_path.is_file())
+                self.assertTrue(artifact_path.is_file())
+
+                publish_response = self.client.post(
+                    f"/api/catalog/map-compositions/{composition.id}/publish/",
+                    data=json.dumps(
+                        {
+                            "versionNumber": 1,
+                            "audienceGroupIds": [self.audience_group.id],
+                        }
+                    ),
+                    content_type="application/json",
+                )
+                self.assertEqual(publish_response.status_code, 200)
+
+                delete_response = self.client.post(
+                    f"/api/catalog/map-compositions/{composition.id}/",
+                    data=json.dumps({"action": "delete"}),
+                    content_type="application/json",
+                )
+                self.assertEqual(delete_response.status_code, 200)
+                self.assertFalse(preview_path.exists())
+                self.assertFalse(artifact_path.exists())
+
+                recreate_response = self.client.post(
+                    "/api/catalog/map-compositions/",
+                    data=json.dumps(
+                        {
+                            "projectId": self.project.id,
+                            "name": "可重复生成的专题图",
+                            "layout": self.layout,
+                        }
+                    ),
+                    content_type="application/json",
+                )
+                self.assertEqual(recreate_response.status_code, 201)
 
     def test_rejects_embedded_image_and_publish_without_version(self):
         invalid = self.client.post(
@@ -353,6 +429,12 @@ class MapCompositionApiTests(TestCase):
                     content_type="application/json",
                 )
                 self.assertEqual(update_response.status_code, 404)
+                delete_response = self.client.post(
+                    f"/api/catalog/map-compositions/{published_composition.id}/",
+                    data=json.dumps({"action": "delete"}),
+                    content_type="application/json",
+                )
+                self.assertEqual(delete_response.status_code, 404)
                 download_response = self.client.get(
                     shared["currentVersion"]["downloadUrl"]
                 )
@@ -427,6 +509,46 @@ class MapCompositionApiTests(TestCase):
         self.assertEqual(composition.source_workspace_snapshot, self.project.snapshot)
         self.assertEqual(version.workspace_snapshot, self.project.snapshot)
         self.assertEqual(len(version.snapshot_checksum), 64)
+
+    def test_archived_composition_cleanup_migration_releases_unique_name(self):
+        archived = MapComposition.objects.create(
+            owner=self.user,
+            project=self.project,
+            name="历史归档专题",
+            status="archived",
+            layout=self.layout,
+        )
+        archived_version = MapCompositionVersion.objects.create(
+            composition=archived,
+            version_number=1,
+            format="png",
+            dpi=150,
+            width_px=100,
+            height_px=100,
+            preview_path="preview.png",
+            artifact_path="artifact.png",
+            layout_snapshot=self.layout,
+            created_by=self.user,
+        )
+        archived.published_version = archived_version
+        archived.save(update_fields=["published_version"])
+        migration = importlib.import_module(
+            "apps.catalog.migrations.0009_remove_map_composition_archived_status"
+        )
+
+        migration.delete_archived_map_compositions(apps, None)
+
+        self.assertFalse(MapComposition.objects.filter(pk=archived.id).exists())
+        self.assertFalse(
+            MapCompositionVersion.objects.filter(pk=archived_version.id).exists()
+        )
+        replacement = MapComposition.objects.create(
+            owner=self.user,
+            project=self.project,
+            name="历史归档专题",
+            layout=self.layout,
+        )
+        self.assertIsNotNone(replacement.pk)
 
 
 def png_file(width: int, height: int) -> SimpleUploadedFile:
