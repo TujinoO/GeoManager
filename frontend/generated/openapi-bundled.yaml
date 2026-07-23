@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: 中亚胡杨林生态系统保护数据共享平台 API
+  title: 全球胡杨林生态系统保护数据共享平台 API
   description: |
-    中亚胡杨林生态系统保护数据共享平台后端接口文档。
+    全球胡杨林生态系统保护数据共享平台后端接口文档。
 
     ## 认证方式
     本平台使用 Django Session 认证机制：
@@ -1288,7 +1288,7 @@ paths:
       tags:
         - 数据目录
       summary: 获取甲方数据分类与数据库架子摘要
-      description: 返回平台面向甲方确认数据类型的分类字典、数据库分层、核心实体和目录树建议。该接口用于前端展示数据管理体系和后续导入配置提示；需要 `core.browse_data`。当前接口只读，不创建或修改任何业务数据；分类字典包含其他类型，用于承接暂未归入专门专题的数据资源。
+      description: 返回甲方确认的四大类权威业务分类树、兼容业务标签、数据库分层和核心实体摘要。分类树来自数据库父子词表；地理/非地理不再作为业务一级分类。需要 `core.browse_data`，接口只读。
       operationId: getDataSchemaSummary
       security:
         - sessionAuth: []
@@ -1363,7 +1363,7 @@ paths:
       tags:
         - 管理后台
       summary: 获取存量数据管理列表
-      description: 返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组、存量数据内容分组和默认可视化方案查看。具备 `catalog.view_dataresource`、`catalog.change_dataresource`、`catalog.delete_dataresource` 或 `catalog.export_dataresource` 时，仅返回当前用户可见或本人上传且符合筛选条件的资源；超级管理员可查看全部资源；仅具备 `catalog.add_dataresource` 时只返回当前用户上传的数据资源，用于管理自己的数据可见范围。可手动配置的数据访问角色列表不会返回超级管理员角色，后端仍会强制保留超级管理员访问范围。
+      description: 返回已导入或已登记的数据资源列表，支持启用和停用数据、多条件检索、访问用户组、存量数据内容分组和默认可视化方案查看。系统分组及全量统计按四个权威一级大类、十五个可挂接小类和未分组（其他）数据生成；用户自定义分组继续用于内容归档。具备 `catalog.view_dataresource`、`catalog.change_dataresource`、`catalog.delete_dataresource` 或 `catalog.export_dataresource` 时，仅返回当前用户可见或本人上传且符合筛选条件的资源；超级管理员可查看全部资源；仅具备 `catalog.add_dataresource` 时只返回当前用户上传的数据资源，用于管理自己的数据可见范围。可手动配置的数据访问角色列表不会返回超级管理员角色，后端仍会强制保留超级管理员访问范围。
       operationId: listAdminDataResources
       security:
         - sessionAuth: []
@@ -1397,7 +1397,21 @@ paths:
           in: query
           schema:
             type: string
-          description: 数据分类编码精确匹配
+          deprecated: true
+          description: 兼容分类编码；推荐使用 categoryCode
+        - name: categoryCode
+          in: query
+          schema:
+            type: string
+          description: 权威业务分类编码；一级节点自动包含全部后代
+        - name: classificationStatus
+          in: query
+          schema:
+            type: string
+            enum:
+              - classified
+              - pending
+          description: 按已分类或待归类状态筛选
         - name: source
           in: query
           schema:
@@ -1558,7 +1572,21 @@ paths:
           in: query
           schema:
             type: string
-          description: 数据分类编码精确匹配
+          deprecated: true
+          description: 兼容分类编码；推荐使用 categoryCode
+        - name: categoryCode
+          in: query
+          schema:
+            type: string
+          description: 权威业务分类编码；一级节点自动包含全部后代
+        - name: classificationStatus
+          in: query
+          schema:
+            type: string
+            enum:
+              - classified
+              - pending
+          description: 按已分类或待归类状态筛选
         - name: source
           in: query
           schema:
@@ -1750,7 +1778,7 @@ paths:
       tags:
         - 数据目录
       summary: 获取数据资源列表
-      description: 支持多条件筛选的数据资源列表。资源空间分类由实际入库形态决定：vector/raster 为地理数据，table/gene/document/image 为非地理数据；domainType 仅表示业务专题，不改变资源所在工作台。需要 `core.browse_data`。
+      description: 支持按甲方业务分类、资源形态、空间属性和兼容业务标签筛选。categoryCode 是权威业务主分类，父节点默认包含全部后代；dataType/spatialClass 只描述存储和展示能力，domainType 为兼容标签。需要 `core.browse_data`。
       operationId: getResources
       security:
         - sessionAuth: []
@@ -1786,7 +1814,21 @@ paths:
           in: query
           schema:
             type: string
-          description: 分类代码精确匹配
+          deprecated: true
+          description: 兼容分类代码参数；推荐使用 categoryCode
+        - name: categoryCode
+          in: query
+          schema:
+            type: string
+          description: 权威业务分类代码；一级节点自动包含全部后代，叶节点精确筛选
+        - name: classificationStatus
+          in: query
+          schema:
+            type: string
+            enum:
+              - classified
+              - pending
+          description: 按已分类或待归类状态筛选
         - name: source
           in: query
           schema:
@@ -2056,7 +2098,7 @@ paths:
       description: |
         将预检后的 Excel/CSV 导入统一存储。选择地理数据时写入 GeoPackage，
         选择非地理数据时写入 SQLite。接口每次导入都会生成唯一后台存储标识并创建新的 DataResource。
-        `payload.domainType` 是必填字段，必须使用 `DataDomainType` 枚举值；后端会将该值保存为 DataResource.domainType，
+        `payload.domainType` 在兼容期继续保存为 DataResource.domainType；V1 新客户端同时提交 `payload.categoryCode` 作为甲方四大类权威业务主分类，
         资源列表页和地理/非地理数据分类筛选均以该字段为准。
         需要 `catalog.add_dataresource`；前端显示名已存在时必须在数据校验阶段确认，并在提交时显式传入 duplicateConfirmed=true 才允许继续导入。继续导入会创建新的 DataResource 和唯一后台存储标识，不覆盖已有数据。
       operationId: importCommit
@@ -2077,8 +2119,8 @@ paths:
                   format: binary
                 payload:
                   type: string
-                  description: JSON 字符串，包含导入配置；name 是前端显示的数据名称，domainType 是必填的平台确认业务数据类型，sheetName 是 Excel 工作表名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true 表示用户已在校验阶段确认重复名称；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。domainType 缺失或编码无效时返回 400 ImportErrorResponse。
-                  example: '{"name":"胡杨群落样方数据","domainType":"community","importMode":"geographic","tableName":"community_plots","longitudeColumn":"Longitude","latitudeColumn":"Latitude","duplicateConfirmed":false,"includedColumns":["SamplePlot","Longitude","Latitude"],"fieldMetadata":{"SamplePlot":"样方编号"},"accessGroupIds":[]}'
+                  description: JSON 字符串，包含导入配置；name 是前端显示的数据名称，categoryCode 是甲方四大类主分类叶节点，domainType 为兼容业务标签，sheetName 是 Excel 工作表名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true；可包含 accessGroupIds 指定额外可见用户组。
+                  example: '{"name":"胡杨群落样方数据","categoryCode":"thematic_community","domainType":"community","importMode":"geographic","tableName":"community_plots","longitudeColumn":"Longitude","latitudeColumn":"Latitude","duplicateConfirmed":false,"includedColumns":["SamplePlot","Longitude","Latitude"],"fieldMetadata":{"SamplePlot":"样方编号"},"accessGroupIds":[]}'
       responses:
         '201':
           description: 导入成功
@@ -2123,6 +2165,201 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResourceProfileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/catalog/results/:
+    get:
+      tags:
+        - 成果展示
+      summary: 获取成果文件列表
+      description: 返回当前用户创建的成果文件、管理员可管理的成果文件，以及发布范围包含当前用户角色的已发布成果。普通用户不会看到他人的草稿。需要 `catalog.view_resultartifact`。
+      operationId: listResultArtifacts
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: 按成果名称、说明、提供单位或原文件名模糊检索
+        - name: sourceType
+          in: query
+          schema:
+            $ref: '#/components/schemas/ResultArtifactSourceType'
+          description: 按平台分析成果或直接导入成果筛选
+        - name: resultType
+          in: query
+          schema:
+            $ref: '#/components/schemas/ResultArtifactType'
+          description: 按成果形态筛选
+        - name: categoryCode
+          in: query
+          schema:
+            type: string
+          description: 按四大权威业务分类筛选；一级节点自动包含全部后代
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultArtifactListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+        - 成果展示
+      summary: 登记并上传成果文件
+      description: 上传 PNG、JPG、PDF、CSV 或 XLSX 成果文件并直接发布。需要同时具备 `catalog.add_resultartifact` 和 `catalog.publish_resultartifact`，且至少选择一个可访问角色；导入环节不再创建草稿。
+      operationId: createResultArtifact
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - payload
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: PNG、JPG、PDF、CSV 或 XLSX 成果文件
+                payload:
+                  type: string
+                  description: JSON 字符串，结构为 ResultArtifactCreatePayload
+                  example: '{"name":"塔里木河胡杨分布分析报告","description":"基于平台统计分析形成的成果报告","sourceType":"analysis","resultType":"report","categoryCode":"thematic_population","provider":"塔里木大学","accessGroupIds":[3]}'
+      responses:
+        '201':
+          description: 成果登记成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultArtifact'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/catalog/results/{resultId}/:
+    get:
+      tags:
+        - 成果管理
+      summary: 获取成果文件详情
+      description: 返回当前用户有权查看的成果文件及其发布、下载和删除能力。需要 `catalog.view_resultartifact`。
+      operationId: getResultArtifact
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: resultId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 成果文件 ID
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultArtifact'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - 成果管理
+      summary: 发布、下架或删除成果文件
+      description: 所属用户或平台管理主体可管理成果。publish/unpublish 需要 `catalog.publish_resultartifact`；delete 需要 `catalog.delete_resultartifact`。删除会永久移除成果记录及对应文件。
+      operationId: updateResultArtifact
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: resultId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 成果文件 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResultArtifactUpdateRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ResultArtifact'
+                  - $ref: '#/components/schemas/ResultArtifactDeleteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/catalog/results/{resultId}/file/:
+    get:
+      tags:
+        - 成果展示
+      summary: 预览或下载成果文件
+      description: 对具备 `catalog.view_resultartifact` 且处于成果访问范围内的用户返回文件。variant=preview 时使用 inline 响应；variant=artifact 还需要 `catalog.download_resultartifact` 并触发下载。
+      operationId: downloadResultArtifact
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: resultId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: 成果文件 ID
+        - name: variant
+          in: query
+          schema:
+            type: string
+            enum:
+              - artifact
+              - preview
+            default: artifact
+          description: artifact 下载原文件，preview 在浏览器内预览
+      responses:
+        '200':
+          description: 文件内容
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              description: 文件名和下载方式
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -2227,8 +2464,8 @@ paths:
     post:
       tags:
         - 专题制图
-      summary: 更新或归档出图稿
-      description: 更新名称、说明和轻量版式，或执行 delete 归档。仅所属用户、超级管理员和平台管理员可以修改对象。发布和下架使用独立接口。
+      summary: 更新或删除出图稿
+      description: 更新名称、说明和轻量版式，或执行 delete 永久删除专题、全部版本记录和成果文件。仅所属用户、超级管理员和平台管理员可以修改对象。发布和下架使用独立接口。
       operationId: updateMapComposition
       security:
         - sessionAuth: []
@@ -2253,7 +2490,7 @@ paths:
               schema:
                 oneOf:
                   - $ref: '#/components/schemas/MapComposition'
-                  - $ref: '#/components/schemas/DetailResponse'
+                  - $ref: '#/components/schemas/MapCompositionDeleteResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -2518,8 +2755,23 @@ paths:
                       category:
                         id: 101
                         type: data_category
-                        code: monitoring
-                        name: 长期监测
+                        code: thematic_population
+                        name: 种群
+                        parentId: 100
+                        selectable: true
+                      categoryPath:
+                        - id: 100
+                          code: thematic
+                          name: 胡杨专题数据
+                        - id: 101
+                          code: thematic_population
+                          name: 种群
+                      classificationStatus: classified
+                      availableViews:
+                        - map
+                        - table
+                        - metadata
+                      defaultView: map
                       source: 2026 塔里木河野外调查
                       provider: 生态监测组
                       dataDate: '2026-06-01'
@@ -3346,7 +3598,7 @@ components:
         systemName:
           type: string
           description: 系统显示名称
-          example: 中亚胡杨林生态系统保护数据共享平台
+          example: 全球胡杨林生态系统保护数据共享平台
         allowRegistration:
           type: boolean
           description: 是否允许用户自助注册
@@ -3397,11 +3649,11 @@ components:
         chineseName:
           type: string
           description: 平台中文全称，用于登录页主标题和 logo 替代文本。
-          example: 中亚胡杨林生态系统保护数据共享平台
+          example: 全球胡杨林生态系统保护数据共享平台
         englishName:
           type: string
           description: 平台英文名称，用于登录页英文标题和品牌副标题。
-          example: Central Asia Poplar Forest Ecosystem Data Platform
+          example: Global Poplar Forest Ecosystem Protection Data Sharing Platform
         abbreviation:
           type: string
           description: 平台英文缩写，用于品牌区短名称。
@@ -3995,6 +4247,11 @@ components:
         - canExportMapCompositions
         - canPublishMapCompositions
         - canRestoreMapCompositions
+        - canViewResultArtifacts
+        - canImportResultArtifacts
+        - canDownloadResultArtifacts
+        - canPublishResultArtifacts
+        - canDeleteResultArtifacts
         - canManageRasterData
       properties:
         canAccessAdmin:
@@ -4110,7 +4367,7 @@ components:
           description: 是否可编辑出图稿版式，对应 `catalog.change_mapcomposition`
         canDeleteMapCompositions:
           type: boolean
-          description: 是否可归档出图稿，对应 `catalog.delete_mapcomposition`
+          description: 是否可永久删除出图稿，对应 `catalog.delete_mapcomposition`
         canExportMapCompositions:
           type: boolean
           description: 是否可生成并下载 PNG、JPG 或 PDF 专题成果，对应 `catalog.export_mapcomposition`
@@ -4120,6 +4377,21 @@ components:
         canRestoreMapCompositions:
           type: boolean
           description: 是否可将专题成果版本还原为新工程，对应 `catalog.restore_mapcomposition`
+        canViewResultArtifacts:
+          type: boolean
+          description: 是否可查看访问范围内的成果文件，对应 `catalog.view_resultartifact`
+        canImportResultArtifacts:
+          type: boolean
+          description: 是否可导入成果文件，对应 `catalog.add_resultartifact`；实际导入还需成果查看和发布权限
+        canDownloadResultArtifacts:
+          type: boolean
+          description: 是否可下载成果原文件，对应 `catalog.download_resultartifact`
+        canPublishResultArtifacts:
+          type: boolean
+          description: 是否可直接发布、更新发布范围或下架成果文件，对应 `catalog.publish_resultartifact`
+        canDeleteResultArtifacts:
+          type: boolean
+          description: 是否可删除本人或管理范围内的成果文件，对应 `catalog.delete_resultartifact`
         canManageRasterData:
           type: boolean
           description: 是否可管理栅格数据集
@@ -4456,6 +4728,8 @@ components:
         - totalSizeBytes
         - totalItemCount
         - typeBreakdown
+        - categoryBreakdown
+        - unclassifiedCount
         - spatialSummary
       properties:
         totalResources:
@@ -4472,9 +4746,17 @@ components:
           description: 该统计范围内数据条目总数
         typeBreakdown:
           type: array
-          description: 该统计范围内按数据类型聚合的数据情况
+          description: 该统计范围内按数据类型聚合的数据情况；始终返回平台支持的全部物理类型，暂无资源的类型计数为 0
           items:
             $ref: '#/components/schemas/AdminDashboardDataTypeOverview'
+        categoryBreakdown:
+          type: array
+          description: 该统计范围内按当前权威业务分类体系聚合的数据情况；始终返回全部启用的大类和小类，暂无资源的分类计数为 0
+          items:
+            $ref: '#/components/schemas/AdminDashboardCategoryOverview'
+        unclassifiedCount:
+          type: integer
+          description: 该统计范围内尚未挂接权威业务分类的数据资源数量
         spatialSummary:
           $ref: '#/components/schemas/AdminDashboardSpatialSummary'
           description: 该统计范围内可用于数据概览空间可视化的权限裁剪后空间摘要；仅基于当前分组内用户有权查看的数据资源计算
@@ -4505,6 +4787,60 @@ components:
         itemCount:
           type: integer
           description: 该类型数据条目数
+    AdminDashboardCategoryOverview:
+      type: object
+      required:
+        - categoryCode
+        - categoryName
+        - count
+        - sizeBytes
+        - itemCount
+        - children
+      properties:
+        categoryCode:
+          type: string
+          description: 一级业务分类编码
+        categoryName:
+          type: string
+          description: 一级业务分类名称
+        count:
+          type: integer
+          description: 该大类及其全部小类的数据资源数量
+        sizeBytes:
+          type: integer
+          description: 该大类及其全部小类的数据大小，单位字节
+        itemCount:
+          type: integer
+          description: 该大类及其全部小类的数据条目数
+        children:
+          type: array
+          description: 当前大类下全部启用的小类统计，按分类排序返回并包含零计数项
+          items:
+            $ref: '#/components/schemas/AdminDashboardCategoryLeafOverview'
+    AdminDashboardCategoryLeafOverview:
+      type: object
+      required:
+        - categoryCode
+        - categoryName
+        - count
+        - sizeBytes
+        - itemCount
+      properties:
+        categoryCode:
+          type: string
+          description: 二级业务分类编码
+        categoryName:
+          type: string
+          description: 二级业务分类名称
+        count:
+          type: integer
+          description: 该小类的数据资源数量
+        sizeBytes:
+          type: integer
+          description: 该小类的数据大小，单位字节
+        itemCount:
+          type: integer
+          description: 该小类的数据条目数
     AdminDashboardSpatialSummary:
       type: object
       required:
@@ -5705,11 +6041,15 @@ components:
     DataSchemaSummaryResponse:
       type: object
       required:
+        - taxonomyVersion
         - domains
         - layers
         - entities
         - catalogTree
       properties:
+        taxonomyVersion:
+          type: string
+          description: 当前甲方业务分类版本，V1 固定为 2026.07。
         domains:
           type: array
           description: 甲方确认数据类型定义。
@@ -5735,6 +6075,10 @@ components:
       required:
         - code
         - name
+        - categoryCode
+        - selectable
+        - description
+        - path
         - children
       properties:
         code:
@@ -5743,6 +6087,20 @@ components:
         name:
           type: string
           description: 目录节点名称。
+        categoryCode:
+          type: string
+          description: 可用于资源筛选和分类提交的稳定业务分类编码。
+        selectable:
+          type: boolean
+          description: 是否允许数据资源直接挂接；四个一级节点为 false。
+        description:
+          type: string
+          description: 分类边界和适用范围说明。
+        path:
+          type: array
+          description: 从一级分类到当前节点的中文路径。
+          items:
+            type: string
         domainType:
           oneOf:
             - $ref: '#/components/schemas/DataDomainType'
@@ -5899,6 +6257,8 @@ components:
         - type
         - code
         - name
+        - parentId
+        - selectable
       properties:
         id:
           type: integer
@@ -5912,6 +6272,258 @@ components:
         name:
           type: string
           description: 字典显示名称
+        parentId:
+          type:
+            - integer
+            - 'null'
+          description: 上级字典项 ID；一级分类为 null
+        selectable:
+          type: boolean
+          description: 是否允许直接作为资源主分类
+    DataCategoryPathItem:
+      type: object
+      required:
+        - id
+        - code
+        - name
+      properties:
+        id:
+          type: integer
+          description: 分类字典项 ID
+        code:
+          type: string
+          description: 稳定分类编码
+        name:
+          type: string
+          description: 分类显示名称
+    ClassificationStatus:
+      type: string
+      enum:
+        - classified
+        - pending
+      description: 资源是否已挂接权威业务主分类。
+    ResourceView:
+      type: string
+      enum:
+        - map
+        - table
+        - gallery
+        - metadata
+      description: 当前资源由后端确认可进入的展示视图。
+    ResultArtifactSourceType:
+      type: string
+      enum:
+        - analysis
+        - direct_import
+      description: analysis 表示由平台数据分析流程形成或登记的成果，direct_import 表示外部制作后直接导入的成果
+    ResultArtifactType:
+      type: string
+      enum:
+        - map
+        - chart
+        - report
+        - table
+        - image
+        - other
+      description: 成果展示形态
+    ResultArtifactStatus:
+      type: string
+      enum:
+        - draft
+        - published
+      description: 草稿仅创建者和管理员可见，已发布成果按访问角色共享
+    ResultArtifactCreatePayload:
+      type: object
+      required:
+        - name
+        - sourceType
+        - resultType
+        - categoryCode
+        - accessGroupIds
+      properties:
+        name:
+          type: string
+          description: 成果显示名称
+        description:
+          type: string
+          description: 成果摘要和适用范围
+        sourceType:
+          $ref: '#/components/schemas/ResultArtifactSourceType'
+        resultType:
+          $ref: '#/components/schemas/ResultArtifactType'
+        categoryCode:
+          type: string
+          description: 四大权威业务分类叶节点编码
+        provider:
+          type: string
+          description: 成果提供单位或团队
+        accessGroupIds:
+          type: array
+          minItems: 1
+          description: 直接发布后除创建者和平台管理主体外可访问该成果的角色 ID，至少一项
+          items:
+            type: integer
+    ResultArtifactUpdateRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum:
+            - publish
+            - unpublish
+            - delete
+          description: publish 发布或更新访问范围；unpublish 下架为仅管理主体可见；delete 永久删除记录和文件
+        accessGroupIds:
+          type: array
+          minItems: 1
+          description: publish 时必填的发布可访问角色 ID
+          items:
+            type: integer
+    ResultArtifactDeleteResponse:
+      type: object
+      required:
+        - deleted
+        - id
+        - detail
+      properties:
+        deleted:
+          type: boolean
+          const: true
+          description: 是否已删除
+        id:
+          type: integer
+          description: 已删除成果文件 ID
+        detail:
+          type: string
+          description: 删除结果说明
+    ResultArtifact:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - sourceType
+        - resultType
+        - status
+        - category
+        - categoryPath
+        - provider
+        - fileName
+        - fileFormat
+        - sizeBytes
+        - previewUrl
+        - downloadUrl
+        - owner
+        - accessGroups
+        - canPreview
+        - canDownload
+        - canPublish
+        - canUnpublish
+        - canDelete
+        - publishedAt
+        - publishedBy
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: integer
+          description: 成果文件 ID
+        name:
+          type: string
+          description: 成果显示名称
+        description:
+          type: string
+          description: 成果摘要
+        sourceType:
+          $ref: '#/components/schemas/ResultArtifactSourceType'
+        resultType:
+          $ref: '#/components/schemas/ResultArtifactType'
+        status:
+          $ref: '#/components/schemas/ResultArtifactStatus'
+        category:
+          $ref: '#/components/schemas/DictionaryItem'
+        categoryPath:
+          type: array
+          description: 从四大类一级节点到成果主分类的完整路径
+          items:
+            $ref: '#/components/schemas/DataCategoryPathItem'
+        provider:
+          type: string
+          description: 成果提供单位或团队
+        fileName:
+          type: string
+          description: 原始成果文件名
+        fileFormat:
+          type: string
+          description: 成果文件扩展名
+        sizeBytes:
+          type: integer
+          description: 成果文件大小，单位字节
+        previewUrl:
+          type: string
+          description: 成果预览地址
+        downloadUrl:
+          type: string
+          description: 成果下载地址
+        owner:
+          $ref: '#/components/schemas/WorkspaceSceneOwner'
+        accessGroups:
+          type: array
+          description: 发布后的可访问角色
+          items:
+            $ref: '#/components/schemas/AdminDataResourceAccessGroup'
+        canPreview:
+          type: boolean
+          description: 当前用户是否可以在线预览该成果格式
+        canDownload:
+          type: boolean
+          description: 当前用户是否可以下载成果原文件
+        canPublish:
+          type: boolean
+          description: 当前用户是否可以发布成果或更新其发布范围
+        canUnpublish:
+          type: boolean
+          description: 当前用户是否可以下架当前成果
+        canDelete:
+          type: boolean
+          description: 当前用户是否可以永久删除成果记录和文件
+        publishedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: 正式发布时间；草稿为 null
+        publishedBy:
+          oneOf:
+            - $ref: '#/components/schemas/WorkspaceSceneOwner'
+            - type: 'null'
+          description: 最近发布人；未发布为 null
+        createdAt:
+          type: string
+          format: date-time
+          description: 创建时间
+        updatedAt:
+          type: string
+          format: date-time
+          description: 更新时间
+    ResultArtifactListResponse:
+      type: object
+      required:
+        - items
+        - availableAccessGroups
+      properties:
+        items:
+          type: array
+          description: 当前用户有权查看的成果文件
+          items:
+            $ref: '#/components/schemas/ResultArtifact'
+        availableAccessGroups:
+          type: array
+          description: 当前主体管理成果发布范围时可选择的角色
+          items:
+            $ref: '#/components/schemas/AdminDataResourceAccessGroup'
     DataResource:
       type: object
       required:
@@ -5922,6 +6534,10 @@ components:
         - spatialClass
         - domainType
         - category
+        - categoryPath
+        - classificationStatus
+        - availableViews
+        - defaultView
         - source
         - provider
         - dataDate
@@ -5968,6 +6584,20 @@ components:
             - $ref: '#/components/schemas/DictionaryItem'
             - type: 'null'
           description: 数据分类，未分类时为 null
+        categoryPath:
+          type: array
+          description: 从四大类一级节点到资源主分类的完整路径；待归类时为空数组
+          items:
+            $ref: '#/components/schemas/DataCategoryPathItem'
+        classificationStatus:
+          $ref: '#/components/schemas/ClassificationStatus'
+        availableViews:
+          type: array
+          description: 后端确认当前已实现的可用展示视图
+          items:
+            $ref: '#/components/schemas/ResourceView'
+        defaultView:
+          $ref: '#/components/schemas/ResourceView'
         source:
           type: string
           description: 数据来源
@@ -6100,6 +6730,8 @@ components:
         - dataType
         - domainType
         - category
+        - categoryPath
+        - classificationStatus
         - source
         - provider
         - dataDate
@@ -6151,6 +6783,13 @@ components:
             - $ref: '#/components/schemas/DictionaryItem'
             - type: 'null'
           description: 数据分类，未分类时为 null
+        categoryPath:
+          type: array
+          description: 从四大类一级节点到资源主分类的完整路径；待归类时为空数组
+          items:
+            $ref: '#/components/schemas/DataCategoryPathItem'
+        classificationStatus:
+          $ref: '#/components/schemas/ClassificationStatus'
         source:
           type: string
           description: 数据来源
@@ -6281,6 +6920,7 @@ components:
         - key
         - kind
         - domainType
+        - categoryCode
         - inventoryGroupId
         - resourceCount
         - activeCount
@@ -6290,24 +6930,30 @@ components:
       properties:
         key:
           type: string
-          description: 分组稳定键；全部数据为 __all__，业务类型为 __domain__:{domainType}，自定义组为 __custom__:{groupId}
+          description: 分组稳定键；全部数据为 __all__，权威分类为 __category__:{categoryCode}，未分组为 __unclassified__，自定义组为 __custom__:{groupId}
         kind:
           type: string
           enum:
             - all
-            - business
+            - category
+            - unclassified
             - custom
           description: 分组类型
         domainType:
           oneOf:
             - $ref: '#/components/schemas/DataDomainType'
             - type: 'null'
-          description: 业务类型分组编码；全部数据和自定义组为 null
+          description: 兼容业务标签编码；新版权威分类分组不再使用，当前始终为 null
+        categoryCode:
+          type:
+            - string
+            - 'null'
+          description: 权威分类编码；一级大类和十五个小类分组返回对应编码，其他分组为 null
         inventoryGroupId:
           type:
             - integer
             - 'null'
-          description: 自定义组 ID；全部数据和业务类型组为 null
+          description: 自定义组 ID；全部数据、权威分类和未分组组为 null
         resourceCount:
           type: integer
           description: 当前筛选和权限范围内属于该组的资源总数，不受分页影响
@@ -6355,7 +7001,7 @@ components:
             $ref: '#/components/schemas/AdminDataResourceAccessGroup'
         inventoryGroups:
           type: array
-          description: 用户新建的持久化自定义组别列表；“全部数据”和十个业务类型系统分组由前端依据资源 `domainType` 自动生成，不在该数组中
+          description: 用户新建的持久化自定义组别列表；“全部数据”、四个一级大类、十五个小类和“未分组（其他）”由权威分类体系生成，不在该数组中
           items:
             $ref: '#/components/schemas/AdminDataResourceGroup'
     AdminDataResourceGroup:
@@ -6425,6 +7071,7 @@ components:
             - saveVisualization
             - updateAccess
             - updateInventoryGroup
+            - updateClassification
             - delete
           description: 操作类型
         status:
@@ -6445,6 +7092,9 @@ components:
             - integer
             - 'null'
           description: updateInventoryGroup 或 update 时写入的存量数据内容组别 ID；为 null 时表示移入默认分组
+        categoryCode:
+          type: string
+          description: updateClassification 或 update 时写入的可选择业务主分类叶节点编码
         confirmationName:
           type: string
           description: delete 操作要求传入与数据资源名称完全一致的确认文本
@@ -6780,7 +7430,7 @@ components:
         - canUnpublish
         - canRestoreProject
         - canLoadSourceProject
-        - canArchive
+        - canDelete
         - createdAt
         - updatedAt
       properties:
@@ -6841,7 +7491,7 @@ components:
           type: boolean
         canLoadSourceProject:
           type: boolean
-        canArchive:
+        canDelete:
           type: boolean
         publishedAt:
           type:
@@ -6905,7 +7555,7 @@ components:
             - update
             - delete
           default: update
-          description: update 更新版式；delete 归档
+          description: update 更新版式；delete 永久删除专题、全部版本记录和成果文件
         name:
           type: string
           maxLength: 160
@@ -6916,6 +7566,23 @@ components:
           description: 更新后的专题图说明
         layout:
           $ref: '#/components/schemas/MapCompositionLayout'
+    MapCompositionDeleteResponse:
+      type: object
+      required:
+        - deleted
+        - id
+        - detail
+      properties:
+        deleted:
+          type: boolean
+          const: true
+          description: 是否已完成永久删除
+        id:
+          type: integer
+          description: 已删除的出图稿 ID
+        detail:
+          type: string
+          description: 删除结果说明
     MapCompositionVersionCreatePayload:
       type: object
       required:
@@ -8241,6 +8908,9 @@ components:
           properties:
             domainType:
               $ref: '#/components/schemas/DataDomainType'
+            categoryCode:
+              type: string
+              description: 甲方四大类体系中的业务主分类叶节点编码；V1 新客户端提交，旧客户端兼容期可省略
             duplicateConfirmed:
               type: boolean
               description: 是否已确认创建同名数据资源
@@ -9273,6 +9943,9 @@ components:
           description: 除上传者本人和超级管理员外可访问该数据的用户组 ID
           items:
             type: integer
+        categoryCode:
+          type: string
+          description: 甲方四大类体系中的业务主分类叶节点编码；V1 新客户端提交，旧客户端兼容期可省略
     RasterRenderRequest:
       type: object
       required:

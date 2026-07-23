@@ -173,10 +173,9 @@ class MapThumbnailTileApiTests(TestCase):
                 response = self.client.get("/api/map/thumbnail-tiles/3/4/2.png")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Content-Type"], "image/svg+xml")
+        self.assertEqual(response["Content-Type"], "image/png")
         self.assertEqual(response["Cache-Control"], "public, max-age=60")
-        self.assertIn(b"<svg", response.content)
-        self.assertIn(b'data-local-basemap="world-mercator"', response.content)
+        self.assertTrue(response.content.startswith(b"\x89PNG\r\n\x1a\n"))
 
     def test_thumbnail_tile_rejects_out_of_range_coordinates(self):
         response = self.client.get("/api/map/thumbnail-tiles/3/99/2.png")
@@ -226,7 +225,11 @@ class LoginOverviewApiTests(TestCase):
         payload = response.json()
         self.assertEqual(
             payload["platform"]["chineseName"],
-            "中亚胡杨林生态系统保护数据共享平台",
+            "全球胡杨林生态系统保护数据共享平台",
+        )
+        self.assertEqual(
+            payload["platform"]["englishName"],
+            "Global Poplar Forest Ecosystem Protection Data Sharing Platform",
         )
         self.assertEqual(payload["platform"]["version"], "v0.1.0")
         metrics = {item["id"]: item for item in payload["metrics"]}
@@ -2330,6 +2333,14 @@ class FeaturePermissionTests(TestCase):
             password="pass12345",
         )
         grant(manager, ("core", "view_data_overview"))
+        landscape_category = DictionaryItem.objects.get(
+            dict_type=DictionaryItem.DictType.DATA_CATEGORY,
+            code="thematic_landscape_rs",
+        )
+        distribution_category = DictionaryItem.objects.get(
+            dict_type=DictionaryItem.DictType.DATA_CATEGORY,
+            code="distribution_vector",
+        )
         DataResource.objects.create(
             name="本人上传",
             code="overview-own",
@@ -2339,6 +2350,7 @@ class FeaturePermissionTests(TestCase):
             size_bytes=30,
             item_count=3,
             maintainer=manager,
+            category=landscape_category,
         )
         visible_resource = DataResource.objects.create(
             name="点位",
@@ -2349,6 +2361,7 @@ class FeaturePermissionTests(TestCase):
             size_bytes=100,
             item_count=5,
             maintainer=uploader,
+            category=distribution_category,
         )
         visible_resource.access_groups.add(visible_group)
         DataResource.objects.create(
@@ -2380,13 +2393,37 @@ class FeaturePermissionTests(TestCase):
             overview["ownUploads"]["spatialSummary"]["totalBounds"],
             [80.0, 40.0, 81.0, 41.0],
         )
+        own_types = {
+            item["dataType"]: item
+            for item in overview["ownUploads"]["typeBreakdown"]
+        }
+        self.assertEqual(len(own_types), len(DataResource.DataType.choices))
+        self.assertEqual(own_types[DataResource.DataType.RASTER]["count"], 1)
+        self.assertEqual(own_types[DataResource.DataType.IMAGE]["count"], 0)
+        own_categories = {
+            item["categoryCode"]: item
+            for item in overview["ownUploads"]["categoryBreakdown"]
+        }
+        self.assertEqual(len(own_categories), 4)
+        self.assertEqual(own_categories["thematic"]["count"], 1)
+        self.assertEqual(len(own_categories["thematic"]["children"]), 6)
         self.assertEqual(
-            overview["ownUploads"]["typeBreakdown"][0]["dataType"],
-            DataResource.DataType.RASTER,
+            {
+                item["categoryCode"]: item["count"]
+                for item in own_categories["thematic"]["children"]
+            }["thematic_landscape_rs"],
+            1,
         )
+        self.assertEqual(overview["ownUploads"]["unclassifiedCount"], 0)
         self.assertEqual(overview["visibleResources"]["totalResources"], 2)
         self.assertEqual(overview["visibleResources"]["totalSizeBytes"], 130)
         self.assertEqual(overview["visibleResources"]["totalItemCount"], 8)
+        visible_categories = {
+            item["categoryCode"]: item
+            for item in overview["visibleResources"]["categoryBreakdown"]
+        }
+        self.assertEqual(visible_categories["distribution"]["count"], 1)
+        self.assertEqual(visible_categories["thematic"]["count"], 1)
         visible_spatial = overview["visibleResources"]["spatialSummary"]
         self.assertEqual(visible_spatial["spatialResourceCount"], 2)
         self.assertEqual(visible_spatial["missingSpatialResourceCount"], 0)

@@ -41,13 +41,19 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import WorkspaceHeader from "../components/WorkspaceHeader";
 import { useAppContext } from "../contexts/AppContext";
-import type { DataDomainType, DataResource, ResourceListItem } from "../types";
+import type {
+  DataDomainType,
+  DataResource,
+  DataSchemaSummary,
+  ResourceListItem,
+} from "../types";
 import {
   isNonGeographicResource,
   resourceCategoryName,
   resourceFormatLabel,
   resourceProvider,
 } from "../utils/resources";
+import { taxonomyLeafOptions } from "../utils/taxonomy";
 
 type ResourceTypeFilter = "all" | "table" | "gene";
 type LeftPanelKey = "data" | "views" | "workspace" | "topics";
@@ -247,6 +253,10 @@ const demoResources: DataResource[] = [
     spatialClass: "non_spatial",
     domainType: "community",
     category: null,
+    categoryPath: [],
+    classificationStatus: "pending",
+    availableViews: ["metadata"],
+    defaultView: "metadata",
     source: "前端演示数据",
     provider: "中亚胡杨林生态系统保护项目组",
     dataDate: "2026-06-20",
@@ -270,6 +280,10 @@ const demoResources: DataResource[] = [
     spatialClass: "non_spatial",
     domainType: "molecular",
     category: null,
+    categoryPath: [],
+    classificationStatus: "pending",
+    availableViews: ["metadata"],
+    defaultView: "metadata",
     source: "前端演示数据",
     provider: "中亚胡杨林生态系统保护项目组",
     dataDate: "2026-06-20",
@@ -552,18 +566,19 @@ const demoAnalytics: NonGeoAnalytics = {
   insights: [
     "示例表包含 8 条样地记录和 6 个字段。",
     "胡杨样地在重要值和盖度上占优，适合展示组成分布和性状关系视图。",
-    "当前数据为前端 demo，非地理后端合同尚未确定。",
+    "当前展示为资源级分析预览，可用于核对数据组成、性状分布与明细结构。",
   ],
 };
 
 export default function NonGeoPage() {
   const { user } = useAppContext();
   const { message } = App.useApp();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const permissions = user?.permissions;
   const canBrowseData = Boolean(permissions?.canBrowseData);
   const canQueryData = Boolean(permissions?.canQueryData);
   const [resources, setResources] = useState<ResourceListItem[]>([]);
+  const [dataSchema, setDataSchema] = useState<DataSchemaSummary | null>(null);
   const [resourceKeyword, setResourceKeyword] = useState("");
   const [resourceType, setResourceType] = useState<ResourceTypeFilter>("all");
   const [activeLeftPanel, setActiveLeftPanel] = useState<LeftPanelKey>("data");
@@ -586,6 +601,11 @@ export default function NonGeoPage() {
       ? (value as NonGeoDomainType)
       : null;
   }, [searchParams]);
+  const selectedCategoryCode = searchParams.get("categoryCode") || undefined;
+  const categoryOptions = useMemo(
+    () => taxonomyLeafOptions(dataSchema),
+    [dataSchema],
+  );
 
   const selectedResource = useMemo(
     () =>
@@ -650,6 +670,7 @@ export default function NonGeoPage() {
       const response = await api.resources({
         spatialClass: "non_spatial",
         ...(selectedDomainType ? { domainType: selectedDomainType } : {}),
+        ...(selectedCategoryCode ? { categoryCode: selectedCategoryCode } : {}),
       });
       const items = response.items.filter(isNonGeographicResource);
       setResources(items);
@@ -667,7 +688,23 @@ export default function NonGeoPage() {
     } finally {
       setLoadingResources(false);
     }
-  }, [canBrowseData, message, selectedDomainType]);
+  }, [canBrowseData, message, selectedCategoryCode, selectedDomainType]);
+
+  useEffect(() => {
+    if (!canBrowseData) return;
+    let ignore = false;
+    api
+      .dataSchemaSummary()
+      .then((result) => {
+        if (!ignore) setDataSchema(result);
+      })
+      .catch(() => {
+        if (!ignore) setDataSchema(null);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [canBrowseData]);
 
   const loadAnalytics = useCallback(
     async (resourceId: number) => {
@@ -879,6 +916,20 @@ export default function NonGeoPage() {
             value={resourceKeyword}
             onChange={(event) => setResourceKeyword(event.target.value)}
           />
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            placeholder="按权威业务分类筛选"
+            value={selectedCategoryCode}
+            options={categoryOptions}
+            onChange={(categoryCode) => {
+              const next = new URLSearchParams(searchParams);
+              if (categoryCode) next.set("categoryCode", categoryCode);
+              else next.delete("categoryCode");
+              setSearchParams(next, { replace: true });
+            }}
+          />
           <Segmented
             block
             options={nonGeoTypeOptions}
@@ -1016,7 +1067,7 @@ export default function NonGeoPage() {
       <WorkspaceHeader
         activeTab="nongeo"
         canBrowseData={canBrowseData}
-        selectedDomainType={selectedDomainType}
+        dataSchema={dataSchema}
       />
       <div className="workspace-body workspace-body-nongeo">
         <main className="nongeo-stage" aria-label="非地理数据分析工作台">

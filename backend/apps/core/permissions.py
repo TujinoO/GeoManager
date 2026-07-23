@@ -205,7 +205,7 @@ FEATURE_PERMISSIONS: tuple[FeaturePermissionDef, ...] = (
         "catalog",
         "MapComposition",
         "delete_mapcomposition",
-        "归档专题出图稿",
+        "删除专题出图稿",
         "数据权限",
     ),
     FeaturePermissionDef(
@@ -228,6 +228,33 @@ FEATURE_PERMISSIONS: tuple[FeaturePermissionDef, ...] = (
         "restore_mapcomposition",
         "还原专题图为工程",
         "数据权限",
+    ),
+    FeaturePermissionDef(
+        "catalog", "ResultArtifact", "view_resultartifact", "查看成果文件", "成果权限"
+    ),
+    FeaturePermissionDef(
+        "catalog", "ResultArtifact", "add_resultartifact", "导入成果文件", "成果权限"
+    ),
+    FeaturePermissionDef(
+        "catalog",
+        "ResultArtifact",
+        "download_resultartifact",
+        "下载成果文件",
+        "成果权限",
+    ),
+    FeaturePermissionDef(
+        "catalog",
+        "ResultArtifact",
+        "publish_resultartifact",
+        "发布或下架成果文件",
+        "成果权限",
+    ),
+    FeaturePermissionDef(
+        "catalog",
+        "ResultArtifact",
+        "delete_resultartifact",
+        "删除成果文件",
+        "成果权限",
     ),
     FeaturePermissionDef(
         "raster",

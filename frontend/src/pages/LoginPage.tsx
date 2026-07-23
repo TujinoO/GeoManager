@@ -29,9 +29,9 @@ import { oceanBorderBeam } from "../components/oceanBorderBeam";
 import { useAppContext } from "../contexts/AppContext";
 import type { LoginFormValues, RegisterFormValues } from "../types";
 
-const platformChineseName = "中亚胡杨林生态系统保护数据共享平台";
+const platformChineseName = "全球胡杨林生态系统保护数据共享平台";
 const platformEnglishName =
-  "Central Asia Poplar Forest Ecosystem Data Platform";
+  "Global Poplar Forest Ecosystem Protection Data Sharing Platform";
 const platformShortName = "CAPFED";
 const platformEdition = "CAPFED-WebGIS Research Edition";
 const platformVersion = "v1.0.0";
@@ -209,7 +209,7 @@ export default function LoginPage() {
               <span>平台服务状态</span>
               <strong>资源目录已接入 · 图层服务可用 · 权限认证开启</strong>
               <small>
-                登录后可按账号权限进入数据目录、地图工作台与后台管理功能。
+                登录后可按账号权限进入数据目录、地理工作台与后台管理功能。
               </small>
             </div>
             <div className="login-ops-status">
@@ -253,7 +253,7 @@ export default function LoginPage() {
           </Typography.Title>
           <Typography.Text type="secondary">
             {mode === "login"
-              ? "登录后进入地图工作台，后台功能按权限显示。"
+              ? "登录后进入数据资源总目录，后台功能按权限显示。"
               : "自助注册默认获得普通用户权限，科研用户权限需提交申请并由管理员审核。"}
           </Typography.Text>
 
@@ -314,7 +314,7 @@ export default function LoginPage() {
                 icon={<LoginOutlined style={{ fontSize: 16 }} />}
                 size="large"
               >
-                登录并进入三维地球
+                登录并进入数据平台
               </Button>
               <div
                 className={

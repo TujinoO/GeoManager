@@ -4,6 +4,7 @@ from apps.standards.models import (
     DataDomainType,
     SpatialClass,
 )
+from apps.catalog.taxonomy import taxonomy_tree
 
 
 def domain_definitions() -> list[dict]:
@@ -326,42 +327,4 @@ def schema_entities() -> list[dict]:
 
 
 def catalog_tree() -> list[dict]:
-    return [
-        {
-            "code": "geo",
-            "name": "地理数据",
-            "domainType": None,
-            "spatialClass": SpatialClass.SPATIAL,
-            "children": [
-                _node("geo-germplasm", "种质数据", DataDomainType.GERMPLASM, SpatialClass.SPATIALIZED_TABLE),
-                _node("geo-individual", "个体数据", DataDomainType.INDIVIDUAL, SpatialClass.SPATIAL),
-                _node("geo-community", "群落数据", DataDomainType.COMMUNITY, SpatialClass.SPATIALIZED_TABLE),
-                _node("geo-population", "种群数据", DataDomainType.POPULATION, SpatialClass.SPATIAL),
-                _node("geo-field-survey", "野外调查数据", DataDomainType.FIELD_SURVEY, SpatialClass.SPATIALIZED_TABLE),
-                _node("geo-remote-sensing", "遥感影像数据", DataDomainType.REMOTE_SENSING, SpatialClass.SPATIAL),
-                _node("geo-vector", "矢量数据", DataDomainType.VECTOR, SpatialClass.SPATIAL),
-                _node("geo-other", "其他类型", DataDomainType.OTHER, SpatialClass.SPATIALIZED_TABLE),
-            ],
-        },
-        {
-            "code": "nongeo",
-            "name": "非地理数据",
-            "domainType": None,
-            "spatialClass": SpatialClass.NON_SPATIAL,
-            "children": [
-                _node("nongeo-molecular", "分子数据", DataDomainType.MOLECULAR, SpatialClass.NON_SPATIAL),
-                _node("nongeo-genome", "基因组数据", DataDomainType.GENOME, SpatialClass.NON_SPATIAL),
-                _node("nongeo-other", "其他类型", DataDomainType.OTHER, SpatialClass.NON_SPATIAL),
-            ],
-        },
-    ]
-
-
-def _node(code: str, name: str, domain_type: str, spatial_class: str) -> dict:
-    return {
-        "code": code,
-        "name": name,
-        "domainType": domain_type,
-        "spatialClass": spatial_class,
-        "children": [],
-    }
+    return taxonomy_tree()

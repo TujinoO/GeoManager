@@ -38,6 +38,7 @@ const { MockApiError, mockApi } = vi.hoisted(() => {
       logout: vi.fn(),
       resources: vi.fn(),
       resourceProfile: vi.fn(),
+      resourceVisualizationSummary: vi.fn(),
       queryResource: vi.fn(),
       workspaces: vi.fn(),
       scanCatalogSources: vi.fn(),
@@ -47,6 +48,7 @@ const { MockApiError, mockApi } = vi.hoisted(() => {
       adminSystemLogs: vi.fn(),
       adminDashboard: vi.fn(),
       adminDashboardServer: vi.fn(),
+      dataSchemaSummary: vi.fn(),
     },
   };
 });
@@ -63,7 +65,7 @@ vi.mock("./components/MapCanvas", () => ({
 }));
 
 const bootstrap: Bootstrap = {
-  systemName: "中亚胡杨林生态系统保护数据共享平台",
+  systemName: "全球胡杨林生态系统保护数据共享平台",
   allowRegistration: false,
   map: {
     defaultCenter: [87.6, 41.7],
@@ -150,7 +152,22 @@ const tarimVectorResource: ResourceListItem = {
   code: "tarim-poplar-monitoring-2026",
   dataType: "vector",
   spatialClass: "spatial",
-  category: { code: "monitoring", name: "长期监测" },
+  domainType: "field_survey",
+  category: {
+    id: 101,
+    type: "data_category",
+    code: "thematic_population",
+    name: "种群",
+    parentId: 100,
+    selectable: true,
+  },
+  categoryPath: [
+    { id: 100, code: "thematic", name: "胡杨专题数据" },
+    { id: 101, code: "thematic_population", name: "种群" },
+  ],
+  classificationStatus: "classified",
+  availableViews: ["map", "table", "metadata"],
+  defaultView: "map",
   source: "2026 塔里木河野外调查",
   provider: "生态监测组",
   dataDate: "2026-06-01",
@@ -175,6 +192,10 @@ const nonGeoTableResource: ResourceListItem = {
   spatialClass: "non_spatial",
   domainType: "field_survey",
   category: null,
+  categoryPath: [],
+  classificationStatus: "pending",
+  availableViews: ["metadata"],
+  defaultView: "metadata",
   source: "用户导入",
   provider: "",
   dataDate: null,
@@ -238,6 +259,38 @@ const tarimQueryResult: ResourceQueryResult = {
   warnings: [],
 };
 
+const tarimVisualizationSummary = {
+  resource: tarimVectorResource,
+  domainType: "field_survey",
+  generatedAt: "2026-06-18T12:00:00+08:00",
+  source: "backend_aggregate",
+  profile: {
+    featureCount: 3,
+    fieldCount: tarimVectorProfile.fields.length,
+    geometryType: "Point",
+    bounds: tarimVectorProfile.bounds,
+  },
+  categoryStats: [],
+  numericStats: [],
+  spatialSummary: {
+    featureCount: 3,
+    validGeometryCount: 3,
+    nullGeometryCount: 0,
+    coordinateCoverageRatio: 1,
+    bounds: tarimVectorProfile.bounds,
+    geometryTypes: [],
+    centroid: [87.6214, 43.803775],
+  },
+  qualityIssues: [],
+  recommendedCharts: [],
+  recommendedSymbolizations: [],
+  monitorPreview: {
+    title: "资源质量监测",
+    status: "ready",
+    items: [],
+  },
+};
+
 function renderApp(initialEntry: string) {
   return render(
     <ConfigProvider locale={zhCN} theme={appTheme}>
@@ -248,6 +301,17 @@ function renderApp(initialEntry: string) {
       </AntApp>
     </ConfigProvider>,
   );
+}
+
+async function clickFirstResourceSelectButton() {
+  let selectResourceButton: HTMLButtonElement | null = null;
+  await waitFor(() => {
+    selectResourceButton = document.querySelector<HTMLButtonElement>(
+      ".resource-row button:not(.resource-quick-load-button)",
+    );
+    expect(selectResourceButton).not.toBeNull();
+  });
+  fireEvent.click(selectResourceButton!);
 }
 
 describe("application critical flows", () => {
@@ -274,6 +338,13 @@ describe("application critical flows", () => {
       cards: {},
     });
     mockApi.adminDashboardServer.mockResolvedValue({ cards: {} });
+    mockApi.dataSchemaSummary.mockResolvedValue({
+      taxonomyVersion: "2026.07",
+      domains: [],
+      layers: [],
+      entities: [],
+      catalogTree: [],
+    });
     mockApi.register.mockResolvedValue({
       user: normalUser,
       detail: "用户注册成功",
@@ -282,6 +353,9 @@ describe("application critical flows", () => {
     mockApi.logout.mockResolvedValue({ detail: "已退出" });
     mockApi.resources.mockResolvedValue({ items: [] });
     mockApi.resourceProfile.mockResolvedValue(tarimVectorProfile);
+    mockApi.resourceVisualizationSummary.mockResolvedValue(
+      tarimVisualizationSummary,
+    );
     mockApi.queryResource.mockResolvedValue(tarimQueryResult);
     mockApi.workspaces.mockResolvedValue({
       items: [],
@@ -311,12 +385,22 @@ describe("application critical flows", () => {
     });
   });
 
-  it("redirects unauthenticated users to login and enters the geographic workspace after login", async () => {
+  it("redirects unauthenticated users to login and enters the data catalog after login", async () => {
     renderApp("/");
 
     expect(
       await screen.findByRole("heading", { name: "用户登录" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "全球胡杨林生态系统保护数据共享平台",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText(
+        "Global Poplar Forest Ecosystem Protection Data Sharing Platform",
+      ).length,
+    ).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByPlaceholderText("请输入账号"), {
       target: { value: "researcher" },
@@ -325,7 +409,7 @@ describe("application critical flows", () => {
       target: { value: "pass12345" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: /登录并进入三维地球$/ }),
+      screen.getByRole("button", { name: /登录并进入数据平台$/ }),
     );
 
     await waitFor(() => {
@@ -336,14 +420,20 @@ describe("application critical flows", () => {
       );
     });
     expect(
-      await screen.findByText("数据管理", {}, { timeout: 10000 }),
+      await screen.findByRole(
+        "heading",
+        { name: "胡杨生态数据资源目录" },
+        { timeout: 10000 },
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("map-canvas")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^地理数据$/ })).toHaveClass(
+    expect(screen.getByRole("button", { name: /^首页$/ })).toHaveClass(
       "workspace-switch-card-active",
     );
     expect(
-      screen.getByRole("button", { name: /^非地理数据$/ }),
+      screen.getByRole("button", { name: /^地理工作台$/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^数据分析$/ }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /后台管理/ }),
@@ -445,7 +535,7 @@ describe("application critical flows", () => {
     expect(mockApi.csrf).toHaveBeenCalledTimes(2);
   });
 
-  it("allows visitors to enter the geographic workspace through guest login", async () => {
+  it("allows visitors to enter the unified data catalog through guest login", async () => {
     renderApp("/");
 
     expect(
@@ -458,12 +548,49 @@ describe("application critical flows", () => {
       expect(mockApi.guestLogin).toHaveBeenCalled();
     });
     expect(
-      await screen.findByText("数据管理", {}, { timeout: 10000 }),
+      await screen.findByRole(
+        "heading",
+        { name: "胡杨生态数据资源目录" },
+        { timeout: 10000 },
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("map-canvas")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /后台管理/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("opens core platform functions from the homepage launchpad", async () => {
+    mockApi.me.mockResolvedValue({ authenticated: true, user: normalUser });
+
+    renderApp("/data");
+
+    expect(
+      await screen.findByRole(
+        "heading",
+        { name: "核心功能快捷入口" },
+        { timeout: 10000 },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("中亚胡杨生态数据门户")).toBeInTheDocument();
+    expect(
+      screen.getByText("服务生态保护 · 科学研究 · 数据共享"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/权威分类版本/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /进入数据概览/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /进入数据分析/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /进入成果展示/ }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /进入地理工作台/ }));
+
+    expect(
+      await screen.findByTestId("map-canvas", {}, { timeout: 10000 }),
+    ).toBeInTheDocument();
   });
 
   it("runs a representative vector query flow from resource selection to layer loading", async () => {
@@ -475,7 +602,7 @@ describe("application critical flows", () => {
     expect(
       await screen.findByText("塔里木河胡杨样地监测点", {}, { timeout: 10000 }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /选\s*择/ }));
+    await clickFirstResourceSelectButton();
 
     await waitFor(() => {
       expect(mockApi.resourceProfile).toHaveBeenCalledWith(tarimVectorResource);
@@ -515,8 +642,14 @@ describe("application critical flows", () => {
     renderApp("/nongeo");
 
     expect(
-      await screen.findByText(nonGeoTableResource.name, {}, { timeout: 10000 }),
-    ).toBeInTheDocument();
+      (
+        await screen.findAllByText(
+          nonGeoTableResource.name,
+          {},
+          { timeout: 10000 },
+        )
+      ).length,
+    ).toBeGreaterThan(0);
     expect(
       screen.queryByText(tarimVectorResource.name),
     ).not.toBeInTheDocument();
@@ -538,9 +671,9 @@ describe("application critical flows", () => {
     fireEvent.click(screen.getByRole("button", { name: "刷新非地理数据资源" }));
 
     expect(await screen.findByText(refreshedResource.name)).toBeInTheDocument();
-    expect(
-      screen.queryByText(nonGeoTableResource.name),
-    ).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryAllByText(nonGeoTableResource.name)).toHaveLength(0);
+    });
   });
 
   it("runs a long research user journey without privileged data exposure", async () => {
@@ -560,6 +693,10 @@ describe("application critical flows", () => {
         canManageAuth: false,
       },
     };
+    window.localStorage.setItem(
+      `huyang-system.workspace-tour.v1.${researchUser.id}.${researchUser.username}`,
+      "completed",
+    );
     mockApi.me.mockResolvedValue({ authenticated: true, user: researchUser });
     mockApi.resources.mockResolvedValue({ items: [tarimVectorResource] });
     mockApi.adminOperationLogs.mockResolvedValue({
@@ -589,7 +726,7 @@ describe("application critical flows", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("超级管理员")).not.toBeInTheDocument();
     expect(screen.queryByText("superadmin")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /选\s*择/ }));
+    await clickFirstResourceSelectButton();
     expect(await screen.findByText("sample_id")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "查询并加载" }));
 
@@ -656,7 +793,7 @@ describe("application critical flows", () => {
     });
 
     const loginButton = screen.getByRole("button", {
-      name: /登录并进入三维地球$/,
+      name: /登录并进入数据平台$/,
     });
     const guestButton = screen.getByRole("button", { name: /游客登录/ });
     fireEvent.click(loginButton);
@@ -686,14 +823,20 @@ describe("application critical flows", () => {
     renderApp("/");
 
     expect(
-      await screen.findByText("数据管理", {}, { timeout: 10000 }),
+      await screen.findByRole(
+        "heading",
+        { name: "胡杨生态数据资源目录" },
+        { timeout: 10000 },
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("map-canvas")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^地理数据$/ })).toHaveClass(
+    expect(screen.getByRole("button", { name: /^首页$/ })).toHaveClass(
       "workspace-switch-card-active",
     );
     expect(
-      screen.getByRole("button", { name: /^非地理数据$/ }),
+      screen.getByRole("button", { name: /^地理工作台$/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^数据分析$/ }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /后台管理/ }),
@@ -729,7 +872,11 @@ describe("application critical flows", () => {
     unmount();
     renderApp("/map");
 
-    await screen.findByText("数据管理", {}, { timeout: 10000 });
+    await screen.findByRole(
+      "button",
+      { name: /^数据资源$/ },
+      { timeout: 10000 },
+    );
     expect(screen.queryByText("全局搜索")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "用户信息" }));

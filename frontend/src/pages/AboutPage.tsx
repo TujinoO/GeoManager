@@ -25,8 +25,8 @@ import { useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   aboutAssets,
+  aboutNavigationSections,
   aboutSectionByKey,
-  aboutSections,
   contactRows,
   coreMembers,
   helpAudienceCards,
@@ -43,6 +43,7 @@ import {
   knowledgePapers,
   knowledgeThemes,
   knowledgeValueCards,
+  partnerInstitutions,
   platformDisplayName,
   principalPublicationHighlights,
   principalScientist,
@@ -100,7 +101,7 @@ export default function AboutPage() {
             <Typography.Text strong>关于我们</Typography.Text>
           </div>
           <div className="about-page-nav-list">
-            {aboutSections.map((section) => (
+            {aboutNavigationSections.map((section) => (
               <button
                 aria-current={
                   section.key === activeSection.key ? "page" : undefined
@@ -156,7 +157,7 @@ function SystemSection() {
       <section
         className="about-page-visual-hero about-page-system-hero"
         style={{
-          backgroundImage: `linear-gradient(90deg, rgba(7, 35, 31, 0.72), rgba(7, 35, 31, 0.2)), url(${aboutAssets.populusForestImage})`,
+          backgroundImage: `linear-gradient(90deg, rgba(7, 35, 31, 0.9), rgba(7, 35, 31, 0.38) 58%, rgba(7, 35, 31, 0.14)), url(${aboutAssets.aboutPoplarGroveImage})`,
         }}
       >
         <div className="about-page-visual-copy">
@@ -302,6 +303,44 @@ function TeamSection({ section }: { section: AboutSection }) {
           />
           <figcaption>团队科研与苗木实验场景</figcaption>
         </figure>
+      </section>
+
+      <section className="about-page-team-section about-page-institution-section">
+        <div className="about-page-block-title">
+          <ApartmentOutlined />
+          <Typography.Title level={3}>多机构协作团队</Typography.Title>
+        </div>
+        <Typography.Paragraph className="about-page-institution-intro">
+          各参与单位独立展示机构定位、协作方向和成员名录。尚未获得项目办公室确认的信息明确标注为待补充，避免用推测内容代替正式团队资料。
+        </Typography.Paragraph>
+        <div className="about-page-institution-grid">
+          {partnerInstitutions.map((institution) => (
+            <article
+              className={`about-page-institution-card about-page-institution-card-${institution.tone}`}
+              key={institution.id}
+            >
+              <header>
+                <span>{institution.shortName.slice(0, 2)}</span>
+                <div>
+                  <Tag color={institution.tone === "lead" ? "green" : "blue"}>
+                    {institution.role}
+                  </Tag>
+                  <strong>{institution.name}</strong>
+                </div>
+              </header>
+              <p>{institution.description}</p>
+              <div>
+                {institution.focusAreas.map((focus) => (
+                  <span key={focus}>{focus}</span>
+                ))}
+              </div>
+              <footer>
+                <CheckCircleOutlined />
+                {institution.status}
+              </footer>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="about-page-team-section">
@@ -504,6 +543,52 @@ function MembersSection({ section }: { section: AboutSection }) {
         </div>
       </section>
 
+      <section className="about-page-team-section about-page-institution-roster-section">
+        <div className="about-page-block-title">
+          <ApartmentOutlined />
+          <Typography.Title level={3}>分机构成员名录</Typography.Title>
+        </div>
+        <Typography.Paragraph className="about-page-institution-intro">
+          名录按机构独立维护，便于后续补充各单位负责人、科研成员、数据联系人和平台技术成员。
+        </Typography.Paragraph>
+        <div className="about-page-institution-roster-grid">
+          {partnerInstitutions.map((institution) => (
+            <article key={institution.id}>
+              <header>
+                <div>
+                  <span>{institution.shortName}</span>
+                  <strong>{institution.name}</strong>
+                </div>
+                <Tag color={institution.members.length ? "green" : "default"}>
+                  {institution.members.length
+                    ? `${institution.members.length} 位已展示成员`
+                    : "待确认"}
+                </Tag>
+              </header>
+              {institution.members.length ? (
+                <div className="about-page-institution-member-list">
+                  {institution.members.map((member) => (
+                    <div key={member.name}>
+                      <UserOutlined />
+                      <span>
+                        <strong>{member.name}</strong>
+                        <small>{member.role}</small>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="about-page-institution-member-pending">
+                  <UsergroupAddOutlined />
+                  <strong>成员名单待正式确认</strong>
+                  <span>确认后可在此补充负责人、研究方向与联系方式。</span>
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section className="about-page-member-layout about-page-member-layout-polished">
         <div>
           <div className="about-page-block-title">
@@ -541,7 +626,7 @@ function MembersSection({ section }: { section: AboutSection }) {
   );
 }
 
-function KnowledgeSection({ section }: { section: AboutSection }) {
+export function KnowledgeSection({ section }: { section: AboutSection }) {
   const [hoveredGraphNodeId, setHoveredGraphNodeId] = useState<string | null>(
     null,
   );
@@ -617,17 +702,18 @@ function KnowledgeSection({ section }: { section: AboutSection }) {
         </div>
         <figure>
           <img
-            alt="塔里木河流域胡杨林生态景观"
+            alt="河畔古胡杨林景观"
             src={aboutAssets.knowledgePopulusForestImage}
           />
-          <figcaption>胡杨林河岸生态景观与荒漠绿洲屏障</figcaption>
+          <figcaption>河畔古胡杨林与荒漠绿洲生态屏障</figcaption>
         </figure>
       </section>
 
       <section className="about-page-card-grid about-page-knowledge-theme-grid">
-        {knowledgeThemes.map((item) => (
+        {knowledgeThemes.map((item, themeIndex) => (
           <article
             className="about-page-feature-card about-page-knowledge-theme-card"
+            id={`knowledge-theme-${themeIndex + 1}`}
             key={item.title}
           >
             <strong>{item.title}</strong>

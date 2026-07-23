@@ -5,6 +5,7 @@ import json
 import sqlite3
 import threading
 import time
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -420,7 +421,11 @@ def _write_archive_file(
 def _sqlite_snapshot(path: Path, staging_dir: Path) -> Path:
     snapshot = staging_dir / f"snapshot-{path.stem}-{time.time_ns()}{path.suffix}"
     try:
-        with sqlite3.connect(path) as source, sqlite3.connect(snapshot) as target:
+        # sqlite3.Connection 的上下文管理器只处理事务，不保证在退出时关闭
+        # 连接。Windows 会因此继续锁定临时快照，导致随后归档清理失败。
+        with closing(sqlite3.connect(path)) as source, closing(
+            sqlite3.connect(snapshot)
+        ) as target:
             source.backup(target)
     except sqlite3.DatabaseError:
         if snapshot.exists():

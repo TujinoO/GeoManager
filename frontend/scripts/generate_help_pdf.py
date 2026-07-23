@@ -46,7 +46,7 @@ def main() -> None:
         leftMargin=18 * mm,
         topMargin=18 * mm,
         bottomMargin=16 * mm,
-        title="中亚胡杨林生态系统保护数据共享平台帮助文档",
+        title="全球胡杨林生态系统保护数据共享平台帮助文档",
         author="CAPFED",
     )
     styles = build_styles()

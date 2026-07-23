@@ -31,6 +31,15 @@ class DictionaryItem(models.Model):
     code = models.SlugField(max_length=64, verbose_name="编码")
     name = models.CharField(max_length=128, verbose_name="名称")
     description = models.TextField(blank=True, verbose_name="说明")
+    parent = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="children",
+        verbose_name="上级字典项",
+    )
+    is_selectable = models.BooleanField(default=True, verbose_name="允许选择")
     sort_order = models.PositiveIntegerField(default=100, verbose_name="排序")
     is_active = models.BooleanField(default=True, verbose_name="启用")
 
@@ -41,6 +50,16 @@ class DictionaryItem(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=("dict_type", "code"), name="uniq_dictionary_type_code"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(id=models.F("parent_id")),
+                name="dictionary_parent_not_self",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=("dict_type", "parent", "is_active", "sort_order"),
+                name="catalog_dic_type_parent_idx",
             ),
         ]
 
@@ -347,6 +366,95 @@ class MapCompositionVersion(models.Model):
 
     def __str__(self) -> str:
         return f"{self.composition.name} V{self.version_number}"
+
+
+class ResultArtifact(models.Model):
+    class SourceType(models.TextChoices):
+        ANALYSIS = "analysis", "平台分析成果"
+        DIRECT_IMPORT = "direct_import", "直接导入成果"
+
+    class ResultType(models.TextChoices):
+        MAP = "map", "地图"
+        CHART = "chart", "图表"
+        REPORT = "report", "报告"
+        TABLE = "table", "表格"
+        IMAGE = "image", "图片"
+        OTHER = "other", "其他"
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "草稿"
+        PUBLISHED = "published", "已发布"
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="result_artifacts",
+        verbose_name="创建者",
+    )
+    name = models.CharField(max_length=160, verbose_name="成果名称")
+    description = models.TextField(blank=True, verbose_name="成果说明")
+    source_type = models.CharField(
+        max_length=24,
+        choices=SourceType.choices,
+        default=SourceType.DIRECT_IMPORT,
+        verbose_name="成果来源",
+    )
+    result_type = models.CharField(
+        max_length=16,
+        choices=ResultType.choices,
+        default=ResultType.OTHER,
+        verbose_name="成果类型",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.DRAFT,
+        verbose_name="状态",
+    )
+    category = models.ForeignKey(
+        DictionaryItem,
+        on_delete=models.PROTECT,
+        related_name="result_artifacts",
+        verbose_name="权威业务分类",
+    )
+    provider = models.CharField(max_length=200, blank=True, verbose_name="提供单位")
+    file_path = models.CharField(max_length=500, verbose_name="成果文件路径")
+    file_name = models.CharField(max_length=255, verbose_name="原始文件名")
+    mime_type = models.CharField(max_length=120, blank=True, verbose_name="媒体类型")
+    size_bytes = models.PositiveBigIntegerField(default=0, verbose_name="文件大小")
+    access_groups = models.ManyToManyField(
+        Group,
+        blank=True,
+        related_name="result_artifacts",
+        verbose_name="可访问角色",
+    )
+    published_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="published_result_artifacts",
+        verbose_name="发布人",
+    )
+    published_at = models.DateTimeField(null=True, blank=True, verbose_name="发布时间")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
+
+    class Meta:
+        verbose_name = "成果文件"
+        verbose_name_plural = "成果文件"
+        ordering = ("-published_at", "-updated_at", "id")
+        permissions = [
+            ("download_resultartifact", "下载成果文件"),
+            ("publish_resultartifact", "发布成果文件"),
+        ]
+        indexes = [
+            models.Index(fields=("status", "source_type")),
+            models.Index(fields=("category", "status")),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class DataCatalog(models.Model):

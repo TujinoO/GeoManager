@@ -418,6 +418,40 @@ class MapCompositionApiTests(TestCase):
                 self.assertTrue(shared["canDownload"])
                 self.assertTrue(shared["canRestoreProject"])
                 self.assertEqual(len(shared["versions"]), 1)
+                self.assertEqual(shared["status"], "published")
+                self.assertEqual(
+                    shared["publishedVersion"]["versionNumber"], 1
+                )
+                self.assertEqual(shared["publishedVersion"]["format"], "png")
+
+                results_list_response = self.client.get(
+                    "/api/catalog/map-compositions/?status=published"
+                )
+                self.assertEqual(results_list_response.status_code, 200)
+                self.assertEqual(
+                    [
+                        item["name"]
+                        for item in results_list_response.json()["items"]
+                    ],
+                    ["已发布专题"],
+                )
+                results_item = results_list_response.json()["items"][0]
+                self.assertEqual(
+                    results_item["publishedVersion"], shared["publishedVersion"]
+                )
+
+                published_preview_response = self.client.get(
+                    results_item["publishedVersion"]["previewUrl"]
+                )
+                self.assertEqual(published_preview_response.status_code, 200)
+                self.assertEqual(
+                    published_preview_response.headers["Content-Type"], "image/png"
+                )
+                preview_content = b"".join(
+                    published_preview_response.streaming_content
+                )
+                self.assertTrue(preview_content.startswith(b"\x89PNG\r\n\x1a\n"))
+                published_preview_response.close()
 
                 private_response = self.client.get(
                     f"/api/catalog/map-compositions/{private_composition.id}/"
@@ -436,7 +470,7 @@ class MapCompositionApiTests(TestCase):
                 )
                 self.assertEqual(delete_response.status_code, 404)
                 download_response = self.client.get(
-                    shared["currentVersion"]["downloadUrl"]
+                    results_item["publishedVersion"]["downloadUrl"]
                 )
                 self.assertEqual(download_response.status_code, 200)
                 b"".join(download_response.streaming_content)
@@ -510,7 +544,7 @@ class MapCompositionApiTests(TestCase):
         self.assertEqual(version.workspace_snapshot, self.project.snapshot)
         self.assertEqual(len(version.snapshot_checksum), 64)
 
-    def test_archived_composition_cleanup_migration_releases_unique_name(self):
+    def test_archived_composition_migration_preserves_topic_and_version(self):
         archived = MapComposition.objects.create(
             owner=self.user,
             project=self.project,
@@ -536,19 +570,14 @@ class MapCompositionApiTests(TestCase):
             "apps.catalog.migrations.0009_remove_map_composition_archived_status"
         )
 
-        migration.delete_archived_map_compositions(apps, None)
+        migration.preserve_archived_map_compositions(apps, None)
 
-        self.assertFalse(MapComposition.objects.filter(pk=archived.id).exists())
-        self.assertFalse(
-            MapCompositionVersion.objects.filter(pk=archived_version.id).exists()
-        )
-        replacement = MapComposition.objects.create(
-            owner=self.user,
-            project=self.project,
-            name="历史归档专题",
-            layout=self.layout,
-        )
-        self.assertIsNotNone(replacement.pk)
+        archived.refresh_from_db()
+        archived_version.refresh_from_db()
+        self.assertEqual(archived.status, MapComposition.Status.COMPLETED)
+        self.assertEqual(archived.published_version_id, archived_version.id)
+        self.assertEqual(archived_version.preview_path, "preview.png")
+        self.assertEqual(archived_version.artifact_path, "artifact.png")
 
 
 def png_file(width: int, height: int) -> SimpleUploadedFile:

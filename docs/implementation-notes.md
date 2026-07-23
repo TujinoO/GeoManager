@@ -577,11 +577,11 @@ CREATE TABLE gpkg_data_columns (
 - `RasterStyle` 持久化 `(dataset, styleHash, rules)`，服务重启后旧瓦片 URL 可从数据库恢复样式；瓦片结果增加有界内存 LRU、ETag 和私有 HTTP 缓存。
 - 栅格最终发布使用短事务同步 `DataResource`、`MapLayer`、`RasterDataset`、访问组和 `RasterBand`，重投影过程不持有数据库事务。分类栅格默认最近邻，连续栅格和多波段影像默认双线性，也允许人工选择 cubic。
 
-# 2026-07-13 存量数据业务类型分组
+# 2026-07-23 存量数据权威分类分组
 
-- 存量数据页的系统分组固定为“全部数据”以及 `DataDomainType` 对应的十个业务类型分组；系统分组由前端根据管理列表接口返回的 `domainType` 动态生成，不创建 `DataResourceGroup` 数据库记录。
-- `DataResourceGroup`、`inventoryGroups` 和 `inventoryGroupId` 只表示用户新建的自定义分组。资源可同时出现在“全部数据”、一个业务类型系统分组和至多一个自定义分组中；删除自定义分组只清空归档关系，不影响资源及其业务分类。
-- 历史资源 `domainType` 为空时归入“其他类型”，避免存量资源从业务分组中遗漏。
+- 存量数据页的系统分组固定为“全部数据”、四个权威一级大类、十五个可挂接业务小类和“未分组（其他）”。一级大类汇总全部后代小类，业务小类按 `DataResource.category` 实际挂接关系归组。
+- `/api/admin/data/resources/` 的 `groupSummaries` 按完整筛选和权限范围聚合权威分类统计，稳定键使用 `__category__:{categoryCode}`；未挂接有效权威分类的历史资源统一归入 `__unclassified__`，不再使用兼容 `domainType` 生成系统分组。
+- `DataResourceGroup`、`inventoryGroups` 和 `inventoryGroupId` 只表示用户新建的自定义分组。资源可同时出现在“全部数据”、所属一级大类、一个业务小类和至多一个自定义分组中；删除自定义分组只清空归档关系，不影响资源及其权威业务分类。
 
 # 2026-07-15 存量数据全量统计与分页分组
 
@@ -598,7 +598,7 @@ CREATE TABLE gpkg_data_columns (
 - 经纬网和投影格网会按主图范围推荐间隔，小范围工程允许使用 0.0001 度或 10 米起的间隔；切换格网类型时重新给出适合当前范围的推荐值。
 - 编辑器只在首次打开某个出图稿时装载持久化版式，地图视角或来源摘要在后台变化时不会覆盖尚未保存的版式调整。
 - 后端只接收经过前端版式合成的 PNG 母图，验证 PNG、DPI、宽高、8192 单边和 3600 万总像素限制后，使用 Pillow 写入 PNG/JPG/PDF。成果路径固定在 TOML 驱动的 `app_data/exports/map-compositions/{compositionId}/v{version}/`。
-- 出图稿独立使用 Django 权限 `catalog.add/view/change/delete_mapcomposition`、`catalog.export_mapcomposition` 和 `catalog.publish_mapcomposition`。归档为软归档，保留成果文件用于审计，不执行目录批量删除。
+- 出图稿独立使用 Django 权限 `catalog.add/view/change/delete_mapcomposition`、`catalog.export_mapcomposition` 和 `catalog.publish_mapcomposition`。删除操作永久移除专题、版本记录及其明确记录的成果文件，逐文件处理且不递归删除目录，并通过操作日志保留审计证据。
 ## 工程专题可见性与加载规则（2026-07-14）
 
 - `WorkspaceScene` 不再作为仅所属用户可见的私有快照：启用对象按“所属用户本人 + access_groups + 超级管理员全量绕过”返回，禁用对象只在后台管理中保留。
@@ -608,3 +608,24 @@ CREATE TABLE gpkg_data_columns (
 # Test data isolation
 
 - Backend pytest runs use `geomanager.test_settings`, which replaces the configured application and research data roots with a process-specific directory under the system temporary directory. Integration tests that create or remove `vector.gpkg`, SQLite tables, uploads, or archives must never operate on the development or deployment data roots from the runtime TOML file.
+
+# 2026-07-22 平台品牌与智能预警占位
+
+- 平台规范中文名称统一为“全球胡杨林生态系统保护数据共享平台”，英文名称统一为 “Global Poplar Forest Ecosystem Protection Data Sharing Platform”；前端展示、后端登录概览、运行配置、OpenAPI 示例、Mock 和帮助入口需保持一致。
+- 登录页使用 `frontend/src/assets/login-golden-poplar-bg.png` 作为金色胡杨封面；可见品牌图标继续统一复用透明底盾牌胡杨 Logo，并同步维护 SVG 的可访问标题。
+- 顶部主导航预留“智能预警”按钮并进入 `/warning` 正式占位页；当前不新增实时监测 API、权限或后台业务实现，后续接入时再补齐契约与权限设计。
+
+# 2026-07-22 九大页面、实景主视觉与成果中心
+
+- 首页 `/data` 与数据资源 `/resources` 职责拆分，顶部导航补齐成果展示、智能预警和胡杨科普，并统一“地理工作台”命名。
+- 从用户提供的胡杨背景图库中只复制三张原图到 `frontend/src/assets/portal/`，未移动或删除原目录文件。首页、胡杨科普、关于我们使用不同实景图与深色渐变遮罩。
+- 数据导入页新增目标切换，原数据导入流程保持不变；成果流程支持草稿与直接发布、权威分类、提供单位和访问角色。
+- 新增 `ResultArtifact`、数据库迁移和成果接口；成果页聚合已发布专题图与成果文件，按来源、格式和关键词筛选。
+
+# 2026-07-23 成果权限解耦与统一管理
+
+- `ResultArtifact` 独立使用 `view/add/download/publish/delete_resultartifact`，不再借用数据浏览、数据导出、数据新增或专题图发布权限。功能权限与 `access_groups` 对象范围同时生效。
+- `POST /api/catalog/results/` 固定为导入并直接发布，至少选择一个访问角色；历史草稿和下架成果继续使用 `draft` 状态，并通过成果管理页发布或删除。
+- `/resources/manage/topics` 保留稳定路径但页面语义升级为“成果管理”，用两个页签统一承载 `MapComposition` 与 `ResultArtifact`，保留专题图原有工程/版本操作并补齐成果文件发布范围、下架和删除。
+- 删除导入成果只删除数据库记录和该对象明确记录的单个成果文件，不递归删除目录；操作写入 `OperationLog`。
+- 关于我们新增塔里木大学、新疆生地所、中科院西北院、新疆林科院四个独立机构展示区和分机构成员名录；未核实成员明确显示待确认。

@@ -632,6 +632,26 @@ export type UserPermissions = {
      */
     canRestoreMapCompositions: boolean;
     /**
+     * 是否可查看访问范围内的成果文件，对应 `catalog.view_resultartifact`
+     */
+    canViewResultArtifacts: boolean;
+    /**
+     * 是否可导入成果文件，对应 `catalog.add_resultartifact`；实际导入还需成果查看和发布权限
+     */
+    canImportResultArtifacts: boolean;
+    /**
+     * 是否可下载成果原文件，对应 `catalog.download_resultartifact`
+     */
+    canDownloadResultArtifacts: boolean;
+    /**
+     * 是否可直接发布、更新发布范围或下架成果文件，对应 `catalog.publish_resultartifact`
+     */
+    canPublishResultArtifacts: boolean;
+    /**
+     * 是否可删除本人或管理范围内的成果文件，对应 `catalog.delete_resultartifact`
+     */
+    canDeleteResultArtifacts: boolean;
+    /**
      * 是否可管理栅格数据集
      */
     canManageRasterData: boolean;
@@ -935,9 +955,17 @@ export type AdminDashboardDataOverviewScope = {
      */
     totalItemCount: number;
     /**
-     * 该统计范围内按数据类型聚合的数据情况
+     * 该统计范围内按数据类型聚合的数据情况；始终返回平台支持的全部物理类型，暂无资源的类型计数为 0
      */
     typeBreakdown: Array<AdminDashboardDataTypeOverview>;
+    /**
+     * 该统计范围内按当前权威业务分类体系聚合的数据情况；始终返回全部启用的大类和小类，暂无资源的分类计数为 0
+     */
+    categoryBreakdown: Array<AdminDashboardCategoryOverview>;
+    /**
+     * 该统计范围内尚未挂接权威业务分类的数据资源数量
+     */
+    unclassifiedCount: number;
     /**
      * 该统计范围内可用于数据概览空间可视化的权限裁剪后空间摘要；仅基于当前分组内用户有权查看的数据资源计算
      */
@@ -959,6 +987,56 @@ export type AdminDashboardDataTypeOverview = {
     sizeBytes: number;
     /**
      * 该类型数据条目数
+     */
+    itemCount: number;
+};
+
+export type AdminDashboardCategoryOverview = {
+    /**
+     * 一级业务分类编码
+     */
+    categoryCode: string;
+    /**
+     * 一级业务分类名称
+     */
+    categoryName: string;
+    /**
+     * 该大类及其全部小类的数据资源数量
+     */
+    count: number;
+    /**
+     * 该大类及其全部小类的数据大小，单位字节
+     */
+    sizeBytes: number;
+    /**
+     * 该大类及其全部小类的数据条目数
+     */
+    itemCount: number;
+    /**
+     * 当前大类下全部启用的小类统计，按分类排序返回并包含零计数项
+     */
+    children: Array<AdminDashboardCategoryLeafOverview>;
+};
+
+export type AdminDashboardCategoryLeafOverview = {
+    /**
+     * 二级业务分类编码
+     */
+    categoryCode: string;
+    /**
+     * 二级业务分类名称
+     */
+    categoryName: string;
+    /**
+     * 该小类的数据资源数量
+     */
+    count: number;
+    /**
+     * 该小类的数据大小，单位字节
+     */
+    sizeBytes: number;
+    /**
+     * 该小类的数据条目数
      */
     itemCount: number;
 };
@@ -1913,6 +1991,10 @@ export type DataSchemaEntity = {
 
 export type DataSchemaSummaryResponse = {
     /**
+     * 当前甲方业务分类版本，V1 固定为 2026.07。
+     */
+    taxonomyVersion: string;
+    /**
      * 甲方确认数据类型定义。
      */
     domains: Array<DataDomainDefinition>;
@@ -1939,6 +2021,22 @@ export type DataSchemaCatalogNode = {
      * 目录节点名称。
      */
     name: string;
+    /**
+     * 可用于资源筛选和分类提交的稳定业务分类编码。
+     */
+    categoryCode: string;
+    /**
+     * 是否允许数据资源直接挂接；四个一级节点为 false。
+     */
+    selectable: boolean;
+    /**
+     * 分类边界和适用范围说明。
+     */
+    description: string;
+    /**
+     * 从一级分类到当前节点的中文路径。
+     */
+    path: Array<string>;
     /**
      * 节点对应的数据业务类型，分组节点可为 null。
      */
@@ -2079,6 +2177,204 @@ export type DictionaryItem = {
      * 字典显示名称
      */
     name: string;
+    /**
+     * 上级字典项 ID；一级分类为 null
+     */
+    parentId: number | null;
+    /**
+     * 是否允许直接作为资源主分类
+     */
+    selectable: boolean;
+};
+
+export type DataCategoryPathItem = {
+    /**
+     * 分类字典项 ID
+     */
+    id: number;
+    /**
+     * 稳定分类编码
+     */
+    code: string;
+    /**
+     * 分类显示名称
+     */
+    name: string;
+};
+
+/**
+ * 资源是否已挂接权威业务主分类。
+ */
+export type ClassificationStatus = 'classified' | 'pending';
+
+/**
+ * 当前资源由后端确认可进入的展示视图。
+ */
+export type ResourceView = 'map' | 'table' | 'gallery' | 'metadata';
+
+/**
+ * analysis 表示由平台数据分析流程形成或登记的成果，direct_import 表示外部制作后直接导入的成果
+ */
+export type ResultArtifactSourceType = 'analysis' | 'direct_import';
+
+/**
+ * 成果展示形态
+ */
+export type ResultArtifactType = 'map' | 'chart' | 'report' | 'table' | 'image' | 'other';
+
+/**
+ * 草稿仅创建者和管理员可见，已发布成果按访问角色共享
+ */
+export type ResultArtifactStatus = 'draft' | 'published';
+
+export type ResultArtifactCreatePayload = {
+    /**
+     * 成果显示名称
+     */
+    name: string;
+    /**
+     * 成果摘要和适用范围
+     */
+    description?: string;
+    sourceType: ResultArtifactSourceType;
+    resultType: ResultArtifactType;
+    /**
+     * 四大权威业务分类叶节点编码
+     */
+    categoryCode: string;
+    /**
+     * 成果提供单位或团队
+     */
+    provider?: string;
+    /**
+     * 直接发布后除创建者和平台管理主体外可访问该成果的角色 ID，至少一项
+     */
+    accessGroupIds: Array<number>;
+};
+
+export type ResultArtifactUpdateRequest = {
+    /**
+     * publish 发布或更新访问范围；unpublish 下架为仅管理主体可见；delete 永久删除记录和文件
+     */
+    action: 'publish' | 'unpublish' | 'delete';
+    /**
+     * publish 时必填的发布可访问角色 ID
+     */
+    accessGroupIds?: Array<number>;
+};
+
+export type ResultArtifactDeleteResponse = {
+    /**
+     * 是否已删除
+     */
+    deleted: true;
+    /**
+     * 已删除成果文件 ID
+     */
+    id: number;
+    /**
+     * 删除结果说明
+     */
+    detail: string;
+};
+
+export type ResultArtifact = {
+    /**
+     * 成果文件 ID
+     */
+    id: number;
+    /**
+     * 成果显示名称
+     */
+    name: string;
+    /**
+     * 成果摘要
+     */
+    description: string;
+    sourceType: ResultArtifactSourceType;
+    resultType: ResultArtifactType;
+    status: ResultArtifactStatus;
+    category: DictionaryItem;
+    /**
+     * 从四大类一级节点到成果主分类的完整路径
+     */
+    categoryPath: Array<DataCategoryPathItem>;
+    /**
+     * 成果提供单位或团队
+     */
+    provider: string;
+    /**
+     * 原始成果文件名
+     */
+    fileName: string;
+    /**
+     * 成果文件扩展名
+     */
+    fileFormat: string;
+    /**
+     * 成果文件大小，单位字节
+     */
+    sizeBytes: number;
+    /**
+     * 成果预览地址
+     */
+    previewUrl: string;
+    /**
+     * 成果下载地址
+     */
+    downloadUrl: string;
+    owner: WorkspaceSceneOwner;
+    /**
+     * 发布后的可访问角色
+     */
+    accessGroups: Array<AdminDataResourceAccessGroup>;
+    /**
+     * 当前用户是否可以在线预览该成果格式
+     */
+    canPreview: boolean;
+    /**
+     * 当前用户是否可以下载成果原文件
+     */
+    canDownload: boolean;
+    /**
+     * 当前用户是否可以发布成果或更新其发布范围
+     */
+    canPublish: boolean;
+    /**
+     * 当前用户是否可以下架当前成果
+     */
+    canUnpublish: boolean;
+    /**
+     * 当前用户是否可以永久删除成果记录和文件
+     */
+    canDelete: boolean;
+    /**
+     * 正式发布时间；草稿为 null
+     */
+    publishedAt: string | null;
+    /**
+     * 最近发布人；未发布为 null
+     */
+    publishedBy: WorkspaceSceneOwner | null;
+    /**
+     * 创建时间
+     */
+    createdAt: string;
+    /**
+     * 更新时间
+     */
+    updatedAt: string;
+};
+
+export type ResultArtifactListResponse = {
+    /**
+     * 当前用户有权查看的成果文件
+     */
+    items: Array<ResultArtifact>;
+    /**
+     * 当前主体管理成果发布范围时可选择的角色
+     */
+    availableAccessGroups: Array<AdminDataResourceAccessGroup>;
 };
 
 export type DataResource = {
@@ -2107,6 +2403,16 @@ export type DataResource = {
      * 数据分类，未分类时为 null
      */
     category: DictionaryItem | null;
+    /**
+     * 从四大类一级节点到资源主分类的完整路径；待归类时为空数组
+     */
+    categoryPath: Array<DataCategoryPathItem>;
+    classificationStatus: ClassificationStatus;
+    /**
+     * 后端确认当前已实现的可用展示视图
+     */
+    availableViews: Array<ResourceView>;
+    defaultView: ResourceView;
     /**
      * 数据来源
      */
@@ -2252,6 +2558,11 @@ export type AdminDataResource = {
      */
     category: DictionaryItem | null;
     /**
+     * 从四大类一级节点到资源主分类的完整路径；待归类时为空数组
+     */
+    categoryPath: Array<DataCategoryPathItem>;
+    classificationStatus: ClassificationStatus;
+    /**
      * 数据来源
      */
     source: string;
@@ -2383,19 +2694,23 @@ export type AdminDataResourceSummary = {
 
 export type AdminDataResourceGroupSummary = {
     /**
-     * 分组稳定键；全部数据为 __all__，业务类型为 __domain__:{domainType}，自定义组为 __custom__:{groupId}
+     * 分组稳定键；全部数据为 __all__，权威分类为 __category__:{categoryCode}，未分组为 __unclassified__，自定义组为 __custom__:{groupId}
      */
     key: string;
     /**
      * 分组类型
      */
-    kind: 'all' | 'business' | 'custom';
+    kind: 'all' | 'category' | 'unclassified' | 'custom';
     /**
-     * 业务类型分组编码；全部数据和自定义组为 null
+     * 兼容业务标签编码；新版权威分类分组不再使用，当前始终为 null
      */
     domainType: DataDomainType | null;
     /**
-     * 自定义组 ID；全部数据和业务类型组为 null
+     * 权威分类编码；一级大类和十五个小类分组返回对应编码，其他分组为 null
+     */
+    categoryCode: string | null;
+    /**
+     * 自定义组 ID；全部数据、权威分类和未分组组为 null
      */
     inventoryGroupId: number | null;
     /**
@@ -2439,7 +2754,7 @@ export type AdminDataResourceListResponse = {
      */
     availableAccessGroups: Array<AdminDataResourceAccessGroup>;
     /**
-     * 用户新建的持久化自定义组别列表；“全部数据”和十个业务类型系统分组由前端依据资源 `domainType` 自动生成，不在该数组中
+     * 用户新建的持久化自定义组别列表；“全部数据”、四个一级大类、十五个小类和“未分组（其他）”由权威分类体系生成，不在该数组中
      */
     inventoryGroups: Array<AdminDataResourceGroup>;
 };
@@ -2500,7 +2815,7 @@ export type AdminDataResourceUpdateRequest = {
     /**
      * 操作类型
      */
-    action: 'update' | 'setStatus' | 'saveVisualization' | 'updateAccess' | 'updateInventoryGroup' | 'delete';
+    action: 'update' | 'setStatus' | 'saveVisualization' | 'updateAccess' | 'updateInventoryGroup' | 'updateClassification' | 'delete';
     /**
      * setStatus 或 update 时写入的数据资源状态
      */
@@ -2514,6 +2829,10 @@ export type AdminDataResourceUpdateRequest = {
      * updateInventoryGroup 或 update 时写入的存量数据内容组别 ID；为 null 时表示移入默认分组
      */
     inventoryGroupId?: number | null;
+    /**
+     * updateClassification 或 update 时写入的可选择业务主分类叶节点编码
+     */
+    categoryCode?: string;
     /**
      * delete 操作要求传入与数据资源名称完全一致的确认文本
      */
@@ -3937,6 +4256,10 @@ export type VectorImportValidateResponse = {
 export type VectorImportCommitRequest = VectorImportValidateRequest & {
     domainType: DataDomainType;
     /**
+     * 甲方四大类体系中的业务主分类叶节点编码；V1 新客户端提交，旧客户端兼容期可省略
+     */
+    categoryCode?: string;
+    /**
      * 是否已确认创建同名数据资源
      */
     duplicateConfirmed: boolean;
@@ -4691,6 +5014,10 @@ export type RasterImportCommitRequest = {
      * 除上传者本人和超级管理员外可访问该数据的用户组 ID
      */
     accessGroupIds: Array<number>;
+    /**
+     * 甲方四大类体系中的业务主分类叶节点编码；V1 新客户端提交，旧客户端兼容期可省略
+     */
+    categoryCode?: string;
 };
 
 export type RasterRenderRequest = {
@@ -6408,9 +6735,19 @@ export type ListAdminDataResourcesData = {
          */
         status?: 'active' | 'inactive';
         /**
-         * 数据分类编码精确匹配
+         * 兼容分类编码；推荐使用 categoryCode
+         *
+         * @deprecated
          */
         category?: string;
+        /**
+         * 权威业务分类编码；一级节点自动包含全部后代
+         */
+        categoryCode?: string;
+        /**
+         * 按已分类或待归类状态筛选
+         */
+        classificationStatus?: 'classified' | 'pending';
         /**
          * 数据来源模糊匹配
          */
@@ -6557,9 +6894,19 @@ export type ExportAdminDataResourcesData = {
          */
         status?: 'active' | 'inactive';
         /**
-         * 数据分类编码精确匹配
+         * 兼容分类编码；推荐使用 categoryCode
+         *
+         * @deprecated
          */
         category?: string;
+        /**
+         * 权威业务分类编码；一级节点自动包含全部后代
+         */
+        categoryCode?: string;
+        /**
+         * 按已分类或待归类状态筛选
+         */
+        classificationStatus?: 'classified' | 'pending';
         /**
          * 数据来源模糊匹配
          */
@@ -6790,9 +7137,19 @@ export type GetResourcesData = {
          */
         domainType?: DataDomainType;
         /**
-         * 分类代码精确匹配
+         * 兼容分类代码参数；推荐使用 categoryCode
+         *
+         * @deprecated
          */
         category?: string;
+        /**
+         * 权威业务分类代码；一级节点自动包含全部后代，叶节点精确筛选
+         */
+        categoryCode?: string;
+        /**
+         * 按已分类或待归类状态筛选
+         */
+        classificationStatus?: 'classified' | 'pending';
         /**
          * 数据来源模糊匹配
          */
@@ -7099,7 +7456,7 @@ export type ImportCommitData = {
     body: {
         file: Blob | File;
         /**
-         * JSON 字符串，包含导入配置；name 是前端显示的数据名称，domainType 是必填的平台确认业务数据类型，sheetName 是 Excel 工作表名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true 表示用户已在校验阶段确认重复名称；可包含 accessGroupIds 指定额外可见用户组，后端会强制补齐超级管理员用户组，上传者本人始终可见。domainType 缺失或编码无效时返回 400 ImportErrorResponse。
+         * JSON 字符串，包含导入配置；name 是前端显示的数据名称，categoryCode 是甲方四大类主分类叶节点，domainType 为兼容业务标签，sheetName 是 Excel 工作表名称，tableName 是后台存储标识建议值，后端会在冲突时自动改写为唯一值；同名显示数据必须传 duplicateConfirmed=true；可包含 accessGroupIds 指定额外可见用户组。
          */
         payload: string;
     };
@@ -7175,6 +7532,225 @@ export type GetResourceProfileResponses = {
 };
 
 export type GetResourceProfileResponse = GetResourceProfileResponses[keyof GetResourceProfileResponses];
+
+export type ListResultArtifactsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * 按成果名称、说明、提供单位或原文件名模糊检索
+         */
+        q?: string;
+        /**
+         * 按平台分析成果或直接导入成果筛选
+         */
+        sourceType?: ResultArtifactSourceType;
+        /**
+         * 按成果形态筛选
+         */
+        resultType?: ResultArtifactType;
+        /**
+         * 按四大权威业务分类筛选；一级节点自动包含全部后代
+         */
+        categoryCode?: string;
+    };
+    url: '/api/catalog/results/';
+};
+
+export type ListResultArtifactsErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type ListResultArtifactsError = ListResultArtifactsErrors[keyof ListResultArtifactsErrors];
+
+export type ListResultArtifactsResponses = {
+    /**
+     * 成功
+     */
+    200: ResultArtifactListResponse;
+};
+
+export type ListResultArtifactsResponse = ListResultArtifactsResponses[keyof ListResultArtifactsResponses];
+
+export type CreateResultArtifactData = {
+    body: {
+        /**
+         * PNG、JPG、PDF、CSV 或 XLSX 成果文件
+         */
+        file: Blob | File;
+        /**
+         * JSON 字符串，结构为 ResultArtifactCreatePayload
+         */
+        payload: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/catalog/results/';
+};
+
+export type CreateResultArtifactErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type CreateResultArtifactError = CreateResultArtifactErrors[keyof CreateResultArtifactErrors];
+
+export type CreateResultArtifactResponses = {
+    /**
+     * 成果登记成功
+     */
+    201: ResultArtifact;
+};
+
+export type CreateResultArtifactResponse = CreateResultArtifactResponses[keyof CreateResultArtifactResponses];
+
+export type GetResultArtifactData = {
+    body?: never;
+    path: {
+        /**
+         * 成果文件 ID
+         */
+        resultId: number;
+    };
+    query?: never;
+    url: '/api/catalog/results/{resultId}/';
+};
+
+export type GetResultArtifactErrors = {
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type GetResultArtifactError = GetResultArtifactErrors[keyof GetResultArtifactErrors];
+
+export type GetResultArtifactResponses = {
+    /**
+     * 成功
+     */
+    200: ResultArtifact;
+};
+
+export type GetResultArtifactResponse = GetResultArtifactResponses[keyof GetResultArtifactResponses];
+
+export type UpdateResultArtifactData = {
+    body: ResultArtifactUpdateRequest;
+    path: {
+        /**
+         * 成果文件 ID
+         */
+        resultId: number;
+    };
+    query?: never;
+    url: '/api/catalog/results/{resultId}/';
+};
+
+export type UpdateResultArtifactErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateResultArtifactError = UpdateResultArtifactErrors[keyof UpdateResultArtifactErrors];
+
+export type UpdateResultArtifactResponses = {
+    /**
+     * 操作成功
+     */
+    200: ResultArtifact | ResultArtifactDeleteResponse;
+};
+
+export type UpdateResultArtifactResponse = UpdateResultArtifactResponses[keyof UpdateResultArtifactResponses];
+
+export type DownloadResultArtifactData = {
+    body?: never;
+    path: {
+        /**
+         * 成果文件 ID
+         */
+        resultId: number;
+    };
+    query?: {
+        /**
+         * artifact 下载原文件，preview 在浏览器内预览
+         */
+        variant?: 'artifact' | 'preview';
+    };
+    url: '/api/catalog/results/{resultId}/file/';
+};
+
+export type DownloadResultArtifactErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type DownloadResultArtifactError = DownloadResultArtifactErrors[keyof DownloadResultArtifactErrors];
+
+export type DownloadResultArtifactResponses = {
+    /**
+     * 文件内容
+     */
+    200: Blob | File;
+};
+
+export type DownloadResultArtifactResponse = DownloadResultArtifactResponses[keyof DownloadResultArtifactResponses];
 
 export type ListMapCompositionsData = {
     body?: never;

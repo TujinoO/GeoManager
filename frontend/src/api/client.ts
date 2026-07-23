@@ -74,6 +74,13 @@ import type {
   ResourceQueryPayload,
   ResourceQueryResult,
   ResourceVisualizationSummary,
+  ResultArtifact,
+  ResultArtifactCreatePayload,
+  ResultArtifactDeleteResponse,
+  ResultArtifactListResponse,
+  ResultArtifactSourceType,
+  ResultArtifactType,
+  ResultArtifactUpdateRequest,
   SearchResult,
   RoleApplicationListItem,
   RoleApplicationListResponse,
@@ -593,6 +600,43 @@ export const api = {
   ) =>
     unwrap<MapCompositionListResponse>(
       sdk.listMapCompositions({ query: filters }),
+    ),
+  resultArtifacts: (
+    filters: {
+      q?: string;
+      sourceType?: ResultArtifactSourceType;
+      resultType?: ResultArtifactType;
+      categoryCode?: string;
+    } = {},
+  ) =>
+    unwrap<ResultArtifactListResponse>(
+      sdk.listResultArtifacts({ query: filters }),
+    ),
+  createResultArtifact: (file: File, payload: ResultArtifactCreatePayload) =>
+    unwrap<ResultArtifact>(
+      sdk.createResultArtifact({
+        body: { file, payload: JSON.stringify(payload) },
+      }),
+    ),
+  resultArtifact: (resultId: number) =>
+    unwrap<ResultArtifact>(sdk.getResultArtifact({ path: { resultId } })),
+  updateResultArtifact: (
+    resultId: number,
+    payload: ResultArtifactUpdateRequest,
+  ) =>
+    unwrap<ResultArtifact | ResultArtifactDeleteResponse>(
+      sdk.updateResultArtifact({ path: { resultId }, body: payload }),
+    ),
+  downloadResultArtifact: (
+    resultId: number,
+    variant: "artifact" | "preview" = "artifact",
+  ) =>
+    unwrapBlob(
+      sdk.downloadResultArtifact({
+        path: { resultId },
+        query: { variant },
+        parseAs: "blob",
+      }),
     ),
   createMapComposition: (payload: MapCompositionCreateRequest) =>
     unwrap<MapComposition>(sdk.createMapComposition({ body: payload })),

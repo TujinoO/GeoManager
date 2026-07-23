@@ -55,6 +55,7 @@ from apps.catalog.serializers import (
 from apps.catalog.services import (
     scan_catalog_sources,
 )
+from apps.catalog.taxonomy import TaxonomyError, category_codes_for_filter
 from apps.catalog.visualization import resource_visualization_summary
 from apps.core.permissions import feature_denied_response, has_feature_perm
 from apps.core.principal_visibility import (
@@ -83,7 +84,7 @@ def directories(request):
     if not has_feature_perm(request.user, "core.browse_data"):
         return feature_denied_response(request.user)
     queryset = DataCatalog.objects.filter(is_active=True).prefetch_related(
-        "resources", "resources__category"
+        "resources", "resources__category", "resources__category__parent"
     )
     catalogs = filter_accessible(queryset, request.user)
     return JsonResponse(
@@ -112,7 +113,7 @@ def resources(request):
 
     queryset = DataResource.objects.filter(
         status=DataResource.Status.ACTIVE
-    ).select_related("category")
+    ).select_related("category", "category__parent")
     if query:
         queryset = queryset.filter(name__icontains=query)
     if data_type:
@@ -127,9 +128,27 @@ def resources(request):
         )
     if domain_type:
         queryset = queryset.filter(domain_type=domain_type)
-    category = request.GET.get("category", "").strip()
+    category = request.GET.get("categoryCode", "").strip()
+    legacy_category = request.GET.get("category", "").strip()
+    if category and legacy_category and category != legacy_category:
+        return JsonResponse({"detail": "category 与 categoryCode 不能冲突"}, status=400)
+    category = category or legacy_category
     if category:
-        queryset = queryset.filter(category__code=category)
+        try:
+            category_codes = category_codes_for_filter(category)
+        except TaxonomyError as exc:
+            return JsonResponse({"detail": str(exc)}, status=400)
+        queryset = queryset.filter(category__code__in=category_codes)
+    classification_status = request.GET.get("classificationStatus", "").strip()
+    if classification_status == "classified":
+        queryset = queryset.filter(category_id__isnull=False)
+    elif classification_status == "pending":
+        queryset = queryset.filter(category_id__isnull=True)
+    elif classification_status:
+        return JsonResponse(
+            {"detail": "classificationStatus 仅支持 classified 或 pending"},
+            status=400,
+        )
     source = request.GET.get("source", "").strip()
     if source:
         queryset = queryset.filter(source__icontains=source)
@@ -1058,7 +1077,7 @@ def resource_profile(request, pk: int):
     if not has_feature_perm(request.user, "core.browse_data"):
         return feature_denied_response(request.user)
     resource = get_object_or_404(
-        DataResource.objects.select_related("category"),
+        DataResource.objects.select_related("category", "category__parent"),
         pk=pk,
         status=DataResource.Status.ACTIVE,
     )
@@ -1098,7 +1117,7 @@ def resource_visualization_summary_view(request, pk: int):
     if not has_feature_perm(request.user, "core.browse_data"):
         return feature_denied_response(request.user)
     resource = get_object_or_404(
-        DataResource.objects.select_related("category"),
+        DataResource.objects.select_related("category", "category__parent"),
         pk=pk,
         status=DataResource.Status.ACTIVE,
     )
@@ -1150,7 +1169,7 @@ def resource_query(request, pk: int):
     if not can_query or not can_load_vector:
         return feature_denied_response(request.user)
     resource = get_object_or_404(
-        DataResource.objects.select_related("category"),
+        DataResource.objects.select_related("category", "category__parent"),
         pk=pk,
         status=DataResource.Status.ACTIVE,
     )
@@ -1384,7 +1403,7 @@ def search(request):
 
     resource_qs = DataResource.objects.filter(
         status=DataResource.Status.ACTIVE, name__icontains=query
-    ).select_related("category")
+    ).select_related("category", "category__parent")
     items = [
         serialize_resource(item)
         for item in filter_accessible(resource_qs, request.user)

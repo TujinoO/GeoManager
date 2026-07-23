@@ -15,6 +15,7 @@ import {
   Pagination,
   Popconfirm,
   Space,
+  Select,
   Switch,
   Table,
   Tag,
@@ -31,10 +32,10 @@ import type {
   AdminDataResourceFilters,
   AdminDataResourceGroup,
   AdminDataResourceList,
-  DataDomainType,
 } from "../types";
 import { downloadBlob } from "../utils/download";
 import DataSchemaOverview from "./DataSchemaOverview";
+import { fallbackTaxonomyTree, flattenTaxonomy } from "../utils/taxonomy";
 import ManagedCollectionPage, {
   type AccessScopeId,
   type FilterField,
@@ -45,6 +46,7 @@ import ManagedCollectionPage, {
 } from "./ManagedCollectionPage";
 
 type VisualizationFormValues = ManagedFormValues & {
+  categoryCode: string;
   layerName: string;
   defaultVisible: boolean;
   pointColor?: string;
@@ -83,13 +85,20 @@ const initialList: AdminDataResourceList = {
 };
 
 const allInventoryGroupId = "__all__";
+const unclassifiedInventoryGroupId = "__unclassified__";
 
-type BusinessInventoryGroupId = `__domain__:${DataDomainType}`;
+type CategoryInventoryGroupId = `__category__:${string}`;
 type InventoryGroupId =
   | number
   | typeof allInventoryGroupId
-  | BusinessInventoryGroupId;
-type InventoryGroupKind = "all" | "business" | "custom";
+  | typeof unclassifiedInventoryGroupId
+  | CategoryInventoryGroupId;
+type InventoryGroupKind =
+  | "all"
+  | "category-root"
+  | "category-leaf"
+  | "unclassified"
+  | "custom";
 type InventoryGroupSummary = AdminDataResourceList["groupSummaries"][number];
 type GroupModalState = { kind: "create" } | null;
 
@@ -103,13 +112,15 @@ interface InventoryGroup {
   enabled: boolean;
   partiallyEnabled: boolean;
   kind: InventoryGroupKind;
+  subgroups: InventoryGroup[];
 }
 
 interface InventoryGroupDefinition {
   id: InventoryGroupId;
   name: string;
   kind: InventoryGroupKind;
-  domainType?: DataDomainType;
+  categoryCode?: string;
+  children?: InventoryGroupDefinition[];
 }
 
 const allInventoryGroup: InventoryGroupDefinition = {
@@ -118,27 +129,25 @@ const allInventoryGroup: InventoryGroupDefinition = {
   kind: "all",
 };
 
-const businessInventoryGroupEntries: Array<readonly [DataDomainType, string]> =
-  [
-    ["germplasm", "种质数据"],
-    ["genome", "基因组数据"],
-    ["individual", "个体数据"],
-    ["community", "群落数据"],
-    ["population", "种群数据"],
-    ["field_survey", "野外调查数据"],
-    ["remote_sensing", "遥感影像数据"],
-    ["molecular", "分子数据"],
-    ["vector", "矢量数据"],
-    ["other", "其他类型"],
-  ];
-
-const businessInventoryGroups: InventoryGroupDefinition[] =
-  businessInventoryGroupEntries.map(([domainType, name]) => ({
-    id: `__domain__:${domainType}` as BusinessInventoryGroupId,
-    name,
-    kind: "business",
-    domainType,
+const categoryInventoryGroups: InventoryGroupDefinition[] =
+  fallbackTaxonomyTree.map((root) => ({
+    id: `__category__:${root.categoryCode}` as CategoryInventoryGroupId,
+    name: root.name,
+    kind: "category-root",
+    categoryCode: root.categoryCode,
+    children: root.children.map((child) => ({
+      id: `__category__:${child.categoryCode}` as CategoryInventoryGroupId,
+      name: child.name,
+      kind: "category-leaf",
+      categoryCode: child.categoryCode,
+    })),
   }));
+
+const unclassifiedInventoryGroup: InventoryGroupDefinition = {
+  id: unclassifiedInventoryGroupId,
+  name: "未分组（其他）",
+  kind: "unclassified",
+};
 
 const inventoryGroupNameColumnWidth = 220;
 const inventoryResourceNameColumnWidth = 260;
@@ -164,6 +173,24 @@ const inventoryEllipsisColumnKeys = new Set([
 ]);
 
 const filterFields: FilterField[] = [
+  {
+    name: "categoryCode",
+    label: "权威业务分类",
+    kind: "select",
+    options: flattenTaxonomy(fallbackTaxonomyTree).map((node) => ({
+      value: node.categoryCode,
+      label: node.path.join(" / "),
+    })),
+  },
+  {
+    name: "classificationStatus",
+    label: "归类状态",
+    kind: "select",
+    options: [
+      { value: "classified", label: "已分类" },
+      { value: "pending", label: "待归类" },
+    ],
+  },
   {
     name: "dataType",
     label: "数据类型",
@@ -296,6 +323,7 @@ export default function AdminDataInventoryPage() {
       );
       const updated = await api.updateAdminDataResource(resource.id, {
         action: "update",
+        categoryCode: formValues.categoryCode,
         accessGroupIds: realAccessGroupIds(formValues.accessGroupIds),
         visualization: {
           layerName: formValues.layerName,
@@ -517,7 +545,7 @@ export default function AdminDataInventoryPage() {
     if (!resource) {
       return;
     }
-    if (group.kind === "business") {
+    if (!canAcceptInventoryDrop(group)) {
       return;
     }
     const nextGroupId = group.kind === "all" ? null : Number(group.id);
@@ -565,9 +593,7 @@ export default function AdminDataInventoryPage() {
         ),
       }));
       void loadResources(filters);
-      message.success(
-        `已删除组别：${group.name}，数据仍保留在全部数据和对应业务类型分组中`,
-      );
+      message.success(`已删除组别：${group.name}，数据仍保留在权威业务分类中`);
     } catch (error) {
       message.error(error instanceof Error ? error.message : "删除组别失败");
     } finally {
@@ -610,6 +636,22 @@ export default function AdminDataInventoryPage() {
         >
           {record.name}
         </Button>
+      ),
+    },
+    {
+      title: "业务分类",
+      key: "category",
+      width: 220,
+      render: (_, record) => (
+        <Space orientation="vertical" size={0}>
+          <Typography.Text>
+            {record.categoryPath.map((item) => item.name).join(" / ") ||
+              "待归类"}
+          </Typography.Text>
+          {record.classificationStatus === "pending" && (
+            <Tag color="orange">待归类</Tag>
+          )}
+        </Space>
       ),
     },
     {
@@ -777,7 +819,7 @@ export default function AdminDataInventoryPage() {
           ) : (
             <Popconfirm
               title="删除组别"
-              description="删除后仅移除自定义归档关系，数据仍保留在全部数据和对应业务类型分组中。"
+              description="删除后仅移除自定义归档关系，数据仍保留在对应的权威业务分类中。"
               okText="删除"
               cancelText="取消"
               onConfirm={() => deleteInventoryGroup(group)}
@@ -841,6 +883,72 @@ export default function AdminDataInventoryPage() {
       },
     ];
 
+    const renderGroupResources = (group: InventoryGroup) => (
+      <div
+        onDragOver={(event) => {
+          if (canAcceptInventoryDrop(group)) {
+            event.preventDefault();
+          }
+        }}
+        onDrop={() => {
+          if (draggingResourceId !== null && canAcceptInventoryDrop(group)) {
+            void moveResourceToGroup(draggingResourceId, group);
+            setDraggingResourceId(null);
+          }
+        }}
+      >
+        <div className="inventory-group-page-note">
+          <Typography.Text type="secondary">
+            {group.resources.length === group.resourceCount
+              ? `本页已显示该组全部 ${group.resourceCount} 项数据`
+              : `当前页显示 ${group.resources.length} 项，该组共 ${group.resourceCount} 项；可使用上方分页查看其余数据`}
+          </Typography.Text>
+        </div>
+        <Table<AdminDataResource>
+          rowKey="id"
+          size="small"
+          className="inventory-group-resource-table"
+          columns={nestedTableColumns}
+          dataSource={group.resources}
+          pagination={false}
+          tableLayout="fixed"
+          scroll={{ x: inventoryTableScrollX }}
+          onRow={(resource) => ({
+            draggable: canChange,
+            onDragStart: () => setDraggingResourceId(resource.id),
+            onDragEnd: () => setDraggingResourceId(null),
+            className:
+              movingResourceId === resource.id
+                ? "inventory-resource-moving-row"
+                : undefined,
+          })}
+        />
+      </div>
+    );
+
+    const renderExpandedGroup = (group: InventoryGroup) =>
+      group.subgroups.length > 0 ? (
+        <Table<InventoryGroup>
+          rowKey={(child) => String(child.id)}
+          size="small"
+          className="inventory-category-child-table"
+          columns={groupColumns}
+          dataSource={group.subgroups}
+          tableLayout="fixed"
+          scroll={{ x: inventoryTableScrollX }}
+          pagination={false}
+          expandable={{
+            defaultExpandedRowKeys: group.subgroups
+              .filter((child) => child.resourceCount > 0)
+              .map((child) => child.id),
+            rowExpandable: (child) => child.resourceCount > 0,
+            expandedRowRender: renderGroupResources,
+          }}
+        />
+      ) : (
+        renderGroupResources(group)
+      );
+
     return (
       <Space orientation="vertical" size={12} className="inventory-group-table">
         <div className="inventory-group-footer">
@@ -872,64 +980,29 @@ export default function AdminDataInventoryPage() {
           pagination={false}
           onRow={(group) => ({
             onDragOver: (event) => {
-              if (group.kind !== "business") {
+              if (canAcceptInventoryDrop(group)) {
                 event.preventDefault();
               }
             },
             onDrop: () => {
-              if (draggingResourceId !== null && group.kind !== "business") {
+              if (
+                draggingResourceId !== null &&
+                canAcceptInventoryDrop(group)
+              ) {
                 void moveResourceToGroup(draggingResourceId, group);
                 setDraggingResourceId(null);
               }
             },
           })}
           expandable={{
-            defaultExpandedRowKeys: [allInventoryGroupId],
-            expandedRowRender: (group) => (
-              <div
-                onDragOver={(event) => {
-                  if (group.kind !== "business") {
-                    event.preventDefault();
-                  }
-                }}
-                onDrop={() => {
-                  if (
-                    draggingResourceId !== null &&
-                    group.kind !== "business"
-                  ) {
-                    void moveResourceToGroup(draggingResourceId, group);
-                    setDraggingResourceId(null);
-                  }
-                }}
-              >
-                <div className="inventory-group-page-note">
-                  <Typography.Text type="secondary">
-                    {group.resources.length === group.resourceCount
-                      ? `本页已显示该组全部 ${group.resourceCount} 项数据`
-                      : `当前页显示 ${group.resources.length} 项，该组共 ${group.resourceCount} 项；可使用上方分页查看其余数据`}
-                  </Typography.Text>
-                </div>
-                <Table<AdminDataResource>
-                  rowKey="id"
-                  size="small"
-                  className="inventory-group-resource-table"
-                  columns={nestedTableColumns}
-                  dataSource={group.resources}
-                  pagination={false}
-                  tableLayout="fixed"
-                  scroll={{ x: inventoryTableScrollX }}
-                  onRow={(resource) => ({
-                    draggable: canChange,
-                    onDragStart: () => setDraggingResourceId(resource.id),
-                    onDragEnd: () => setDraggingResourceId(null),
-                    className:
-                      movingResourceId === resource.id
-                        ? "inventory-resource-moving-row"
-                        : undefined,
-                  })}
-                />
-              </div>
-            ),
+            defaultExpandedRowKeys: [
+              ...categoryInventoryGroups.map((group) => group.id),
+              unclassifiedInventoryGroupId,
+              allInventoryGroupId,
+            ],
+            rowExpandable: (group) =>
+              group.subgroups.length > 0 || group.resourceCount > 0,
+            expandedRowRender: renderExpandedGroup,
           }}
         />
       </Space>
@@ -973,6 +1046,12 @@ export default function AdminDataInventoryPage() {
         renderTable={renderGroupedTable}
         detailItems={(resource) => [
           { label: "数据名称", value: resource.name },
+          {
+            label: "权威业务分类",
+            value:
+              resource.categoryPath.map((item) => item.name).join(" / ") ||
+              "待归类",
+          },
           { label: "类型", value: dataTypeLabels[resource.dataType] },
           {
             label: "状态",
@@ -992,6 +1071,24 @@ export default function AdminDataInventoryPage() {
         formInitialValues={(resource) => initialVisualizationValues(resource)}
         renderFormItems={(resource, maintainable) => (
           <>
+            <Typography.Title level={5}>权威业务分类</Typography.Title>
+            <Form.Item
+              name="categoryCode"
+              label="四大类叶节点"
+              rules={[{ required: true, message: "请选择权威业务分类" }]}
+            >
+              <Select
+                showSearch
+                optionFilterProp="label"
+                disabled={!maintainable}
+                options={flattenTaxonomy(fallbackTaxonomyTree)
+                  .filter((node) => node.selectable)
+                  .map((node) => ({
+                    value: node.categoryCode,
+                    label: node.path.join(" / "),
+                  }))}
+              />
+            </Form.Item>
             <Typography.Title level={5}>默认可视化方案</Typography.Title>
             <Form.Item
               name="layerName"
@@ -1176,6 +1273,7 @@ function initialVisualizationValues(
       ? (visualization.rasterRules as Record<string, unknown>)
       : (layer?.rasterRules ?? {});
   return {
+    categoryCode: resource.category?.code ?? "",
     layerName:
       textValue(visualization.layerName) || layer?.name || resource.name,
     defaultVisible: Boolean(
@@ -1197,7 +1295,8 @@ function buildInventoryGroups(
 ): InventoryGroup[] {
   const groupDefinitions: InventoryGroupDefinition[] = [
     allInventoryGroup,
-    ...businessInventoryGroups,
+    ...categoryInventoryGroups,
+    unclassifiedInventoryGroup,
     ...persistedGroups.map((group) => ({
       id: group.id,
       name: group.name,
@@ -1207,21 +1306,16 @@ function buildInventoryGroups(
   const summaryByKey = new Map(
     groupSummaries.map((summary) => [summary.key, summary]),
   );
-  return groupDefinitions.map((group) =>
+  const buildGroup = (group: InventoryGroupDefinition): InventoryGroup =>
     createInventoryGroup({
       ...group,
       summary: summaryByKey.get(inventoryGroupSummaryKey(group)),
-      resources: resources.filter((resource) => {
-        if (group.kind === "all") {
-          return true;
-        }
-        if (group.kind === "business") {
-          return inventoryDomainType(resource) === group.domainType;
-        }
-        return resource.inventoryGroupId === group.id;
-      }),
-    }),
-  );
+      resources: resources.filter((resource) =>
+        resourceBelongsToInventoryGroup(resource, group),
+      ),
+      subgroups: (group.children ?? []).map(buildGroup),
+    });
+  return groupDefinitions.map(buildGroup);
 }
 
 function createInventoryGroup({
@@ -1230,12 +1324,14 @@ function createInventoryGroup({
   resources,
   kind,
   summary,
+  subgroups,
 }: {
   id: InventoryGroupId;
   name: string;
   resources: AdminDataResource[];
   kind: InventoryGroupKind;
   summary?: InventoryGroupSummary;
+  subgroups: InventoryGroup[];
 }): InventoryGroup {
   const activeCount = resources.filter(
     (resource) => resource.status === "active",
@@ -1248,6 +1344,7 @@ function createInventoryGroup({
     enabled: resources.length > 0 && activeCount === resources.length,
     partiallyEnabled: activeCount > 0 && activeCount < resources.length,
     kind,
+    subgroups,
     sizeBytes:
       summary?.sizeBytes ??
       resources.reduce(
@@ -1267,20 +1364,40 @@ function inventoryGroupSummaryKey(group: InventoryGroupDefinition) {
   return group.kind === "custom" ? `__custom__:${group.id}` : String(group.id);
 }
 
-function inventoryDomainType(resource: AdminDataResource): DataDomainType {
-  return resource.domainType ?? "other";
+function resourceBelongsToInventoryGroup(
+  resource: AdminDataResource,
+  group: InventoryGroupDefinition,
+) {
+  if (group.kind === "all") return true;
+  if (group.kind === "unclassified") {
+    return resource.classificationStatus === "pending" || !resource.category;
+  }
+  if (group.kind === "category-root" || group.kind === "category-leaf") {
+    return resource.categoryPath.some(
+      (item) => item.code === group.categoryCode,
+    );
+  }
+  return resource.inventoryGroupId === group.id;
 }
 
 function inventoryGroupKindLabel(kind: InventoryGroupKind) {
   if (kind === "all") return "汇总";
-  if (kind === "business") return "业务类型";
+  if (kind === "category-root") return "一级大类";
+  if (kind === "category-leaf") return "业务小类";
+  if (kind === "unclassified") return "待治理";
   return "自定义";
 }
 
 function inventoryGroupKindColor(kind: InventoryGroupKind) {
   if (kind === "all") return "blue";
-  if (kind === "business") return "green";
+  if (kind === "category-root") return "green";
+  if (kind === "category-leaf") return "cyan";
+  if (kind === "unclassified") return "orange";
   return "default";
+}
+
+function canAcceptInventoryDrop(group: InventoryGroup) {
+  return group.kind === "all" || group.kind === "custom";
 }
 
 function groupStatus(enabled: boolean): AdminDataResource["status"] {

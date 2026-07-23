@@ -1,6 +1,13 @@
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
+import { existsSync } from "node:fs";
 import { defineConfig } from "vitest/config";
+
+const windowsChromePath = "C:/Program Files/Google/Chrome/Application/chrome.exe";
+const localLaunchOptions =
+  process.platform === "win32" && existsSync(windowsChromePath)
+    ? { executablePath: windowsChromePath }
+    : undefined;
 
 export default defineConfig({
   plugins: [react()],
@@ -36,7 +43,7 @@ export default defineConfig({
     },
     browser: {
       enabled: true,
-      provider: playwright(),
+      provider: playwright({ launchOptions: localLaunchOptions }),
       headless: true,
       screenshotDirectory: "test-results/browser-screenshots",
       instances: [

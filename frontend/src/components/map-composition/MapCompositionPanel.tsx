@@ -295,7 +295,7 @@ export default function MapCompositionPanel({
         <Alert
           type="info"
           showIcon
-          message="发布前仅所属用户、平台管理员和超级管理员可见"
+          title="发布前仅所属用户、平台管理员和超级管理员可见"
           description="发布后，只有所选角色中具备专题查看权限的用户可以访问；下载和还原能力继续由角色功能权限控制。"
           style={{ marginBottom: 16 }}
         />

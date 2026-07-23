@@ -236,6 +236,7 @@ def import_raster_file(
     requested_default_rules: dict[str, Any] | None = None,
     uploader_id: int | None = None,
     access_group_ids: list[int] | None = None,
+    category_code: str = "",
 ) -> RasterDataset:
     input_path = input_path.expanduser().resolve()
     if not input_path.exists() or not input_path.is_file():
@@ -347,6 +348,7 @@ def import_raster_file(
                 bounds_4326=bounds_4326,
                 uploader_id=uploader_id,
                 access_group_ids=access_group_ids,
+                category_code=category_code,
             )
 
             dataset.source_gdalinfo = source_info

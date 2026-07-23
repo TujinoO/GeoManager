@@ -29,7 +29,6 @@ from apps.audit.events import SUCCESSFUL_AUTH_EVENT_CODES
 from apps.audit.models import OperationLog, UserActivityHour
 from apps.audit.service import log_operation
 from apps.catalog.models import (
-    DATA_DOMAIN_TYPE_CHOICES,
     DataResource,
     DataResourceGroup,
     MapLayer,
@@ -40,6 +39,13 @@ from apps.catalog.permissions import (
     filter_accessible,
     user_can_access,
     user_has_full_data_access,
+)
+from apps.catalog.taxonomy import (
+    TaxonomyError,
+    category_codes_for_filter,
+    data_category_queryset,
+    resolve_data_category,
+    serialize_category_path,
 )
 from apps.core.api import (
     api_login_required,
@@ -1081,13 +1087,18 @@ def admin_data_resources(request):
         or has_feature_perm(request.user, "catalog.add_dataresource")
     ):
         return feature_denied_response(request.user)
-    queryset = _filter_admin_data_resources(
-        DataResource.objects.select_related("category", "maintainer")
-        .select_related("inventory_group")
-        .prefetch_related("access_groups", "map_layers")
-        .order_by("-updated_at", "name"),
-        request.GET,
-    )
+    try:
+        queryset = _filter_admin_data_resources(
+            DataResource.objects.select_related(
+                "category", "category__parent", "maintainer"
+            )
+            .select_related("inventory_group")
+            .prefetch_related("access_groups", "map_layers")
+            .order_by("-updated_at", "name"),
+            request.GET,
+        )
+    except TaxonomyError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
     if (
         has_feature_perm(request.user, "catalog.view_dataresource")
         or has_feature_perm(request.user, "catalog.change_dataresource")
@@ -1212,7 +1223,9 @@ def admin_data_resource_detail(request, resource_id: int):
         return payload
     try:
         resource = (
-            DataResource.objects.select_related("category", "maintainer")
+            DataResource.objects.select_related(
+                "category", "category__parent", "maintainer"
+            )
             .select_related("inventory_group")
             .prefetch_related("access_groups", "map_layers")
             .get(pk=resource_id)
@@ -1236,6 +1249,7 @@ def admin_data_resource_detail(request, resource_id: int):
         "saveVisualization",
         "updateAccess",
         "updateInventoryGroup",
+        "updateClassification",
     }:
         return JsonResponse({"detail": "不支持的数据资源操作"}, status=400)
     if action == "updateAccess":
@@ -1249,6 +1263,7 @@ def admin_data_resource_detail(request, resource_id: int):
     update_fields = []
     changed_access = False
     changed_inventory_group = False
+    changed_classification = False
     if action in {"update", "setStatus"} and "status" in payload:
         status = str(payload.get("status", "")).strip()
         if status not in DataResource.Status.values:
@@ -1285,6 +1300,14 @@ def admin_data_resource_detail(request, resource_id: int):
         update_fields.append("inventory_group")
         changed_inventory_group = True
 
+    if action in {"update", "updateClassification"} and "categoryCode" in payload:
+        try:
+            resource.category = resolve_data_category(payload.get("categoryCode"))
+        except TaxonomyError as exc:
+            return JsonResponse({"detail": str(exc)}, status=400)
+        update_fields.append("category")
+        changed_classification = True
+
     if action in {"update", "saveVisualization"} and "visualization" in payload:
         visualization = payload.get("visualization")
         if not isinstance(visualization, dict):
@@ -1301,7 +1324,12 @@ def admin_data_resource_detail(request, resource_id: int):
         update_fields.append("updated_at")
         resource.save(update_fields=sorted(set(update_fields)))
 
-    if not update_fields and not changed_access and not changed_inventory_group:
+    if (
+        not update_fields
+        and not changed_access
+        and not changed_inventory_group
+        and not changed_classification
+    ):
         return JsonResponse({"detail": "没有可更新的数据资源字段"}, status=400)
 
     log_operation(
@@ -1318,7 +1346,9 @@ def admin_data_resource_detail(request, resource_id: int):
     )
     resource.refresh_from_db()
     updated_resource = (
-        DataResource.objects.select_related("category", "maintainer")
+        DataResource.objects.select_related(
+            "category", "category__parent", "maintainer"
+        )
         .select_related("inventory_group")
         .prefetch_related("access_groups", "map_layers")
         .get(pk=resource.id)
@@ -1329,13 +1359,18 @@ def admin_data_resource_detail(request, resource_id: int):
 @require_GET
 @api_permission_required("catalog.export_dataresource")
 def admin_data_resources_export(request):
-    queryset = _filter_admin_data_resources(
-        DataResource.objects.select_related("category", "maintainer")
-        .select_related("inventory_group")
-        .prefetch_related("access_groups", "map_layers")
-        .order_by("-updated_at", "name"),
-        request.GET,
-    )
+    try:
+        queryset = _filter_admin_data_resources(
+            DataResource.objects.select_related(
+                "category", "category__parent", "maintainer"
+            )
+            .select_related("inventory_group")
+            .prefetch_related("access_groups", "map_layers")
+            .order_by("-updated_at", "name"),
+            request.GET,
+        )
+    except TaxonomyError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
     queryset = filter_accessible(queryset, request.user)
     resources = list(queryset)
     export_format = str(request.GET.get("format", "csv")).strip().lower()
@@ -1614,6 +1649,8 @@ def _data_overview_scope(queryset, *, include_spatial: bool = True) -> dict[str,
         "totalSizeBytes": int(aggregate["total_size"] or 0),
         "totalItemCount": int(aggregate["total_items"] or 0),
         "typeBreakdown": _data_type_breakdown(queryset),
+        "categoryBreakdown": _data_category_breakdown(queryset),
+        "unclassifiedCount": queryset.filter(category__isnull=True).count(),
     }
     if include_spatial:
         scope["spatialSummary"] = _data_spatial_summary(queryset)
@@ -1630,15 +1667,86 @@ def _data_type_breakdown(queryset) -> list[dict[str, Any]]:
         )
         .order_by("data_type")
     )
-    return [
-        {
-            "dataType": row["data_type"],
+    stats = {
+        row["data_type"]: {
             "count": row["count"],
             "sizeBytes": int(row["size_bytes"] or 0),
             "itemCount": int(row["item_count"] or 0),
         }
         for row in rows
+    }
+    return [
+        {
+            "dataType": data_type,
+            **stats.get(
+                data_type,
+                {"count": 0, "sizeBytes": 0, "itemCount": 0},
+            ),
+        }
+        for data_type, _label in DataResource.DataType.choices
     ]
+
+
+def _data_category_breakdown(queryset) -> list[dict[str, Any]]:
+    """Return all active taxonomy roots and leaves, including zero-count nodes."""
+    categories = list(
+        data_category_queryset()
+        .filter(is_active=True)
+        .select_related("parent")
+        .order_by("sort_order", "id")
+    )
+    stats = {
+        row["category_id"]: {
+            "count": row["count"],
+            "sizeBytes": int(row["size_bytes"] or 0),
+            "itemCount": int(row["item_count"] or 0),
+        }
+        for row in queryset.values("category_id").annotate(
+            count=Count("id"),
+            size_bytes=Sum("size_bytes"),
+            item_count=Sum("item_count"),
+        )
+        if row["category_id"] is not None
+    }
+    children_by_parent: dict[int, list[Any]] = {}
+    for category in categories:
+        if category.parent_id is not None:
+            children_by_parent.setdefault(category.parent_id, []).append(category)
+
+    def category_row(category) -> dict[str, Any]:
+        values = stats.get(
+            category.id,
+            {"count": 0, "sizeBytes": 0, "itemCount": 0},
+        )
+        return {
+            "categoryCode": category.code,
+            "categoryName": category.name,
+            **values,
+        }
+
+    result = []
+    for root in (category for category in categories if category.parent_id is None):
+        children = [
+            category_row(category)
+            for category in children_by_parent.get(root.id, [])
+        ]
+        direct = stats.get(
+            root.id,
+            {"count": 0, "sizeBytes": 0, "itemCount": 0},
+        )
+        result.append(
+            {
+                "categoryCode": root.code,
+                "categoryName": root.name,
+                "count": direct["count"] + sum(item["count"] for item in children),
+                "sizeBytes": direct["sizeBytes"]
+                + sum(item["sizeBytes"] for item in children),
+                "itemCount": direct["itemCount"]
+                + sum(item["itemCount"] for item in children),
+                "children": children,
+            }
+        )
+    return result
 
 
 def _data_spatial_summary(queryset) -> dict[str, Any]:
@@ -1852,7 +1960,8 @@ def _filter_admin_data_resources(queryset, params):
     query = str(params.get("q", "")).strip()
     data_type = str(params.get("dataType", "")).strip()
     status = str(params.get("status", "")).strip()
-    category = str(params.get("category", "")).strip()
+    category = str(params.get("categoryCode") or params.get("category") or "").strip()
+    classification_status = str(params.get("classificationStatus", "")).strip()
     source = str(params.get("source", "")).strip()
     provider = str(params.get("provider", "")).strip()
     date_from = parse_date(str(params.get("dateFrom", "")).strip())
@@ -1871,7 +1980,15 @@ def _filter_admin_data_resources(queryset, params):
     if status:
         queryset = queryset.filter(status=status)
     if category:
-        queryset = queryset.filter(category__code=category)
+        queryset = queryset.filter(
+            category__code__in=category_codes_for_filter(category)
+        )
+    if classification_status == "classified":
+        queryset = queryset.filter(category_id__isnull=False)
+    elif classification_status == "pending":
+        queryset = queryset.filter(category_id__isnull=True)
+    elif classification_status:
+        raise TaxonomyError("classificationStatus 仅支持 classified 或 pending")
     if source:
         queryset = queryset.filter(source__icontains=source)
     if provider:
@@ -1913,17 +2030,51 @@ def _admin_data_resource_group_summaries(
         "sizeBytes": summary["sizeBytes"],
         "itemCount": summary["itemCount"],
     }
-    domain_codes = [code for code, _label in DATA_DOMAIN_TYPE_CHOICES]
-    domain_stats = {code: _empty_admin_data_resource_stats() for code in domain_codes}
+    categories = list(
+        data_category_queryset()
+        .filter(is_active=True)
+        .only("id", "code", "parent_id", "sort_order")
+        .order_by("sort_order", "id")
+    )
+    category_by_id = {category.id: category for category in categories}
+    category_children: dict[int | None, list[Any]] = {}
+    for category in categories:
+        category_children.setdefault(category.parent_id, []).append(category)
+    direct_category_stats = {
+        category.id: _empty_admin_data_resource_stats() for category in categories
+    }
+    unclassified_stats = _empty_admin_data_resource_stats()
     for row in (
         queryset.order_by()
-        .values("domain_type")
+        .values("category_id")
         .annotate(**_admin_data_resource_stat_annotations())
     ):
-        domain_type = row.pop("domain_type") or "other"
-        if domain_type not in domain_stats:
-            domain_type = "other"
-        _merge_admin_data_resource_stats(domain_stats[domain_type], row)
+        category_id = row.pop("category_id")
+        if category_id not in category_by_id:
+            _merge_admin_data_resource_stats(unclassified_stats, row)
+            continue
+        _merge_admin_data_resource_stats(direct_category_stats[category_id], row)
+
+    def subtree_stats(category_id: int) -> dict[str, int]:
+        stats = _empty_admin_data_resource_stats()
+        _merge_admin_data_resource_stats(stats, direct_category_stats[category_id])
+        for child in category_children.get(category_id, []):
+            _merge_admin_data_resource_stats(stats, subtree_stats(child.id))
+        return stats
+
+    def category_summaries(parent_id: int | None) -> list[dict[str, Any]]:
+        summaries: list[dict[str, Any]] = []
+        for category in category_children.get(parent_id, []):
+            summaries.append(
+                _admin_data_resource_group_summary(
+                    key=f"__category__:{category.code}",
+                    kind="category",
+                    category_code=category.code,
+                    stats=subtree_stats(category.id),
+                )
+            )
+            summaries.extend(category_summaries(category.id))
+        return summaries
 
     custom_stats = {
         row["inventory_group_id"]: row
@@ -1937,14 +2088,13 @@ def _admin_data_resource_group_summaries(
     summaries = [
         _admin_data_resource_group_summary(key="__all__", kind="all", stats=all_stats)
     ]
-    summaries.extend(
+    summaries.extend(category_summaries(None))
+    summaries.append(
         _admin_data_resource_group_summary(
-            key=f"__domain__:{domain_type}",
-            kind="business",
-            domain_type=domain_type,
-            stats=domain_stats[domain_type],
+            key="__unclassified__",
+            kind="unclassified",
+            stats=unclassified_stats,
         )
-        for domain_type in domain_codes
     )
     summaries.extend(
         _admin_data_resource_group_summary(
@@ -1996,12 +2146,14 @@ def _admin_data_resource_group_summary(
     kind: str,
     stats: dict[str, Any],
     domain_type: str | None = None,
+    category_code: str | None = None,
     inventory_group_id: int | None = None,
 ) -> dict[str, Any]:
     return {
         "key": key,
         "kind": kind,
         "domainType": domain_type,
+        "categoryCode": category_code,
         "inventoryGroupId": inventory_group_id,
         **{
             stat_key: int(stats.get(stat_key) or 0)
@@ -2024,6 +2176,10 @@ def _serialize_admin_data_resource(
         "dataType": resource.data_type,
         "domainType": resource.domain_type or None,
         "category": _serialize_dictionary_item(resource.category),
+        "categoryPath": serialize_category_path(resource.category),
+        "classificationStatus": (
+            "classified" if resource.category_id is not None else "pending"
+        ),
         "source": resource.source,
         "provider": resource.provider,
         "dataDate": resource.data_date.isoformat() if resource.data_date else None,
@@ -2103,6 +2259,8 @@ def _serialize_dictionary_item(item) -> dict[str, Any] | None:
         "type": item.dict_type,
         "code": item.code,
         "name": item.name,
+        "parentId": item.parent_id,
+        "selectable": item.is_selectable,
     }
 
 
@@ -2321,6 +2479,8 @@ def _admin_resource_action_label(action: str, payload: dict[str, Any]) -> str:
         return "配置数据访问权限"
     if action == "updateInventoryGroup":
         return "配置数据组别"
+    if action == "updateClassification":
+        return "调整数据业务分类"
     changed = []
     if "status" in payload:
         changed.append("状态")
@@ -2330,6 +2490,8 @@ def _admin_resource_action_label(action: str, payload: dict[str, Any]) -> str:
         changed.append("访问权限")
     if "inventoryGroupId" in payload:
         changed.append("组别")
+    if "categoryCode" in payload:
+        changed.append("业务分类")
     return f"更新存量数据{'、'.join(changed)}" if changed else "更新存量数据"
 
 

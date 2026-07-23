@@ -158,6 +158,7 @@ def start_import_job(
     default_rules: dict[str, Any] | None = None,
     uploader_id: int | None = None,
     access_group_ids: list[int] | None = None,
+    category_code: str = "",
     created_by_id: int | None = None,
 ) -> RasterJob:
     from apps.raster.services.importer import (
@@ -184,6 +185,7 @@ def start_import_job(
                 requested_default_rules=default_rules,
                 uploader_id=uploader_id,
                 access_group_ids=access_group_ids,
+                category_code=category_code,
             )
             _finish_job(job.id, serialize_raster_dataset(dataset), "ready")
         except Exception as exc:

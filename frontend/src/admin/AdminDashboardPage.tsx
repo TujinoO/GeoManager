@@ -97,6 +97,13 @@ const dataTypeColors: Record<string, string> = {
   image: "#d45f7a",
 };
 
+const categoryColors: Record<string, string> = {
+  base_geo: "#397fb8",
+  habitat: "#2f9c76",
+  distribution: "#d58a2a",
+  thematic: "#8b6dd7",
+};
+
 type OverviewPolygonFeature = {
   type: "Feature";
   properties: Record<string, number | string>;
@@ -722,7 +729,7 @@ function DataOverviewScopePanel({
         <DataOverviewSpatialPanel scope={scope} />
         <div className="admin-overview-analytics-grid">
           <DataTypeDistributionCard scope={scope} />
-          <CoverageRankingCard summary={spatialSummary} />
+          <BusinessCategoryDistributionCard scope={scope} />
         </div>
         {footer}
       </section>
@@ -950,6 +957,7 @@ function DataOverviewSpatialPanel({ scope }: { scope: DataOverviewScope }) {
             {summary.resourceExtentsTruncated && (
               <Tag color="warning">已优先展示覆盖面积最大的 80 项</Tag>
             )}
+            <CoverageRankingPanel summary={summary} />
           </div>
         </div>
       </Card>
@@ -1131,61 +1139,200 @@ function DataTypeDistributionCard({ scope }: { scope: DataOverviewScope }) {
   const gradient = buildDonutGradient(scope.typeBreakdown, typeTotal);
 
   return (
-    <BorderBeam color={oceanBorderBeam}>
-      <Card className="admin-dashboard-card admin-overview-panel-card">
-        <PanelTitle icon={<PieChartOutlined />} title="数据类型分布" />
-        {scope.typeBreakdown.length === 0 ? (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据" />
-        ) : (
-          <div className="admin-type-distribution">
-            <div className="admin-type-donut" style={{ background: gradient }}>
-              <div>
-                <strong>{scope.totalResources}</strong>
-                <span>项资源</span>
+    <div className="admin-overview-grid-format">
+      <BorderBeam color={oceanBorderBeam}>
+        <Card className="admin-dashboard-card admin-overview-panel-card">
+          <PanelTitle icon={<PieChartOutlined />} title="数据格式类型" />
+          <Typography.Text type="secondary" className="admin-panel-subtitle">
+            按资源的物理存储格式统计数量、体量与数据条目
+          </Typography.Text>
+          {scope.typeBreakdown.length === 0 ? (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="暂无数据"
+            />
+          ) : (
+            <div className="admin-type-distribution">
+              <div
+                className="admin-type-donut"
+                style={{ background: gradient }}
+              >
+                <div>
+                  <strong>{scope.totalResources}</strong>
+                  <span>项资源</span>
+                </div>
+              </div>
+              <div className="admin-type-breakdown-list">
+                {scope.typeBreakdown.map((item) => {
+                  const percent =
+                    typeTotal > 0 ? (item.count / typeTotal) * 100 : 0;
+                  const color = dataTypeColor(item.dataType);
+                  return (
+                    <div
+                      key={item.dataType}
+                      className="admin-type-breakdown-row"
+                    >
+                      <div className="admin-type-breakdown-heading">
+                        <span
+                          className="admin-type-swatch"
+                          style={{ background: color }}
+                        />
+                        <Typography.Text strong>
+                          {dataTypeLabels[item.dataType] ?? item.dataType}
+                        </Typography.Text>
+                        <Tag>{percent.toFixed(0)}%</Tag>
+                      </div>
+                      <div className="admin-type-breakdown-bar">
+                        <span
+                          style={{
+                            width:
+                              item.count > 0
+                                ? `${Math.max(percent, 4)}%`
+                                : "0%",
+                            background: color,
+                          }}
+                        />
+                      </div>
+                      <div className="admin-type-breakdown-meta">
+                        <span>{item.count} 项</span>
+                        <span>{formatBytes(item.sizeBytes)}</span>
+                        <span>{formatNumber(item.itemCount)} 条</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-            <div className="admin-type-breakdown-list">
-              {scope.typeBreakdown.map((item) => {
+          )}
+        </Card>
+      </BorderBeam>
+    </div>
+  );
+}
+
+function BusinessCategoryDistributionCard({
+  scope,
+}: {
+  scope: DataOverviewScope;
+}) {
+  const categoryTotal = scope.categoryBreakdown.reduce(
+    (sum, category) => sum + category.count,
+    0,
+  );
+  const gradient = buildCategoryDonutGradient(
+    scope.categoryBreakdown,
+    categoryTotal,
+  );
+
+  return (
+    <div className="admin-overview-grid-category">
+      <BorderBeam color={oceanBorderBeam}>
+        <Card className="admin-dashboard-card admin-overview-panel-card">
+          <div className="admin-category-panel-heading">
+            <div>
+              <PanelTitle icon={<ClusterOutlined />} title="业务分类分布" />
+              <Typography.Text
+                type="secondary"
+                className="admin-panel-subtitle"
+              >
+                按平台权威分类体系统计四个大类及其十五个小类
+              </Typography.Text>
+            </div>
+            {scope.unclassifiedCount > 0 && (
+              <Tag color="warning">待分类 {scope.unclassifiedCount} 项</Tag>
+            )}
+          </div>
+          <div className="admin-category-summary">
+            <div
+              className="admin-type-donut admin-category-donut"
+              style={{ background: gradient }}
+            >
+              <div>
+                <strong>{categoryTotal}</strong>
+                <span>已分类资源</span>
+              </div>
+            </div>
+            <div className="admin-category-major-list">
+              {scope.categoryBreakdown.map((category) => {
                 const percent =
-                  typeTotal > 0 ? (item.count / typeTotal) * 100 : 0;
-                const color = dataTypeColor(item.dataType);
+                  categoryTotal > 0
+                    ? (category.count / categoryTotal) * 100
+                    : 0;
+                const color = categoryColor(category.categoryCode);
                 return (
-                  <div key={item.dataType} className="admin-type-breakdown-row">
-                    <div className="admin-type-breakdown-heading">
-                      <span
-                        className="admin-type-swatch"
-                        style={{ background: color }}
-                      />
-                      <Typography.Text strong>
-                        {dataTypeLabels[item.dataType] ?? item.dataType}
-                      </Typography.Text>
-                      <Tag>{percent.toFixed(0)}%</Tag>
-                    </div>
-                    <div className="admin-type-breakdown-bar">
-                      <span
-                        style={{
-                          width: `${Math.max(percent, 4)}%`,
-                          background: color,
-                        }}
-                      />
-                    </div>
-                    <div className="admin-type-breakdown-meta">
-                      <span>{item.count} 项</span>
-                      <span>{formatBytes(item.sizeBytes)}</span>
-                      <span>{formatNumber(item.itemCount)} 条</span>
-                    </div>
+                  <div
+                    key={category.categoryCode}
+                    className="admin-category-major-row"
+                  >
+                    <span
+                      className="admin-type-swatch"
+                      style={{ background: color }}
+                    />
+                    <Typography.Text strong title={category.categoryName}>
+                      {category.categoryName}
+                    </Typography.Text>
+                    <strong>{category.count}</strong>
+                    <span>{percent.toFixed(0)}%</span>
                   </div>
                 );
               })}
             </div>
           </div>
-        )}
-      </Card>
-    </BorderBeam>
+          <div className="admin-category-group-grid">
+            {scope.categoryBreakdown.map((category) => {
+              const color = categoryColor(category.categoryCode);
+              const maxChildCount = Math.max(
+                ...category.children.map((child) => child.count),
+                0,
+              );
+              return (
+                <section
+                  key={category.categoryCode}
+                  className="admin-category-group"
+                  style={{ "--category-color": color } as CSSProperties}
+                >
+                  <div className="admin-category-group-heading">
+                    <span>
+                      <i style={{ background: color }} />
+                      <Typography.Text strong>
+                        {category.categoryName}
+                      </Typography.Text>
+                    </span>
+                    <Tag>{category.count} 项</Tag>
+                  </div>
+                  <div className="admin-category-leaf-list">
+                    {category.children.map((child) => {
+                      const width =
+                        maxChildCount > 0
+                          ? (child.count / maxChildCount) * 100
+                          : 0;
+                      return (
+                        <div
+                          key={child.categoryCode}
+                          className="admin-category-leaf-row"
+                        >
+                          <span className="admin-category-leaf-name">
+                            {child.categoryName}
+                          </span>
+                          <span className="admin-category-leaf-track">
+                            <i style={{ width: `${width}%` }} />
+                          </span>
+                          <strong>{child.count}</strong>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </Card>
+      </BorderBeam>
+    </div>
   );
 }
 
-function CoverageRankingCard({
+function CoverageRankingPanel({
   summary,
 }: {
   summary: DataOverviewSpatialSummary;
@@ -1196,60 +1343,63 @@ function CoverageRankingCard({
   );
 
   return (
-    <BorderBeam color={oceanBorderBeam}>
-      <Card className="admin-dashboard-card admin-overview-panel-card">
+    <section className="admin-spatial-ranking-panel">
+      <div className="admin-spatial-ranking-heading">
         <PanelTitle icon={<BarChartOutlined />} title="空间覆盖排行" />
-        {summary.coverageRanking.length === 0 ? (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="暂无空间范围"
-          />
-        ) : (
-          <div className="admin-coverage-rank-list">
-            {summary.coverageRanking.slice(0, 8).map((item, index) => {
-              const ratio = maxArea > 0 ? item.coverageAreaKm2 / maxArea : 0;
-              const visualRatio = Math.sqrt(ratio);
-              const color = dataTypeColor(item.dataType);
-              return (
-                <div key={item.resourceId} className="admin-coverage-rank-row">
-                  <span className="admin-coverage-rank-index">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <div className="admin-coverage-rank-main">
-                    <div className="admin-coverage-rank-title">
-                      <Typography.Text strong title={item.name}>
-                        {item.name}
-                      </Typography.Text>
-                    </div>
-                    <div className="admin-coverage-rank-meta">
-                      <span>{formatNumber(item.itemCount)} 条</span>
-                      <span>{formatBytes(item.sizeBytes)}</span>
-                      <span>{item.uploaderName}</span>
-                    </div>
-                  </div>
-                  <div className="admin-coverage-rank-side">
-                    <Tag style={{ color, borderColor: color }}>
-                      {dataTypeLabels[item.dataType] ?? item.dataType}
-                    </Tag>
-                    <Typography.Text className="admin-coverage-rank-value">
-                      {formatArea(item.coverageAreaKm2)}
+        <Typography.Text type="secondary">
+          TOP {Math.min(summary.coverageRanking.length, 8)}
+        </Typography.Text>
+      </div>
+      {summary.coverageRanking.length === 0 ? (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description="暂无空间范围"
+        />
+      ) : (
+        <div className="admin-coverage-rank-list">
+          {summary.coverageRanking.slice(0, 8).map((item, index) => {
+            const ratio = maxArea > 0 ? item.coverageAreaKm2 / maxArea : 0;
+            const visualRatio = Math.sqrt(ratio);
+            const color = dataTypeColor(item.dataType);
+            return (
+              <div key={item.resourceId} className="admin-coverage-rank-row">
+                <span className="admin-coverage-rank-index">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <div className="admin-coverage-rank-main">
+                  <div className="admin-coverage-rank-title">
+                    <Typography.Text strong title={item.name}>
+                      {item.name}
                     </Typography.Text>
                   </div>
-                  <div className="admin-coverage-rank-track">
-                    <span
-                      style={{
-                        width: `${Math.max(visualRatio * 100, 6)}%`,
-                        background: color,
-                      }}
-                    />
+                  <div className="admin-coverage-rank-meta">
+                    <span>{formatNumber(item.itemCount)} 条</span>
+                    <span>{formatBytes(item.sizeBytes)}</span>
+                    <span>{item.uploaderName}</span>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
-    </BorderBeam>
+                <div className="admin-coverage-rank-side">
+                  <Tag style={{ color, borderColor: color }}>
+                    {dataTypeLabels[item.dataType] ?? item.dataType}
+                  </Tag>
+                  <Typography.Text className="admin-coverage-rank-value">
+                    {formatArea(item.coverageAreaKm2)}
+                  </Typography.Text>
+                </div>
+                <div className="admin-coverage-rank-track">
+                  <span
+                    style={{
+                      width: `${Math.max(visualRatio * 100, 6)}%`,
+                      background: color,
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1322,6 +1472,10 @@ function ServerCard({
 
 function dataTypeColor(dataType: string) {
   return dataTypeColors[dataType] ?? "#6f8c87";
+}
+
+function categoryColor(categoryCode: string) {
+  return categoryColors[categoryCode] ?? "#6f8c87";
 }
 
 function overviewMapLayerIds(prefix: string) {
@@ -1852,6 +2006,24 @@ function buildDonutGradient(
     cursor = end;
     const color = dataTypeColor(item.dataType);
     return `${color} ${start.toFixed(2)}deg ${end.toFixed(2)}deg`;
+  });
+  return `conic-gradient(${segments.join(", ")})`;
+}
+
+function buildCategoryDonutGradient(
+  items: DataOverviewScope["categoryBreakdown"],
+  total: number,
+) {
+  if (items.length === 0 || total <= 0) {
+    return "conic-gradient(#dfe7e1 0deg 360deg)";
+  }
+  let cursor = 0;
+  const segments = items.map((item) => {
+    const start = cursor;
+    const span = (item.count / total) * 360;
+    const end = start + span;
+    cursor = end;
+    return `${categoryColor(item.categoryCode)} ${start.toFixed(2)}deg ${end.toFixed(2)}deg`;
   });
   return `conic-gradient(${segments.join(", ")})`;
 }

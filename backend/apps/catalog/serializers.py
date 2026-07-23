@@ -4,6 +4,7 @@ from apps.catalog.models import (
     DictionaryItem,
     MapLayer,
 )
+from apps.catalog.taxonomy import serialize_category_path
 
 
 def serialize_dictionary(item: DictionaryItem | None) -> dict | None:
@@ -14,10 +15,13 @@ def serialize_dictionary(item: DictionaryItem | None) -> dict | None:
         "type": item.dict_type,
         "code": item.code,
         "name": item.name,
+        "parentId": item.parent_id,
+        "selectable": item.is_selectable,
     }
 
 
 def serialize_resource(resource: DataResource) -> dict:
+    available_views, default_view = _resource_views(resource)
     return {
         "id": resource.id,
         "name": resource.name,
@@ -26,6 +30,12 @@ def serialize_resource(resource: DataResource) -> dict:
         "spatialClass": resource.spatial_class,
         "domainType": resource.domain_type or None,
         "category": serialize_dictionary(resource.category),
+        "categoryPath": serialize_category_path(resource.category),
+        "classificationStatus": (
+            "classified" if resource.category_id is not None else "pending"
+        ),
+        "availableViews": available_views,
+        "defaultView": default_view,
         "source": resource.source,
         "provider": resource.provider,
         "dataDate": resource.data_date.isoformat() if resource.data_date else None,
@@ -45,6 +55,18 @@ def serialize_resource(resource: DataResource) -> dict:
         ),
         "updatedAt": resource.updated_at.isoformat(),
     }
+
+
+def _resource_views(resource: DataResource) -> tuple[list[str], str]:
+    if resource.data_type == DataResource.DataType.VECTOR:
+        return ["map", "table", "metadata"], "map"
+    if resource.data_type == DataResource.DataType.RASTER:
+        return ["map", "metadata"], "map"
+    if resource.data_type == DataResource.DataType.IMAGE:
+        return ["gallery", "metadata"], "gallery"
+    # V1 先诚实返回当前已实现能力；普通表格真实分析和文件预览在后续
+    # 增强中启用，避免前端把演示数据当成真实结果。
+    return ["metadata"], "metadata"
 
 
 def serialize_catalog(catalog: DataCatalog) -> dict:

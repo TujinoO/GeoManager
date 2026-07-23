@@ -15,7 +15,9 @@ from apps.core.map_thumbnail import thumbnail_tile
 from apps.core.models import SystemSetting
 from apps.core.runtime_config import runtime_allow_registration, runtime_system_name
 
-PLATFORM_ENGLISH_NAME = "Central Asia Poplar Forest Ecosystem Data Platform"
+PLATFORM_ENGLISH_NAME = (
+    "Global Poplar Forest Ecosystem Protection Data Sharing Platform"
+)
 PLATFORM_ABBREVIATION = "CAPFED"
 PLATFORM_EDITION = "CAPFED-WebGIS Research Edition"
 
@@ -111,15 +113,13 @@ def health(request):
 @require_GET
 def map_thumbnail_tile(request, z: int, x: int, y: int):
     try:
-        data, content_type = thumbnail_tile(z, x, y)
+        data, content_type, is_fallback = thumbnail_tile(z, x, y)
     except ValueError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
 
     response = HttpResponse(data, content_type=content_type)
     response["Cache-Control"] = (
-        "public, max-age=60"
-        if content_type == "image/svg+xml"
-        else "public, max-age=86400"
+        "public, max-age=60" if is_fallback else "public, max-age=86400"
     )
     return response
 

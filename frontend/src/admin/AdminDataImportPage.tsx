@@ -33,6 +33,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ApiError, api } from "../api/client";
 import { useAppContext } from "../contexts/AppContext";
 import type {
+  AdminDataResourceAccessGroup,
   DataDomainType,
   DataSchemaSummary,
   ImportCommitPayload,
@@ -53,15 +54,18 @@ import {
   type ImportFormValues,
 } from "./importValues";
 import VectorImportWorkflow from "./VectorImportWorkflow";
+import ResultImportWorkflow from "./ResultImportWorkflow";
+import { taxonomyLeafOptions } from "../utils/taxonomy";
 
 type IssueAction = "continue" | "import";
+type ImportTarget = "resource" | "result";
 type ImportKind = "tabular" | "raster" | "vector" | "unsupported";
 type ImportStorageMode = ImportFormValues["importMode"] | "raster";
 type DomainDefinition = DataSchemaSummary["domains"][number];
 type RasterDimensions = { width: number; height: number };
 const selfAccessScopeId = "__self__";
 const unfinishedImportWarning =
-  "当前导入尚未完成，离开页面会丢失已选择的文件、导入配置、校验结果和字段元数据。";
+  "当前导入尚未完成，离开页面会丢失已选择的文件、配置和校验结果。";
 type AccessScopeId = ImportAccessScopeId;
 
 const spatialClassLabels: Record<string, string> = {
@@ -293,6 +297,20 @@ export default function AdminDataImportPage() {
   const currentPathRef = useRef("");
   const rasterPreviewRequestRef = useRef(0);
   const [form] = Form.useForm<ImportFormValues>();
+  const canImportResources = Boolean(user?.permissions.canUploadData);
+  const canImportResults = Boolean(
+    user?.permissions.canViewResultArtifacts &&
+    user.permissions.canImportResultArtifacts &&
+    user.permissions.canPublishResultArtifacts,
+  );
+  const [importTarget, setImportTarget] = useState<ImportTarget>(() =>
+    (new URLSearchParams(location.search).get("target") === "result" &&
+      canImportResults) ||
+    !canImportResources
+      ? "result"
+      : "resource",
+  );
+  const [resultImportDirty, setResultImportDirty] = useState(false);
   const [schema, setSchema] = useState<DataSchemaSummary | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [importKind, setImportKind] = useState<ImportKind | null>(null);
@@ -356,6 +374,9 @@ export default function AdminDataImportPage() {
   const [rasterAccessGroupIds, setRasterAccessGroupIds] = useState<number[]>(
     [],
   );
+  const [rasterCategoryCode, setRasterCategoryCode] = useState(
+    "thematic_landscape_rs",
+  );
   const [vectorFile, setVectorFile] = useState<File | null>(null);
   const [vectorResult, setVectorResult] =
     useState<VectorImportCommitResult | null>(null);
@@ -366,11 +387,13 @@ export default function AdminDataImportPage() {
     (rasterJob && isActiveRasterJob(rasterJob)) ||
     (vectorFile && !vectorResult),
   );
+  const hasPendingImport = hasUnfinishedImport || resultImportDirty;
 
   const domainDefinitions = useMemo(
     () => (schema?.domains.length ? schema.domains : fallbackDomainDefinitions),
     [schema?.domains],
   );
+  const categoryOptions = useMemo(() => taxonomyLeafOptions(schema), [schema]);
   const selectedDomainType =
     Form.useWatch("domainType", form) ?? importConfig.domainType;
   const selectedDomain = useMemo(
@@ -461,15 +484,19 @@ export default function AdminDataImportPage() {
   }, [location.hash, location.pathname, location.search]);
 
   useEffect(() => {
-    if (!user?.permissions.canUploadData) {
+    if (!canImportResources && !canImportResults) {
       return;
     }
     let ignore = false;
-    api
-      .adminDataResources({ current: 1, pageSize: 1 })
+    const request = canImportResources
+      ? api
+          .adminDataResources({ current: 1, pageSize: 1 })
+          .then((result) => result.availableAccessGroups)
+      : api.resultArtifacts().then((result) => result.availableAccessGroups);
+    request
       .then((result) => {
         if (!ignore) {
-          setAvailableAccessGroups(result.availableAccessGroups);
+          setAvailableAccessGroups(result);
         }
       })
       .catch(() => {
@@ -480,7 +507,7 @@ export default function AdminDataImportPage() {
     return () => {
       ignore = true;
     };
-  }, [user?.permissions.canUploadData]);
+  }, [canImportResources, canImportResults]);
 
   useEffect(() => {
     if (!user?.permissions.canUploadData || !user.permissions.canBrowseData) {
@@ -524,7 +551,7 @@ export default function AdminDataImportPage() {
   }, [setBootstrap]);
 
   useEffect(() => {
-    if (!hasUnfinishedImport) {
+    if (!hasPendingImport) {
       return;
     }
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -535,10 +562,10 @@ export default function AdminDataImportPage() {
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [hasUnfinishedImport]);
+  }, [hasPendingImport]);
 
   useEffect(() => {
-    if (!hasUnfinishedImport) {
+    if (!hasPendingImport) {
       return;
     }
     const originalPushState = window.history.pushState;
@@ -637,7 +664,7 @@ export default function AdminDataImportPage() {
       window.removeEventListener("popstate", handlePopState, { capture: true });
       document.removeEventListener("click", handleDocumentClick, true);
     };
-  }, [hasUnfinishedImport, location.hash, location.pathname, location.search]);
+  }, [hasPendingImport, location.hash, location.pathname, location.search]);
 
   useEffect(() => {
     if (!rasterJob || !isActiveRasterJob(rasterJob)) {
@@ -672,8 +699,60 @@ export default function AdminDataImportPage() {
     };
   }, [message, rasterJob]);
 
-  if (!user?.permissions.canUploadData) {
+  if (!canImportResources && !canImportResults) {
     return <Navigate to="/admin/profile" replace />;
+  }
+
+  function handleImportTargetChange(nextTarget: ImportTarget) {
+    if (nextTarget === importTarget) return;
+    if (hasPendingImport) {
+      message.warning("请先完成当前导入或点击重新选择清空内容，再切换导入目标");
+      return;
+    }
+    setImportTarget(nextTarget);
+  }
+
+  const importTargetSelector = (
+    <ProCard className="admin-section-card import-target-card">
+      <div className="import-target-heading">
+        <div>
+          <Typography.Title level={4}>选择导入目标</Typography.Title>
+          <Typography.Text type="secondary">
+            数据资源用于后续地图加载、查询和分析；成果文件用于集中展示已经完成的图件、报告、图表和表格。
+          </Typography.Text>
+        </div>
+        <Radio.Group
+          optionType="button"
+          buttonStyle="solid"
+          value={importTarget}
+          onChange={(event) =>
+            handleImportTargetChange(event.target.value as ImportTarget)
+          }
+          options={[
+            ...(canImportResources
+              ? [{ label: "导入为数据资源", value: "resource" as const }]
+              : []),
+            ...(canImportResults
+              ? [{ label: "导入并发布成果", value: "result" as const }]
+              : []),
+          ]}
+        />
+      </div>
+    </ProCard>
+  );
+
+  if (importTarget === "result") {
+    return (
+      <div className="admin-page-stack admin-import-page">
+        {importTargetSelector}
+        <ResultImportWorkflow
+          categoryOptions={categoryOptions}
+          accessGroups={availableAccessGroups}
+          uploadMaxMb={bootstrap.limits.uploadMaxMb}
+          onDirtyChange={setResultImportDirty}
+        />
+      </div>
+    );
   }
 
   function resetImportState() {
@@ -709,6 +788,7 @@ export default function AdminDataImportPage() {
     setRasterResampling("bilinear");
     setRasterDefaultRules({});
     setRasterAccessGroupIds([]);
+    setRasterCategoryCode("thematic_landscape_rs");
     setVectorFile(null);
     setVectorResult(null);
     setUnsupportedFile(null);
@@ -946,6 +1026,7 @@ export default function AdminDataImportPage() {
         resampling: rasterResampling,
         defaultRules: rasterDefaultRules,
         accessGroupIds: rasterAccessGroupIds,
+        categoryCode: rasterCategoryCode,
       };
       const job = await api.importRaster(rasterFiles, payload, (percent) => {
         setRasterUploadProgress(percent);
@@ -1000,6 +1081,11 @@ export default function AdminDataImportPage() {
         setCurrentStep(1);
         return;
       }
+      if (!values.categoryCode) {
+        message.warning("请选择权威业务分类");
+        setCurrentStep(1);
+        return;
+      }
       if (duplicateTarget && !duplicateNameConfirmed) {
         message.warning("请先在数据校验阶段确认重复数据名称");
         setCurrentStep(1);
@@ -1011,6 +1097,7 @@ export default function AdminDataImportPage() {
       const payload: ImportCommitPayload = {
         name: values.name,
         domainType: values.domainType,
+        categoryCode: values.categoryCode,
         sheetName: preview.activeSheetName ?? undefined,
         importMode: values.importMode,
         longitudeColumn: values.longitudeColumn,
@@ -1057,6 +1144,7 @@ export default function AdminDataImportPage() {
 
   return (
     <div className="admin-page-stack admin-import-page">
+      {importTargetSelector}
       <ProCard className="admin-section-card">
         <Steps current={currentStep} items={stepItems} />
       </ProCard>
@@ -1272,9 +1360,27 @@ export default function AdminDataImportPage() {
               </section>
 
               <section className="import-section">
-                <Typography.Title level={5}>业务数据类型</Typography.Title>
+                <Typography.Title level={5}>权威业务分类</Typography.Title>
                 <Typography.Text type="secondary">
-                  先确定这批数据在平台数据库中的业务归属，后续字段映射和标准化入库会围绕该类型展开。
+                  资源必须挂接到甲方四大类体系的叶节点；地理/非地理仅作为存储和展示能力。
+                </Typography.Text>
+                <Form.Item
+                  name="categoryCode"
+                  rules={[{ required: true, message: "请选择权威业务分类" }]}
+                >
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="选择四大类下的具体叶节点"
+                    options={categoryOptions}
+                  />
+                </Form.Item>
+              </section>
+
+              <section className="import-section">
+                <Typography.Title level={5}>兼容业务标签</Typography.Title>
+                <Typography.Text type="secondary">
+                  保留既有业务标签用于兼容当前可视化模板和标准实体映射，不再作为一级导航。
                 </Typography.Text>
                 <Form.Item
                   name="domainType"
@@ -1287,7 +1393,7 @@ export default function AdminDataImportPage() {
                         value={domain.code}
                         className="import-domain-card"
                       >
-                        <Space direction="vertical" size={4}>
+                        <Space orientation="vertical" size={4}>
                           <Space size={6} wrap>
                             <Typography.Text strong>
                               {domain.name}
@@ -1582,6 +1688,25 @@ export default function AdminDataImportPage() {
                 />
               </section>
 
+              <section className="import-section">
+                <Typography.Title level={5}>权威业务分类</Typography.Title>
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  value={rasterCategoryCode}
+                  options={categoryOptions}
+                  onChange={setRasterCategoryCode}
+                  style={{ width: "100%" }}
+                />
+                <Alert
+                  type="info"
+                  showIcon
+                  title="遥感影像默认归入“胡杨专题数据 / 景观与遥感”"
+                  description="若该栅格本质上是 LUCC、气候或土壤专题，请在提交前改选对应叶节点。"
+                  style={{ marginTop: 10 }}
+                />
+              </section>
+
               <Descriptions
                 size="small"
                 bordered
@@ -1737,6 +1862,7 @@ export default function AdminDataImportPage() {
               key={`${vectorFile.name}-${vectorFile.lastModified}`}
               file={vectorFile}
               domainDefinitions={domainDefinitions}
+              categoryOptions={categoryOptions}
               availableAccessGroups={availableAccessGroups}
               onReset={resetImportState}
               onCompleted={setVectorResult}
@@ -2469,12 +2595,7 @@ function importIssuesFromError(error: unknown): ImportValidationIssue[] {
   return Array.isArray(data?.issues) ? data.issues : [];
 }
 
-type ImportAccessGroup = {
-  id: number;
-  name: string;
-  isGuest?: boolean;
-  isSuperadmin?: boolean;
-};
+type ImportAccessGroup = AdminDataResourceAccessGroup;
 
 function isGuestGroup(group: ImportAccessGroup) {
   return group.isGuest === true || group.name === "游客";

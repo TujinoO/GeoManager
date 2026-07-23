@@ -1,13 +1,18 @@
 import {
+  AlertOutlined,
   ApartmentOutlined,
   BookOutlined,
   DatabaseOutlined,
   FolderOpenOutlined,
+  HomeOutlined,
   InfoCircleOutlined,
   ImportOutlined,
   LogoutOutlined,
+  PictureOutlined,
+  ProjectOutlined,
   QrcodeOutlined,
   QuestionCircleOutlined,
+  ReadOutlined,
   SearchOutlined,
   SettingOutlined,
   UserOutlined,
@@ -26,7 +31,7 @@ import {
   Tour,
   Typography,
 } from "antd";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import {
   useCallback,
   useEffect,
@@ -43,6 +48,7 @@ import type {
   DataDomainType,
   DataSchemaCatalogNode,
   DataSchemaSummary,
+  MapComposition,
   ResourceListItem,
   WorkspaceScene,
 } from "../types";
@@ -52,11 +58,21 @@ import {
   resourceProvider,
 } from "../utils/resources";
 import { clearCachedLayerGroups } from "../utils/layerWorkspaceStorage";
-import { aboutSections } from "../about/aboutSections";
+import { taxonomyTree } from "../utils/taxonomy";
+import { aboutNavigationSections } from "../about/aboutSections";
 
-export type WorkspaceTab = "map" | "nongeo" | "resources" | "admin" | "about";
+export type WorkspaceTab =
+  | "home"
+  | "map"
+  | "nongeo"
+  | "results"
+  | "warning"
+  | "resources"
+  | "admin"
+  | "knowledge"
+  | "about";
 
-const platformChineseName = "中亚胡杨林生态系统保护数据共享平台";
+const platformChineseName = "全球胡杨林生态系统保护数据共享平台";
 const hoverExpandDelayMs = 100;
 const searchOpenDelayMs = 400;
 const workspaceTourStoragePrefix = "huyang-system.workspace-tour.v1";
@@ -66,16 +82,13 @@ interface WorkspaceHeaderProps {
   canBrowseData: boolean;
   resources?: ResourceListItem[];
   workspaceScenes?: WorkspaceScene[];
+  mapCompositions?: MapComposition[];
   dataSchema?: DataSchemaSummary | null;
-  selectedDomainType?: DataDomainType | null;
   searchKeyword?: string;
   onGlobalSearch?: (keyword: string) => void;
-  onSelectDataDomain?: (
-    domainType: DataDomainType | null,
-    node: DataSchemaCatalogNode | null,
-  ) => void;
   onQuickLoadResource?: (resource: ResourceListItem) => Promise<void> | void;
   onLoadWorkspaceScene?: (scene: WorkspaceScene) => void;
+  onLoadMapComposition?: (composition: MapComposition) => void;
   onSearchFocus?: () => void;
 }
 
@@ -84,13 +97,13 @@ export default function WorkspaceHeader({
   canBrowseData,
   resources,
   workspaceScenes,
+  mapCompositions,
   dataSchema,
-  selectedDomainType,
   searchKeyword = "",
   onGlobalSearch,
-  onSelectDataDomain,
   onQuickLoadResource,
   onLoadWorkspaceScene,
+  onLoadMapComposition,
   onSearchFocus,
 }: WorkspaceHeaderProps) {
   const { bootstrap, user, setUser } = useAppContext();
@@ -104,6 +117,9 @@ export default function WorkspaceHeader({
   const [localResources, setLocalResources] = useState<ResourceListItem[]>([]);
   const [localWorkspaceScenes, setLocalWorkspaceScenes] = useState<
     WorkspaceScene[]
+  >([]);
+  const [localMapCompositions, setLocalMapCompositions] = useState<
+    MapComposition[]
   >([]);
   const [localDataSchema, setLocalDataSchema] =
     useState<DataSchemaSummary | null>(null);
@@ -133,6 +149,7 @@ export default function WorkspaceHeader({
   const fullPrimaryNavWidthRef = useRef(0);
   const effectiveResources = resources ?? localResources;
   const effectiveWorkspaceScenes = workspaceScenes ?? localWorkspaceScenes;
+  const effectiveMapCompositions = mapCompositions ?? localMapCompositions;
   const effectiveDataSchema = dataSchema ?? localDataSchema;
   const domainTypeLabelByValue = useMemo(
     () => domainTypeLabels(effectiveDataSchema),
@@ -142,7 +159,12 @@ export default function WorkspaceHeader({
     user?.username === "guest" || Boolean(user?.roles.includes("游客"));
   const showAdminTab =
     Boolean(user?.permissions.canAccessAdmin) && !isGuestUser;
-  const showDataImportShortcut = Boolean(user?.permissions.canUploadData);
+  const showDataImportShortcut = Boolean(
+    user?.permissions.canUploadData ||
+    (user?.permissions.canViewResultArtifacts &&
+      user.permissions.canImportResultArtifacts &&
+      user.permissions.canPublishResultArtifacts),
+  );
   const tourStorageKey = user
     ? `${workspaceTourStoragePrefix}.${user.id}.${user.username}`
     : null;
@@ -164,19 +186,28 @@ export default function WorkspaceHeader({
   }, [tourStorageKey, user]);
 
   useEffect(() => {
+    const shouldLoadResources = resources === undefined;
+    const shouldLoadWorkspaceScenes = workspaceScenes === undefined;
+    const shouldLoadMapCompositions =
+      mapCompositions === undefined &&
+      Boolean(user?.permissions.canViewMapCompositions);
     if (
       !canBrowseData ||
-      (resources !== undefined && workspaceScenes !== undefined)
+      (!shouldLoadResources &&
+        !shouldLoadWorkspaceScenes &&
+        !shouldLoadMapCompositions)
     ) {
       return;
     }
     let mounted = true;
     async function loadGlobalSearchItems() {
       try {
-        const [resourceResponse, sceneResponse] = await Promise.all([
-          resources === undefined ? api.resources({}) : null,
-          workspaceScenes === undefined ? api.workspaces() : null,
-        ]);
+        const [resourceResponse, sceneResponse, compositionResponse] =
+          await Promise.all([
+            shouldLoadResources ? api.resources({}) : null,
+            shouldLoadWorkspaceScenes ? api.workspaces() : null,
+            shouldLoadMapCompositions ? api.mapCompositions() : null,
+          ]);
         if (!mounted) {
           return;
         }
@@ -185,6 +216,9 @@ export default function WorkspaceHeader({
         }
         if (sceneResponse) {
           setLocalWorkspaceScenes(sceneResponse.items);
+        }
+        if (compositionResponse) {
+          setLocalMapCompositions(compositionResponse.items);
         }
       } catch (error) {
         message.warning(
@@ -196,14 +230,22 @@ export default function WorkspaceHeader({
     return () => {
       mounted = false;
     };
-  }, [canBrowseData, message, resources, workspaceScenes]);
+  }, [
+    canBrowseData,
+    mapCompositions,
+    message,
+    resources,
+    user?.permissions.canViewMapCompositions,
+    workspaceScenes,
+  ]);
 
   useEffect(() => {
     if (!canBrowseData || dataSchema !== undefined) {
       return;
     }
-    const loadSchema = (api as { dataSchemaSummary?: typeof api.dataSchemaSummary })
-      .dataSchemaSummary;
+    const loadSchema = (
+      api as { dataSchemaSummary?: typeof api.dataSchemaSummary }
+    ).dataSchemaSummary;
     if (!loadSchema) {
       return;
     }
@@ -449,8 +491,15 @@ export default function WorkspaceHeader({
     [effectiveWorkspaceScenes, searchQuery],
   );
   const filteredProjectScenes = useMemo(
-    () => filteredWorkspaceScenes.filter((scene) => scene.kind === "project"),
+    () => filteredWorkspaceScenes,
     [filteredWorkspaceScenes],
+  );
+  const filteredTopicScenes = useMemo(
+    () =>
+      effectiveMapCompositions.filter((composition) =>
+        searchQuery ? compositionMatches(composition, searchQuery) : true,
+      ),
+    [effectiveMapCompositions, searchQuery],
   );
 
   async function handleLogout() {
@@ -485,6 +534,15 @@ export default function WorkspaceHeader({
       searchContainerRef.current?.getBoundingClientRect().width;
     const visuallyExpanded = currentWidth ? currentWidth > 220 : false;
     openSearchPanel(searchExpanded || visuallyExpanded ? 0 : searchOpenDelayMs);
+  }
+
+  function handleMobileSearchClick(event: MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    openSearchPanel(0);
+    window.requestAnimationFrame(() => {
+      searchContainerRef.current?.querySelector("input")?.focus();
+    });
   }
 
   function commitSearch(value: string) {
@@ -523,6 +581,16 @@ export default function WorkspaceHeader({
     closeSearchPanel();
   }
 
+  function openMapComposition(composition: MapComposition) {
+    if (onLoadMapComposition) {
+      onLoadMapComposition(composition);
+    } else {
+      navigate(`/map?compositionId=${composition.id}`);
+    }
+    setSearchOpen(false);
+    closeSearchPanel();
+  }
+
   const dismissSearchForNavigation = useCallback(() => {
     closeSearchPanel();
     const activeElement = document.activeElement;
@@ -542,33 +610,32 @@ export default function WorkspaceHeader({
     [dismissSearchForNavigation, navigate],
   );
 
-  const selectDataDomain = useCallback(
-    (
-      domainType: DataDomainType | null,
-      node: DataSchemaCatalogNode | null,
-      targetTab: "map" | "nongeo",
-    ) => {
-      dismissSearchForNavigation();
-      if (targetTab === "map" && onSelectDataDomain) {
-        onSelectDataDomain(domainType, node);
-        return;
-      }
-      if (!domainType) {
-        navigate(`/${targetTab}`);
-        return;
-      }
-      navigate(`/${targetTab}?domainType=${encodeURIComponent(domainType)}`);
-    },
-    [dismissSearchForNavigation, navigate, onSelectDataDomain],
-  );
-
   function handleResourceCenter() {
     if (!canBrowseData && !showAdminTab) {
       message.warning("当前账号暂无数据资源浏览权限");
       return;
     }
-    navigateFromHeader("/resources");
+    navigateFromHeader("/resources/dashboard");
   }
+
+  const mapCategoryMenuItems = useMemo<MenuProps["items"]>(
+    () =>
+      workspaceCategoryMenuItems(
+        taxonomyTree(effectiveDataSchema),
+        "/map",
+        navigateFromHeader,
+      ),
+    [effectiveDataSchema, navigateFromHeader],
+  );
+  const analysisCategoryMenuItems = useMemo<MenuProps["items"]>(
+    () =>
+      workspaceCategoryMenuItems(
+        taxonomyTree(effectiveDataSchema),
+        "/nongeo",
+        navigateFromHeader,
+      ),
+    [effectiveDataSchema, navigateFromHeader],
+  );
 
   const dataManagementMenuItems = useMemo<MenuProps["items"]>(() => {
     const items: NonNullable<MenuProps["items"]> = [
@@ -601,16 +668,29 @@ export default function WorkspaceHeader({
         label: "工程管理",
         onClick: () => navigateFromHeader("/resources/manage/projects"),
       });
+    }
+    if (
+      user?.permissions.canViewMapCompositions ||
+      user?.permissions.canChangeMapCompositions ||
+      user?.permissions.canDeleteMapCompositions ||
+      user?.permissions.canPublishMapCompositions ||
+      user?.permissions.canViewResultArtifacts
+    ) {
       items.push({
-        key: "resources-topics",
-        label: "专题管理",
+        key: "resources-results",
+        label: "成果管理",
         onClick: () => navigateFromHeader("/resources/manage/topics"),
       });
     }
-    if (user?.permissions.canUploadData) {
+    if (
+      user?.permissions.canUploadData ||
+      (user?.permissions.canViewResultArtifacts &&
+        user.permissions.canImportResultArtifacts &&
+        user.permissions.canPublishResultArtifacts)
+    ) {
       items.push({
         key: "resources-import",
-        label: "数据导入",
+        label: "数据与成果导入",
         onClick: () => navigateFromHeader("/resources/data/import"),
       });
     }
@@ -619,11 +699,19 @@ export default function WorkspaceHeader({
     navigateFromHeader,
     user?.permissions.canExportData,
     user?.permissions.canChangeDataResources,
+    user?.permissions.canChangeMapCompositions,
     user?.permissions.canChangeWorkspaces,
     user?.permissions.canDeleteDataResources,
+    user?.permissions.canDeleteMapCompositions,
+    user?.permissions.canDeleteResultArtifacts,
     user?.permissions.canDeleteWorkspaces,
+    user?.permissions.canImportResultArtifacts,
+    user?.permissions.canPublishMapCompositions,
+    user?.permissions.canPublishResultArtifacts,
     user?.permissions.canUploadData,
     user?.permissions.canViewDataResources,
+    user?.permissions.canViewMapCompositions,
+    user?.permissions.canViewResultArtifacts,
     user?.permissions.canViewWorkspaces,
   ]);
 
@@ -690,41 +778,12 @@ export default function WorkspaceHeader({
 
   const aboutMenuItems = useMemo<MenuProps["items"]>(
     () =>
-      aboutSections.map((section) => ({
+      aboutNavigationSections.map((section) => ({
         key: section.key,
         label: section.title,
         onClick: () => navigateFromHeader(section.path),
       })),
     [navigateFromHeader],
-  );
-
-  const geoCatalogNode = useMemo(
-    () => dataCatalogGroup(effectiveDataSchema, "geo"),
-    [effectiveDataSchema],
-  );
-  const nonGeoCatalogNode = useMemo(
-    () => dataCatalogGroup(effectiveDataSchema, "nongeo"),
-    [effectiveDataSchema],
-  );
-  const geoDataMenuItems = useMemo<MenuProps["items"]>(
-    () =>
-      dataDomainMenuItems(
-        geoCatalogNode,
-        selectedDomainType,
-        selectDataDomain,
-        "map",
-      ),
-    [geoCatalogNode, selectedDomainType, selectDataDomain],
-  );
-  const nonGeoDataMenuItems = useMemo<MenuProps["items"]>(
-    () =>
-      dataDomainMenuItems(
-        nonGeoCatalogNode,
-        selectedDomainType,
-        selectDataDomain,
-        "nongeo",
-      ),
-    [nonGeoCatalogNode, selectedDomainType, selectDataDomain],
   );
 
   const finishTour = useCallback(() => {
@@ -750,7 +809,7 @@ export default function WorkspaceHeader({
       {
         title: "🎉 欢迎 🎉",
         description:
-          "欢迎使用中亚胡杨林生态系统保护数据共享平台，下面快速熟悉工作台入口。",
+          "欢迎使用全球胡杨林生态系统保护数据共享平台，下面快速熟悉工作台入口。",
         target: null,
       },
       {
@@ -761,14 +820,14 @@ export default function WorkspaceHeader({
         placement: "bottom",
       },
       {
-        title: "地理数据",
+        title: "地理工作台",
         description:
           "进入三维地球工作台，浏览空间数据、加载图层、执行空间查询并查看要素属性。",
         target: () => mapTabRef.current ?? document.body,
         placement: "bottom",
       },
       {
-        title: "非地理数据",
+        title: "数据分析",
         description:
           "查看生态表格、基因等非空间数据，并使用图表与表格完成基础分析。",
         target: () => nonGeoTabRef.current ?? document.body,
@@ -778,9 +837,9 @@ export default function WorkspaceHeader({
 
     if (canBrowseData || showAdminTab) {
       steps.push({
-        title: "数据管理",
+        title: "数据资源",
         description:
-          "浏览数据概览、维护存量数据或发起数据导入；可见菜单会按账号权限自动收敛。",
+          "按四大类浏览统一数据目录，或进入存量维护与数据导入；可见菜单会按账号权限自动收敛。",
         target: () => resourcesTabRef.current ?? document.body,
         placement: "bottom",
       });
@@ -798,9 +857,16 @@ export default function WorkspaceHeader({
 
     steps.push(
       {
-        title: "关于我们",
+        title: "成果展示",
         description:
-          "查看系统简介、团队介绍、团队成员、胡杨知识和帮助文档等平台资料。",
+          "浏览已正式发布的专题图件成果，后续统一承接数据分析成果和直接导入成果。",
+        target: () =>
+          document.querySelector('[data-nav-key="results"]') ?? document.body,
+        placement: "bottom",
+      },
+      {
+        title: "关于我们",
+        description: "查看系统简介、共建团队、团队成员和帮助文档等平台资料。",
         target: () => aboutTabRef.current ?? document.body,
         placement: "bottom",
       },
@@ -832,10 +898,10 @@ export default function WorkspaceHeader({
         onClick={handleResourceCenter}
         onMouseEnter={() => scheduleTabHoverExpand("resource")}
         onMouseLeave={collapseTabHover}
-        title="数据管理"
+        title="数据资源"
       >
         <FolderOpenOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-        <span className="tab-text">数据管理</span>
+        <span className="tab-text">数据资源</span>
       </Button>
     </Dropdown>
   );
@@ -848,7 +914,7 @@ export default function WorkspaceHeader({
         bordered={false}
         color="#173f39"
       />
-      <strong>中亚胡杨林数据平台</strong>
+      <strong>全球胡杨林数据平台</strong>
       <span>微信公众号二维码示意</span>
     </div>
   );
@@ -902,8 +968,7 @@ export default function WorkspaceHeader({
               <small>
                 {resourceDomainCategoryName(resource, domainTypeLabelByValue) ??
                   "未分类"}{" "}
-                ·{" "}
-                {resourceFormatLabel(resource)}
+                · {resourceFormatLabel(resource)}
               </small>
             </span>
             <Button
@@ -943,6 +1008,33 @@ export default function WorkspaceHeader({
         ))}
       </SearchResultSection>
 
+      <SearchResultSection
+        title="专题"
+        icon={<ProjectOutlined style={{ fontSize: 15 }} />}
+        emptyText="暂无匹配专题"
+      >
+        {filteredTopicScenes.map((composition) => (
+          <div
+            className="workspace-search-row"
+            key={`composition-${composition.id}`}
+          >
+            <span className="workspace-search-row-main">
+              <strong>{composition.name}</strong>
+              <small>
+                {composition.projectName} · {formatSceneUpdatedAt(composition)}
+              </small>
+            </span>
+            <Button
+              size="small"
+              type="primary"
+              ghost
+              onClick={() => openMapComposition(composition)}
+            >
+              加载
+            </Button>
+          </div>
+        ))}
+      </SearchResultSection>
     </section>
   );
 
@@ -953,9 +1045,9 @@ export default function WorkspaceHeader({
       <button
         type="button"
         className="brand-block"
-        onClick={() => navigateFromHeader("/map")}
-        aria-label="返回地理数据主界面"
-        title="返回地理数据主界面"
+        onClick={() => navigateFromHeader("/data")}
+        aria-label="返回数据资源总目录"
+        title="返回数据资源总目录"
       >
         <span className="brand-logo-frame">
           <img
@@ -975,6 +1067,13 @@ export default function WorkspaceHeader({
         ref={searchNavRef}
         className={`workspace-search-nav${navCompressed ? " workspace-search-nav-compressed" : ""}`}
       >
+        <Button
+          type="text"
+          className="workspace-mobile-search-trigger"
+          aria-label="打开全局搜索"
+          icon={<SearchOutlined />}
+          onClick={handleMobileSearchClick}
+        />
         <Popover
           trigger="click"
           placement="bottomLeft"
@@ -1007,8 +1106,20 @@ export default function WorkspaceHeader({
           className="header-primary-actions"
           aria-label="主导航"
         >
+          <Button
+            type="text"
+            className={tabClass(activeTab === "home", expandedTabId === "home")}
+            onClick={() => navigateFromHeader("/data")}
+            onMouseEnter={() => scheduleTabHoverExpand("home")}
+            onMouseLeave={collapseTabHover}
+            title="首页"
+          >
+            <HomeOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+            <span className="tab-text">首页</span>
+          </Button>
+          {(canBrowseData || showAdminTab) && dataButton}
           <Dropdown
-            menu={{ items: geoDataMenuItems }}
+            menu={{ items: mapCategoryMenuItems }}
             trigger={["hover"]}
             placement="bottom"
             classNames={{ root: "workspace-management-dropdown" }}
@@ -1020,14 +1131,14 @@ export default function WorkspaceHeader({
               onClick={() => navigateFromHeader("/map")}
               onMouseEnter={() => scheduleTabHoverExpand("map")}
               onMouseLeave={collapseTabHover}
-              title="地理数据"
+              title="地理工作台"
             >
               <ApartmentOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-              <span className="tab-text">地理数据</span>
+              <span className="tab-text">地理工作台</span>
             </Button>
           </Dropdown>
           <Dropdown
-            menu={{ items: nonGeoDataMenuItems }}
+            menu={{ items: analysisCategoryMenuItems }}
             trigger={["hover"]}
             placement="bottom"
             classNames={{ root: "workspace-management-dropdown" }}
@@ -1042,13 +1153,41 @@ export default function WorkspaceHeader({
               onClick={() => navigateFromHeader("/nongeo")}
               onMouseEnter={() => scheduleTabHoverExpand("nongeo")}
               onMouseLeave={collapseTabHover}
-              title="非地理数据"
+              title="数据分析"
             >
               <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-              <span className="tab-text">非地理数据</span>
+              <span className="tab-text">数据分析</span>
             </Button>
           </Dropdown>
-          {(canBrowseData || showAdminTab) && dataButton}
+          <Button
+            type="text"
+            data-nav-key="results"
+            className={tabClass(
+              activeTab === "results",
+              expandedTabId === "results",
+            )}
+            onClick={() => navigateFromHeader("/results")}
+            onMouseEnter={() => scheduleTabHoverExpand("results")}
+            onMouseLeave={collapseTabHover}
+            title="成果展示"
+          >
+            <PictureOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+            <span className="tab-text">成果展示</span>
+          </Button>
+          <Button
+            type="text"
+            className={tabClass(
+              activeTab === "warning",
+              expandedTabId === "warning",
+            )}
+            onClick={() => navigateFromHeader("/warning")}
+            onMouseEnter={() => scheduleTabHoverExpand("warning")}
+            onMouseLeave={collapseTabHover}
+            title="智能预警（实时监测与预警）"
+          >
+            <AlertOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+            <span className="tab-text">智能预警</span>
+          </Button>
           {showAdminTab && (
             <Dropdown
               menu={{ items: adminMenuItems }}
@@ -1073,6 +1212,20 @@ export default function WorkspaceHeader({
               </Button>
             </Dropdown>
           )}
+          <Button
+            type="text"
+            className={tabClass(
+              activeTab === "knowledge",
+              expandedTabId === "knowledge",
+            )}
+            onClick={() => navigateFromHeader("/knowledge")}
+            onMouseEnter={() => scheduleTabHoverExpand("knowledge")}
+            onMouseLeave={collapseTabHover}
+            title="胡杨科普"
+          >
+            <ReadOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+            <span className="tab-text">胡杨科普</span>
+          </Button>
           <Dropdown
             menu={{ items: aboutMenuItems }}
             trigger={["hover"]}
@@ -1165,6 +1318,10 @@ const fallbackCatalogTree: DataSchemaCatalogNode[] = [
   {
     code: "geo",
     name: "地理数据",
+    categoryCode: "geo",
+    selectable: false,
+    description: "兼容地图工作台入口",
+    path: ["地理数据"],
     domainType: null,
     spatialClass: "spatial",
     children: [
@@ -1179,6 +1336,10 @@ const fallbackCatalogTree: DataSchemaCatalogNode[] = [
   {
     code: "nongeo",
     name: "非地理数据",
+    categoryCode: "nongeo",
+    selectable: false,
+    description: "兼容数据分析入口",
+    path: ["非地理数据"],
     domainType: null,
     spatialClass: "non_spatial",
     children: [
@@ -1196,60 +1357,50 @@ function domainNode(
   return {
     code,
     name,
+    categoryCode: code,
+    selectable: true,
+    description: "兼容业务标签",
+    path: [name],
     domainType,
     spatialClass: null,
     children: [],
   };
 }
 
-function dataCatalogGroup(
-  schema: DataSchemaSummary | null | undefined,
-  code: "geo" | "nongeo",
-) {
-  return (
-    schema?.catalogTree.find((node) => node.code === code) ??
-    fallbackCatalogTree.find((node) => node.code === code) ??
-    null
-  );
-}
-
-function dataDomainMenuItems(
-  root: DataSchemaCatalogNode | null,
-  selectedDomainType: DataDomainType | null | undefined,
-  onSelect: (
-    domainType: DataDomainType | null,
-    node: DataSchemaCatalogNode | null,
-    targetTab: "map" | "nongeo",
-  ) => void,
-  targetTab: "map" | "nongeo",
+function workspaceCategoryMenuItems(
+  nodes: DataSchemaCatalogNode[],
+  targetPath: "/map" | "/nongeo",
+  onNavigate: (path: string) => void,
 ): MenuProps["items"] {
-  const children = root?.children ?? [];
-  const allDataItem = {
-    key: `${root?.code ?? targetTab}-all`,
-    label: selectedDomainType ? "全部数据" : "全部数据 · 当前",
-    onClick: () => onSelect(null, null, targetTab),
-  };
-  if (!children.length) {
-    return [
-      allDataItem,
-      {
-        key: `${root?.code ?? "data"}-empty`,
-        label: "暂无可选数据类型",
-        disabled: true,
-      },
-    ];
-  }
-  const domainItems = children
-    .filter((node): node is DataSchemaCatalogNode & { domainType: DataDomainType } =>
-      Boolean(node.domainType),
-    )
-    .map((node) => ({
-      key: node.code,
-      label:
-        node.domainType === selectedDomainType ? `${node.name} · 当前` : node.name,
-      onClick: () => onSelect(node.domainType, node, targetTab),
-    }));
-  return [allDataItem, { type: "divider" }, ...domainItems];
+  const keyPrefix = targetPath.slice(1);
+  return [
+    {
+      key: `${keyPrefix}-all-categories`,
+      label: "全部业务分类",
+      onClick: () => onNavigate(targetPath),
+    },
+    { type: "divider" },
+    ...nodes.map((root) => ({
+      key: `${keyPrefix}-${root.categoryCode}`,
+      label: root.name,
+      children: root.children.length
+        ? root.children.map((child) => ({
+            key: `${keyPrefix}-${child.categoryCode}`,
+            label: child.name,
+            onClick: () =>
+              onNavigate(
+                `${targetPath}?categoryCode=${encodeURIComponent(child.categoryCode)}`,
+              ),
+          }))
+        : [
+            {
+              key: `${keyPrefix}-${root.categoryCode}-empty`,
+              label: "暂无下级分类",
+              disabled: true,
+            },
+          ],
+    })),
+  ];
 }
 
 function tabClass(active: boolean, hoverExpanded = false) {
@@ -1353,9 +1504,20 @@ function sceneMatches(scene: WorkspaceScene, query: string) {
   return [
     scene.name,
     scene.description,
-    scene.kind === "project" ? "工程" : "专题",
+    "工程",
     scene.owner.displayName,
     scene.owner.username,
+  ].some((value) => textMatches(value, query));
+}
+
+function compositionMatches(composition: MapComposition, query: string) {
+  return [
+    composition.name,
+    composition.description,
+    composition.projectName,
+    "专题",
+    composition.owner.displayName,
+    composition.owner.username,
   ].some((value) => textMatches(value, query));
 }
 
@@ -1365,6 +1527,6 @@ function textMatches(value: unknown, query: string) {
     .includes(query);
 }
 
-function formatSceneUpdatedAt(scene: WorkspaceScene) {
+function formatSceneUpdatedAt(scene: Pick<WorkspaceScene, "updatedAt">) {
   return new Date(scene.updatedAt).toLocaleString("zh-CN", { hour12: false });
 }

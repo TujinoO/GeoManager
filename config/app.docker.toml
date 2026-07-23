@@ -13,7 +13,7 @@ disable_catalog_startup_scan = false
 disable_raster_startup_scan = false
 
 [application.system]
-name = "中亚胡杨林生态系统保护数据共享平台"
+name = "全球胡杨林生态系统保护数据共享平台"
 allow_registration = true
 
 [application.storage]

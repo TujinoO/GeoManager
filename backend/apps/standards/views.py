@@ -9,6 +9,7 @@ from apps.standards.serializers import (
     schema_entities,
     schema_layers,
 )
+from apps.catalog.taxonomy import DATA_TAXONOMY_VERSION
 
 
 @require_GET
@@ -18,6 +19,7 @@ def data_schema_summary(request):
         return feature_denied_response(request.user)
     return JsonResponse(
         {
+            "taxonomyVersion": DATA_TAXONOMY_VERSION,
             "domains": domain_definitions(),
             "layers": schema_layers(),
             "entities": schema_entities(),

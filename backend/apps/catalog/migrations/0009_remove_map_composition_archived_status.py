@@ -1,11 +1,12 @@
 from django.db import migrations, models
 
 
-def delete_archived_map_compositions(apps, schema_editor):
+def preserve_archived_map_compositions(apps, schema_editor):
     composition_model = apps.get_model("catalog", "MapComposition")
-    archived = composition_model.objects.filter(status="archived")
-    archived.update(published_version=None)
-    archived.delete()
+    # 历史 archived 专题可能仍包含已生成版本和成果文件。新版状态枚举不再
+    # 暴露 archived，但迁移不能以删除业务数据作为代价；统一安全转换为
+    # completed，保留专题、版本、工程快照和成果登记。
+    composition_model.objects.filter(status="archived").update(status="completed")
 
 
 class Migration(migrations.Migration):
@@ -15,7 +16,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RunPython(
-            delete_archived_map_compositions,
+            preserve_archived_map_compositions,
             migrations.RunPython.noop,
         ),
         migrations.AlterField(

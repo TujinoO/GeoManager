@@ -3,8 +3,8 @@
     "200": {
       "generatedAt": "2026-06-15T10:30:00+08:00",
       "platform": {
-        "chineseName": "中亚胡杨林生态系统保护数据共享平台",
-        "englishName": "Central Asia Poplar Forest Ecosystem Data Platform",
+        "chineseName": "全球胡杨林生态系统保护数据共享平台",
+        "englishName": "Global Poplar Forest Ecosystem Protection Data Sharing Platform",
         "abbreviation": "CAPFED",
         "edition": "CAPFED-WebGIS Research Edition",
         "version": "v1.0.0"

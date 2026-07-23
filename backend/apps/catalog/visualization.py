@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from django.utils import timezone
 
-from apps.catalog.data_query import DataQueryError, get_resource_profile, read_vector_resource
+from apps.catalog.data_query import get_resource_profile, read_vector_resource
 from apps.catalog.models import DataResource
 from apps.catalog.serializers import serialize_resource
 from apps.catalog.symbolization_templates import recommended_symbolization_templates

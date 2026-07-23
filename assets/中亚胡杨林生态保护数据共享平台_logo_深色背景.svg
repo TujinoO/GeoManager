@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="1200" height="1200" viewBox="0 0 1200 1200" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">中亚胡杨林生态保护数据共享平台 Logo</title>
+  <title id="title">全球胡杨林生态系统保护数据共享平台 Logo</title>
   <desc id="desc">纯白色盾牌、胡杨树、数据节点、地理网格和数据图层元素构成的科技生态保护平台标志。</desc>
   <defs>
     <radialGradient id="bgGlow" cx="62%" cy="33%" r="72%">
@@ -92,5 +92,5 @@
   </g>
 
   <!-- wordmark -->
-  <text class="text" x="600" y="1055" text-anchor="middle">中亚胡杨林生态保护数据共享平台</text>
+  <text class="text" x="600" y="1055" text-anchor="middle">全球胡杨林生态系统保护数据共享平台</text>
 </svg>

@@ -43,6 +43,10 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260714-003 | Verified | `/api/catalog/map-compositions/*` | new endpoints / models / permissions / multipart export | Updated | Added | Implemented | Passed | Adds persisted map layouts, immutable output versions, PNG/JPG/PDF artifacts and publish workflow |
 | API-20260714-004 | Verified | `GET/POST /api/catalog/workspaces/*`, `GET/POST /api/admin/workspaces/*` | visibility behavior / request and response fields | Updated | Updated | Implemented | Focused passed | Makes superadmin visibility unconditional, exposes shared active workspaces in the map, and adds uploader-managed access scopes |
 | API-20260714-005 | Verified | `POST /api/auth/register/`, `GET/POST /api/admin/role-applications/*`, `POST /api/users/` | request validation / new endpoints / role workflow | Updated | Updated | Verified | Passed | Requires normalized unique email, fixed ordinary-user registration, research-role application review and transitional password recovery guidance |
+| API-20260722-001 | Verified | data schema, catalog resources, all import commits, admin data resources | hierarchical classification / response and request fields | Updated | N/A | Implemented | Passed | Replaces geo/non-geo navigation taxonomy with the four confirmed client business categories while retaining technical compatibility fields |
+| API-20260722-002 | Verified | `GET/POST /api/catalog/results/`, result file delivery | new endpoint / multipart and permission behavior | Updated | N/A | Implemented | Passed | Adds platform-analysis and direct-import result artifacts with draft/published visibility, preview and download |
+| API-20260723-001 | Verified | `GET /api/admin/dashboard/` | response fields / aggregate semantics | Updated | Updated | Implemented | Passed | Separates physical format statistics from the four-major/fifteen-minor authoritative business taxonomy distribution |
+| API-20260723-002 | Verified | `/api/catalog/results/*`, authenticated user permissions | permission/schema/management endpoint | Updated | Added | Implemented | Passed | Adds dedicated result permissions, direct-publication imports and unified result management |
 
 ## Entry Template
 
@@ -60,6 +64,19 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Verification: commands or response checks required before marking implemented
 - Result: current backend/frontend verification result
 ```
+
+## API-20260722-001 - Four-Category Data Taxonomy V1
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET /api/data-schema/summary/`, `GET /api/catalog/resources/`, `POST /api/catalog/import/commit/`, `POST /api/catalog/vector-import/commit/`, `POST /api/raster/import/`, `GET/POST /api/admin/data/resources/*`
+- Change type: response fields | request fields | query parameters | classification behavior
+- OpenAPI change: Adds taxonomy version, hierarchical category nodes, category paths, classification status, available views, descendant-aware category filtering and category selection for imports and inventory updates. Keeps `domainType`, `dataType`, `spatialClass` and the legacy `category` query parameter during the compatibility release.
+- Mock examples: N/A; the canonical OpenAPI contract, generated client and live schema/catalog responses carry the confirmed category codes.
+- Frontend reason: The client has confirmed four authoritative business categories; map/non-map distinctions must become presentation capabilities rather than top-level data categories.
+- Backend implementation notes: Extend `DictionaryItem` with parent/selectable fields, keep `DataResource.category` as the single primary category, seed the fixed tree, backfill only unambiguous legacy resources, and never move or delete research files during classification.
+- Verification: Rehearse migrations on a copied `meta.db`; verify archived compositions and all resource/layer counts do not decrease; run OpenAPI generation/lint/change checks, focused Django catalog/import/admin tests, frontend taxonomy/import/inventory tests and typecheck.
+- Result: Verified on a copied database before the formal migration, then re-audited on the formal database with all 20 resources, 19 layers, 4 topics and 4 topic versions preserved. The two legacy archived topics retain their records, versions, snapshots and artifacts with status mapped to `completed`; 8 unambiguous resources were classified and 12 remain pending for manual review. Django system and migration checks, 13 focused taxonomy/import/archive/backup tests, OpenAPI lint and API change tracking, frontend typecheck, 191 frontend unit tests, targeted lint/format checks, production build, and signed-in browser checks for the four-category catalog, descendant filters, map-context handoff and inventory classification editor passed. The broader backend suite completed with 446 passing and 19 known baseline failures caused by existing Windows TOML/path/file-lock assumptions, an existing duplicate built-in-role fixture and one unrelated coordinate-format expectation.
 
 ## API-20260714-005 - Registration Email And Research Role Application
 
@@ -385,3 +402,42 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Aggregate total, status, restricted-access, size, item-count, business-type groups, and custom groups before applying pagination. Keep permissions and filtering identical to the item queryset.
 - Verification: run OpenAPI lint/type generation, API change-request validation, focused admin data-resource aggregation tests, frontend typecheck/build, and inventory browser tests when Chromium is available.
 - Result: OpenAPI lint and generated types passed; API change-request validation, generated API documentation, and Prism example injection passed; all 19 admin data-resource backend tests passed; frontend TypeScript checking and the production build passed. The inventory browser test could not start because the configured Playwright Chromium executable is not installed.
+
+## API-20260722-002 - Result Artifact Registration And Delivery
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET/POST /api/catalog/results/`, `GET /api/catalog/results/{resultId}/file/`
+- Change type: new endpoint | multipart request | permission behavior | binary response
+- OpenAPI change: Adds typed result source, result type and draft/published status enums; defines multipart `file + payload` registration, permission-scoped listing, preview and download variants.
+- Mock examples: N/A; the page aggregates authenticated live results and retains an explicit empty state.
+- Frontend reason: The data import page needs an independent “成果文件” target, and the成果展示 page must combine platform map compositions, platform analysis results and directly imported results without converting files into data resources.
+- Backend implementation notes: Store files under `app_data/exports/results/{uuid}/`; allow PNG/JPG/PDF preview, allow CSV/XLSX download only, reuse data-upload permission for registration and专题成果发布 permission for direct publication, and enforce role visibility.
+- Verification: OpenAPI generated client updated; five backend integration tests cover draft upload, publish permission, audience visibility, preview/download and invalid category/extension/size; frontend typecheck and browser navigation/import tests are included.
+- Result: Backend integration tests and frontend TypeScript checks pass. Browser tests use installed system Chrome when the matching Playwright browser bundle is unavailable.
+
+## API-20260723-001 - Dashboard Business Taxonomy Distribution
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET /api/admin/dashboard/`
+- Change type: response fields | aggregate semantics | UI statistics
+- OpenAPI change: Extends `AdminDashboardDataOverviewScope` with required `categoryBreakdown` and `unclassifiedCount`, plus typed big-category and leaf-category aggregate schemas.
+- Mock examples: `mock/prism/examples/20-admin-dashboard-data.json`
+- Frontend reason: The data overview needs to distinguish physical resource formats from the authoritative four-major/fifteen-minor business classification system and display both distributions without mixing their meanings.
+- Backend implementation notes: Aggregate the taxonomy over the same permission-scoped queryset used by each “我可见”/“我上传” scope. Return every active taxonomy root and leaf in configured order, including zero-count nodes, while keeping unclassified resources explicit.
+- Verification: run OpenAPI lint/type generation, API change-request validation, focused dashboard integration tests, frontend typecheck/tests, and production build.
+- Result: Verified with generated OpenAPI types, focused backend dashboard tests, frontend TypeScript checks, browser component tests, and production build.
+
+## API-20260723-002 - Unified Result Permissions And Management
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET/POST /api/catalog/results/`, `GET/POST /api/catalog/results/{resultId}/`, `GET /api/catalog/results/{resultId}/file/`, authenticated user permission responses
+- Change type: permission behavior | request schema | response fields | new management endpoint | destructive action | mock data
+- OpenAPI change: Replaces borrowed data-resource/map-composition permissions with dedicated result view/import/download/publish/delete permissions; requires imported results to publish immediately with at least one audience role; adds result publish, unpublish and permanent delete actions; returns per-object capabilities, publisher and selectable access groups.
+- Mock examples: `mock/prism/examples/55-results.json`
+- Frontend reason: Result import must not create drafts without a release path, and the former topic-management page must manage both workbench map compositions and imported result artifacts without conflating their permissions.
+- Backend implementation notes: Keep `draft` only as the state for historical or deliberately unpublished artifacts; reject new draft imports; allow owners and platform management subjects to publish/unpublish/delete when their dedicated permission allows it; remove only the explicitly addressed result file during delete and write an operation log.
+- Verification: run OpenAPI lint/type generation, API change-request validation, Prism mock build, result artifact and core permission backend tests, result import/management browser tests, frontend typecheck, and production build.
+- Result: Verified with OpenAPI lint and generated clients, tracked API change validation, Prism mock injection, Django migration/system checks, 37 focused permission/result backend tests, 33 frontend browser tests, frontend typecheck, and production build. The broader existing core API suite retained 11 unrelated Windows TOML/path separator failures while 83 tests and 2 subtests passed.
