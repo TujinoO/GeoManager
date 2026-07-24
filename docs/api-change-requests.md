@@ -47,6 +47,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260722-002 | Verified | `GET/POST /api/catalog/results/`, result file delivery | new endpoint / multipart and permission behavior | Updated | N/A | Implemented | Passed | Adds platform-analysis and direct-import result artifacts with draft/published visibility, preview and download |
 | API-20260723-001 | Verified | `GET /api/admin/dashboard/` | response fields / aggregate semantics | Updated | Updated | Implemented | Passed | Separates physical format statistics from the four-major/fifteen-minor authoritative business taxonomy distribution |
 | API-20260723-002 | Verified | `/api/catalog/results/*`, authenticated user permissions | permission/schema/management endpoint | Updated | Added | Implemented | Passed | Adds dedicated result permissions, direct-publication imports and unified result management |
+| API-20260724-001 | Verified | `GET /api/login/overview/` | response value semantics / mock data | Updated | Updated | Implemented | Passed | Aligns the English name, abbreviation and edition with the current global platform identity |
 
 ## Entry Template
 
@@ -441,3 +442,16 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Keep `draft` only as the state for historical or deliberately unpublished artifacts; reject new draft imports; allow owners and platform management subjects to publish/unpublish/delete when their dedicated permission allows it; remove only the explicitly addressed result file during delete and write an operation log.
 - Verification: run OpenAPI lint/type generation, API change-request validation, Prism mock build, result artifact and core permission backend tests, result import/management browser tests, frontend typecheck, and production build.
 - Result: Verified with OpenAPI lint and generated clients, tracked API change validation, Prism mock injection, Django migration/system checks, 37 focused permission/result backend tests, 33 frontend browser tests, frontend typecheck, and production build. The broader existing core API suite retained 11 unrelated Windows TOML/path separator failures while 83 tests and 2 subtests passed.
+
+## API-20260724-001 - Platform Brand Naming Alignment
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET /api/login/overview/`
+- Change type: response value semantics | mock data | documentation clarification
+- OpenAPI change: Keeps the existing `LoginOverviewPlatform` schema unchanged while updating the documented English name, abbreviation and edition examples to the approved global platform identity.
+- Mock examples: `mock/prism/examples/05-login-overview.json`
+- Frontend reason: The former `CAPFED` abbreviation reflected the earlier Central Asia naming and no longer matched the current global Chinese and English platform name shown in the navigation and login interface.
+- Backend implementation notes: Return `Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform`, `GPEDSP` and `GPEDSP · WebGIS Research Edition` from the public login overview without changing authentication, response fields or caching behavior.
+- Verification: regenerate/check OpenAPI types, rebuild Prism examples, run API lint and change-request validation, run the focused backend login-overview test, frontend typecheck/browser test and production build.
+- Result: Verified with OpenAPI lint and generated clients, Prism bundle/example injection, API change-request validation, the focused Django login-overview test, the focused frontend browser test, TypeScript checks, production build, responsive browser inspection at 1280 px and 1024 px, and a 14-page PDF render review.

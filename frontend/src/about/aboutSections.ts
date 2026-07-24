@@ -8,12 +8,14 @@ import researchSeedlingsImage from "../assets/about/research-seedlings.jpeg";
 import tarimUniversitySeal from "../assets/about/tarim-university-seal.jpeg";
 import teamGreenhouseImage from "../assets/about/team-greenhouse.png";
 import aboutPoplarGroveImage from "../assets/portal/about-poplar-grove.png";
+import { platformBrand } from "../config/platformBrand";
 
 export type AboutSectionKey =
   | "system"
   | "team"
   | "members"
   | "knowledge"
+  | "contact"
   | "docs";
 
 export type AboutSource = {
@@ -48,8 +50,8 @@ export const aboutAssets = {
 };
 
 export const platformDisplayName = {
-  zh: "全球胡杨林生态系统保护数据共享平台",
-  en: "Global Poplar Forest Ecosystem Protection Data Sharing Platform",
+  zh: platformBrand.chineseName,
+  en: platformBrand.englishName,
 };
 
 export const aboutSections: AboutSection[] = [
@@ -130,6 +132,18 @@ export const aboutSections: AboutSection[] = [
     ],
   },
   {
+    key: "contact",
+    title: "联系我们",
+    badge: "服务支持",
+    path: "/about/contact",
+    eyebrow: "Contact & Support",
+    summary:
+      "按数据权限与平台技术两类场景分流受理咨询，帮助用户快速找到准确联系人并准备完整的问题信息。",
+    navSummary: "咨询与反馈",
+    tags: ["数据权限", "资料提交", "平台建设", "故障反馈"],
+    sources: [],
+  },
+  {
     key: "docs",
     title: "帮助文档",
     badge: "使用支持",
@@ -152,7 +166,7 @@ export const aboutSections: AboutSection[] = [
   },
 ];
 
-/** “胡杨科普”已经升级为一级模块；关于我们仅保留平台、团队和帮助内容。 */
+/** “胡杨科普”已经升级为一级模块；关于我们保留平台、团队、联系与帮助内容。 */
 export const aboutNavigationSections = aboutSections.filter(
   (section) => section.key !== "knowledge",
 );
@@ -374,7 +388,7 @@ export const contactRows = [
   ],
   [
     "平台故障报修",
-    "请通过 lizhijun0202@126.com 反馈问题描述、截图、浏览器环境和复现步骤。",
+    "请通过 wanghaoyu191@mails.ucas.ac.cn 反馈问题描述、截图、浏览器环境和复现步骤。",
   ],
   ["通信地址", "新疆阿拉尔市塔里木大学生命科学与技术学院，843300"],
 ];
@@ -946,7 +960,7 @@ export const helpDocumentDownload = {
   label: "下载 PDF 帮助文档",
   href: `${import.meta.env.BASE_URL}docs/CAPFED-help-center.pdf`,
   filename: "全球胡杨林生态系统保护数据共享平台帮助文档.pdf",
-  meta: "v1.1 / 2026-07-17 / 适用于培训、验收和离线阅读",
+  meta: "v2.0 / 2026-07-23 / 按九大页面与最新功能完整更新",
 };
 
 export const helpQuickLinks = [
@@ -998,7 +1012,7 @@ export const helpCategories = [
       { label: "数据与成果导入", articleId: "data-import" },
       { label: "数据准备规范", articleId: "data-standards" },
       { label: "存量数据维护", articleId: "data-inventory" },
-      { label: "工程与成果管理", articleId: "project-topic" },
+      { label: "工程、制图与成果", articleId: "project-topic" },
     ],
   },
   {
@@ -1027,13 +1041,22 @@ export const helpArticles: HelpArticle[] = [
         columns: ["入口", "用途"],
         rows: [
           [
-            "地理数据",
-            "进入地理工作台，完成空间数据浏览、图层加载、属性查询和空间查询。",
+            "首页",
+            "查看平台概览、四大权威分类、数据规模、最新成果和常用入口。",
           ],
-          ["非地理数据", "查看表格、基因组、分子实验和统计指标等非空间数据。"],
-          ["数据管理", "维护数据概览、存量数据、工程、专题和数据导入任务。"],
+          ["数据资源", "维护资源概览、存量数据、成果管理和数据/成果导入。"],
+          [
+            "地理工作台",
+            "完成空间数据浏览、图层加载、属性查询、空间查询和专题制图。",
+          ],
+          ["数据分析", "查看表格、基因组、分子实验、统计指标和分析视图。"],
+          ["成果展示", "浏览已发布专题图、分析成果和直接导入成果。"],
+          ["胡杨科普", "阅读物种档案、保护管理案例和胡杨知识图谱。"],
           ["后台管理", "管理用户权限、运行概览、日志、系统设置和数据备份。"],
-          ["关于我们", "查看系统简介、团队资料、胡杨知识和帮助文档。"],
+          [
+            "关于我们",
+            "查看平台、四家核心单位、成员名录、联系我们和帮助文档。",
+          ],
         ],
       },
       {
@@ -1356,7 +1379,7 @@ export const helpArticles: HelpArticle[] = [
   {
     id: "project-topic",
     category: "数据管理",
-    title: "工程与成果管理",
+    title: "工程、专题制图与成果管理",
     summary:
       "说明工程、专题图成果和导入成果的区别，以及在数据管理中心维护发布范围和基本操作的方式。",
     audiences: ["科研用户", "数据管理员"],
@@ -1367,8 +1390,8 @@ export const helpArticles: HelpArticle[] = [
         title: "概念区别",
         items: [
           "工程：更偏个人或团队工作状态，保存图层组合、地图视角、符号化和分析上下文。",
-          "专题：更偏业务展示和成果共享，围绕特定保护、监测或科研主题组织图层。",
-          "成果管理：统一管理工作台专题图与导入成果，支持预览、下载、发布范围、下架和删除。",
+          "专题制图：以工程为来源配置纸张、地图框、标题、图例、比例尺、指北针和区位图，并生成正式成果版本。",
+          "成果管理：统一管理专题图与导入/分析成果，支持预览、下载、发布范围、下架、重新发布和删除。",
           "访问角色：专题图和导入成果均需配置可见用户组，功能权限决定用户能否查看、下载或管理。",
         ],
       },

@@ -16,10 +16,10 @@ from apps.core.models import SystemSetting
 from apps.core.runtime_config import runtime_allow_registration, runtime_system_name
 
 PLATFORM_ENGLISH_NAME = (
-    "Global Poplar Forest Ecosystem Protection Data Sharing Platform"
+    "Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform"
 )
-PLATFORM_ABBREVIATION = "CAPFED"
-PLATFORM_EDITION = "CAPFED-WebGIS Research Edition"
+PLATFORM_ABBREVIATION = "GPEDSP"
+PLATFORM_EDITION = "GPEDSP · WebGIS Research Edition"
 
 
 def registration_allowed() -> bool:

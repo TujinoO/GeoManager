@@ -43,6 +43,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import capfedLogoWhite from "../assets/capfed-logo-white.svg";
+import { platformBrand } from "../config/platformBrand";
 import { useAppContext } from "../contexts/AppContext";
 import type {
   DataDomainType,
@@ -72,7 +73,7 @@ export type WorkspaceTab =
   | "knowledge"
   | "about";
 
-const platformChineseName = "全球胡杨林生态系统保护数据共享平台";
+const platformChineseName = platformBrand.chineseName;
 const hoverExpandDelayMs = 100;
 const searchOpenDelayMs = 400;
 const workspaceTourStoragePrefix = "huyang-system.workspace-tour.v1";
@@ -1058,7 +1059,7 @@ export default function WorkspaceHeader({
           />
         </span>
         <div className="brand-copy">
-          <strong>CAPFED</strong>
+          <strong>{platformBrand.shortName}</strong>
           <Typography.Title level={4}>{platformChineseName}</Typography.Title>
         </div>
       </button>

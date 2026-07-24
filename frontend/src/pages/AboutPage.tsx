@@ -13,6 +13,7 @@ import {
   GlobalOutlined,
   InfoCircleOutlined,
   LinkOutlined,
+  MailOutlined,
   ReadOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
@@ -67,6 +68,7 @@ const sectionIcons: Record<AboutSectionKey, ReactNode> = {
   team: <TeamOutlined />,
   members: <UsergroupAddOutlined />,
   knowledge: <ReadOutlined />,
+  contact: <MailOutlined />,
   docs: <FileTextOutlined />,
 };
 
@@ -626,7 +628,13 @@ function MembersSection({ section }: { section: AboutSection }) {
   );
 }
 
-export function KnowledgeSection({ section }: { section: AboutSection }) {
+export function KnowledgeSection({
+  section,
+  embedded = false,
+}: {
+  section: AboutSection;
+  embedded?: boolean;
+}) {
   const [hoveredGraphNodeId, setHoveredGraphNodeId] = useState<string | null>(
     null,
   );
@@ -682,32 +690,34 @@ export function KnowledgeSection({ section }: { section: AboutSection }) {
 
   return (
     <>
-      <section className="about-page-knowledge-hero">
-        <div className="about-page-knowledge-hero-copy">
-          <span className="about-page-kicker">{section.eyebrow}</span>
-          <Typography.Title level={2}>
-            胡杨知识（Populus euphratica）
-          </Typography.Title>
-          <Typography.Paragraph>
-            面向胡杨林生态保护、种质资源保育和荒漠适应机制研究，本页将胡杨与灰杨相关科研成果重组为论文脉络、知识图谱、机制图解和生态价值四类内容，帮助用户从宏观生态屏障快速进入基因组、异形叶、抗逆响应等关键科学问题。
-          </Typography.Paragraph>
-          <div className="about-page-highlight-row">
-            {section.tags.map((item) => (
-              <span key={item}>
-                <CheckCircleOutlined />
-                {item}
-              </span>
-            ))}
+      {!embedded ? (
+        <section className="about-page-knowledge-hero">
+          <div className="about-page-knowledge-hero-copy">
+            <span className="about-page-kicker">{section.eyebrow}</span>
+            <Typography.Title level={2}>
+              胡杨知识（Populus euphratica）
+            </Typography.Title>
+            <Typography.Paragraph>
+              面向胡杨林生态保护、种质资源保育和荒漠适应机制研究，本页将胡杨与灰杨相关科研成果重组为论文脉络、知识图谱、机制图解和生态价值四类内容，帮助用户从宏观生态屏障快速进入基因组、异形叶、抗逆响应等关键科学问题。
+            </Typography.Paragraph>
+            <div className="about-page-highlight-row">
+              {section.tags.map((item) => (
+                <span key={item}>
+                  <CheckCircleOutlined />
+                  {item}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
-        <figure>
-          <img
-            alt="河畔古胡杨林景观"
-            src={aboutAssets.knowledgePopulusForestImage}
-          />
-          <figcaption>河畔古胡杨林与荒漠绿洲生态屏障</figcaption>
-        </figure>
-      </section>
+          <figure>
+            <img
+              alt="河畔古胡杨林景观"
+              src={aboutAssets.knowledgePopulusForestImage}
+            />
+            <figcaption>河畔古胡杨林与荒漠绿洲生态屏障</figcaption>
+          </figure>
+        </section>
+      ) : null}
 
       <section className="about-page-card-grid about-page-knowledge-theme-grid">
         {knowledgeThemes.map((item, themeIndex) => (
@@ -935,7 +945,7 @@ export function KnowledgeSection({ section }: { section: AboutSection }) {
   );
 }
 
-function DocsSection({ section }: { section: AboutSection }) {
+export function DocsSection({ section }: { section: AboutSection }) {
   const [activeArticleId, setActiveArticleId] = useState("platform-guide");
   const [searchKeyword, setSearchKeyword] = useState("");
   const activeArticle =

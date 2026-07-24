@@ -159,7 +159,7 @@ console.log(overview.metrics.map((item) => item.displayValue));
 
 | 前端区域 | OpenAPI 字段 | 后端实现口径 |
 | --- | --- | --- |
-| 中文名称、英文名称、CAPFED、版本型号 | `platform` | 来自系统设置或后端常量，需与软件发布版本保持一致 |
+| 中文名称、英文名称、GPEDSP、版本型号 | `platform` | 来自系统设置或后端常量，需与软件发布版本保持一致 |
 | 主标题上方标签、一句话概述、能力标签 | `hero` | 后端返回可配置文案，前端只负责排版展示 |
 | 四个统计卡片 | `metrics` | 当前需要 `dataResources`、`thematicLayers`、`monitoringSites`、`coveredBasins` 四项，返回原始 `value` 和格式化 `displayValue` |
 | 平台服务状态 | `serviceStatus.services` | 返回资源目录、图层服务、权限认证三个公开状态，不暴露内部错误堆栈 |

@@ -42,7 +42,7 @@ const AdminWorkspaceManagementPage = lazy(
 const AdminTopicCompositionManagementPage = lazy(
   () => import("./admin/AdminTopicCompositionManagementPage"),
 );
-const AboutPage = lazy(() => import("./pages/AboutPage"));
+const AboutPage = lazy(() => import("./pages/AboutV2Page"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const DataCatalogPage = lazy(() => import("./pages/DataCatalogPage"));
@@ -223,6 +223,14 @@ export default function App() {
             <Route
               path="/about/knowledge"
               element={<Navigate to="/knowledge" replace />}
+            />
+            <Route
+              path="/about/:section/:institutionId"
+              element={
+                <RouteTransition>
+                  <AboutPage />
+                </RouteTransition>
+              }
             />
             <Route
               path="/about/:section"

@@ -26,14 +26,14 @@ import { useState } from "react";
 import { api } from "../api/client";
 import capfedLogoWhite from "../assets/capfed-logo-white.svg";
 import { oceanBorderBeam } from "../components/oceanBorderBeam";
+import { platformBrand } from "../config/platformBrand";
 import { useAppContext } from "../contexts/AppContext";
 import type { LoginFormValues, RegisterFormValues } from "../types";
 
-const platformChineseName = "全球胡杨林生态系统保护数据共享平台";
-const platformEnglishName =
-  "Global Poplar Forest Ecosystem Protection Data Sharing Platform";
-const platformShortName = "CAPFED";
-const platformEdition = "CAPFED-WebGIS Research Edition";
+const platformChineseName = platformBrand.chineseName;
+const platformEnglishName = platformBrand.englishName;
+const platformShortName = platformBrand.shortName;
+const platformEdition = platformBrand.edition;
 const platformVersion = "v1.0.0";
 
 const loginStats = [

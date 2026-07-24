@@ -38,6 +38,7 @@ import { api } from "../api/client";
 import capfedLogoWhite from "../assets/capfed-logo-white.svg";
 import homePoplarNightImage from "../assets/portal/home-poplar-night.png";
 import WorkspaceHeader from "../components/WorkspaceHeader";
+import { platformBrand } from "../config/platformBrand";
 import { useAppContext } from "../contexts/AppContext";
 import type {
   DataSchemaCatalogNode,
@@ -243,23 +244,20 @@ export default function DataCatalogPage() {
               <span className="data-catalog-platform-logo">
                 <img
                   src={capfedLogoWhite}
-                  alt="全球胡杨林生态系统保护数据共享平台 Logo"
+                  alt={`${platformBrand.chineseName} Logo`}
                   width={54}
                   height={54}
                 />
               </span>
               <span className="data-catalog-platform-name">
-                <strong>全球胡杨林生态系统保护数据共享平台</strong>
-                <span>
-                  Global Poplar Forest Ecosystem Protection Data Sharing
-                  Platform
-                </span>
+                <strong>{platformBrand.chineseName}</strong>
+                <span>{platformBrand.englishName}</span>
               </span>
             </div>
             <div className="data-catalog-hero-eyebrow">
               <span className="data-catalog-hero-context">
                 <GlobalOutlined />
-                <span>中亚胡杨生态数据门户</span>
+                <span>全球胡杨生态数据门户</span>
               </span>
               <span className="data-catalog-hero-mission">
                 服务生态保护 · 科学研究 · 数据共享

@@ -4,9 +4,9 @@
       "generatedAt": "2026-06-15T10:30:00+08:00",
       "platform": {
         "chineseName": "全球胡杨林生态系统保护数据共享平台",
-        "englishName": "Global Poplar Forest Ecosystem Protection Data Sharing Platform",
-        "abbreviation": "CAPFED",
-        "edition": "CAPFED-WebGIS Research Edition",
+        "englishName": "Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform",
+        "abbreviation": "GPEDSP",
+        "edition": "GPEDSP · WebGIS Research Edition",
         "version": "v1.0.0"
       },
       "hero": {

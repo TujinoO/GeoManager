@@ -611,7 +611,7 @@ CREATE TABLE gpkg_data_columns (
 
 # 2026-07-22 平台品牌与智能预警占位
 
-- 平台规范中文名称统一为“全球胡杨林生态系统保护数据共享平台”，英文名称统一为 “Global Poplar Forest Ecosystem Protection Data Sharing Platform”；前端展示、后端登录概览、运行配置、OpenAPI 示例、Mock 和帮助入口需保持一致。
+- 平台规范中文名称统一为“全球胡杨林生态系统保护数据共享平台”，英文名称统一为 “Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform”，英文缩写统一为 `GPEDSP`（Global Populus euphratica Data Sharing Platform）；前端展示、后端登录概览、运行配置、OpenAPI 示例、Mock 和帮助入口需保持一致。前端可见品牌字段集中维护在 `frontend/src/config/platformBrand.ts`，避免导航栏、登录页和内容页再次产生口径漂移。
 - 登录页使用 `frontend/src/assets/login-golden-poplar-bg.png` 作为金色胡杨封面；可见品牌图标继续统一复用透明底盾牌胡杨 Logo，并同步维护 SVG 的可访问标题。
 - 顶部主导航预留“智能预警”按钮并进入 `/warning` 正式占位页；当前不新增实时监测 API、权限或后台业务实现，后续接入时再补齐契约与权限设计。
 
@@ -629,3 +629,10 @@ CREATE TABLE gpkg_data_columns (
 - `/resources/manage/topics` 保留稳定路径但页面语义升级为“成果管理”，用两个页签统一承载 `MapComposition` 与 `ResultArtifact`，保留专题图原有工程/版本操作并补齐成果文件发布范围、下架和删除。
 - 删除导入成果只删除数据库记录和该对象明确记录的单个成果文件，不递归删除目录；操作写入 `OperationLog`。
 - 关于我们新增塔里木大学、新疆生地所、中科院西北院、新疆林科院四个独立机构展示区和分机构成员名录；未核实成员明确显示待确认。
+
+# 2026-07-23 胡杨科普与关于我们内容深化
+
+- 胡杨科普一级页按“物种档案、保护管理、胡杨知识图谱”三段组织；物种档案包含物种名片、生态价值、文化象征、生存智慧和科研价值，知识图谱继续复用原有论文、机制与交互节点内容。
+- 团队介绍与团队成员均采用四单位总览和单位二级路由，路径分别为 `/about/team/:institutionId` 与 `/about/members/:institutionId`；机构标识固定为 `tarim-university`、`xieg-cas`、`xjafs`、`nieer-cas`。
+- 联系我们从团队内容中拆为 `/about/contact` 独立页面：数据使用、权限与资料提交联系 `lizhijun0202@126.com`，平台建设、功能问题与 Bug 修复联系 `wanghaoyu191@mails.ucas.ac.cn`。
+- 帮助中心 PDF 保持稳定下载路径 `/docs/CAPFED-help-center.pdf`，文档升级至 v2.0（2026-07-23），按九大一级页面、成果管理、专题制图、科普、四单位二级页和双邮箱支持流程重写。

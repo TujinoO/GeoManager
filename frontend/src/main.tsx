@@ -5,6 +5,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import "antd/dist/reset.css";
 import "./styles.css";
+import "./styles/about-v2.css";
 import App from "./App";
 import { appTheme } from "./theme";
 

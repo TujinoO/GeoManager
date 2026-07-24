@@ -1,6 +1,6 @@
 # huyang_system Agent Instructions
 
-Global Poplar Forest Ecosystem Protection Data Sharing Platform (全球胡杨林生态系统保护数据共享平台).
+Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform (全球胡杨林生态系统保护数据共享平台), abbreviated as GPEDSP.
 
 These instructions are for AI coding agents working in this repository. Treat every rule below as operational guidance: read the required context, preserve architecture boundaries, keep API contracts synchronized, and report verification results explicitly.
 

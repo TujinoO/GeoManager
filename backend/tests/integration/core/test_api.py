@@ -229,7 +229,12 @@ class LoginOverviewApiTests(TestCase):
         )
         self.assertEqual(
             payload["platform"]["englishName"],
-            "Global Poplar Forest Ecosystem Protection Data Sharing Platform",
+            "Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform",
+        )
+        self.assertEqual(payload["platform"]["abbreviation"], "GPEDSP")
+        self.assertEqual(
+            payload["platform"]["edition"],
+            "GPEDSP · WebGIS Research Edition",
         )
         self.assertEqual(payload["platform"]["version"], "v0.1.0")
         metrics = {item["id"]: item for item in payload["metrics"]}
@@ -2394,8 +2399,7 @@ class FeaturePermissionTests(TestCase):
             [80.0, 40.0, 81.0, 41.0],
         )
         own_types = {
-            item["dataType"]: item
-            for item in overview["ownUploads"]["typeBreakdown"]
+            item["dataType"]: item for item in overview["ownUploads"]["typeBreakdown"]
         }
         self.assertEqual(len(own_types), len(DataResource.DataType.choices))
         self.assertEqual(own_types[DataResource.DataType.RASTER]["count"], 1)

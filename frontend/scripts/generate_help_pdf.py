@@ -47,7 +47,7 @@ def main() -> None:
         topMargin=18 * mm,
         bottomMargin=16 * mm,
         title="全球胡杨林生态系统保护数据共享平台帮助文档",
-        author="CAPFED",
+        author="GPEDSP",
     )
     styles = build_styles()
     story = build_story(markdown, styles)
@@ -156,7 +156,7 @@ def build_story(markdown: str, styles: dict[str, ParagraphStyle]) -> list:
     title = clean_inline(lines[0].lstrip("# ").strip())
     metadata = read_metadata(lines)
     story: list = [
-        cover_band("CAPFED Help Center", styles),
+        cover_band("GPEDSP Help Center", styles),
         Spacer(1, 22),
         Paragraph(title, styles["cover_title"]),
         Paragraph(
@@ -345,7 +345,7 @@ def draw_footer(canvas, document) -> None:
     canvas.drawRightString(
         document.pagesize[0] - 18 * mm,
         9 * mm,
-        f"CAPFED 帮助文档 - 第 {document.page} 页",
+        f"GPEDSP 帮助文档 - 第 {document.page} 页",
     )
     canvas.restoreState()
 

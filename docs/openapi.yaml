@@ -3575,15 +3575,15 @@ components:
         englishName:
           type: string
           description: 平台英文名称，用于登录页英文标题和品牌副标题。
-          example: Global Poplar Forest Ecosystem Protection Data Sharing Platform
+          example: Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform
         abbreviation:
           type: string
           description: 平台英文缩写，用于品牌区短名称。
-          example: CAPFED
+          example: GPEDSP
         edition:
           type: string
           description: 平台版本型号或发行版名称，用于登录页底部版本栏。
-          example: CAPFED-WebGIS Research Edition
+          example: GPEDSP · WebGIS Research Edition
         version:
           type: string
           description: 当前软件语义化版本号，用于登录页底部版本栏。

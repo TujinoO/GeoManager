@@ -40,6 +40,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import WorkspaceHeader from "../components/WorkspaceHeader";
+import { platformBrand } from "../config/platformBrand";
 import { useAppContext } from "../contexts/AppContext";
 import type {
   DataDomainType,
@@ -1098,7 +1099,7 @@ export default function NonGeoPage() {
             <div className="nongeo-analysis-head">
               <div>
                 <Typography.Text className="nongeo-kicker">
-                  CAPFED 非地理生态数据分析
+                  {platformBrand.shortName} 非地理生态数据分析
                 </Typography.Text>
                 <Typography.Title level={2}>
                   {analytics?.resource.name ??

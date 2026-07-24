@@ -398,7 +398,7 @@ describe("application critical flows", () => {
     ).toBeInTheDocument();
     expect(
       screen.getAllByText(
-        "Global Poplar Forest Ecosystem Protection Data Sharing Platform",
+        "Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform",
       ).length,
     ).toBeGreaterThan(0);
 

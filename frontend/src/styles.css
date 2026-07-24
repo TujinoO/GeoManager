@@ -360,8 +360,8 @@ body:has(.login-shell),
 
 .login-brand-text strong {
   color: var(--c-warning);
-  font-size: 16px;
-  letter-spacing: 0.08em;
+  font-size: 15px;
+  letter-spacing: 0.035em;
 }
 
 .login-brand-text span {
@@ -902,8 +902,8 @@ body:has(.login-shell),
 
 .login-card-header strong {
   color: var(--c-primary-dark);
-  font-size: 16px;
-  letter-spacing: 0.08em;
+  font-size: 15px;
+  letter-spacing: 0.035em;
 }
 
 .login-card-header small {
@@ -6037,9 +6037,9 @@ body:has(.login-shell),
 
   & strong {
     color: var(--c-white);
-    font-size: 16px;
+    font-size: 14px;
     line-height: 1;
-    letter-spacing: 0;
+    letter-spacing: 0.025em;
   }
 
   & h4.ant-typography {
@@ -6628,6 +6628,24 @@ body:has(.login-shell),
     .header-primary-actions
     .workspace-switch-card-hover-expanded {
     max-width: max-content;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1120px) {
+  .workspace-header .brand-block {
+    gap: 5px;
+  }
+
+  .workspace-header .brand-copy {
+    min-width: auto;
+  }
+
+  .workspace-header .brand-copy strong {
+    font-size: 13px;
+  }
+
+  .workspace-header .brand-copy h4.ant-typography {
+    display: none;
   }
 }
 
