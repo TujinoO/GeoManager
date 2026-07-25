@@ -1432,7 +1432,7 @@ function RolePresetGuide() {
     <Alert
       type="info"
       showIcon
-      message="内置角色权限基线"
+      title="内置角色权限基线"
       description={
         <Space size={[8, 8]} wrap>
           {builtinRoleOrder.map((roleName) => {

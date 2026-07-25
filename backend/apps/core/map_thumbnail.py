@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import math
+from io import BytesIO
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from django.conf import settings
+from PIL import Image, ImageDraw
 
 from apps.core.config import load_runtime_config_document
 
@@ -28,13 +30,13 @@ class ThumbnailTileError(RuntimeError):
     pass
 
 
-def thumbnail_tile(z: int, x: int, y: int) -> tuple[bytes, str]:
+def thumbnail_tile(z: int, x: int, y: int) -> tuple[bytes, str, bool]:
     validate_tile_coordinates(z, x, y)
     url, cache_key = configured_tile_url(z, x, y)
     cache_path = thumbnail_cache_path(cache_key, z, x, y)
     if cache_path.exists():
         data = cache_path.read_bytes()
-        return data, detect_image_content_type(data)
+        return data, detect_image_content_type(data), False
 
     try:
         data, content_type = fetch_tile(url)
@@ -42,12 +44,12 @@ def thumbnail_tile(z: int, x: int, y: int) -> tuple[bytes, str]:
         stale = latest_cached_tile(cache_key, z, x, y)
         if stale is not None:
             data = stale.read_bytes()
-            return data, detect_image_content_type(data)
-        return generated_local_tile(z, x, y), "image/svg+xml"
+            return data, detect_image_content_type(data), False
+        return generated_local_tile(z, x, y), "image/png", True
 
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_bytes(data)
-    return data, content_type
+    return data, content_type, False
 
 
 def validate_tile_coordinates(z: int, x: int, y: int) -> None:
@@ -96,7 +98,10 @@ def fetch_tile(url: str) -> tuple[bytes, str]:
     declared_type = content_type.split(";", 1)[0].strip().lower()
     if not declared_type.startswith("image/"):
         raise ThumbnailTileError("缩略图瓦片源返回了非图片内容")
-    return data, detect_image_content_type(data, declared_type)
+    detected_type = detect_image_content_type(data, declared_type)
+    if detected_type == "image/svg+xml":
+        raise ThumbnailTileError("缩略图瓦片源返回了不受支持的 SVG 内容")
+    return data, detected_type
 
 
 def detect_image_content_type(data: bytes, declared_type: str = "image/png") -> str:
@@ -119,22 +124,63 @@ def generated_local_tile(z: int, x: int, y: int) -> bytes:
     world_size = THUMBNAIL_TILE_SIZE * 2**z
     origin_x = x * THUMBNAIL_TILE_SIZE
     origin_y = y * THUMBNAIL_TILE_SIZE
-    grid_paths = generated_grid_paths(world_size, origin_x, origin_y)
-    land_paths = "\n".join(
-        f'<path d="{polygon_to_tile_path(points, world_size, origin_x, origin_y)}" />'
-        for points in fallback_land_polygons()
+    image = Image.new(
+        "RGB",
+        (THUMBNAIL_TILE_SIZE, THUMBNAIL_TILE_SIZE),
+        "#b8dce8",
     )
-    lake_paths = "\n".join(
-        f'<path d="{polygon_to_tile_path(points, world_size, origin_x, origin_y)}" />'
-        for points in fallback_water_polygons()
-    )
-    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" data-local-basemap="world-mercator">
-<rect width="256" height="256" fill="#b8dce8"/>
-<g stroke="#7ba8b3" stroke-opacity=".24" stroke-width=".75" fill="none">{grid_paths}</g>
-<g fill="#e7dfc7" stroke="#a5a98f" stroke-width=".9" stroke-linejoin="round" stroke-linecap="round">{land_paths}</g>
-<g fill="#b8dce8" stroke="#7ba8b3" stroke-width=".45" stroke-linejoin="round">{lake_paths}</g>
-</svg>"""
-    return svg.encode("utf-8")
+    draw = ImageDraw.Draw(image)
+
+    for lng in range(-180, 181, 30):
+        global_x, _ = lon_lat_to_world_pixel(lng, 0, world_size)
+        tile_x = global_x - origin_x
+        if -1 <= tile_x <= THUMBNAIL_TILE_SIZE + 1:
+            draw.line(
+                (tile_x, 0, tile_x, THUMBNAIL_TILE_SIZE),
+                fill="#91b7bf",
+                width=1,
+            )
+    for lat in range(-60, 61, 30):
+        _, global_y = lon_lat_to_world_pixel(0, lat, world_size)
+        tile_y = global_y - origin_y
+        if -1 <= tile_y <= THUMBNAIL_TILE_SIZE + 1:
+            draw.line(
+                (0, tile_y, THUMBNAIL_TILE_SIZE, tile_y),
+                fill="#91b7bf",
+                width=1,
+            )
+
+    for polygon in fallback_land_polygons():
+        draw.polygon(
+            tile_polygon_points(polygon, world_size, origin_x, origin_y),
+            fill="#e7dfc7",
+            outline="#a5a98f",
+        )
+    for polygon in fallback_water_polygons():
+        draw.polygon(
+            tile_polygon_points(polygon, world_size, origin_x, origin_y),
+            fill="#b8dce8",
+            outline="#7ba8b3",
+        )
+
+    output = BytesIO()
+    image.save(output, format="PNG", optimize=True)
+    return output.getvalue()
+
+
+def tile_polygon_points(
+    points: tuple[tuple[float, float], ...],
+    world_size: int,
+    origin_x: int,
+    origin_y: int,
+) -> list[tuple[float, float]]:
+    return [
+        (
+            lon_lat_to_world_pixel(lng, lat, world_size)[0] - origin_x,
+            lon_lat_to_world_pixel(lng, lat, world_size)[1] - origin_y,
+        )
+        for lng, lat in points
+    ]
 
 
 def generated_grid_paths(world_size: int, origin_x: int, origin_y: int) -> str:

@@ -74,6 +74,7 @@ import type {
 } from "./api/generated";
 
 export type {
+  AdminDataResourceAccessGroup,
   AdminDataResource,
   AdminDataResourceGroup,
   AdminOperationLog,
@@ -104,6 +105,14 @@ export type {
   RoleApplicationReviewRequest,
   RoleApplicationStatus,
   ResourceListItem,
+  ResultArtifact,
+  ResultArtifactCreatePayload,
+  ResultArtifactDeleteResponse,
+  ResultArtifactListResponse,
+  ResultArtifactSourceType,
+  ResultArtifactStatus,
+  ResultArtifactType,
+  ResultArtifactUpdateRequest,
   UserCreateRequest,
   UserCreateResponse,
   UserGroupUpdateRequest,
@@ -117,6 +126,7 @@ export type {
   WorkspaceSceneUpdateRequest,
   MapComposition,
   MapCompositionCreateRequest,
+  MapCompositionDeleteResponse,
   MapCompositionUpdateRequest,
   MapCompositionVersion,
   MapCompositionVersionCreatePayload,
@@ -261,6 +271,7 @@ export type ResourceVisualizationSummary = ResourceVisualizationSummaryResponse;
 export interface ImportCommitPayload {
   name: string;
   domainType: DataDomainType;
+  categoryCode: string;
   sheetName?: string | null;
   tableName: string;
   importMode: "geographic" | "table";

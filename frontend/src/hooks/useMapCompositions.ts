@@ -100,7 +100,7 @@ export function useMapCompositions(canView: boolean) {
     notifyWorkspaceInventoryChanged("composition");
   }, []);
 
-  const archive = useCallback((compositionId: number) => {
+  const remove = useCallback((compositionId: number) => {
     setItems((current) => current.filter((item) => item.id !== compositionId));
     notifyWorkspaceInventoryChanged("composition");
   }, []);
@@ -112,6 +112,6 @@ export function useMapCompositions(canView: boolean) {
     load,
     create,
     update,
-    archive,
+    remove,
   };
 }

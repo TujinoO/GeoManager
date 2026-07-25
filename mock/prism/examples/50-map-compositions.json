@@ -82,7 +82,7 @@
           "canUnpublish": false,
           "canRestoreProject": true,
           "canLoadSourceProject": true,
-          "canArchive": true,
+          "canDelete": true,
           "createdAt": "2026-07-14T14:00:00+08:00",
           "updatedAt": "2026-07-14T15:30:00+08:00"
         }
@@ -128,7 +128,7 @@
       "canUnpublish": false,
       "canRestoreProject": false,
       "canLoadSourceProject": true,
-      "canArchive": true,
+      "canDelete": true,
       "createdAt": "2026-07-14T16:00:00+08:00",
       "updatedAt": "2026-07-14T16:00:00+08:00"
     }
@@ -155,7 +155,7 @@
       "canUnpublish": false,
       "canRestoreProject": false,
       "canLoadSourceProject": true,
-      "canArchive": true,
+      "canDelete": true,
       "createdAt": "2026-07-14T14:00:00+08:00",
       "updatedAt": "2026-07-14T15:30:00+08:00"
     }
@@ -184,7 +184,7 @@
       "canUnpublish": true,
       "canRestoreProject": false,
       "canLoadSourceProject": true,
-      "canArchive": true,
+      "canDelete": true,
       "createdAt": "2026-07-14T14:00:00+08:00",
       "updatedAt": "2026-07-14T16:20:00+08:00"
     }
@@ -230,7 +230,7 @@
       "canUnpublish": true,
       "canRestoreProject": false,
       "canLoadSourceProject": true,
-      "canArchive": true,
+      "canDelete": true,
       "publishedAt": "2026-07-14T16:40:00+08:00",
       "publishedBy": {"id": 1, "username": "admin", "displayName": "系统管理员"},
       "createdAt": "2026-07-14T14:00:00+08:00",

@@ -5,6 +5,7 @@ export type ImportAccessScopeId = number | "__self__";
 export interface ImportFormValues {
   name: string;
   domainType?: DataDomainType;
+  categoryCode?: string;
   importMode: "geographic" | "table";
   longitudeColumn?: string;
   latitudeColumn?: string;
@@ -19,6 +20,7 @@ export function normalizeImportValues(
   return {
     name,
     domainType: values.domainType,
+    categoryCode: values.categoryCode,
     importMode,
     longitudeColumn: values.longitudeColumn || undefined,
     latitudeColumn: values.latitudeColumn || undefined,

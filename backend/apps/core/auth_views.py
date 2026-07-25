@@ -306,6 +306,19 @@ def serialize_user(user):
         "canRestoreMapCompositions": has_feature_perm(
             user, "catalog.restore_mapcomposition"
         ),
+        "canViewResultArtifacts": has_feature_perm(user, "catalog.view_resultartifact"),
+        "canImportResultArtifacts": has_feature_perm(
+            user, "catalog.add_resultartifact"
+        ),
+        "canDownloadResultArtifacts": has_feature_perm(
+            user, "catalog.download_resultartifact"
+        ),
+        "canPublishResultArtifacts": has_feature_perm(
+            user, "catalog.publish_resultartifact"
+        ),
+        "canDeleteResultArtifacts": has_feature_perm(
+            user, "catalog.delete_resultartifact"
+        ),
         "canManageRasterData": has_feature_perm(user, "raster.manage_raster_dataset")
         or can_change_data,
     }

@@ -4,6 +4,7 @@ import copy
 import hashlib
 import io
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,8 @@ LAYOUT_MAX_BYTES = 512 * 1024
 WORKSPACE_SNAPSHOT_MAX_BYTES = 1024 * 1024
 MAX_OUTPUT_SIDE = 8192
 MAX_OUTPUT_PIXELS = 36_000_000
+
+logger = logging.getLogger(__name__)
 
 
 @require_http_methods(["GET", "POST"])
@@ -148,21 +151,40 @@ def map_composition_detail(request, composition_id: int):
     if action == "delete":
         if not has_feature_perm(request.user, "catalog.delete_mapcomposition"):
             return feature_denied_response(request.user)
-        composition.status = MapComposition.Status.ARCHIVED
-        composition.save(update_fields=["status", "updated_at"])
-        log_operation(
-            request.user,
-            "专题制图",
-            "归档出图稿",
-            "success",
-            composition.name,
-            request,
-            target_type="map_composition",
-            target_id=composition.id,
-            target_code="archived",
-            target_name=composition.name,
+        composition_id = composition.id
+        composition_name = composition.name
+        with transaction.atomic():
+            locked = MapComposition.objects.select_for_update().get(pk=composition_id)
+            export_paths = {
+                path
+                for paths in locked.versions.values_list(
+                    "preview_path", "artifact_path"
+                )
+                for path in paths
+                if path
+            }
+            # The published version belongs to this composition. Clear the
+            # self-reference explicitly before cascading all version records.
+            if locked.published_version_id is not None:
+                locked.published_version = None
+                locked.save(update_fields=["published_version"])
+            log_operation(
+                request.user,
+                "专题制图",
+                "删除出图稿",
+                "success",
+                composition_name,
+                request,
+                target_type="map_composition",
+                target_id=composition_id,
+                target_code="deleted",
+                target_name=composition_name,
+            )
+            locked.delete()
+        _delete_composition_export_files(composition_id, export_paths)
+        return JsonResponse(
+            {"deleted": True, "id": composition_id, "detail": "出图稿已删除"}
         )
-        return JsonResponse({"detail": "出图稿已归档"})
     if action != "update":
         return JsonResponse({"detail": "action 仅支持 update 或 delete"}, status=400)
     if not has_feature_perm(request.user, "catalog.change_mapcomposition"):
@@ -522,7 +544,7 @@ def restore_map_composition_project(request, composition_id: int):
 
 def _composition_queryset(user):
     queryset = (
-        MapComposition.objects.exclude(status=MapComposition.Status.ARCHIVED)
+        MapComposition.objects.all()
         .select_related("owner", "project", "published_version", "published_by")
         .prefetch_related("versions", "audience_groups", "project__access_groups")
     )
@@ -544,7 +566,7 @@ def _composition_for_user(user, composition_id: int) -> MapComposition | None:
 
 def _manageable_composition(user, composition_id: int) -> MapComposition | None:
     queryset = (
-        MapComposition.objects.exclude(status=MapComposition.Status.ARCHIVED)
+        MapComposition.objects.all()
         .select_related("owner", "project", "published_version", "published_by")
         .prefetch_related("versions", "audience_groups", "project__access_groups")
         .filter(pk=composition_id)
@@ -721,6 +743,26 @@ def _relative_export_path(
     return f"exports/map-compositions/{composition_id}/v{version_number}/{filename}"
 
 
+def _delete_composition_export_files(
+    composition_id: int, relative_paths: set[str]
+) -> None:
+    expected_prefix = f"exports/map-compositions/{composition_id}/"
+    for relative_path in relative_paths:
+        normalized = relative_path.replace("\\", "/")
+        if not normalized.startswith(expected_prefix) or ".." in normalized.split("/"):
+            logger.warning(
+                "Skipped unsafe map composition export path during deletion: %s",
+                relative_path,
+            )
+            continue
+        try:
+            app_path(*normalized.split("/")).unlink(missing_ok=True)
+        except OSError:
+            logger.exception(
+                "Failed to delete map composition export file: %s", relative_path
+            )
+
+
 def _serialize_composition(composition: MapComposition, request_user) -> dict[str, Any]:
     privileged = _user_can_manage(composition, request_user)
     all_versions = list(composition.versions.all())
@@ -793,7 +835,7 @@ def _serialize_composition(composition: MapComposition, request_user) -> dict[st
         "canLoadSourceProject": _user_can_load_source_project(
             composition, request_user
         ),
-        "canArchive": bool(
+        "canDelete": bool(
             privileged
             and has_feature_perm(request_user, "catalog.delete_mapcomposition")
         ),

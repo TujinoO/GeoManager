@@ -11,6 +11,7 @@ from apps.core.api import api_login_required
 from apps.core.storage import StoragePathError, raster_source_path
 from apps.catalog.models import MapLayer
 from apps.catalog.permissions import related_access_filter, user_can_access
+from apps.catalog.taxonomy import TaxonomyError, resolve_data_category
 from apps.core.permissions import feature_denied_response, has_feature_perm
 from apps.raster.models import RasterDataset
 from apps.raster.permissions import can_manage_raster_data
@@ -235,6 +236,7 @@ def import_raster(request):
             payload = json.loads(raw_payload) if raw_payload else {}
             if not isinstance(payload, dict):
                 raise RasterImportError("payload 必须是 JSON 对象")
+            category_code = _validated_category_code(payload)
             if is_legacy_upload and not raw_payload and legacy_file is not None:
                 display_name = (
                     str(request.POST.get("name") or "").strip()
@@ -247,6 +249,7 @@ def import_raster(request):
                     cleanup_upload_on_failure=True,
                     uploader_id=request.user.id,
                     created_by_id=request.user.id,
+                    category_code=category_code,
                 )
                 source_manifest = []
                 checksum = ""
@@ -275,6 +278,7 @@ def import_raster(request):
                     else None,
                     uploader_id=request.user.id,
                     access_group_ids=access_group_ids,
+                    category_code=category_code,
                     created_by_id=request.user.id,
                 )
         except (
@@ -308,6 +312,10 @@ def import_raster(request):
     except json.JSONDecodeError:
         return JsonResponse({"detail": "请求体不是有效 JSON"}, status=400)
     source_relative = str(payload.get("sourcePath") or "").strip()
+    try:
+        category_code = _validated_category_code(payload)
+    except RasterImportError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
     if not source_relative:
         log_operation(
             request.user,
@@ -328,6 +336,7 @@ def import_raster(request):
             name=str(payload.get("name") or ""),
             created_by_id=request.user.id,
             uploader_id=request.user.id,
+            category_code=category_code,
         )
         log_operation(
             request.user,
@@ -347,6 +356,7 @@ def import_raster(request):
             source_path,
             name=str(payload.get("name") or ""),
             uploader_id=request.user.id,
+            category_code=category_code,
         )
     except (RasterImportError, OSError) as exc:
         log_operation(
@@ -367,6 +377,17 @@ def import_raster(request):
         request,
     )
     return JsonResponse(serialize_raster_dataset(dataset), status=201)
+
+
+def _validated_category_code(payload: dict) -> str:
+    category_code = str(payload.get("categoryCode") or "").strip()
+    if not category_code:
+        return ""
+    try:
+        resolve_data_category(category_code)
+    except TaxonomyError as exc:
+        raise RasterImportError(str(exc)) from exc
+    return category_code
 
 
 @require_POST

@@ -3,5 +3,5 @@ import { useAppContext } from "../contexts/AppContext";
 
 export default function HomePage() {
   const { user } = useAppContext();
-  return <Navigate to={user ? "/map" : "/login"} replace />;
+  return <Navigate to={user ? "/data" : "/login"} replace />;
 }

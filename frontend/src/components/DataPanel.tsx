@@ -14,20 +14,19 @@ import {
   Input,
   Select,
   Space,
+  Spin,
   Tag,
   Typography,
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import type {
   AttributeFilter,
-  DataDomainType,
   DataResourceProfile,
   ResourceFilters,
   ResourceListItem,
   User,
 } from "../types";
 import {
-  resourceCategory,
   resourceCategoryName,
   resourceFormatLabel,
   resourceProvider,
@@ -38,11 +37,12 @@ interface Props {
   resources: ResourceListItem[];
   profile: DataResourceProfile | null;
   selectedResourceId: ResourceListItem["id"] | null;
+  loadingResources?: boolean;
   loadingProfile: boolean;
   querying: boolean;
   permissions: User["permissions"];
-  domainTypeOptions?: Array<{ value: DataDomainType; label: string }>;
-  selectedDomainType?: DataDomainType | null;
+  categoryOptions?: Array<{ value: string; label: string }>;
+  selectedCategoryCode?: string | null;
   searchKeyword?: string;
   onFilterResources: (filters: ResourceFilters) => void;
   onSelectResource: (resource: ResourceListItem) => void;
@@ -68,11 +68,12 @@ export default function DataPanel({
   resources,
   profile,
   selectedResourceId,
+  loadingResources = false,
   loadingProfile,
   querying,
   permissions,
-  domainTypeOptions = [],
-  selectedDomainType,
+  categoryOptions = [],
+  selectedCategoryCode,
   searchKeyword,
   onFilterResources,
   onSelectResource,
@@ -93,30 +94,12 @@ export default function DataPanel({
     ResourceListItem["id"] | null
   >(null);
 
-  const categoryOptions = useMemo(() => {
-    const categories = new Map<string, string>();
-    resources.forEach((resource) => {
-      const category = resourceCategory(resource);
-      if (category) {
-        categories.set(category.code, category.name);
-      }
-    });
-    return Array.from(categories, ([code, name]) => ({
-      value: code,
-      label: name,
-    }));
-  }, [resources]);
-  const usesDomainTypeFilter = domainTypeOptions.length > 0;
-  const domainFilterOptions = useMemo(
-    () => [{ value: allDataFilterValue, label: "全部数据" }, ...domainTypeOptions],
-    [domainTypeOptions],
-  );
-  const domainTypeLabelByValue = useMemo(
-    () =>
-      new Map(
-        domainTypeOptions.map((option) => [option.value, option.label] as const),
-      ),
-    [domainTypeOptions],
+  const categoryFilterOptions = useMemo(
+    () => [
+      { value: allDataFilterValue, label: "全部分类" },
+      ...categoryOptions,
+    ],
+    [categoryOptions],
   );
 
   const fieldOptions = (profile?.fields ?? []).map((item) => ({
@@ -137,13 +120,13 @@ export default function DataPanel({
   }, [searchKeyword]);
 
   useEffect(() => {
-    const nextDomainType = selectedDomainType ?? undefined;
+    const nextCategoryCode = selectedCategoryCode ?? undefined;
     setResourceFilters((current) =>
-      current.domainType === nextDomainType
+      current.categoryCode === nextCategoryCode
         ? current
-        : withResourceFilterValue(current, "domainType", nextDomainType),
+        : withResourceFilterValue(current, "categoryCode", nextCategoryCode),
     );
-  }, [selectedDomainType]);
+  }, [selectedCategoryCode]);
 
   function updateResourceFilter(
     key: keyof ResourceFilters,
@@ -167,14 +150,11 @@ export default function DataPanel({
     onFilterResources(cleanResourceFilters(nextFilters));
   }
 
-  function resourceDomainCategoryName(resource: ResourceListItem) {
-    if (resource.domainType) {
-      return (
-        domainTypeLabelByValue.get(resource.domainType) ??
-        resourceCategoryName(resource)
-      );
-    }
-    return resourceCategoryName(resource);
+  function resourcePrimaryCategoryName(resource: ResourceListItem) {
+    return (
+      resource.categoryPath?.map((item) => item.name).join(" / ") ||
+      resourceCategoryName(resource)
+    );
   }
 
   function addAttributeFilter() {
@@ -227,22 +207,14 @@ export default function DataPanel({
         <div className="data-filter-row">
           <Select
             placeholder="数据分类"
-            value={
-              usesDomainTypeFilter
-                ? (resourceFilters.domainType ?? allDataFilterValue)
-                : resourceFilters.category
-            }
+            value={resourceFilters.categoryCode ?? allDataFilterValue}
             allowClear
-            options={usesDomainTypeFilter ? domainFilterOptions : categoryOptions}
+            options={categoryFilterOptions}
             onChange={(nextValue) => {
-              if (usesDomainTypeFilter) {
-                updateAndFilterResources(
-                  "domainType",
-                  nextValue === allDataFilterValue ? undefined : nextValue,
-                );
-                return;
-              }
-              updateAndFilterResources("category", nextValue);
+              updateAndFilterResources(
+                "categoryCode",
+                nextValue === allDataFilterValue ? undefined : nextValue,
+              );
             }}
           />
           <Select
@@ -282,7 +254,9 @@ export default function DataPanel({
         <Button
           type="primary"
           icon={<FilterOutlined style={{ fontSize: 15 }} />}
-          onClick={() => onFilterResources(cleanResourceFilters(resourceFilters))}
+          onClick={() =>
+            onFilterResources(cleanResourceFilters(resourceFilters))
+          }
         >
           筛选数据
         </Button>
@@ -312,7 +286,7 @@ export default function DataPanel({
                   {resource.isRenderable && <Tag color="blue">栅格</Tag>}
                 </Typography.Text>
                 <Typography.Text type="secondary" className="resource-row-meta">
-                  {resourceDomainCategoryName(resource) ?? "未分类"} ·{" "}
+                  {resourcePrimaryCategoryName(resource) ?? "待归类"} ·{" "}
                   {resourceFormatLabel(resource)}
                 </Typography.Text>
               </div>
@@ -340,6 +314,13 @@ export default function DataPanel({
             </li>
           ))}
         </ul>
+      ) : loadingResources ? (
+        <div className="data-panel-loading" role="status">
+          <Spin size="small" />
+          <Typography.Text type="secondary">
+            正在同步数据目录...
+          </Typography.Text>
+        </div>
       ) : (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}

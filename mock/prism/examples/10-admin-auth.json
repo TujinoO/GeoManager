@@ -54,7 +54,12 @@
           "canChangeMapCompositions": true,
           "canDeleteMapCompositions": true,
           "canExportMapCompositions": true,
-          "canPublishMapCompositions": true
+          "canPublishMapCompositions": true,
+          "canViewResultArtifacts": true,
+          "canImportResultArtifacts": true,
+          "canDownloadResultArtifacts": true,
+          "canPublishResultArtifacts": true,
+          "canDeleteResultArtifacts": true
         },
         "groupIds": [
           1
@@ -218,7 +223,12 @@
           "canChangeMapCompositions": true,
           "canDeleteMapCompositions": true,
           "canExportMapCompositions": true,
-          "canPublishMapCompositions": true
+          "canPublishMapCompositions": true,
+          "canViewResultArtifacts": true,
+          "canImportResultArtifacts": true,
+          "canDownloadResultArtifacts": true,
+          "canPublishResultArtifacts": true,
+          "canDeleteResultArtifacts": true
         },
         "groupIds": [
           1
@@ -372,7 +382,12 @@
           "canChangeMapCompositions": true,
           "canDeleteMapCompositions": true,
           "canExportMapCompositions": true,
-          "canPublishMapCompositions": true
+          "canPublishMapCompositions": true,
+          "canViewResultArtifacts": true,
+          "canImportResultArtifacts": true,
+          "canDownloadResultArtifacts": true,
+          "canPublishResultArtifacts": true,
+          "canDeleteResultArtifacts": true
         },
         "groupIds": [
           1
@@ -530,7 +545,12 @@
             "canChangeMapCompositions": true,
             "canDeleteMapCompositions": true,
             "canExportMapCompositions": true,
-            "canPublishMapCompositions": true
+            "canPublishMapCompositions": true,
+            "canViewResultArtifacts": true,
+            "canImportResultArtifacts": false,
+            "canDownloadResultArtifacts": false,
+            "canPublishResultArtifacts": false,
+            "canDeleteResultArtifacts": false
           },
           "groupIds": [
             6
@@ -634,7 +654,12 @@
             "canChangeMapCompositions": true,
             "canDeleteMapCompositions": true,
             "canExportMapCompositions": true,
-            "canPublishMapCompositions": true
+            "canPublishMapCompositions": true,
+            "canViewResultArtifacts": true,
+            "canImportResultArtifacts": true,
+            "canDownloadResultArtifacts": true,
+            "canPublishResultArtifacts": true,
+            "canDeleteResultArtifacts": true
           },
           "groupIds": [
             3
@@ -728,7 +753,12 @@
             "canChangeMapCompositions": true,
             "canDeleteMapCompositions": true,
             "canExportMapCompositions": true,
-            "canPublishMapCompositions": true
+            "canPublishMapCompositions": true,
+            "canViewResultArtifacts": true,
+            "canImportResultArtifacts": false,
+            "canDownloadResultArtifacts": false,
+            "canPublishResultArtifacts": false,
+            "canDeleteResultArtifacts": false
           },
           "groupIds": [
             4
@@ -827,7 +857,12 @@
             "canChangeMapCompositions": true,
             "canDeleteMapCompositions": true,
             "canExportMapCompositions": false,
-            "canPublishMapCompositions": true
+            "canPublishMapCompositions": true,
+            "canViewResultArtifacts": true,
+            "canImportResultArtifacts": false,
+            "canDownloadResultArtifacts": false,
+            "canPublishResultArtifacts": false,
+            "canDeleteResultArtifacts": false
           },
           "groupIds": [
             2
@@ -909,7 +944,12 @@
           "canChangeMapCompositions": true,
           "canDeleteMapCompositions": true,
           "canExportMapCompositions": true,
-          "canPublishMapCompositions": true
+          "canPublishMapCompositions": true,
+          "canViewResultArtifacts": true,
+          "canImportResultArtifacts": true,
+          "canDownloadResultArtifacts": true,
+          "canPublishResultArtifacts": true,
+          "canDeleteResultArtifacts": true
         },
         "groupIds": [
           3
@@ -993,7 +1033,12 @@
         "canChangeMapCompositions": true,
         "canDeleteMapCompositions": true,
         "canExportMapCompositions": true,
-        "canPublishMapCompositions": true
+        "canPublishMapCompositions": true,
+        "canViewResultArtifacts": true,
+        "canImportResultArtifacts": true,
+        "canDownloadResultArtifacts": true,
+        "canPublishResultArtifacts": true,
+        "canDeleteResultArtifacts": true
       },
       "groupIds": [
         3,
@@ -1090,7 +1135,12 @@
         "canChangeMapCompositions": true,
         "canDeleteMapCompositions": true,
         "canExportMapCompositions": true,
-        "canPublishMapCompositions": true
+        "canPublishMapCompositions": true,
+        "canViewResultArtifacts": true,
+        "canImportResultArtifacts": true,
+        "canDownloadResultArtifacts": true,
+        "canPublishResultArtifacts": true,
+        "canDeleteResultArtifacts": true
       },
       "groupIds": [
         3
@@ -1193,7 +1243,12 @@
         "canChangeMapCompositions": true,
         "canDeleteMapCompositions": true,
         "canExportMapCompositions": false,
-        "canPublishMapCompositions": true
+        "canPublishMapCompositions": true,
+        "canViewResultArtifacts": true,
+        "canImportResultArtifacts": false,
+        "canDownloadResultArtifacts": false,
+        "canPublishResultArtifacts": false,
+        "canDeleteResultArtifacts": false
       },
       "groupIds": [
         2
@@ -1568,7 +1623,7 @@
   },
   "GET /api/admin/settings/": {
     "200": {
-      "systemName": "中亚胡杨林生态系统保护数据共享平台",
+      "systemName": "全球胡杨林生态系统保护数据共享平台",
       "allowRegistration": true,
       "map": {
         "defaultCenter": [
@@ -1594,7 +1649,7 @@
   },
   "POST /api/admin/settings/": {
     "200": {
-      "systemName": "中亚胡杨林生态系统保护数据共享平台",
+      "systemName": "全球胡杨林生态系统保护数据共享平台",
       "allowRegistration": true,
       "map": {
         "defaultCenter": [

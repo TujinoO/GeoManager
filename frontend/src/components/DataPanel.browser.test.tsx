@@ -5,12 +5,7 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { cloneDefaultVectorSymbolization } from "../symbolization";
 import { appTheme } from "../theme";
-import type {
-  DataDomainType,
-  DataResourceProfile,
-  ResourceListItem,
-  User,
-} from "../types";
+import type { DataResourceProfile, ResourceListItem, User } from "../types";
 import DataPanel from "./DataPanel";
 import { VectorSymbolizationEditor } from "./SymbolizationEditor";
 
@@ -77,7 +72,21 @@ const rasterResource: ResourceListItem = {
   name: "塔里木河胡杨提取结果",
   code: "tarim-poplar-raster",
   dataType: "raster",
-  category: { code: "remote-sensing", name: "遥感监测" },
+  category: {
+    id: 2,
+    type: "data_category",
+    code: "thematic_landscape_rs",
+    name: "景观与遥感",
+    parentId: 1,
+    selectable: true,
+  },
+  categoryPath: [
+    { id: 1, code: "thematic", name: "胡杨专题数据" },
+    { id: 2, code: "thematic_landscape_rs", name: "景观与遥感" },
+  ],
+  classificationStatus: "classified",
+  availableViews: ["map", "metadata"],
+  defaultView: "map",
   source: "高分遥感解译",
   provider: "遥感处理组",
   dataDate: "2026-06-01",
@@ -100,13 +109,24 @@ const communityResource: ResourceListItem = {
   name: "群落样方调查数据",
   code: "community-plots",
   domainType: "community",
-  category: null,
+  category: {
+    id: 4,
+    type: "data_category",
+    code: "thematic_community",
+    name: "群落",
+    parentId: 1,
+    selectable: true,
+  },
+  categoryPath: [
+    { id: 1, code: "thematic", name: "胡杨专题数据" },
+    { id: 4, code: "thematic_community", name: "群落" },
+  ],
+  classificationStatus: "classified",
 };
 
-const domainTypeOptions: Array<{ value: DataDomainType; label: string }> = [
-  { value: "germplasm", label: "种质数据" },
-  { value: "community", label: "群落数据" },
-  { value: "population", label: "种群数据" },
+const categoryOptions = [
+  { value: "thematic", label: "胡杨专题数据" },
+  { value: "thematic_community", label: "胡杨专题数据 / 群落" },
 ];
 
 const rasterProfile: DataResourceProfile = {
@@ -200,6 +220,28 @@ function StatefulVectorSymbolizationEditor({
 }
 
 describe("DataPanel", () => {
+  it("shows directory synchronization instead of an empty state while loading", () => {
+    renderWithAntd(
+      <DataPanel
+        resources={[]}
+        profile={null}
+        selectedResourceId={null}
+        loadingResources
+        loadingProfile={false}
+        querying={false}
+        permissions={permissions}
+        onFilterResources={vi.fn()}
+        onSelectResource={vi.fn()}
+        onQuickLoadResource={vi.fn()}
+        onQueryAndLoad={vi.fn()}
+        onLoadRaster={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("正在同步数据目录");
+    expect(screen.queryByText("暂无数据资源")).not.toBeInTheDocument();
+  });
+
   it("submits metadata filters with the current keyword and source text", () => {
     const onFilterResources = vi.fn();
 
@@ -234,7 +276,7 @@ describe("DataPanel", () => {
     );
   });
 
-  it("defaults the domain type selector to all data without sending a filter", () => {
+  it("defaults the category selector to all categories without sending a filter", () => {
     const onFilterResources = vi.fn();
 
     renderWithAntd(
@@ -246,7 +288,7 @@ describe("DataPanel", () => {
         loadingProfile={false}
         querying={false}
         permissions={permissions}
-        domainTypeOptions={domainTypeOptions}
+        categoryOptions={categoryOptions}
         onFilterResources={onFilterResources}
         onSelectResource={vi.fn()}
         onQuickLoadResource={vi.fn()}
@@ -255,13 +297,13 @@ describe("DataPanel", () => {
       />,
     );
 
-    expect(screen.getByText("全部数据")).toBeInTheDocument();
+    expect(screen.getByText("全部分类")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /筛选数据/ }));
 
     expect(onFilterResources).toHaveBeenCalledWith({});
   });
 
-  it("uses the imported domain type for filtering and resource labels", () => {
+  it("uses the authoritative category for filtering and resource labels", () => {
     const onFilterResources = vi.fn();
 
     renderWithAntd(
@@ -273,8 +315,8 @@ describe("DataPanel", () => {
         loadingProfile={false}
         querying={false}
         permissions={permissions}
-        domainTypeOptions={domainTypeOptions}
-        selectedDomainType="community"
+        categoryOptions={categoryOptions}
+        selectedCategoryCode="thematic_community"
         onFilterResources={onFilterResources}
         onSelectResource={vi.fn()}
         onQuickLoadResource={vi.fn()}
@@ -283,11 +325,13 @@ describe("DataPanel", () => {
       />,
     );
 
-    expect(screen.getByText(/群落数据.*GeoPackage/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/胡杨专题数据.*群落.*GeoPackage/),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /筛选数据/ }));
 
     expect(onFilterResources).toHaveBeenCalledWith(
-      expect.objectContaining({ domainType: "community" }),
+      expect.objectContaining({ categoryCode: "thematic_community" }),
     );
   });
 
@@ -418,7 +462,7 @@ describe("VectorSymbolizationEditor", () => {
     expect(screen.getByText("表达方式")).toBeInTheDocument();
     expect(screen.getByText("基础样式")).toBeInTheDocument();
     expect(screen.getByText("标注")).toBeInTheDocument();
-    expect(screen.getByText("单点符号")).toBeInTheDocument();
+    expect(screen.getByText("点符号类型")).toBeInTheDocument();
     expect(screen.getByText("点颜色")).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByText("密度热力")[0]!);

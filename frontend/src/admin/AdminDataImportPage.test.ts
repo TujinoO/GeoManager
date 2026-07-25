@@ -7,6 +7,7 @@ describe("normalizeImportValues", () => {
       normalizeImportValues({
         name: " 胡杨群落样方数据 ",
         domainType: "community",
+        categoryCode: "thematic_community",
         importMode: "geographic",
         longitudeColumn: "Longitude",
         latitudeColumn: "Latitude",
@@ -15,6 +16,7 @@ describe("normalizeImportValues", () => {
     ).toEqual({
       name: "胡杨群落样方数据",
       domainType: "community",
+      categoryCode: "thematic_community",
       importMode: "geographic",
       longitudeColumn: "Longitude",
       latitudeColumn: "Latitude",
@@ -27,6 +29,7 @@ describe("normalizeImportValues", () => {
       normalizeImportValues({
         name: " 新疆边界 ",
         domainType: "vector",
+        categoryCode: "base_geo_admin",
         importMode: "geographic",
         longitudeColumn: "",
         latitudeColumn: "",
@@ -35,6 +38,7 @@ describe("normalizeImportValues", () => {
     ).toMatchObject({
       name: "新疆边界",
       domainType: "vector",
+      categoryCode: "base_geo_admin",
       importMode: "geographic",
     });
   });

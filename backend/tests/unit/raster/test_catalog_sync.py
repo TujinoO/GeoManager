@@ -39,3 +39,23 @@ class RasterCatalogSyncTests(TestCase):
         self.assertEqual(layer.layer_type, MapLayer.LayerType.RASTER)
         self.assertNotIn(dataset.source_relative_path, resource.description)
         self.assertNotIn(dataset.processed_relative_path, resource.description)
+
+    def test_raster_import_persists_authoritative_category(self):
+        dataset = RasterDataset.objects.create(
+            name="胡杨景观遥感",
+            code="landscape-raster",
+            source_relative_path="landscape.tif",
+            processed_relative_path="processed/landscape.cog.tif",
+            status=RasterDataset.Status.READY,
+        )
+
+        resource, _layer = upsert_catalog_records(
+            dataset=dataset,
+            source_info={},
+            processed_info={"stac": {"proj:epsg": 3857}},
+            default_rules={"mode": "gray", "bands": [1]},
+            bounds_4326=[79.0, 39.0, 82.0, 42.0],
+            category_code="thematic_landscape_rs",
+        )
+
+        self.assertEqual(resource.category.code, "thematic_landscape_rs")

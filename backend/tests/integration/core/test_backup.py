@@ -1,5 +1,7 @@
 import json
+import sqlite3
 import tempfile
+from contextlib import closing
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -7,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.test import TestCase, override_settings
 
-from apps.core.backup_service import start_backup_run
+from apps.core.backup_service import _sqlite_snapshot, start_backup_run
 from apps.core.config import load_project_config
 from apps.core.initialization import ensure_superadmin_defaults
 from apps.core.models import BackupRun
@@ -33,6 +35,25 @@ class BackupPermissionApiTests(TestCase):
 
 
 class BackupLocalRunTests(TestCase):
+    def test_sqlite_snapshot_connections_are_closed_before_cleanup(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source = root / "source.db"
+            with closing(sqlite3.connect(source)) as connection:
+                connection.execute("CREATE TABLE sample (id INTEGER PRIMARY KEY, name TEXT)")
+                connection.execute("INSERT INTO sample(name) VALUES ('poplar')")
+                connection.commit()
+
+            snapshot = _sqlite_snapshot(source, root)
+            with closing(sqlite3.connect(snapshot)) as connection:
+                self.assertEqual(
+                    connection.execute("SELECT name FROM sample").fetchone()[0],
+                    "poplar",
+                )
+
+            snapshot.unlink()
+            self.assertFalse(snapshot.exists())
+
     def test_platform_overview_counts_logs_and_deduplicates_config_file(self):
         superadmin, _group = ensure_superadmin_defaults()
         self.client.force_login(superadmin)

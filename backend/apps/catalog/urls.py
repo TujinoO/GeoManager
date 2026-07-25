@@ -1,11 +1,22 @@
 from django.urls import path
 
-from apps.catalog import map_compositions, views
+from apps.catalog import map_compositions, results, views
 
 
 urlpatterns = [
     path("catalog/directories/", views.directories, name="catalog-directories"),
     path("catalog/resources/", views.resources, name="catalog-resources"),
+    path("catalog/results/", results.result_artifacts, name="catalog-results"),
+    path(
+        "catalog/results/<int:result_id>/",
+        results.result_artifact_detail,
+        name="catalog-result-detail",
+    ),
+    path(
+        "catalog/results/<int:result_id>/file/",
+        results.result_artifact_file,
+        name="catalog-result-file",
+    ),
     path("catalog/workspaces/", views.workspaces, name="catalog-workspaces"),
     path(
         "catalog/workspaces/<int:workspace_id>/",

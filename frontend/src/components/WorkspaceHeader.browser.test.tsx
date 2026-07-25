@@ -13,6 +13,7 @@ import { AppContext } from "../contexts/AppContext";
 import { appTheme } from "../theme";
 import type {
   Bootstrap,
+  MapComposition,
   ResourceListItem,
   User,
   WorkspaceScene,
@@ -35,7 +36,7 @@ vi.mock("../utils/layerWorkspaceStorage", () => ({
 }));
 
 const bootstrap: Bootstrap = {
-  systemName: "中亚胡杨林生态系统保护数据共享平台",
+  systemName: "全球胡杨林生态系统保护数据共享平台",
   allowRegistration: false,
   map: {
     defaultCenter: [87.6, 41.7],
@@ -148,6 +149,38 @@ function scene(
   };
 }
 
+const topicComposition: MapComposition = {
+  id: 2,
+  projectId: 1,
+  projectName: "塔里木河监测工程",
+  name: "胡杨退化专题",
+  description: "退化样地专题成果",
+  status: "completed",
+  layout: {},
+  owner: {
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+  },
+  audienceGroups: [],
+  currentVersion: null,
+  publishedVersion: null,
+  versions: [],
+  isOwner: true,
+  canPreview: true,
+  canDownload: true,
+  canEditLayout: true,
+  canPublish: true,
+  canUnpublish: false,
+  canRestoreProject: true,
+  canLoadSourceProject: true,
+  canDelete: true,
+  publishedAt: null,
+  publishedBy: null,
+  createdAt: "2026-06-18T12:00:00+08:00",
+  updatedAt: "2026-06-18T12:00:00+08:00",
+};
+
 function renderHeader(
   props: Partial<React.ComponentProps<typeof WorkspaceHeader>> = {},
   contextUser: User = user,
@@ -175,10 +208,8 @@ function renderHeader(
               activeTab="map"
               canBrowseData
               resources={[resource]}
-              workspaceScenes={[
-                scene(1, "project", "塔里木河监测工程"),
-                scene(2, "topic", "胡杨退化专题"),
-              ]}
+              workspaceScenes={[scene(1, "project", "塔里木河监测工程")]}
+              mapCompositions={[topicComposition]}
               {...props}
             />
             <CurrentPath />
@@ -210,8 +241,13 @@ describe("WorkspaceHeader", () => {
 
   it("separates projects and topics and loads them only from the load button", async () => {
     const onLoadWorkspaceScene = vi.fn();
+    const onLoadMapComposition = vi.fn();
     const onQuickLoadResource = vi.fn();
-    renderHeader({ onLoadWorkspaceScene, onQuickLoadResource });
+    renderHeader({
+      onLoadWorkspaceScene,
+      onLoadMapComposition,
+      onQuickLoadResource,
+    });
 
     fireEvent.click(screen.getByPlaceholderText("搜索数据、工程、专题"));
 
@@ -235,6 +271,7 @@ describe("WorkspaceHeader", () => {
     fireEvent.click(within(projectSection).getByText("塔里木河监测工程"));
     fireEvent.click(within(topicSection).getByText("胡杨退化专题"));
     expect(onLoadWorkspaceScene).not.toHaveBeenCalled();
+    expect(onLoadMapComposition).not.toHaveBeenCalled();
     expect(onQuickLoadResource).not.toHaveBeenCalled();
 
     fireEvent.click(
@@ -243,6 +280,23 @@ describe("WorkspaceHeader", () => {
     expect(onLoadWorkspaceScene).toHaveBeenCalledWith(
       expect.objectContaining({ id: 1, kind: "project" }),
     );
+
+    fireEvent.click(
+      within(topicSection).getByRole("button", { name: /加\s*载/ }),
+    );
+    expect(onLoadMapComposition).toHaveBeenCalledWith(topicComposition);
+  });
+
+  it("opens the global search panel from the mobile trigger", async () => {
+    renderHeader();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开全局搜索" }));
+
+    expect(
+      await screen.findByRole("region", { name: "全局搜索结果" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("专题")).toBeInTheDocument();
+    expect(screen.getByText("胡杨退化专题")).toBeInTheDocument();
   });
 
   it("hides the standalone data import shortcut without upload permission", () => {
@@ -271,7 +325,7 @@ describe("WorkspaceHeader", () => {
     );
   });
 
-  it("returns to the geographic data workspace when the platform logo is clicked", () => {
+  it("returns to the unified data catalog when the platform logo is clicked", () => {
     renderHeader(
       { activeTab: "resources" },
       user,
@@ -279,9 +333,9 @@ describe("WorkspaceHeader", () => {
       "/resources/dashboard",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "返回地理数据主界面" }));
+    fireEvent.click(screen.getByRole("button", { name: "返回数据资源总目录" }));
 
-    expect(screen.getByTestId("location-path")).toHaveTextContent("/map");
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/data");
   });
 
   it("does not render the intelligent interpretation placeholder in navigation", () => {
@@ -290,6 +344,14 @@ describe("WorkspaceHeader", () => {
     expect(
       screen.queryByRole("button", { name: "智能解译" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("opens the reserved intelligent warning page", () => {
+    renderHeader();
+
+    fireEvent.click(screen.getByRole("button", { name: "智能预警" }));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/warning");
   });
 
   it("clears cached layer state when the user logs out", async () => {

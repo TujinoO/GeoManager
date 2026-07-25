@@ -30,7 +30,7 @@ interface Props {
   onLoadSource: (composition: MapComposition) => void | Promise<void>;
   onRestored: (project: WorkspaceScene) => void | Promise<void>;
   onChanged: (composition: MapComposition) => void;
-  onArchived: (compositionId: number) => void;
+  onDeleted: (compositionId: number) => void;
 }
 
 interface PublishValues {
@@ -56,7 +56,7 @@ export default function MapCompositionPanel({
   onLoadSource,
   onRestored,
   onChanged,
-  onArchived,
+  onDeleted,
 }: Props) {
   const { message, notification } = App.useApp();
   const [publishForm] = Form.useForm<PublishValues>();
@@ -208,13 +208,13 @@ export default function MapCompositionPanel({
     }
   }
 
-  async function archive(composition: MapComposition) {
+  async function deleteComposition(composition: MapComposition) {
     try {
-      await api.updateMapComposition(composition.id, { action: "delete" });
-      onArchived(composition.id);
-      message.success("出图稿已归档");
+      await api.deleteMapComposition(composition.id);
+      onDeleted(composition.id);
+      message.success("出图稿已删除");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "出图稿归档失败");
+      message.error(error instanceof Error ? error.message : "出图稿删除失败");
     }
   }
 
@@ -259,7 +259,7 @@ export default function MapCompositionPanel({
               onUnpublish={() => void unpublish(composition)}
               onRestore={() => openRestore(composition)}
               onLoadSource={() => void onLoadSource(composition)}
-              onArchive={() => void archive(composition)}
+              onDelete={() => void deleteComposition(composition)}
             />
           ))}
         </div>
@@ -295,7 +295,7 @@ export default function MapCompositionPanel({
         <Alert
           type="info"
           showIcon
-          message="发布前仅所属用户、平台管理员和超级管理员可见"
+          title="发布前仅所属用户、平台管理员和超级管理员可见"
           description="发布后，只有所选角色中具备专题查看权限的用户可以访问；下载和还原能力继续由角色功能权限控制。"
           style={{ marginBottom: 16 }}
         />

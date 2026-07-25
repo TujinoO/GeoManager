@@ -7,12 +7,15 @@ import populusForestImage from "../assets/about/populus-forest.png";
 import researchSeedlingsImage from "../assets/about/research-seedlings.jpeg";
 import tarimUniversitySeal from "../assets/about/tarim-university-seal.jpeg";
 import teamGreenhouseImage from "../assets/about/team-greenhouse.png";
+import aboutPoplarGroveImage from "../assets/portal/about-poplar-grove.png";
+import { platformBrand } from "../config/platformBrand";
 
 export type AboutSectionKey =
   | "system"
   | "team"
   | "members"
   | "knowledge"
+  | "contact"
   | "docs";
 
 export type AboutSource = {
@@ -34,6 +37,7 @@ export type AboutSection = {
 };
 
 export const aboutAssets = {
+  aboutPoplarGroveImage,
   helpGuidePreview,
   knowledgePopulusForestImage,
   labLeavesImage,
@@ -46,8 +50,8 @@ export const aboutAssets = {
 };
 
 export const platformDisplayName = {
-  zh: "中亚胡杨林生态系统保护数据共享平台",
-  en: "Central Asia Poplar Forest Ecosystem Protection Data Sharing Platform",
+  zh: platformBrand.chineseName,
+  en: platformBrand.englishName,
 };
 
 export const aboutSections: AboutSection[] = [
@@ -75,7 +79,7 @@ export const aboutSections: AboutSection[] = [
     path: "/about/team",
     eyebrow: "科研团队",
     summary:
-      "团队扎根塔里木大学，长期围绕胡杨保护生物学、种质资源保育、生态修复、科普培训与科研数据平台建设开展系统研究，形成从基础研究、技术研发到示范应用的协同工作体系。",
+      "平台以塔里木大学为牵头建设单位，面向新疆及西北地区科研院所建立多机构协作展示架构，围绕胡杨保护生物学、种质资源保育、生态修复、长期监测与科研数据平台建设形成协同工作体系。",
     navSummary: "组织协作",
     tags: ["项目统筹", "科研支撑", "数据治理", "创新推进"],
     sources: [
@@ -93,7 +97,7 @@ export const aboutSections: AboutSection[] = [
     path: "/about/members",
     eyebrow: "成员信息",
     summary:
-      "本栏目围绕首席科学家、核心成员、合作网络与学术成果组织团队信息，呈现李志军教授团队在胡杨保护生物学、种质资源保育、生态修复和人才培养方面的长期积累。",
+      "本栏目按参与机构分别组织首席科学家、核心成员、数据联系人和合作网络信息；已核实成员直接展示，其他协作单位预留独立名录并在项目办公室确认后持续补充。",
     navSummary: "成员名录",
     tags: ["首席科学家", "核心成员", "合作网络", "学术成果"],
     sources: [
@@ -128,13 +132,25 @@ export const aboutSections: AboutSection[] = [
     ],
   },
   {
+    key: "contact",
+    title: "联系我们",
+    badge: "服务支持",
+    path: "/about/contact",
+    eyebrow: "Contact & Support",
+    summary:
+      "按数据权限与平台技术两类场景分流受理咨询，帮助用户快速找到准确联系人并准备完整的问题信息。",
+    navSummary: "咨询与反馈",
+    tags: ["数据权限", "资料提交", "平台建设", "故障反馈"],
+    sources: [],
+  },
+  {
     key: "docs",
     title: "帮助文档",
     badge: "使用支持",
     path: "/about/docs",
     eyebrow: "Help Center",
     summary:
-      "帮助中心面向普通用户、科研用户、数据管理员和系统管理员，集中提供平台导览、空间查询、数据导入、专题管理和后台管理说明。",
+      "帮助中心面向普通用户、科研用户、数据管理员和系统管理员，集中提供平台导览、空间查询、数据与成果导入、成果管理和后台管理说明。",
     navSummary: "使用支持",
     tags: ["快速入门", "空间查询", "数据导入", "常见问题"],
     sources: [
@@ -150,9 +166,14 @@ export const aboutSections: AboutSection[] = [
   },
 ];
 
+/** “胡杨科普”已经升级为一级模块；关于我们保留平台、团队、联系与帮助内容。 */
+export const aboutNavigationSections = aboutSections.filter(
+  (section) => section.key !== "knowledge",
+);
+
 export const systemIntroduction = {
   lead: "平台由塔里木大学李志军教授课题组牵头建设，定位为面向胡杨林生态保护与科研协同的一站式科研服务平台。",
-  body: "中亚胡杨林生态系统保护数据共享平台面向胡杨林生态保护、长期监测与科研协同，提供从数据汇聚、空间浏览、专题组织到检索共享的一体化服务。平台围绕西北五省及中亚干旱区胡杨林资源，持续沉淀遥感解译、野外调查、样地监测、表型记录与分子研究等多源资料，形成可查询、可追溯、可展示的数字化档案。系统以多源数据汇聚、三维地理可视化、专题组织与智能检索为核心能力，连接宏观生态格局、地面观测记录和微观样本信息，为干旱区生态保护、气候变化响应、种质资源保育与胡杨抗逆机制研究提供稳定的数据底座和可视化支撑，让每一份观测记录都能转化为可复用的科研资产。",
+  body: "全球胡杨林生态系统保护数据共享平台面向胡杨林生态保护、长期监测与科研协同，提供从数据汇聚、空间浏览、专题组织到检索共享的一体化服务。平台围绕西北五省及中亚干旱区胡杨林资源，持续沉淀遥感解译、野外调查、样地监测、表型记录与分子研究等多源资料，形成可查询、可追溯、可展示的数字化档案。系统以多源数据汇聚、三维地理可视化、专题组织与智能检索为核心能力，连接宏观生态格局、地面观测记录和微观样本信息，为干旱区生态保护、气候变化响应、种质资源保育与胡杨抗逆机制研究提供稳定的数据底座和可视化支撑，让每一份观测记录都能转化为可复用的科研资产。",
   highlights: ["科研数据底座", "胡杨林数字档案", "开放共享服务"],
 };
 
@@ -235,6 +256,64 @@ export const teamIntro = {
   sourceLabel: "了解李志军教授团队事迹",
 };
 
+export const partnerInstitutions = [
+  {
+    id: "tarim-university",
+    shortName: "塔里木大学",
+    name: "塔里木大学",
+    role: "牵头建设单位",
+    status: "已展示核心团队",
+    tone: "lead",
+    description:
+      "依托生命科学与技术学院胡杨保护生物学研究基础，统筹平台建设、种质资源研究、科研数据治理、人才培养与成果组织。",
+    focusAreas: ["项目统筹", "种质资源", "分子机制", "数据平台"],
+    members: [
+      { name: "李志军", role: "团队负责人 / 首席科学家" },
+      { name: "焦培培", role: "科研骨干" },
+      { name: "格明古丽·木哈台", role: "科研骨干" },
+      { name: "盖中帅", role: "青年研究人员" },
+      { name: "翟军团", role: "科研骨干" },
+      { name: "张山河", role: "科研成员" },
+    ],
+  },
+  {
+    id: "xieg-cas",
+    shortName: "新疆生地所",
+    name: "中国科学院新疆生态与地理研究所",
+    role: "协作单位展示位",
+    status: "成员信息待项目确认",
+    tone: "research",
+    description:
+      "页面预设生态过程、干旱区环境、遥感监测与长期观测协作方向；具体任务、负责人和成员名单以项目办公室确认信息为准。",
+    focusAreas: ["生态过程", "干旱区环境", "长期监测", "遥感应用"],
+    members: [],
+  },
+  {
+    id: "nieer-cas",
+    shortName: "中科院西北院",
+    name: "中国科学院西北生态环境资源研究院",
+    role: "协作单位展示位",
+    status: "成员信息待项目确认",
+    tone: "monitoring",
+    description:
+      "页面预设西北生态环境、气候与水文过程、荒漠化研究和区域数据协同方向；具体分工与成员信息确认后发布。",
+    focusAreas: ["生态环境", "气候水文", "荒漠化", "区域协同"],
+    members: [],
+  },
+  {
+    id: "xjafs",
+    shortName: "新疆林科院",
+    name: "新疆林业科学院",
+    role: "协作单位展示位",
+    status: "成员信息待项目确认",
+    tone: "application",
+    description:
+      "页面预设林业资源调查、胡杨保护与恢复、技术示范和成果转化协作方向；具体负责人、数据联系人及成员名单待确认。",
+    focusAreas: ["林业调查", "保护恢复", "技术示范", "成果转化"],
+    members: [],
+  },
+];
+
 export const teamEvidence = [
   {
     label: "长期扎根",
@@ -301,7 +380,7 @@ export const teamNewsItems = [
 export const contactRows = [
   [
     "数据使用咨询 / 权限申请",
-    "请发送邮件至 wanghaoyu191@mails.ucas.ac.cn，说明姓名、单位、数据用途与所需权限。",
+    "请发送邮件至 lizhijun0202@126.com，说明姓名、单位、数据用途与所需权限。",
   ],
   [
     "数据资料提交",
@@ -880,8 +959,8 @@ export type HelpArticle = {
 export const helpDocumentDownload = {
   label: "下载 PDF 帮助文档",
   href: `${import.meta.env.BASE_URL}docs/CAPFED-help-center.pdf`,
-  filename: "中亚胡杨林生态系统保护数据共享平台帮助文档.pdf",
-  meta: "v1.1 / 2026-07-17 / 适用于培训、验收和离线阅读",
+  filename: "全球胡杨林生态系统保护数据共享平台帮助文档.pdf",
+  meta: "v2.0 / 2026-07-23 / 按九大页面与最新功能完整更新",
 };
 
 export const helpQuickLinks = [
@@ -930,10 +1009,10 @@ export const helpCategories = [
   {
     title: "数据管理",
     items: [
-      { label: "数据导入", articleId: "data-import" },
+      { label: "数据与成果导入", articleId: "data-import" },
       { label: "数据准备规范", articleId: "data-standards" },
       { label: "存量数据维护", articleId: "data-inventory" },
-      { label: "工程与专题管理", articleId: "project-topic" },
+      { label: "工程、制图与成果", articleId: "project-topic" },
     ],
   },
   {
@@ -962,13 +1041,22 @@ export const helpArticles: HelpArticle[] = [
         columns: ["入口", "用途"],
         rows: [
           [
-            "地理数据",
-            "进入地图工作台，完成空间数据浏览、图层加载、属性查询和空间查询。",
+            "首页",
+            "查看平台概览、四大权威分类、数据规模、最新成果和常用入口。",
           ],
-          ["非地理数据", "查看表格、基因组、分子实验和统计指标等非空间数据。"],
-          ["数据管理", "维护数据概览、存量数据、工程、专题和数据导入任务。"],
+          ["数据资源", "维护资源概览、存量数据、成果管理和数据/成果导入。"],
+          [
+            "地理工作台",
+            "完成空间数据浏览、图层加载、属性查询、空间查询和专题制图。",
+          ],
+          ["数据分析", "查看表格、基因组、分子实验、统计指标和分析视图。"],
+          ["成果展示", "浏览已发布专题图、分析成果和直接导入成果。"],
+          ["胡杨科普", "阅读物种档案、保护管理案例和胡杨知识图谱。"],
           ["后台管理", "管理用户权限、运行概览、日志、系统设置和数据备份。"],
-          ["关于我们", "查看系统简介、团队资料、胡杨知识和帮助文档。"],
+          [
+            "关于我们",
+            "查看平台、四家核心单位、成员名录、联系我们和帮助文档。",
+          ],
         ],
       },
       {
@@ -1009,7 +1097,7 @@ export const helpArticles: HelpArticle[] = [
           {
             title: "进入地理数据",
             description:
-              "通过顶部导航进入地图工作台，在左侧数据面板检索资源并查看元数据。",
+              "通过顶部导航进入地理工作台，在左侧数据面板检索资源并查看元数据。",
           },
           {
             title: "加载图层",
@@ -1176,9 +1264,9 @@ export const helpArticles: HelpArticle[] = [
   {
     id: "data-import",
     category: "数据管理",
-    title: "数据导入",
+    title: "数据与成果导入",
     summary:
-      "说明表格数据、空间点表和栅格数据导入流程，以及导入前的数据准备建议。",
+      "说明数据资源导入与成果文件直接发布两条流程，以及导入前的数据准备和权限要求。",
     audiences: ["科研用户", "数据管理员"],
     tags: ["CSV", "Excel", "栅格", "字段映射"],
     blocks: [
@@ -1197,6 +1285,11 @@ export const helpArticles: HelpArticle[] = [
             "矢量",
             "GeoJSON、JSON、GPKG、KML、KMZ、SHP、ZIP",
             "执行图层、编码、坐标系和几何质量预检后入库。",
+          ],
+          [
+            "成果",
+            "PNG、JPG、PDF、CSV、XLSX",
+            "登记元数据、选择访问角色并直接发布，不创建导入草稿。",
           ],
         ],
       },
@@ -1286,19 +1379,20 @@ export const helpArticles: HelpArticle[] = [
   {
     id: "project-topic",
     category: "数据管理",
-    title: "工程与专题管理",
+    title: "工程、专题制图与成果管理",
     summary:
-      "说明工程和专题的区别、适用场景，以及在数据管理中心维护共享范围的方式。",
+      "说明工程、专题图成果和导入成果的区别，以及在数据管理中心维护发布范围和基本操作的方式。",
     audiences: ["科研用户", "数据管理员"],
-    tags: ["工程", "专题", "共享"],
+    tags: ["工程", "成果", "发布", "共享"],
     blocks: [
       {
         type: "bullets",
         title: "概念区别",
         items: [
           "工程：更偏个人或团队工作状态，保存图层组合、地图视角、符号化和分析上下文。",
-          "专题：更偏业务展示和成果共享，围绕特定保护、监测或科研主题组织图层。",
-          "访问角色：工程和专题均可配置可见用户组，避免未授权内容被加载。",
+          "专题制图：以工程为来源配置纸张、地图框、标题、图例、比例尺、指北针和区位图，并生成正式成果版本。",
+          "成果管理：统一管理专题图与导入/分析成果，支持预览、下载、发布范围、下架、重新发布和删除。",
+          "访问角色：专题图和导入成果均需配置可见用户组，功能权限决定用户能否查看、下载或管理。",
         ],
       },
       {

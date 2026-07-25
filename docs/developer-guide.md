@@ -1,6 +1,6 @@
 ﻿# 开发者指南（Developer Guide）
 
-> 中亚胡杨林生态系统保护数据共享平台  
+> 全球胡杨林生态系统保护数据共享平台
 > 版本：v0.1.0
 
 ---
@@ -28,7 +28,7 @@
 
 ### 功能简介
 
-中亚胡杨林生态系统保护数据共享平台是一个用于管理和共享生态研究数据的综合系统。平台支持矢量数据、栅格数据、表格数据等多种数据类型的导入、查询、可视化和导出。
+全球胡杨林生态系统保护数据共享平台是一个用于管理和共享生态研究数据的综合系统。平台支持矢量数据、栅格数据、表格数据等多种数据类型的导入、查询、可视化和导出。
 
 ### 技术架构
 
@@ -159,7 +159,7 @@ console.log(overview.metrics.map((item) => item.displayValue));
 
 | 前端区域 | OpenAPI 字段 | 后端实现口径 |
 | --- | --- | --- |
-| 中文名称、英文名称、CAPFED、版本型号 | `platform` | 来自系统设置或后端常量，需与软件发布版本保持一致 |
+| 中文名称、英文名称、GPEDSP、版本型号 | `platform` | 来自系统设置或后端常量，需与软件发布版本保持一致 |
 | 主标题上方标签、一句话概述、能力标签 | `hero` | 后端返回可配置文案，前端只负责排版展示 |
 | 四个统计卡片 | `metrics` | 当前需要 `dataResources`、`thematicLayers`、`monitoringSites`、`coveredBasins` 四项，返回原始 `value` 和格式化 `displayValue` |
 | 平台服务状态 | `serviceStatus.services` | 返回资源目录、图层服务、权限认证三个公开状态，不暴露内部错误堆栈 |
@@ -436,15 +436,32 @@ else:
 | `catalog.add_mapcomposition` | 数据权限 | 新建专题出图稿 |
 | `catalog.view_mapcomposition` | 数据权限 | 查看专题出图稿 |
 | `catalog.change_mapcomposition` | 数据权限 | 编辑专题出图稿 |
-| `catalog.delete_mapcomposition` | 数据权限 | 归档专题出图稿 |
+| `catalog.delete_mapcomposition` | 数据权限 | 永久删除专题出图稿、全部版本记录和成果文件 |
 | `catalog.export_mapcomposition` | 数据权限 | 导出专题图成果 |
 | `catalog.publish_mapcomposition` | 数据权限 | 发布或下架专题图成果 |
+| `catalog.view_resultartifact` | 成果权限 | 查看访问角色范围内的导入成果和平台分析成果；进入成果管理的前置权限 |
+| `catalog.add_resultartifact` | 成果权限 | 导入成果文件；导入操作还必须同时具备成果查看和发布权限 |
+| `catalog.download_resultartifact` | 成果权限 | 下载成果原文件；不影响在线预览权限 |
+| `catalog.publish_resultartifact` | 成果权限 | 直接发布、更新发布范围或下架成果文件 |
+| `catalog.delete_resultartifact` | 成果权限 | 永久删除本人或管理范围内的成果记录和对应文件 |
 | `raster.manage_raster_dataset` | 数据权限 | 管理栅格数据集 |
 | `core.manage_feature_permissions` | 人员权限 | 配置角色和功能权限 |
 | `core.create_user` | 人员权限 | 在后台新建用户账号 |
 | `core.manage_auth` | 人员权限 | 修改认证授权 |
 
 初始化会自动创建 `超级管理员`、`平台管理员`、`科研用户`、`普通用户` 和 `游客` 五个内置角色。`超级管理员` 默认拥有全部平台功能权限；`平台管理员` 负责日常用户、权限、日志和数据运维；`科研用户` 具备上传、导出、专题制图和科研分析能力；`普通用户` 默认用于浏览、查询、加载图层和查看共享成果；`游客` 只通过专用游客会话访问明确公开的内容。管理员新建用户时必须指定至少一个角色，自助注册用户始终先加入 `普通用户` 角色。
+
+成果相关默认权限矩阵如下。访问角色决定“能看到哪一项成果”，功能权限决定“能对已经可见的成果做什么”；两者必须同时满足。
+
+| 用户类型 | 专题图成果 | 导入/分析成果 | 默认管理范围 |
+|----------|------------|---------------|--------------|
+| 超级管理员 | 查看、制图、导出、发布、还原、删除 | 查看、导入、下载、发布/下架、删除 | 全部对象 |
+| 平台管理员 | 查看、制图、导出、发布、还原、删除 | 查看、导入、下载、发布/下架、删除 | 全部对象 |
+| 科研用户 | 查看、制图、导出、发布、还原、删除 | 查看、导入、下载、发布/下架、删除 | 本人创建对象可管理；他人成果按发布角色查看/下载 |
+| 普通用户 | 查看发布范围包含自身角色的专题图 | 查看发布范围包含自身角色的成果 | 默认不可导入、下载、发布或删除 |
+| 游客 | 查看明确发布给游客角色的专题图 | 查看明确发布给游客角色的成果 | 默认不可导入、下载、发布或删除 |
+
+成果导入是“导入并正式发布”这一原子业务动作，因此账号必须同时具备 `catalog.view_resultartifact`、`catalog.add_resultartifact` 和 `catalog.publish_resultartifact`。成果下载独立由 `catalog.download_resultartifact` 控制。删除只允许对象所属用户或平台管理主体执行，并仍要求 `catalog.delete_resultartifact`；给普通查看者单独授予删除权限不会扩大其对象管理范围。
 
 用户最终生效的功能权限由角色权限和单用户直授权限合并得到，再扣除用户主动关闭的权限。后台用户列表返回 `groupPermissions` 表示角色继承权限，`directPermissions` 表示单独授予该用户的功能权限，`disabledPermissions` 表示单独关闭权限，`effectivePermissions` 表示最终生效权限；具备 `core.manage_auth` 和 `core.manage_feature_permissions` 的管理员可通过 `POST /api/users/{userId}/permissions/` 写入其他用户的 `directPermissions`、`disabledPermissions` 和 `operationLogGroupIds`。关闭继承权限时不修改角色本身，只写入该用户的单独关闭列表。当前登录用户不能在认证授权页修改自己的权限，应在用户设置中调整主动关闭权限。
 
@@ -546,7 +563,7 @@ for dir in directories:
 
 #### Step 1.1: 获取平台数据分类架构
 
-`GET /api/data-schema/summary/` 返回甲方确认后的平台业务数据分类、数据库分层、核心实体和前端目录树建议。该接口只读，不创建或修改业务数据；需要登录态和 `core.browse_data` 权限。当前分类包括地理数据中的种质数据、个体数据、群落数据、种群数据、野外调查数据、遥感影像数据，非地理数据中的分子数据和基因组数据，以及用于承接暂未归入专门专题资源的其他类型。基因组数据不再放入地理数据目录；如需空间联动，应通过生物样品、采集地、个体或种群关联回地理对象。
+`GET /api/data-schema/summary/` 返回甲方确认的四大类权威业务分类、数据库分层、核心实体和前端目录树。四个一级类为基础地理信息数据、胡杨生境数据、胡杨空间分布信息和胡杨专题数据；资源只能挂接到可选择的叶节点。该接口只读，需要登录态和 `core.browse_data` 权限。`taxonomyVersion` 标识当前分类版本，`catalogTree` 节点提供稳定 `categoryCode`、完整路径和 `selectable` 状态。
 
 ```javascript
 // JavaScript
@@ -556,6 +573,7 @@ const response = await fetch("/api/data-schema/summary/", {
 const schema = await response.json();
 
 console.log(schema.domains.map((domain) => domain.name));
+console.log(schema.taxonomyVersion);
 console.log(schema.catalogTree);
 ```
 
@@ -563,15 +581,14 @@ console.log(schema.catalogTree);
 
 #### Step 2: 筛选数据资源
 
-支持按数据类型、分类、来源、提供者、日期范围等条件筛选数据资源。
+支持按权威业务分类、物理数据类型、空间属性、兼容业务标签、来源、提供者和日期范围筛选数据资源。业务分类与展示能力正交：同一个土壤分类可以同时包含矢量、栅格和普通表格。
 
 ```javascript
 // JavaScript
   const params = new URLSearchParams({
-    spatialClass: "spatial", // 工作台分类: spatial / non_spatial
+    spatialClass: "spatial", // 技术展示能力: spatial / non_spatial
     dataType: "vector",      // 数据类型: vector / raster / gene / table / document / image
-  domainType: "field_survey", // 业务数据类型: germplasm / individual / community / population / field_survey / remote_sensing / molecular / genome / other
-  category: "vegetation",  // 分类代码
+  categoryCode: "distribution_vector", // 权威业务分类；父节点自动包含后代
   q: "胡杨",              // 名称模糊搜索
 });
 
@@ -588,16 +605,15 @@ const { items } = await response.json();
 response = session.get(f"{base_url}/catalog/resources/", params={
     "spatialClass": "spatial",
     "dataType": "vector",
-    "domainType": "field_survey",
-    "category": "vegetation",
+    "categoryCode": "distribution_vector",
     "q": "胡杨",
 })
 resources = response.json()["items"]
 ```
 
-`spatialClass` 是地理与非地理工作台的强制边界：`spatial` 只返回 `vector/raster`，`non_spatial` 返回 `table/gene/document/image`。该分类由资源实际入库形态决定，不由 `domainType` 决定；因此没有经纬度的群落表、调查表或其他业务表仍属于非地理数据。无效编码返回 `400 {"detail":"无效的空间数据分类"}`。
+`categoryCode` 是 V1 权威主分类。传一级节点时返回其全部后代资源，传叶节点时精确筛选；`classificationStatus=pending` 可查看尚待人工归类的历史资源。旧 `category` 查询参数在兼容期保留。
 
-`domainType` 来自 `GET /api/data-schema/summary/` 的 `catalogTree[].children[].domainType`，仅用于业务专题筛选。无效编码返回 `400 {"detail":"无效的数据业务类型"}`；权限、对象可见性和空数据行为仍与普通资源列表一致。
+`spatialClass` 和 `dataType` 仍用于决定资源怎样存储、能否进入地图工作台；`domainType` 仅作为历史接口和既有可视化模板的兼容标签，不再驱动一级导航。资源响应中的 `categoryPath`、`availableViews` 和 `defaultView` 应作为前端面包屑与动作分发依据。
 
 #### Step 2.1: 查询种质资源清单
 
@@ -1505,7 +1521,7 @@ map.addLayer({
 - `GET /api/catalog/map-compositions/`：列出当前用户拥有的出图稿，可按 `projectId` 和 `status=draft|completed|published` 筛选，需要 `catalog.view_mapcomposition`。
 - `POST /api/catalog/map-compositions/`：从当前用户拥有且启用的 project 工程创建出图稿，需要 `catalog.add_mapcomposition`。
 - `GET /api/catalog/map-compositions/{compositionId}/`：读取出图稿和版本，需要 `catalog.view_mapcomposition`。
-- `POST /api/catalog/map-compositions/{compositionId}/`：`action=update` 更新轻量版式，需要 `catalog.change_mapcomposition`；`publish/unpublish` 需要 `catalog.publish_mapcomposition`；`delete` 执行软归档并保留成果文件用于审计，需要 `catalog.delete_mapcomposition`。
+- `POST /api/catalog/map-compositions/{compositionId}/`：`action=update` 更新轻量版式，需要 `catalog.change_mapcomposition`；发布/下架使用独立接口并需要 `catalog.publish_mapcomposition`；`action=delete` 永久删除专题、版本记录和成果文件，需要 `catalog.delete_mapcomposition`。
 - `POST /api/catalog/map-compositions/{compositionId}/versions/`：以 multipart 上传前端渲染的 PNG 母图和 JSON `payload`，后端校验格式、DPI、宽高和最大像素后，在 TOML 驱动的 `app_data/exports/map-compositions/{id}/v{version}/` 下生成 PNG、JPG 或 PDF，需要 `catalog.export_mapcomposition`。
 - `GET /api/catalog/map-compositions/{compositionId}/versions/{versionNumber}/file/?variant=preview|artifact`：预览需要查看权限；正式成果下载还需要导出权限。
 
@@ -2023,8 +2039,8 @@ A: 搜索结果按相关性排序，与关键词匹配度越高的结果越靠�
 | 数据备份 | 后台通过 `/api/admin/backups/*` 仅向内置 `超级管理员` 主体开放本地和云端对象存储备份配置、连接测试、手动备份、自动计划、任务进度和历史记录；普通用户、平台管理员、科研用户以及被误授予 `core.manage_data_backup` 的非超级管理员主体都不能执行备份 |
 | 认证授权 | 后台提供用户创建、启用停用、删除、重置密码、角色分配、角色增删和功能权限配置；非超级管理员主体不会在用户、角色、日志角色等认证授权接口中看到超级管理员账号或角色；管理员创建用户不受自助注册开关影响 |
 | 数据管理 / 存量数据 | 后台通过 `/api/admin/data/resources/` 分页查询当前用户可见或本人上传的已登记数据资源，支持快速检索、高级筛选、内容组别、启用/禁用、默认可视化方案保存、访问角色配置、删除确认以及 CSV/Excel 清单导出；超级管理员可查看和维护全部资源；可手动配置的访问角色列表不会返回超级管理员角色，后端仍强制保留该访问范围；上传者可进入并修改自己上传数据的可见范围 |
-| 数据管理 / 数据导入 | 后台提供数据导入，按文件选择、导入配置、数据可见范围、数据校验、数据预览和字段元数据维护完成入库；入口由 `catalog.add_dataresource` 控制 |
-| 数据管理 / 工程专题 | 后台通过 `/api/admin/workspaces/` 分页查询工程和专题，支持快速检索、工程/专题筛选、启用/禁用、基础信息修改、访问角色配置、地图直接加载和删除确认；超级管理员查看全部对象，所属用户本人和超级管理员始终可见，可选访问角色列表不返回超级管理员角色；入口由 `catalog.view_workspacescene`、`catalog.change_workspacescene` 或 `catalog.delete_workspacescene` 控制 |
+| 数据管理 / 数据与成果导入 | 数据资源导入由 `catalog.add_dataresource` 控制；成果导入要求 `catalog.view_resultartifact + add_resultartifact + publish_resultartifact`，并直接发布到至少一个访问角色 |
+| 数据管理 / 工程与成果 | 工程管理继续通过 `/api/admin/workspaces/` 维护工程；成果管理统一展示 `MapComposition` 和 `ResultArtifact`，分别按专题图权限和独立成果权限提供预览、下载、发布/下架和删除 |
 
 ### 存量数据管理
 
@@ -2077,9 +2093,9 @@ A: 搜索结果按相关性排序，与关键词匹配度越高的结果越靠�
 
 备份任务状态为 `queued -> running -> success/failed`。任务内部进度、文件清单、manifest 和错误信息写入 `BackupRun`；用户主动保存配置、测试目标、发起备份会写入 `OperationLog(module="数据备份")`。自动计划由后端轻量调度线程按 TOML 中的 `dailyAt` 检查触发，部署环境也可以改用管理命令配合 Windows 任务计划、Linux cron 或容器定时任务执行。
 
-### 工程专题管理
+### 工程与成果管理
 
-工程专题管理入口位于 `/resources/manage/projects` 和 `/resources/manage/topics`。页面复用同一前端管理组件，提供列表筛选、状态控制、信息编辑、访问范围配置和删除确认。工程专题使用 `active/inactive` 控制是否进入普通工作台检索和加载入口。
+工程管理入口位于 `/resources/manage/projects`；统一成果管理继续使用稳定路径 `/resources/manage/topics`，但菜单名称为“成果管理”。成果管理通过页签分别展示工作台专题图成果和导入/分析成果，并按对象类型提供对应操作。
 
 关键接口：
 
@@ -2088,7 +2104,7 @@ A: 搜索结果按相关性排序，与关键词匹配度越高的结果越靠�
 
 工程专题访问范围与存量数据一致：超级管理员角色由后端强制可见，选择游客角色表示无需账号即可通过游客会话访问。普通业务搜索和工作台加载接口必须继续按对象访问范围过滤，前端菜单和按钮控制只作为可用性提示，不能替代后端权限校验。
 
-工程和专题的启停、信息修改、访问范围配置和删除都应写入 `OperationLog`，模块可使用“工程管理”“专题管理”或统一“数据管理”，动作和说明使用中文。
+工程和成果的启停/发布、信息修改、访问范围配置和删除都应写入 `OperationLog`；前端分别使用“工程管理”和“成果管理”，动作和说明使用中文。
 
 ### 访问方式
 
@@ -2312,3 +2328,18 @@ A: 重新提交相同的任务请求即可。
 ---
 
 > 本文档由 API 文档重构生成，面向开发者提供接入指导。详细的接口参数和响应格式请参考 API Reference（OpenAPI）。
+
+## 15. 九大门户与成果文件（2026-07-22）
+
+当前一级页面固定为：首页 `/data`、数据资源 `/resources`、地理工作台 `/map`、数据分析 `/nongeo`、成果展示 `/results`、智能预警 `/warning`、后台管理 `/admin`、胡杨科普 `/knowledge`、关于我们 `/about/*`。
+
+首页承担数据发现和权威分类浏览，数据资源承担治理、存量维护和导入；两者不再共用同一入口。四大权威分类使用 `categoryCode/categoryPath`，`domainType` 仅保留为兼容业务标签，`dataType` 仅表示矢量、栅格、表格、图片等物理形态。
+
+数据导入页提供两个互不替代的目标：
+
+- “导入为数据资源”继续使用原表格、矢量和栅格导入流程。
+- “导入并发布成果”调用 `POST /api/catalog/results/`，支持 PNG、JPG、PDF、CSV、XLSX；导入时必须直接发布并至少选择一个访问角色，不再创建新的导入草稿。账号需要独立的成果查看、导入和发布权限。
+
+成果展示页聚合已发布 `MapComposition` 与已发布 `ResultArtifact`。图片和 PDF 可在线预览，CSV/XLSX 仅允许授权下载。成果文件按访问角色共享；历史草稿或被下架成果仅创建者、超级管理员和平台管理员可见。
+
+数据资源模块原“专题管理”入口升级为“成果管理”，同一页面分别管理工作台生成的专题图成果和导入/分析成果。专题图继续支持打开来源工程、预览、下载、选择版本发布、更新范围、下架和删除；导入成果支持预览、下载、发布历史草稿、更新范围、下架和永久删除。`POST /api/catalog/results/{resultId}/` 使用 `publish|unpublish|delete` 动作完成这些管理操作并写入审计日志。

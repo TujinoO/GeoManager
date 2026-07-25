@@ -281,14 +281,14 @@ export default function AdminDataBackupPage() {
       <Alert
         type="info"
         showIcon
-        message="数据备份属于系统级维护功能"
+        title="数据备份属于系统级维护功能"
         description="推荐使用云端对象存储作为异地备份目标；本地目录仅适合作为临时导出或内网备份选项，不能替代容灾。"
       />
 
       <div className="backup-summary-grid">
         {overview.summaries.map((summary) => (
           <ProCard key={summary.planType} className="admin-section-card">
-            <Space direction="vertical" size={8}>
+            <Space orientation="vertical" size={8}>
               <Space>
                 {planMeta[summary.planType].icon}
                 <Typography.Text strong>{summary.label}</Typography.Text>
@@ -313,7 +313,7 @@ export default function AdminDataBackupPage() {
           </ProCard>
         ))}
         <ProCard className="admin-section-card">
-          <Space direction="vertical" size={8}>
+          <Space orientation="vertical" size={8}>
             <Space>
               <CloudOutlined />
               <Typography.Text strong>云端目标</Typography.Text>
@@ -340,7 +340,7 @@ export default function AdminDataBackupPage() {
 
       {activeRun ? (
         <ProCard title="当前备份任务" className="admin-section-card">
-          <Space direction="vertical" size={12} className="backup-full-width">
+          <Space orientation="vertical" size={12} className="backup-full-width">
             <Space wrap>
               <Tag color={statusColor[activeRun.status]}>
                 {statusText[activeRun.status] ?? activeRun.status}
@@ -649,6 +649,7 @@ function backupRunColumns(
       title: "创建时间",
       dataIndex: "createdAt",
       width: 190,
+      render: (value: string) => new Date(value).toLocaleString("zh-CN"),
     },
     {
       title: "操作",

@@ -1,6 +1,7 @@
-export const workspaceInventoryChangedEvent = "huyang:workspace-inventory-changed";
+export const workspaceInventoryChangedEvent =
+  "huyang:workspace-inventory-changed";
 
-type WorkspaceInventoryKind = "workspace" | "composition";
+type WorkspaceInventoryKind = "workspace" | "composition" | "result";
 
 interface WorkspaceInventoryChangeDetail {
   kind: WorkspaceInventoryKind;
@@ -31,6 +32,7 @@ export function isWorkspaceInventoryChange(value: unknown) {
     value !== null &&
     "kind" in value &&
     ((value as WorkspaceInventoryChangeDetail).kind === "workspace" ||
-      (value as WorkspaceInventoryChangeDetail).kind === "composition")
+      (value as WorkspaceInventoryChangeDetail).kind === "composition" ||
+      (value as WorkspaceInventoryChangeDetail).kind === "result")
   );
 }

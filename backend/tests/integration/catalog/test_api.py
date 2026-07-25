@@ -1562,6 +1562,7 @@ class DataImportApiTests(IsolatedCatalogStorageMixin, TestCase):
                     {
                         "name": "导入点位",
                         "domainType": "field_survey",
+                        "categoryCode": "distribution_vector",
                         "tableName": "import_points",
                         "importMode": "geographic",
                         "longitudeColumn": "lon",
@@ -1596,6 +1597,7 @@ class DataImportApiTests(IsolatedCatalogStorageMixin, TestCase):
         self.assertEqual(resource.id, payload["resourceId"])
         self.assertEqual(resource.data_type, DataResource.DataType.VECTOR)
         self.assertEqual(resource.domain_type, "field_survey")
+        self.assertEqual(resource.category.code, "distribution_vector")
         self.assertEqual(resource.maintainer, self.user)
         self.assertEqual(resource.size_bytes, uploaded_file.size)
         self.assertEqual(resource.item_count, 1)
@@ -2078,6 +2080,7 @@ class DataImportApiTests(IsolatedCatalogStorageMixin, TestCase):
                     {
                         "name": "调查表",
                         "domainType": "field_survey",
+                        "categoryCode": "habitat_soil",
                         "tableName": "included_table",
                         "importMode": "table",
                         "duplicateConfirmed": False,
@@ -2093,6 +2096,8 @@ class DataImportApiTests(IsolatedCatalogStorageMixin, TestCase):
         )
 
         self.assertEqual(response.status_code, 201)
+        resource = DataResource.objects.get(storage_path="included_table")
+        self.assertEqual(resource.category.code, "habitat_soil")
         with sqlite3.connect(self.table_path) as connection:
             columns = [
                 row[1]
@@ -2160,6 +2165,7 @@ class DataImportApiTests(IsolatedCatalogStorageMixin, TestCase):
                     {
                         "name": "新疆自治区边界",
                         "domainType": "vector",
+                        "categoryCode": "base_geo_admin",
                         "sourceLayerName": "xinjiang_boundary",
                         "tableName": "xinjiang_boundary",
                         "duplicateConfirmed": False,
@@ -2180,6 +2186,7 @@ class DataImportApiTests(IsolatedCatalogStorageMixin, TestCase):
         resource = DataResource.objects.get(pk=payload["resourceId"])
         self.assertEqual(resource.data_type, DataResource.DataType.VECTOR)
         self.assertEqual(resource.domain_type, DataDomainType.VECTOR)
+        self.assertEqual(resource.category.code, "base_geo_admin")
         self.assertEqual(resource.coordinate_system, "EPSG:4326")
         dataset = VectorDataset.objects.get(resource=resource)
         self.assertEqual(dataset.source_format, VectorDataset.SourceFormat.GEOJSON)
@@ -2462,11 +2469,20 @@ class AdminDataResourceApiTests(IsolatedCatalogStorageMixin, TestCase):
         )
         self.client.force_login(self.user)
         self.group, _ = Group.objects.get_or_create(name="科研用户")
+        self.distribution_category = DictionaryItem.objects.get(
+            dict_type=DictionaryItem.DictType.DATA_CATEGORY,
+            code="distribution_vector",
+        )
+        self.remote_sensing_category = DictionaryItem.objects.get(
+            dict_type=DictionaryItem.DictType.DATA_CATEGORY,
+            code="thematic_landscape_rs",
+        )
         self.resource = DataResource.objects.create(
             name="存量样地数据",
             code="inventory-plots",
             data_type=DataResource.DataType.VECTOR,
             domain_type="field_survey",
+            category=self.distribution_category,
             source="用户导入",
             provider="平台组",
             file_format="GPKG",
@@ -2503,6 +2519,7 @@ class AdminDataResourceApiTests(IsolatedCatalogStorageMixin, TestCase):
                 code=f"inventory-field-{index}",
                 data_type=DataResource.DataType.TABLE,
                 domain_type="field_survey",
+                category=self.distribution_category,
                 size_bytes=10,
                 item_count=1,
                 status=DataResource.Status.ACTIVE,
@@ -2513,6 +2530,7 @@ class AdminDataResourceApiTests(IsolatedCatalogStorageMixin, TestCase):
             code="inventory-raster-inactive",
             data_type=DataResource.DataType.RASTER,
             domain_type="remote_sensing",
+            category=self.remote_sensing_category,
             size_bytes=200,
             item_count=2,
             status=DataResource.Status.INACTIVE,
@@ -2540,11 +2558,31 @@ class AdminDataResourceApiTests(IsolatedCatalogStorageMixin, TestCase):
         )
         summaries = {item["key"]: item for item in payload["groupSummaries"]}
         self.assertEqual(summaries["__all__"]["resourceCount"], 12)
-        self.assertEqual(summaries["__domain__:field_survey"]["resourceCount"], 11)
-        self.assertEqual(summaries["__domain__:field_survey"]["sizeBytes"], 200)
-        self.assertEqual(summaries["__domain__:remote_sensing"]["inactiveCount"], 1)
+        self.assertEqual(summaries["__category__:distribution"]["resourceCount"], 11)
+        self.assertEqual(
+            summaries["__category__:distribution_vector"]["sizeBytes"], 200
+        )
+        self.assertEqual(
+            summaries["__category__:thematic_landscape_rs"]["inactiveCount"], 1
+        )
+        self.assertEqual(summaries["__unclassified__"]["resourceCount"], 0)
         self.assertEqual(
             summaries[f"__custom__:{inventory_group.id}"]["resourceCount"], 1
+        )
+
+    def test_admin_data_resource_summary_groups_pending_data_as_unclassified(self):
+        self.resource.category = None
+        self.resource.save(update_fields=["category", "updated_at"])
+
+        response = self.client.get("/api/admin/data/resources/")
+
+        self.assertEqual(response.status_code, 200)
+        summaries = {
+            item["key"]: item for item in response.json()["groupSummaries"]
+        }
+        self.assertEqual(summaries["__unclassified__"]["resourceCount"], 1)
+        self.assertEqual(
+            summaries["__category__:distribution"]["resourceCount"], 0
         )
 
     def test_admin_data_resource_groups_persist_and_clear_on_delete(self):

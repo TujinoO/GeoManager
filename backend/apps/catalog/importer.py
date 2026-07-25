@@ -17,8 +17,9 @@ from django.db import transaction
 from django.utils.text import slugify
 from shapely.geometry import Point
 
-from apps.catalog.models import DataResource
+from apps.catalog.models import DataResource, DictionaryItem
 from apps.catalog.services import stable_catalog_code
+from apps.catalog.taxonomy import TaxonomyError, resolve_data_category
 from apps.catalog.vector_store import geopackage_layer_exists
 from apps.catalog.vector_storage import append_geopackage_layer
 from apps.core.initialization import ensure_superadmin_defaults
@@ -188,6 +189,7 @@ def import_uploaded_table(
     file_size = int(getattr(uploaded_file, "size", 0) or 0)
     access_group_ids = _access_group_ids(payload.get("accessGroupIds"))
     domain_type = _domain_type(payload.get("domainType"))
+    category = _optional_data_category(payload.get("categoryCode"))
 
     if import_mode not in {"geographic", "table"}:
         raise ImportDataError("导入方式必须是 geographic 或 table")
@@ -216,6 +218,7 @@ def import_uploaded_table(
             user=user,
             access_group_ids=access_group_ids,
             domain_type=domain_type,
+            category=category,
         )
 
     included_columns = _included_columns(payload.get("includedColumns"), df.columns)
@@ -230,6 +233,7 @@ def import_uploaded_table(
         user=user,
         access_group_ids=access_group_ids,
         domain_type=domain_type,
+        category=category,
     )
 
 
@@ -246,6 +250,7 @@ def import_geographic_table(
     user,
     access_group_ids: set[int],
     domain_type: str,
+    category: DictionaryItem | None,
 ) -> dict[str, Any]:
     stats = coordinate_stats_for(df, longitude_column, latitude_column)
     validation_issues = validate_coordinate_columns(
@@ -310,6 +315,7 @@ def import_geographic_table(
         source_size_bytes=source_size_bytes,
         user=user,
         domain_type=domain_type,
+        category=category,
     )
     set_resource_access_groups(resource, access_group_ids, viewer=user)
     return {
@@ -336,6 +342,7 @@ def import_plain_table(
     user,
     access_group_ids: set[int],
     domain_type: str,
+    category: DictionaryItem | None,
 ) -> dict[str, Any]:
     path = table_data_path("data.sqlite")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -350,6 +357,7 @@ def import_plain_table(
         name=name,
         data_type=DataResource.DataType.TABLE,
         domain_type=domain_type,
+        category=category,
         source="用户导入",
         provider="",
         spatial_extent="",
@@ -1181,6 +1189,7 @@ def _upsert_geographic_resource(
     source_size_bytes: int,
     user,
     domain_type: str,
+    category: DictionaryItem | None,
 ) -> DataResource:
     code = _unique_resource_code(stable_catalog_code("vector", table_name))
     spatial_extent = ",".join(f"{value:.6f}" for value in bounds) if bounds else ""
@@ -1189,6 +1198,7 @@ def _upsert_geographic_resource(
         name=name,
         data_type=DataResource.DataType.VECTOR,
         domain_type=domain_type,
+        category=category,
         source="用户导入",
         provider="",
         spatial_extent=spatial_extent,
@@ -1212,6 +1222,16 @@ def _domain_type(value: Any) -> str:
     if domain_type not in DataDomainType.values:
         raise ImportDataError("无效的数据业务类型")
     return domain_type
+
+
+def _optional_data_category(value: Any) -> DictionaryItem | None:
+    category_code = str(value or "").strip()
+    if not category_code:
+        return None
+    try:
+        return resolve_data_category(category_code)
+    except TaxonomyError as exc:
+        raise ImportDataError(str(exc)) from exc
 
 
 def _unique_resource_code(base_code: str) -> str:

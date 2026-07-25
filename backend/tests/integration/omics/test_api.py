@@ -35,20 +35,40 @@ class DataSchemaSummaryApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
+        self.assertEqual(payload["taxonomyVersion"], "2026.07")
         domain_codes = {item["code"] for item in payload["domains"]}
         self.assertIn("germplasm", domain_codes)
         self.assertIn("genome", domain_codes)
         self.assertIn("molecular", domain_codes)
         self.assertIn("vector", domain_codes)
         self.assertIn("other", domain_codes)
-        self.assertEqual(payload["catalogTree"][0]["code"], "geo")
-        catalog_domain_codes = {
-            child["domainType"]
+        self.assertEqual(
+            [item["code"] for item in payload["catalogTree"]],
+            ["base_geo", "habitat", "distribution", "thematic"],
+        )
+        self.assertEqual(
+            [item["name"] for item in payload["catalogTree"]],
+            [
+                "基础地理信息数据",
+                "胡杨生境数据",
+                "胡杨空间分布信息",
+                "胡杨专题数据",
+            ],
+        )
+        self.assertTrue(
+            all(not item["selectable"] for item in payload["catalogTree"])
+        )
+        leaf_codes = {
+            child["categoryCode"]
             for group in payload["catalogTree"]
             for child in group["children"]
         }
-        self.assertIn("other", catalog_domain_codes)
-        self.assertIn("vector", catalog_domain_codes)
+        self.assertEqual(len(leaf_codes), 15)
+        self.assertIn("base_geo_lucc", leaf_codes)
+        self.assertIn("habitat_biotic", leaf_codes)
+        self.assertIn("distribution_survey_image", leaf_codes)
+        self.assertIn("thematic_gene_germplasm", leaf_codes)
+        self.assertIn("thematic_landscape_rs", leaf_codes)
         self.assertTrue(
             any(entity["name"] == "GermplasmAccession" for entity in payload["entities"])
         )

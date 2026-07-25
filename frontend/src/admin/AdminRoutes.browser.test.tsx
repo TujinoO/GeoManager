@@ -17,12 +17,7 @@ import {
   RequireManageSystemSettings,
 } from "../router";
 import { appTheme } from "../theme";
-import type {
-  AdminDataResourceList,
-  Bootstrap,
-  DataDomainType,
-  User,
-} from "../types";
+import type { AdminDataResourceList, Bootstrap, User } from "../types";
 
 import AdminAuthPage from "./AdminAuthPage";
 import AdminDataBackupPage from "./AdminDataBackupPage";
@@ -33,8 +28,10 @@ import AdminLayout from "./AdminLayout";
 import AdminOperationLogsPage from "./AdminOperationLogsPage";
 import AdminProfilePage from "./AdminProfilePage";
 import AdminSystemSettingsPage from "./AdminSystemSettingsPage";
+import AdminTopicCompositionManagementPage from "./AdminTopicCompositionManagementPage";
 import AdminWorkspaceManagementPage from "./AdminWorkspaceManagementPage";
 import ResourceLayout from "../resource/ResourceLayout";
+import { fallbackTaxonomyTree } from "../utils/taxonomy";
 
 const mockApi = vi.hoisted(() => ({
   bootstrap: vi.fn(),
@@ -82,6 +79,11 @@ const mockApi = vi.hoisted(() => ({
   germplasmAccessions: vi.fn(),
   adminWorkspaces: vi.fn(),
   updateAdminWorkspace: vi.fn(),
+  mapCompositions: vi.fn(),
+  resultArtifacts: vi.fn(),
+  downloadResultArtifact: vi.fn(),
+  updateResultArtifact: vi.fn(),
+  createResultArtifact: vi.fn(),
   adminDashboard: vi.fn(),
   adminDashboardServer: vi.fn(),
 }));
@@ -92,7 +94,7 @@ vi.mock("../api/client", () => ({
 }));
 
 const bootstrap: Bootstrap = {
-  systemName: "中亚胡杨林生态系统保护数据共享平台",
+  systemName: "全球胡杨林生态系统保护数据共享平台",
   allowRegistration: false,
   map: {
     defaultCenter: [87.6, 41.7],
@@ -114,7 +116,8 @@ function inventoryResponseMeta({
   restrictedCount = 0,
   sizeBytes = 0,
   itemCount = 0,
-  domainType = "other",
+  categoryCode = "distribution_vector",
+  rootCategoryCode = "distribution",
 }: {
   total: number;
   activeCount?: number;
@@ -122,7 +125,8 @@ function inventoryResponseMeta({
   restrictedCount?: number;
   sizeBytes?: number;
   itemCount?: number;
-  domainType?: DataDomainType;
+  categoryCode?: string | null;
+  rootCategoryCode?: string;
 }): Pick<
   AdminDataResourceList,
   "summary" | "groupSummaries" | "inventoryGroups"
@@ -141,6 +145,7 @@ function inventoryResponseMeta({
         key: "__all__",
         kind: "all",
         domainType: null,
+        categoryCode: null,
         inventoryGroupId: null,
         resourceCount: total,
         activeCount,
@@ -148,21 +153,67 @@ function inventoryResponseMeta({
         sizeBytes,
         itemCount,
       },
-      {
-        key: `__domain__:${domainType}`,
-        kind: "business",
-        domainType,
-        inventoryGroupId: null,
-        resourceCount: total,
-        activeCount,
-        inactiveCount,
-        sizeBytes,
-        itemCount,
-      },
+      ...(categoryCode
+        ? [
+            {
+              key: `__category__:${rootCategoryCode}`,
+              kind: "category" as const,
+              domainType: null,
+              categoryCode: rootCategoryCode,
+              inventoryGroupId: null,
+              resourceCount: total,
+              activeCount,
+              inactiveCount,
+              sizeBytes,
+              itemCount,
+            },
+            {
+              key: `__category__:${categoryCode}`,
+              kind: "category" as const,
+              domainType: null,
+              categoryCode,
+              inventoryGroupId: null,
+              resourceCount: total,
+              activeCount,
+              inactiveCount,
+              sizeBytes,
+              itemCount,
+            },
+          ]
+        : [
+            {
+              key: "__unclassified__",
+              kind: "unclassified" as const,
+              domainType: null,
+              categoryCode: null,
+              inventoryGroupId: null,
+              resourceCount: total,
+              activeCount,
+              inactiveCount,
+              sizeBytes,
+              itemCount,
+            },
+          ]),
     ],
     inventoryGroups: [],
   };
 }
+
+const adminResourceClassification = {
+  category: {
+    id: 31,
+    type: "data_category",
+    code: "distribution_vector",
+    name: "分布矢量",
+    parentId: 3,
+    selectable: true,
+  },
+  categoryPath: [
+    { id: 3, code: "distribution", name: "胡杨空间分布信息" },
+    { id: 31, code: "distribution_vector", name: "分布矢量" },
+  ],
+  classificationStatus: "classified" as const,
+};
 
 const adminUser: User = {
   id: 1,
@@ -212,6 +263,18 @@ const adminUser: User = {
     canChangeWorkspaces: true,
     canDeleteWorkspaces: true,
     canManageRasterData: true,
+    canViewMapCompositions: true,
+    canCreateMapCompositions: true,
+    canChangeMapCompositions: true,
+    canDeleteMapCompositions: true,
+    canExportMapCompositions: true,
+    canPublishMapCompositions: true,
+    canRestoreMapCompositions: true,
+    canViewResultArtifacts: true,
+    canImportResultArtifacts: true,
+    canDownloadResultArtifacts: true,
+    canPublishResultArtifacts: true,
+    canDeleteResultArtifacts: true,
   },
 };
 
@@ -403,10 +466,82 @@ const backupOverview = {
   generatedAt: "2026-07-03T10:20:00+08:00",
 } as const;
 
+const emptySpatialSummary = {
+  spatialResourceCount: 0,
+  missingSpatialResourceCount: 0,
+  totalBounds: [],
+  resourceExtents: [],
+  resourceExtentsTruncated: false,
+  coverageRanking: [],
+  heatmapCells: [],
+};
+
+function makeCategoryBreakdown(
+  counts: Partial<
+    Record<"baseGeo" | "habitat" | "distribution" | "thematic", number>
+  > = {},
+) {
+  const category = (
+    categoryCode: string,
+    categoryName: string,
+    count: number,
+    childNames: Array<[string, string]>,
+  ) => ({
+    categoryCode,
+    categoryName,
+    count,
+    sizeBytes: 0,
+    itemCount: 0,
+    children: childNames.map(([code, name], index) => ({
+      categoryCode: code,
+      categoryName: name,
+      count: index === 0 ? count : 0,
+      sizeBytes: 0,
+      itemCount: 0,
+    })),
+  });
+  return [
+    category("base_geo", "基础地理信息数据", counts.baseGeo ?? 0, [
+      ["base_geo_admin", "行政区划"],
+      ["base_geo_elements", "基础地理要素"],
+      ["base_geo_lucc", "LUCC"],
+    ]),
+    category("habitat", "胡杨生境数据", counts.habitat ?? 0, [
+      ["habitat_water", "水"],
+      ["habitat_soil", "土壤"],
+      ["habitat_climate", "气候"],
+      ["habitat_biotic", "生物环境"],
+    ]),
+    category("distribution", "胡杨空间分布信息", counts.distribution ?? 0, [
+      ["distribution_vector", "分布矢量"],
+      ["distribution_survey_image", "调查点图片"],
+    ]),
+    category("thematic", "胡杨专题数据", counts.thematic ?? 0, [
+      ["thematic_gene_germplasm", "基因与种质"],
+      ["thematic_individual", "个体"],
+      ["thematic_population", "种群"],
+      ["thematic_community", "群落"],
+      ["thematic_ecosystem", "生态系统"],
+      ["thematic_landscape_rs", "景观与遥感"],
+    ]),
+  ];
+}
+
 function hoverElement(element: Element) {
   fireEvent.pointerEnter(element);
   fireEvent.mouseOver(element);
   fireEvent.mouseEnter(element);
+}
+
+async function selectAuthorityCategory(label: string) {
+  const section = screen
+    .getByRole("heading", { name: "权威业务分类" })
+    .closest("section");
+  if (!section) {
+    throw new Error("未找到权威业务分类区域");
+  }
+  fireEvent.mouseDown(within(section).getByRole("combobox"));
+  fireEvent.click(await screen.findByText(label));
 }
 
 function renderAdminRoute(initialEntry: string, user: User = adminUser) {
@@ -432,7 +567,7 @@ function renderAdminRoute(initialEntry: string, user: User = adminUser) {
               />
               <Route
                 path="manage/topics"
-                element={<AdminWorkspaceManagementPage kind="topic" />}
+                element={<AdminTopicCompositionManagementPage />}
               />
             </Route>
             <Route element={<RequireDataUpload />}>
@@ -502,6 +637,10 @@ describe("admin routes", () => {
     for (const fn of Object.values(mockApi)) {
       fn.mockReset();
     }
+    window.localStorage.setItem(
+      `huyang-system.workspace-tour.v1.${adminUser.id}.${adminUser.username}`,
+      "completed",
+    );
     mockApi.bootstrap.mockResolvedValue(bootstrap);
     mockApi.logout.mockResolvedValue({ detail: "已退出" });
     mockApi.adminProfile.mockResolvedValue({
@@ -628,6 +767,9 @@ describe("admin routes", () => {
             typeBreakdown: [
               { dataType: "vector", count: 1, sizeBytes: 1024, itemCount: 8 },
             ],
+            categoryBreakdown: makeCategoryBreakdown({ distribution: 1 }),
+            unclassifiedCount: 0,
+            spatialSummary: emptySpatialSummary,
           },
           visibleResources: {
             totalResources: 2,
@@ -638,6 +780,12 @@ describe("admin routes", () => {
               { dataType: "vector", count: 1, sizeBytes: 1024, itemCount: 8 },
               { dataType: "raster", count: 1, sizeBytes: 2048, itemCount: 4 },
             ],
+            categoryBreakdown: makeCategoryBreakdown({
+              baseGeo: 1,
+              distribution: 1,
+            }),
+            unclassifiedCount: 0,
+            spatialSummary: emptySpatialSummary,
           },
         },
         users: {
@@ -702,6 +850,8 @@ describe("admin routes", () => {
       },
     });
     mockApi.dataSchemaSummary.mockResolvedValue({
+      taxonomyVersion: "2026.07",
+      catalogTree: fallbackTaxonomyTree,
       domains: [
         {
           code: "germplasm",
@@ -811,7 +961,7 @@ describe("admin routes", () => {
           keyFields: ["data_resource_id", "source_file_name", "sheet_name"],
         },
       ],
-      catalogTree: [
+      legacyCatalogTree: [
         {
           code: "geo",
           name: "地理数据",
@@ -984,6 +1134,7 @@ describe("admin routes", () => {
           dataType: "vector",
           domainType: "field_survey",
           category: null,
+          ...adminResourceClassification,
           source: "用户导入",
           provider: "平台组",
           dataDate: "2026-06-01",
@@ -1004,7 +1155,7 @@ describe("admin routes", () => {
         },
       ],
       total: 1,
-      ...inventoryResponseMeta({ total: 1, domainType: "field_survey" }),
+      ...inventoryResponseMeta({ total: 1 }),
       availableAccessGroups: [
         { id: 2, name: "科研用户", isGuest: false, isSuperadmin: false },
         { id: 3, name: "游客", isGuest: true, isSuperadmin: false },
@@ -1018,6 +1169,7 @@ describe("admin routes", () => {
         dataType: "vector",
         domainType: "field_survey",
         category: null,
+        ...adminResourceClassification,
         source: "用户导入",
         provider: "平台组",
         dataDate: "2026-06-01",
@@ -1092,6 +1244,92 @@ describe("admin routes", () => {
         ],
       });
     });
+    mockApi.mapCompositions.mockResolvedValue({
+      items: [
+        {
+          id: 2,
+          projectId: 1,
+          projectName: "塔里木河样地工程",
+          name: "胡杨退化专题",
+          description: "退化样地专题",
+          status: "completed",
+          layout: {},
+          owner: {
+            id: 1,
+            username: "admin",
+            displayName: "系统管理员",
+          },
+          audienceGroups: [],
+          currentVersion: null,
+          publishedVersion: null,
+          versions: [],
+          isOwner: true,
+          canPreview: true,
+          canDownload: true,
+          canEditLayout: true,
+          canPublish: true,
+          canUnpublish: false,
+          canRestoreProject: true,
+          canLoadSourceProject: true,
+          canDelete: true,
+          publishedAt: null,
+          publishedBy: null,
+          createdAt: "2026-06-01T10:00:00+08:00",
+          updatedAt: "2026-06-01T10:00:00+08:00",
+        },
+      ],
+      availableAudienceGroups: [],
+    });
+    mockApi.resultArtifacts.mockResolvedValue({
+      items: [
+        {
+          id: 7,
+          name: "胡杨监测年度报告",
+          description: "直接导入的年度成果报告",
+          sourceType: "direct_import",
+          resultType: "report",
+          status: "published",
+          category: {
+            id: 31,
+            type: "data_category",
+            code: "thematic_population",
+            name: "种群",
+            parentId: 3,
+            selectable: true,
+          },
+          categoryPath: [
+            { id: 3, code: "thematic", name: "胡杨专题数据" },
+            { id: 31, code: "thematic_population", name: "种群" },
+          ],
+          provider: "塔里木大学",
+          fileName: "annual-report.pdf",
+          fileFormat: "pdf",
+          sizeBytes: 2048,
+          previewUrl: "/api/catalog/results/7/file/?variant=preview",
+          downloadUrl: "/api/catalog/results/7/file/?variant=artifact",
+          owner: {
+            id: 1,
+            username: "admin",
+            displayName: "系统管理员",
+          },
+          accessGroups: [],
+          canPreview: true,
+          canDownload: true,
+          canPublish: true,
+          canUnpublish: true,
+          canDelete: true,
+          publishedAt: "2026-07-23T10:00:00+08:00",
+          publishedBy: {
+            id: 1,
+            username: "admin",
+            displayName: "系统管理员",
+          },
+          createdAt: "2026-07-23T10:00:00+08:00",
+          updatedAt: "2026-07-23T10:00:00+08:00",
+        },
+      ],
+      availableAccessGroups: [],
+    });
     mockApi.updateAdminWorkspace.mockImplementation((workspaceId, payload) =>
       Promise.resolve({
         id: workspaceId,
@@ -1131,17 +1369,24 @@ describe("admin routes", () => {
   it("renders data overview in data management", async () => {
     renderAdminRoute("/resources");
 
-    expect(await screen.findByRole("button", { name: /数据管理/ })).toHaveClass(
-      "workspace-switch-card-active",
-    );
+    expect(
+      await screen.findByRole("button", { name: /^数据资源$/ }),
+    ).toHaveClass("workspace-switch-card-active");
     expect(
       await screen.findByRole("tab", { name: "我可见的" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "我上传的" })).toBeInTheDocument();
     expect(screen.getByText("我可见的数据概览")).toBeInTheDocument();
-    expect(screen.getByText("数据资源")).toBeInTheDocument();
+    expect(screen.getAllByText("数据资源").length).toBeGreaterThan(0);
     expect(screen.getByText("数据大小")).toBeInTheDocument();
     expect(screen.getByText("数据条目")).toBeInTheDocument();
+    expect(screen.getByText("数据格式类型")).toBeInTheDocument();
+    expect(screen.getByText("业务分类分布")).toBeInTheDocument();
+    expect(screen.getAllByText("基础地理信息数据").length).toBeGreaterThan(0);
+    expect(screen.getByText("景观与遥感")).toBeInTheDocument();
+    expect(
+      screen.getByText("空间覆盖排行").closest(".admin-spatial-side-panel"),
+    ).not.toBeNull();
 
     fireEvent.click(screen.getByRole("tab", { name: "我上传的" }));
 
@@ -1173,6 +1418,9 @@ describe("admin routes", () => {
             typeBreakdown: [
               { dataType: "vector", count: 1, sizeBytes: 1024, itemCount: 8 },
             ],
+            categoryBreakdown: makeCategoryBreakdown({ distribution: 1 }),
+            unclassifiedCount: 0,
+            spatialSummary: emptySpatialSummary,
           },
         },
       },
@@ -1196,12 +1444,32 @@ describe("admin routes", () => {
     renderAdminRoute("/admin");
 
     const dataManagementButton = await screen.findByRole("button", {
-      name: /数据管理/,
+      name: /^数据资源$/,
     });
     hoverElement(dataManagementButton);
     fireEvent.click(await screen.findByRole("menuitem", { name: "存量数据" }));
 
     expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", {
+        name: "平台数据分为四个大类和十五个小类",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("基础地理信息数据").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("胡杨生境数据").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("胡杨空间分布信息").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("胡杨专题数据").length).toBeGreaterThan(0);
+    expect(screen.getByText("未分组（其他）数据")).toBeInTheDocument();
+    expect(screen.getByText("等待补充分类")).toBeInTheDocument();
+    expect(screen.queryByText(/v2026\.07/)).not.toBeInTheDocument();
+    expect(screen.queryByText("体系落地情况")).not.toBeInTheDocument();
+    expect(document.querySelectorAll(".data-schema-category")).toHaveLength(4);
+    expect(document.querySelectorAll(".data-schema-leaf")).toHaveLength(15);
+    const schemaCard = document.querySelector<HTMLElement>(".data-schema-card");
+    expect(schemaCard).not.toBeNull();
+    expect(schemaCard!.scrollWidth).toBeLessThanOrEqual(
+      schemaCard!.clientWidth + 1,
+    );
   });
 
   it("submits the password change form from user settings", async () => {
@@ -1313,7 +1581,7 @@ describe("admin routes", () => {
   it("renders the superadmin backup workspace from typed API data", async () => {
     renderAdminRoute("/admin/backup", adminUser);
 
-    expect(await screen.findByText("备份目标")).toBeInTheDocument();
+    expect((await screen.findAllByText("备份目标")).length).toBeGreaterThan(0);
     expect(screen.getByText("科研数据备份")).toBeInTheDocument();
     expect(screen.getByText("平台数据备份")).toBeInTheDocument();
     expect(screen.getByText("geomanager-backups")).toBeInTheDocument();
@@ -1483,7 +1751,7 @@ describe("admin routes", () => {
     renderAdminRoute("/resources/data/import");
 
     expect(await screen.findByText("选择或拖拽数据文件")).toBeInTheDocument();
-    expect(screen.getAllByText("数据管理").length).toBeGreaterThan(0);
+    expect(screen.getByText("存量数据")).toBeInTheDocument();
     const input = document.querySelector(
       "input[type='file']",
     ) as HTMLInputElement;
@@ -1498,19 +1766,19 @@ describe("admin routes", () => {
     fireEvent.change(input, { target: { files: [file] } });
 
     expect(await screen.findByText("导入配置")).toBeInTheDocument();
-    expect(screen.getByLabelText("数据名称")).toHaveValue("样地调查点位");
+    expect(screen.getByLabelText("存量数据中显示的资源名称")).toHaveValue(
+      "样地调查点位",
+    );
     const validateButton = screen.getByRole("button", {
       name: /数据校验并继续/,
     });
-    expect(
-      validateButton.compareDocumentPosition(screen.getByText("导入限制")) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(validateButton).toBeEnabled();
     expect(screen.getByText("我自己可见")).toBeInTheDocument();
     expect(screen.queryByText("超级管理员可见")).not.toBeInTheDocument();
     expect(
       screen.queryByText("不选择角色时，仅上传者本人和超级管理员可见。"),
     ).not.toBeInTheDocument();
+    await selectAuthorityCategory("胡杨空间分布信息 / 分布矢量");
     fireEvent.click(screen.getByRole("button", { name: /数据校验并继续/ }));
 
     await waitFor(() => {
@@ -1544,6 +1812,7 @@ describe("admin routes", () => {
         expect.objectContaining({
           name: "样地调查点位",
           domainType: "other",
+          categoryCode: "distribution_vector",
           importMode: "geographic",
           longitudeColumn: "longitude",
           latitudeColumn: "latitude",
@@ -1583,6 +1852,7 @@ describe("admin routes", () => {
 
     fireEvent.change(input, { target: { files: [file] } });
     expect(await screen.findByText("导入配置")).toBeInTheDocument();
+    await selectAuthorityCategory("胡杨空间分布信息 / 分布矢量");
     fireEvent.click(screen.getByRole("button", { name: /数据校验并继续/ }));
 
     await screen.findByText("确认重复数据名称");
@@ -1634,13 +1904,13 @@ describe("admin routes", () => {
 
     fireEvent.change(rasterInput, { target: { files: [rasterFile] } });
 
-    expect(await screen.findByText("已识别为栅格数据")).toBeInTheDocument();
+    expect(await screen.findByText("栅格数据包预检通过")).toBeInTheDocument();
     expect(screen.getByLabelText("栅格数据名称")).toHaveValue("poplar-2026");
     let resolveRasterUpload: ((value: unknown) => void) | undefined;
     mockApi.importRaster.mockImplementationOnce(
       (
-        _file: File,
-        _name: string,
+        _files: File[],
+        _payload: Record<string, unknown>,
         onUploadProgress?: (percent: number) => void,
       ) => {
         onUploadProgress?.(42);
@@ -1653,8 +1923,11 @@ describe("admin routes", () => {
 
     await waitFor(() => {
       expect(mockApi.importRaster).toHaveBeenCalledWith(
-        rasterFile,
-        "poplar-2026",
+        [rasterFile],
+        expect.objectContaining({
+          name: "poplar-2026",
+          categoryCode: "thematic_landscape_rs",
+        }),
         expect.any(Function),
       );
     });
@@ -1803,21 +2076,41 @@ describe("admin routes", () => {
     expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
     expect(screen.getAllByText("全部数据").length).toBeGreaterThan(0);
     for (const groupName of [
-      "种质数据",
-      "基因组数据",
-      "个体数据",
-      "群落数据",
-      "种群数据",
-      "野外调查数据",
-      "遥感影像数据",
-      "分子数据",
-      "矢量数据",
-      "其他类型",
+      "基础地理信息数据",
+      "行政区划",
+      "基础地理要素",
+      "LUCC",
+      "胡杨生境数据",
+      "水",
+      "土壤",
+      "气候",
+      "生物环境",
+      "胡杨空间分布信息",
+      "分布矢量",
+      "调查点图片",
+      "胡杨专题数据",
+      "基因与种质",
+      "个体",
+      "种群",
+      "群落",
+      "生态系统",
+      "景观与遥感",
+      "未分组（其他）",
     ]) {
       expect(
         screen.getByRole("button", { name: `删除系统分组${groupName}` }),
       ).toBeDisabled();
     }
+    expect(
+      document.querySelectorAll('button[aria-label^="删除系统分组"]'),
+    ).toHaveLength(21);
+    const allDataRow = screen
+      .getByRole("button", { name: "删除系统分组全部数据" })
+      .closest("tr");
+    expect(allDataRow).not.toBeNull();
+    expect(allDataRow).toBe(
+      allDataRow!.parentElement!.querySelector("tr.ant-table-row"),
+    );
     expect(screen.getByText("CSV")).toBeInTheDocument();
     expect(screen.getByText("筛选结果总数")).toBeInTheDocument();
     expect(screen.getByText("启用数据")).toBeInTheDocument();
@@ -1832,6 +2125,47 @@ describe("admin routes", () => {
     expect(screen.queryByText("populus_plots")).not.toBeInTheDocument();
   });
 
+  it("places pending resources in the unclassified inventory group", async () => {
+    const pendingResource = {
+      ...(await mockApi.adminDataResources()).items[0],
+      category: null,
+      categoryPath: [],
+      classificationStatus: "pending" as const,
+    };
+    mockApi.adminDataResources.mockResolvedValueOnce({
+      items: [pendingResource],
+      total: 1,
+      ...inventoryResponseMeta({ total: 1, categoryCode: null }),
+      availableAccessGroups: [],
+    });
+
+    renderAdminRoute("/resources/data/inventory");
+
+    expect(
+      await screen.findByRole("checkbox", {
+        name: "未分组（其他）组别状态",
+      }),
+    ).toBeChecked();
+  });
+
+  it("switches the data import page to the independent result artifact workflow", async () => {
+    renderAdminRoute("/resources/data/import");
+
+    expect(
+      await screen.findByRole("heading", { name: "选择导入目标" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "导入并发布成果" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "导入并加载发布为成果" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("导入完成后直接发布")).toBeInTheDocument();
+    expect(screen.queryByText("保存为草稿")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/历史草稿可在成果管理中发布或删除/),
+    ).toBeInTheDocument();
+  });
+
   it("syncs data status from inventory group checkboxes", async () => {
     const groupedResource = {
       id: 7,
@@ -1840,6 +2174,7 @@ describe("admin routes", () => {
       dataType: "vector",
       domainType: "field_survey",
       category: null,
+      ...adminResourceClassification,
       source: "用户导入",
       provider: "平台组",
       dataDate: "2026-06-01",
@@ -1872,7 +2207,6 @@ describe("admin routes", () => {
         total: 1,
         sizeBytes: 2048,
         itemCount: 12,
-        domainType: "field_survey",
       }),
       availableAccessGroups: [],
     });
@@ -1907,6 +2241,7 @@ describe("admin routes", () => {
       dataType: "vector",
       domainType: "field_survey",
       category: null,
+      ...adminResourceClassification,
       source: "用户导入",
       provider: "平台组",
       dataDate: "2026-06-01",
@@ -1948,7 +2283,6 @@ describe("admin routes", () => {
         inactiveCount: 1,
         sizeBytes: 4096,
         itemCount: 24,
-        domainType: "field_survey",
       }),
       availableAccessGroups: [],
     });
@@ -1962,8 +2296,10 @@ describe("admin routes", () => {
     const groupCheckbox = screen.getByRole("checkbox", {
       name: "全部数据组别状态",
     });
-    expect(screen.getAllByText("部分启用").length).toBeGreaterThan(0);
-    expect(groupCheckbox).toBePartiallyChecked();
+    await waitFor(() => {
+      expect(groupCheckbox).toBePartiallyChecked();
+      expect(screen.getAllByText("部分启用").length).toBeGreaterThan(0);
+    });
 
     fireEvent.click(groupCheckbox);
 
@@ -1976,6 +2312,45 @@ describe("admin routes", () => {
   });
 
   it("creates renames and warns before deleting inventory groups", async () => {
+    const baseInventory = await mockApi.adminDataResources();
+    let persistedGroup:
+      | {
+          id: number;
+          name: string;
+          createdAt: string;
+          updatedAt: string;
+        }
+      | undefined;
+    mockApi.adminDataResources.mockImplementation(() =>
+      Promise.resolve({
+        ...baseInventory,
+        inventoryGroups: persistedGroup ? [persistedGroup] : [],
+      }),
+    );
+    mockApi.createAdminDataResourceGroup.mockImplementation(({ name }) => {
+      persistedGroup = {
+        id: 9,
+        name,
+        createdAt: "2026-06-01T10:00:00+08:00",
+        updatedAt: "2026-06-01T10:00:00+08:00",
+      };
+      return Promise.resolve(persistedGroup);
+    });
+    mockApi.updateAdminDataResourceGroup.mockImplementation(
+      (groupId, payload) => {
+        if (payload.action === "delete") {
+          persistedGroup = undefined;
+          return Promise.resolve({ detail: "数据组别已删除" });
+        }
+        persistedGroup = {
+          id: groupId,
+          name: payload.name ?? persistedGroup?.name ?? "样地调查",
+          createdAt: persistedGroup?.createdAt ?? "2026-06-01T10:00:00+08:00",
+          updatedAt: "2026-06-01T10:00:00+08:00",
+        };
+        return Promise.resolve(persistedGroup);
+      },
+    );
     renderAdminRoute("/resources/data/inventory");
 
     expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
@@ -1987,7 +2362,9 @@ describe("admin routes", () => {
     fireEvent.click(screen.getByRole("button", { name: "新建" }));
 
     expect(await screen.findByText("植被调查")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "编辑组别植被调查" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "编辑组别植被调查" }),
+    );
     const groupNameInput = await screen.findByLabelText("编辑组别名称植被调查");
     fireEvent.change(groupNameInput, {
       target: { value: "样地调查" },
@@ -1996,11 +2373,13 @@ describe("admin routes", () => {
 
     expect(await screen.findByText("样地调查")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "删除组别样地调查" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "删除组别样地调查" }),
+    );
 
     expect(
       await screen.findByText(
-        "删除后仅移除自定义归档关系，数据仍保留在全部数据和对应业务类型分组中。",
+        "删除后仅移除自定义归档关系，数据仍保留在对应的权威业务分类中。",
       ),
     ).toBeInTheDocument();
   });
@@ -2014,6 +2393,7 @@ describe("admin routes", () => {
           code: "masked-maintainer-resource",
           dataType: "table",
           category: null,
+          ...adminResourceClassification,
           source: "用户导入",
           provider: "平台组",
           dataDate: null,
@@ -2070,6 +2450,7 @@ describe("admin routes", () => {
           code: "unnamed-uploader-resource",
           dataType: "table",
           category: null,
+          ...adminResourceClassification,
           source: "用户导入",
           provider: "平台组",
           dataDate: null,
@@ -2123,7 +2504,9 @@ describe("admin routes", () => {
     renderAdminRoute("/resources/manage/topics");
 
     expect(await screen.findByText("胡杨退化专题")).toBeInTheDocument();
-    expect(screen.getByText("当前专题")).toBeInTheDocument();
+    expect(screen.getByText("全部成果")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "导入成果（1）" }));
+    expect(await screen.findByText("胡杨监测年度报告")).toBeInTheDocument();
   });
 
   it("uses usernames when superadmin workspace owner display names are empty", async () => {

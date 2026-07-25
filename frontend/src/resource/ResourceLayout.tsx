@@ -1,9 +1,9 @@
 import {
-  ApartmentOutlined,
   DashboardOutlined,
   DatabaseOutlined,
   FolderOpenOutlined,
   ImportOutlined,
+  TrophyOutlined,
 } from "@ant-design/icons";
 import type { MenuDataItem } from "@ant-design/pro-components";
 import { PageContainer, ProLayout } from "@ant-design/pro-components";
@@ -45,7 +45,8 @@ function resourceRouteFor(user: User | null) {
     user?.permissions.canViewMapCompositions ||
     user?.permissions.canChangeMapCompositions ||
     user?.permissions.canDeleteMapCompositions ||
-    user?.permissions.canPublishMapCompositions;
+    user?.permissions.canPublishMapCompositions ||
+    user?.permissions.canViewResultArtifacts;
   if (canManageWorkspaces) {
     routes.push({
       path: "/resources/manage/projects",
@@ -56,14 +57,19 @@ function resourceRouteFor(user: User | null) {
   if (canManageTopics) {
     routes.push({
       path: "/resources/manage/topics",
-      name: "专题管理",
-      icon: <ApartmentOutlined />,
+      name: "成果管理",
+      icon: <TrophyOutlined />,
     });
   }
-  if (user?.permissions.canUploadData) {
+  if (
+    user?.permissions.canUploadData ||
+    (user?.permissions.canViewResultArtifacts &&
+      user.permissions.canImportResultArtifacts &&
+      user.permissions.canPublishResultArtifacts)
+  ) {
     routes.push({
       path: "/resources/data/import",
-      name: "数据导入",
+      name: "数据与成果导入",
       icon: <ImportOutlined />,
     });
   }
@@ -81,8 +87,8 @@ const defaultPageMeta = {
 const pageMeta: Record<string, { title: string; subTitle: string }> = {
   "/resources/dashboard": defaultPageMeta,
   "/resources/data/import": {
-    title: "数据导入",
-    subTitle: "上传文件后自动识别数据类型，并进入对应导入流程",
+    title: "数据与成果导入",
+    subTitle: "分别导入可分析的数据资源，或直接发布已完成的成果文件",
   },
   "/resources/data/inventory": {
     title: "存量数据管理",
@@ -93,8 +99,8 @@ const pageMeta: Record<string, { title: string; subTitle: string }> = {
     subTitle: "维护工程信息、启用状态、可见范围与删除确认",
   },
   "/resources/manage/topics": {
-    title: "专题管理",
-    subTitle: "维护专题信息、启用状态、可见范围与删除确认",
+    title: "成果管理",
+    subTitle: "统一管理工作台专题图与导入成果的发布、预览、下载和删除",
   },
 };
 

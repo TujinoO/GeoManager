@@ -40,7 +40,14 @@ export function RequireDataInventory() {
 /** 需要数据上传或数据维护权限才能访问的后台导入路由 */
 export function RequireDataUpload() {
   const { user } = useAppContext();
-  if (!user?.permissions.canUploadData) {
+  if (
+    !user?.permissions.canUploadData &&
+    !(
+      user?.permissions.canViewResultArtifacts &&
+      user?.permissions.canImportResultArtifacts &&
+      user.permissions.canPublishResultArtifacts
+    )
+  ) {
     return <Navigate to="/admin/profile" replace />;
   }
   return <Outlet />;
@@ -56,7 +63,8 @@ export function RequireWorkspaceInventory() {
     !user?.permissions.canViewMapCompositions &&
     !user?.permissions.canChangeMapCompositions &&
     !user?.permissions.canDeleteMapCompositions &&
-    !user?.permissions.canPublishMapCompositions
+    !user?.permissions.canPublishMapCompositions &&
+    !user?.permissions.canViewResultArtifacts
   ) {
     return <Navigate to="/admin/profile" replace />;
   }
@@ -106,7 +114,7 @@ export function RequireManageAuth() {
 export function RedirectIfAuth() {
   const { user } = useAppContext();
   if (user) {
-    return <Navigate to="/map" replace />;
+    return <Navigate to="/data" replace />;
   }
   return <Outlet />;
 }

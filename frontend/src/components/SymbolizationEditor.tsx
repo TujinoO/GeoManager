@@ -984,7 +984,7 @@ export function VectorSymbolizationEditor({
               <Alert
                 type="warning"
                 showIcon
-                message="推荐方案暂时不可用"
+                title="推荐方案暂时不可用"
                 description={recommendedSymbolizationsError}
               />
             )}
@@ -1065,7 +1065,7 @@ export function VectorSymbolizationEditor({
           <Alert
             type="info"
             showIcon
-            message="当前账号仅可查看推荐方案"
+            title="当前账号仅可查看推荐方案"
             description="应用或保存符号化模板需要自定义符号化权限。"
           />
         ) : (

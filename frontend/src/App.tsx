@@ -42,11 +42,15 @@ const AdminWorkspaceManagementPage = lazy(
 const AdminTopicCompositionManagementPage = lazy(
   () => import("./admin/AdminTopicCompositionManagementPage"),
 );
-const AboutPage = lazy(() => import("./pages/AboutPage"));
+const AboutPage = lazy(() => import("./pages/AboutV2Page"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
+const DataCatalogPage = lazy(() => import("./pages/DataCatalogPage"));
+const KnowledgePage = lazy(() => import("./pages/KnowledgePage"));
 const MapPage = lazy(() => import("./pages/MapPage"));
 const NonGeoPage = lazy(() => import("./pages/NonGeoPage"));
+const ResultsPage = lazy(() => import("./pages/ResultsPage"));
+const WarningPage = lazy(() => import("./pages/WarningPage"));
 const ResourceLayout = lazy(() => import("./resource/ResourceLayout"));
 
 /** 为路由页面添加淡入过渡效果的包装组件 */
@@ -165,6 +169,14 @@ export default function App() {
           {/* 需要登录才能访问的页面 */}
           <Route element={<RequireAuth />}>
             <Route
+              path="/data"
+              element={
+                <RouteTransition>
+                  <DataCatalogPage />
+                </RouteTransition>
+              }
+            />
+            <Route
               path="/map"
               element={
                 <RouteTransition>
@@ -181,8 +193,44 @@ export default function App() {
               }
             />
             <Route
+              path="/results"
+              element={
+                <RouteTransition>
+                  <ResultsPage />
+                </RouteTransition>
+              }
+            />
+            <Route
+              path="/warning"
+              element={
+                <RouteTransition>
+                  <WarningPage />
+                </RouteTransition>
+              }
+            />
+            <Route
+              path="/knowledge"
+              element={
+                <RouteTransition>
+                  <KnowledgePage />
+                </RouteTransition>
+              }
+            />
+            <Route
               path="/about"
               element={<Navigate to="/about/system" replace />}
+            />
+            <Route
+              path="/about/knowledge"
+              element={<Navigate to="/knowledge" replace />}
+            />
+            <Route
+              path="/about/:section/:institutionId"
+              element={
+                <RouteTransition>
+                  <AboutPage />
+                </RouteTransition>
+              }
             />
             <Route
               path="/about/:section"

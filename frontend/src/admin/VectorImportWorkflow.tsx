@@ -42,6 +42,7 @@ type AccessGroup = {
 type VectorImportFormValues = {
   name: string;
   domainType: DataDomainType;
+  categoryCode: string;
   sourceLayerName: string;
   tableName: string;
   encoding?: string;
@@ -55,12 +56,14 @@ type VectorImportFormValues = {
 export default function VectorImportWorkflow({
   file,
   domainDefinitions,
+  categoryOptions,
   availableAccessGroups,
   onReset,
   onCompleted,
 }: {
   file: File;
   domainDefinitions: DomainDefinition[];
+  categoryOptions: Array<{ value: string; label: string }>;
   availableAccessGroups: AccessGroup[];
   onReset: () => void;
   onCompleted: (result: VectorImportCommitResult) => void;
@@ -105,6 +108,7 @@ export default function VectorImportWorkflow({
         form.setFieldsValue({
           name: layer.suggestedName,
           domainType: "vector",
+          categoryCode: "base_geo_elements",
           sourceLayerName: layer.sourceLayerName,
           tableName: layer.suggestedTableName,
           encoding: layer.encoding ?? undefined,
@@ -248,6 +252,7 @@ export default function VectorImportWorkflow({
       const imported = await api.commitVectorImport(file, {
         name: values.name.trim(),
         domainType: values.domainType,
+        categoryCode: values.categoryCode,
         sourceLayerName: values.sourceLayerName,
         tableName: values.tableName.trim(),
         encoding: values.encoding?.trim() || null,
@@ -414,8 +419,19 @@ export default function VectorImportWorkflow({
                 <Input />
               </Form.Item>
               <Form.Item
+                name="categoryCode"
+                label="权威业务分类"
+                rules={[{ required: true, message: "请选择权威业务分类" }]}
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  options={categoryOptions}
+                />
+              </Form.Item>
+              <Form.Item
                 name="domainType"
-                label="业务数据类型"
+                label="兼容业务标签"
                 rules={[{ required: true, message: "请选择业务数据类型" }]}
               >
                 <Select

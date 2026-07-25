@@ -24,6 +24,7 @@ from apps.catalog.importer import (
 )
 from apps.catalog.models import DataResource, MapLayer, VectorDataset
 from apps.catalog.services import upsert_vector_catalog_record
+from apps.catalog.taxonomy import TaxonomyError, resolve_data_category
 from apps.catalog.vector_store import _json_value
 from apps.catalog.vector_storage import (
     GEOPACKAGE_WRITE_LOCK,
@@ -142,6 +143,13 @@ def commit_vector_import(
             ],
         )
     domain_type = _domain_type(payload.get("domainType"))
+    category = None
+    category_code = str(payload.get("categoryCode") or "").strip()
+    if category_code:
+        try:
+            category = resolve_data_category(category_code)
+        except TaxonomyError as exc:
+            raise ImportDataError(str(exc)) from exc
     access_group_ids = _access_group_ids(payload.get("accessGroupIds"))
     encoding = _optional_text(payload.get("encoding"))
     source_crs = _optional_text(payload.get("sourceCrs"))
@@ -207,6 +215,8 @@ def commit_vector_import(
                 resource.name = name
                 resource.data_type = DataResource.DataType.VECTOR
                 resource.domain_type = domain_type
+                if category is not None:
+                    resource.category = category
                 resource.source = "用户导入"
                 resource.coordinate_system = "EPSG:4326"
                 resource.file_format = "GPKG"
