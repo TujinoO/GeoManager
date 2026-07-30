@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.catalog import map_compositions, results, views
+from apps.catalog import map_compositions, nongeo, results, views
 
 
 urlpatterns = [
@@ -98,6 +98,16 @@ urlpatterns = [
         "catalog/resources/<int:pk>/visualization-summary/",
         views.resource_visualization_summary_view,
         name="catalog-resource-visualization-summary",
+    ),
+    path(
+        "catalog/resources/<int:pk>/nongeo-analysis/",
+        nongeo.resource_nongeo_analysis,
+        name="catalog-resource-nongeo-analysis",
+    ),
+    path(
+        "catalog/resources/<int:pk>/nongeo-query/",
+        nongeo.resource_nongeo_query,
+        name="catalog-resource-nongeo-query",
     ),
     path(
         "catalog/resources/<int:pk>/query/",

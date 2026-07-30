@@ -70,7 +70,8 @@
 import { getBootstrap } from "../frontend/src/api/generated";
 import { client } from "../frontend/src/api/generated/client.gen";
 
-client.setConfig({ baseUrl: "http://localhost:8000", credentials: "include" });
+// 平台浏览器端默认使用同源入口，避免跨域与 CSP 配置漂移。
+client.setConfig({ baseUrl: "", credentials: "include" });
 
 // 获取系统配置
 const { data: config, error } = await getBootstrap();
@@ -82,6 +83,8 @@ if (error) {
 console.log("系统名称:", config.systemName);
 console.log("是否开放注册:", config.allowRegistration);
 ```
+
+`docs/openapi.yaml` 的首个 `servers` 条目必须保持为同源 `/`，因此重新生成的默认客户端不会写死 `localhost`。只有独立脚本或外部系统直连后端时，才应显式把 `baseUrl` 覆盖为目标 API 地址。
 
 OpenAPI 规范更新后，在前端目录运行：
 
@@ -449,7 +452,7 @@ else:
 | `core.create_user` | 人员权限 | 在后台新建用户账号 |
 | `core.manage_auth` | 人员权限 | 修改认证授权 |
 
-初始化会自动创建 `超级管理员`、`平台管理员`、`科研用户`、`普通用户` 和 `游客` 五个内置角色。`超级管理员` 默认拥有全部平台功能权限；`平台管理员` 负责日常用户、权限、日志和数据运维；`科研用户` 具备上传、导出、专题制图和科研分析能力；`普通用户` 默认用于浏览、查询、加载图层和查看共享成果；`游客` 只通过专用游客会话访问明确公开的内容。管理员新建用户时必须指定至少一个角色，自助注册用户始终先加入 `普通用户` 角色。
+初始化会自动创建 `超级管理员`、`平台管理员`、`科研用户`、`普通用户` 和 `游客` 五个内置角色。`超级管理员` 默认拥有全部平台功能权限；`平台管理员` 负责日常用户、权限、日志和数据运维；`科研用户` 具备上传、导出、专题制图和科研分析能力；`普通用户` 默认用于浏览、查询、加载图层和查看共享成果；`游客` 只通过专用游客会话访问明确公开的内容。对象包含 `游客` 访问角色即表示公开共享，普通用户、科研用户和管理员登录后仍继承该公开可见范围。管理员新建用户时必须指定至少一个角色，自助注册用户始终先加入 `普通用户` 角色。
 
 成果相关默认权限矩阵如下。访问角色决定“能看到哪一项成果”，功能权限决定“能对已经可见的成果做什么”；两者必须同时满足。
 
@@ -464,6 +467,10 @@ else:
 成果导入是“导入并正式发布”这一原子业务动作，因此账号必须同时具备 `catalog.view_resultartifact`、`catalog.add_resultartifact` 和 `catalog.publish_resultartifact`。成果下载独立由 `catalog.download_resultartifact` 控制。删除只允许对象所属用户或平台管理主体执行，并仍要求 `catalog.delete_resultartifact`；给普通查看者单独授予删除权限不会扩大其对象管理范围。
 
 用户最终生效的功能权限由角色权限和单用户直授权限合并得到，再扣除用户主动关闭的权限。后台用户列表返回 `groupPermissions` 表示角色继承权限，`directPermissions` 表示单独授予该用户的功能权限，`disabledPermissions` 表示单独关闭权限，`effectivePermissions` 表示最终生效权限；具备 `core.manage_auth` 和 `core.manage_feature_permissions` 的管理员可通过 `POST /api/users/{userId}/permissions/` 写入其他用户的 `directPermissions`、`disabledPermissions` 和 `operationLogGroupIds`。关闭继承权限时不修改角色本身，只写入该用户的单独关闭列表。当前登录用户不能在认证授权页修改自己的权限，应在用户设置中调整主动关闭权限。
+
+角色配置采用二次授权边界：新建角色并设置权限需要同时具备 `core.manage_auth` 和 `core.manage_feature_permissions`；更新角色时，改名或删除等不含 `permissions` 的操作只要求 `core.manage_auth`，请求体只要包含 `permissions` 就必须额外具备 `core.manage_feature_permissions`。五个内置角色均不可删除或重命名；超级管理员角色对非超级管理员隐藏且权限集合锁定，其他内置角色的权限可由具备双权限的管理员调整。
+
+系统账号和管理目标还有独立保护：`游客` 角色只允许专用 guest 账号持有，guest 不能删除、停用、重置密码、修改角色或配置直授权限；平台管理员角色只能由超级管理员分配，平台管理员账号作为受保护目标，非超级管理员不能修改其状态、密码、角色、权限或删除账号。
 
 ### 最佳实践
 
@@ -738,6 +745,8 @@ A: `isQueryable` 表示该资源支持属性和空间查询（通常是有存储
 - 用户已登录
 - 用户具备 `catalog.add_dataresource` 权限
 - 准备好要导入的 Excel 或 CSV 文件
+
+`POST /api/catalog/scan/` 是维护性目录扫描入口，不是普通浏览动作，同样要求 `catalog.add_dataresource`；普通浏览用户和游客不能触发。已有目录扫描运行时接口返回 409，调用方应等待当前扫描结束后再刷新资源列表。
 
 ### 集成流程
 
@@ -1085,7 +1094,7 @@ print(f"查询耗时(ms): {result['elapsedMs']}")
 print(f"GeoJSON: {result['geojson']}")
 ```
 
-业务库资源使用 `/api/catalog/resources/{resourceId}/query/`，`QueryResponse.resourceId` 固定为数值型资源 ID。响应中的 `limitExceeded` 表示命中数量超过返回上限，`bounds` 是本次返回有效要素的 WGS84 边界，`elapsedMs` 是后端查询耗时，前端空间查询工作台可用这些字段展示真实命中摘要、截断状态和定位范围。
+业务库资源使用 `/api/catalog/resources/{resourceId}/query/`，`QueryResponse.resourceId` 固定为数值型资源 ID。响应中的 `limitExceeded` 表示命中数量超过返回上限，`bounds` 是本次返回有效要素的 WGS84 边界，`elapsedMs` 是后端查询耗时，前端空间查询工作台可用这些字段展示真实命中摘要、截断状态和定位范围。生产示例的查询硬上限为 5,000 条；空间候选在服务端分块过滤，单个 Web 进程同时只执行一个重型查询。繁忙时接口返回 503 和 `Retry-After`，客户端应按该响应头退避，不能立即并发重试；查询 JSON 超过 1 MiB 返回 413。
 
 #### Step 3: 处理查询结果
 
@@ -1135,7 +1144,28 @@ map.addLayer({
 
 `/nongeo` 左侧资源列表已经接入 `GET /api/catalog/resources/?spatialClass=non_spatial`，支持真实资源加载、业务类型筛选、关键词过滤和手动刷新。普通 Excel/CSV 在未识别到经纬度列时默认以 `table` 入库，并只出现在该列表；地理工作台使用 `spatialClass=spatial`，不会再显示此类资源。
 
-非地理字段画像和分析后端合同尚未确定。不要实现或调用 `/api/catalog/resources/{id}/nongeo-analytics/`、`/api/catalog/resources/{id}/table-query/` 等临时接口；等字段画像、统计口径、分页/过滤规则和性能边界明确后，再由前端合同代理更新 `docs/openapi.yaml`、mock 示例和生成类型。
+非地理工作台使用两个已定稿接口，均要求登录、`core.query_data`、启用的 `table` 或 `gene` 资源以及对象访问范围：
+
+- `GET /api/catalog/resources/{id}/nongeo-analysis/`：返回资源元数据、字段画像、分类/数值分布、最多六个数值字段的相关矩阵、前 80 条明细预览和分析提示。最多分析 10,000 条真实记录；`summary.rowCount` 始终保留全量计数，`analyzedRowCount` 和 `sampled` 明确统计口径。
+- `POST /api/catalog/resources/{id}/nongeo-query/`：分页返回真实明细，`limit` 范围 1–500（默认 80），`offset` 范围 0–10,000,000；`sortDirection` 仅允许 `asc|desc`，`sortField` 必须是实际字段。SQLite 后台表使用字段白名单，不能把客户端字段名直接拼入 SQL。
+
+在线分析支持 SQLite 后台表以及 CSV、TSV、XLS、XLSX、FASTA、FASTQ、VCF、GFF/GFF3、GB/GBK 文件。直接文件分析的大小上限取系统上传限制与 64 MB 的较小值，超过上限应先导入平台表格库。参数错误、不支持的资源/文件格式返回 400，未登录返回 401，功能或对象权限不足返回 403，资源不存在或未启用返回 404。
+
+```javascript
+const analytics = await fetch(`/api/catalog/resources/${resourceId}/nongeo-analysis/`, {
+  credentials: "include",
+}).then((response) => response.json());
+
+const page = await fetch(`/api/catalog/resources/${resourceId}/nongeo-query/`, {
+  method: "POST",
+  credentials: "include",
+  headers: {
+    "Content-Type": "application/json",
+    "X-CSRFToken": getCookie("csrftoken"),
+  },
+  body: JSON.stringify({ limit: 80, offset: 0, sortField: "height", sortDirection: "desc" }),
+}).then((response) => response.json());
+```
 
 ### 最佳实践
 
@@ -1149,7 +1179,7 @@ map.addLayer({
 
 **Q: 查询返回的数据不完整怎么办？**
 
-A: 检查响应中的 `limitExceeded`、`returnedCount` 和 `totalCount`。如果 `limitExceeded=true`，说明达到了查询上限，可以增大 `limit` 参数、缩小空间范围或增加属性条件。
+A: 检查响应中的 `limitExceeded`、`returnedCount` 和 `totalCount`。如果 `limitExceeded=true`，说明达到了查询上限；`limit` 不能突破平台配置的硬上限，应缩小空间范围或增加属性条件。
 
 **Q: 为什么查询结果中没有某些数据？**
 
@@ -1157,7 +1187,7 @@ A: 后端会自动忽略无几何、经度越界（-180到180之外）、纬度�
 
 **Q: 如何查询非矢量数据？**
 
-A: 矢量查询接口返回 GeoJSON，仅支持空间或矢量属性查询。非地理表格/基因分析接口设计尚未确定，当前 `/nongeo` 只展示前端 demo，不提供后端查询合同。
+A: 矢量查询接口返回 GeoJSON，仅支持空间或矢量属性查询。表格和基因资源应使用 `/nongeo-analysis/` 获取字段画像与统计，再使用 `/nongeo-query/` 分页读取真实明细；不要把非空间资源提交到矢量 `/query/` 接口。
 
 ### API Reference
 
@@ -1169,7 +1199,7 @@ A: 矢量查询接口返回 GeoJSON，仅支持空间或矢量属性查询。非
 
 ### 功能简介
 
-数据导出功能支持将平台中的数据资源导出为标准 GIS 格式，矢量图层可选择 GeoJSON 或 Shapefile，栅格图层导出为 GeoTIFF，最终打包为 ZIP 文件下载。导出接口会读取完整导出请求体，不受 Django `DATA_UPLOAD_MAX_MEMORY_SIZE` 上传内存限制影响。
+数据导出功能支持将平台中的数据资源导出为标准 GIS 格式，矢量图层可选择 GeoJSON 或 Shapefile，栅格图层导出为 GeoTIFF，最终打包为 ZIP 文件下载。同步和异步导出 JSON 请求体均限制为 10 MiB；服务端直接把 ZIP 写到临时文件并以文件流下载，不在 Web 进程内构造完整 ZIP bytes 副本。
 
 ### 使用场景
 
@@ -1286,23 +1316,27 @@ const response = await fetch("/api/catalog/export/async/", {
 });
 const job = await response.json();
 
-// 轮询任务状态
-const pollInterval = setInterval(async () => {
+// 顺序轮询任务状态：前一次请求完成后再等待，避免慢请求重叠。
+const controller = new AbortController();
+const deadline = Date.now() + 120_000;
+while (Date.now() < deadline) {
+  await new Promise((resolve) => setTimeout(resolve, 1000));
   const statusRes = await fetch(`/api/raster/jobs/${job.id}/`, {
     credentials: "include",
+    signal: controller.signal,
   });
   const status = await statusRes.json();
 
   if (status.status === "ready") {
-    clearInterval(pollInterval);
-    // 下载文件
     const downloadUrl = status.result.downloadUrl;
     window.open(downloadUrl);
+    break;
   } else if (status.status === "failed") {
-    clearInterval(pollInterval);
     console.error("导出失败:", status.error);
+    break;
   }
-}, 1000);
+}
+controller.abort();
 ```
 
 ```python
@@ -1333,7 +1367,7 @@ while True:
 - **选择合适的导出方式**：小数据量使用同步导出，大数据量使用异步导出。
 - **坐标系转换**：导出时指定目标 EPSG 代码，系统会自动进行坐标系转换。
 - **筛选导出**：结合查询结果，只导出需要的数据子集。
-- **异步轮询**：异步导出时，建议设置合理的轮询间隔（如 1 秒），避免过于频繁的请求。
+- **异步轮询**：异步导出必须使用完成后再延时的顺序轮询，设置 AbortController 和总超时；不要用异步 `setInterval` 产生重叠请求。
 
 ### FAQ
 
@@ -1634,7 +1668,7 @@ print(f"任务ID: {job['id']}")
 
 #### Step 2: 扫描栅格源目录
 
-扫描研究数据目录中的未处理栅格文件，自动创建数据集。
+扫描研究数据目录中的未处理栅格文件，自动创建数据集。调用方必须具备 `raster.manage_raster_dataset` 或 `catalog.change_dataresource`；普通浏览用户和游客不能触发。同一进程已有排队或运行中的扫描时，后端返回同一个活动任务，前端继续轮询该任务即可。
 
 ```javascript
 // JavaScript
@@ -2033,32 +2067,32 @@ A: 搜索结果按相关性排序，与关键词匹配度越高的结果越靠�
 | 功能模块 | 说明 |
 |----------|------|
 | 用户设置 | 用户可维护用户名、头像、邮箱、部门等个人信息，查看已授予权限，并主动关闭或重新开启已授予权限 |
-| Dashboard | 后台通过 `/api/admin/dashboard/?period=day\|week\|month` 查询数据资源、图层、栅格、用户数量、指定周期活跃账号和成功登录次数；通过 `/api/admin/dashboard/server/` 查询 Windows、Linux、macOS 的 CPU、内存、硬盘监控快照。活跃账号按已认证 API 访问去重，跨日保持会话的账号在继续访问时计入当天活跃；成功登录次数仅统计新建会话，包含账号密码、游客和自助注册自动登录。所有登录用户都可进入 Dashboard，数据统计卡片由 `core.view_dashboard_*_card` 权限独立控制，服务器信息整段由 `core.view_dashboard_system_card` 控制；未授权内容不会出现在接口响应和页面中，前端每 5 秒刷新服务器信息 |
+| Dashboard | 后台通过 `/api/admin/dashboard/?period=day\|week\|month` 查询数据资源、图层、栅格、用户数量、指定周期活跃账号和成功登录次数；通过 `/api/admin/dashboard/server/` 查询 Windows、Linux、macOS 的 CPU、内存、硬盘监控快照。活跃账号按已认证 API 访问去重，跨日保持会话的账号在继续访问时计入当天活跃；成功登录次数仅统计新建会话，包含账号密码、游客和自助注册自动登录。只有具备至少一项运维权限的账号显示后台入口并可进入运行概览；普通用户、科研用户和游客仅保留个人设置入口。数据统计卡片由 `core.view_dashboard_*_card` 权限独立控制，服务器信息整段由 `core.view_dashboard_system_card` 控制；未授权内容不会出现在接口响应和页面中，前端每 5 秒刷新服务器信息 |
 | 日志管理 | 后台通过 `/api/admin/operation-logs/` 查询真实审计日志，支持筛选、分页和 CSV 导出；所有登录用户始终可查看自己的操作日志，更大日志范围由所有用户、指定角色日志范围权限控制；具备 `core.view_system_logs` 的用户可通过 `/api/admin/system-logs/` 查看业务数据根目录 `logs/` 下的后台运行日志文件尾部内容。操作日志只记录用户主动行为，目录扫描、启动扫描、后台数据发现和任务内部进度进入系统日志或任务日志 |
 | 系统设置 | 新版后台只展示用户可配置的 application 设置，并将修改直接写入启动时传入的源 TOML 配置文件 |
 | 数据备份 | 后台通过 `/api/admin/backups/*` 仅向内置 `超级管理员` 主体开放本地和云端对象存储备份配置、连接测试、手动备份、自动计划、任务进度和历史记录；普通用户、平台管理员、科研用户以及被误授予 `core.manage_data_backup` 的非超级管理员主体都不能执行备份 |
 | 认证授权 | 后台提供用户创建、启用停用、删除、重置密码、角色分配、角色增删和功能权限配置；非超级管理员主体不会在用户、角色、日志角色等认证授权接口中看到超级管理员账号或角色；管理员创建用户不受自助注册开关影响 |
-| 数据管理 / 存量数据 | 后台通过 `/api/admin/data/resources/` 分页查询当前用户可见或本人上传的已登记数据资源，支持快速检索、高级筛选、内容组别、启用/禁用、默认可视化方案保存、访问角色配置、删除确认以及 CSV/Excel 清单导出；超级管理员可查看和维护全部资源；可手动配置的访问角色列表不会返回超级管理员角色，后端仍强制保留该访问范围；上传者可进入并修改自己上传数据的可见范围 |
+| 数据管理 / 存量数据 | 后台通过 `/api/admin/data/resources/` 分页查询当前用户可见或本人上传的已登记数据资源，支持数据资源重命名、快速检索、高级筛选、内容组别、启用/禁用、默认可视化方案保存、访问角色配置、删除确认以及 CSV/Excel 清单导出；超级管理员可查看和维护全部资源；可手动配置的访问角色列表不会返回超级管理员角色，后端仍强制保留该访问范围；上传者可进入并修改自己上传数据的可见范围 |
 | 数据管理 / 数据与成果导入 | 数据资源导入由 `catalog.add_dataresource` 控制；成果导入要求 `catalog.view_resultartifact + add_resultartifact + publish_resultartifact`，并直接发布到至少一个访问角色 |
 | 数据管理 / 工程与成果 | 工程管理继续通过 `/api/admin/workspaces/` 维护工程；成果管理统一展示 `MapComposition` 和 `ResultArtifact`，分别按专题图权限和独立成果权限提供预览、下载、发布/下架和删除 |
 
 ### 存量数据管理
 
-存量数据管理入口为 `/admin/data/inventory`。具备 `catalog.view_dataresource`、`catalog.change_dataresource`、`catalog.delete_dataresource` 或 `catalog.export_dataresource` 的用户可以查看当前用户可见或本人上传且符合筛选条件的存量数据；超级管理员角色可查看全部存量数据；仅具备 `catalog.add_dataresource` 的上传者可以进入该页查看自己上传的数据并修改其可见范围。界面固定展示“全部数据”和种质、基因组、个体、群落、种群、野外调查、遥感影像、分子、矢量、其他类型十个业务系统分组，并继续展示用户新建的自定义分组。业务系统分组依据资源 `domainType` 自动归类，历史未分类资源进入“其他类型”；自定义分组不改变业务类型。接口的 `summary` 和 `groupSummaries` 始终按当前筛选与权限范围统计完整结果，不受明细分页影响；`items` 只承载当前页明细。前端统计卡片和分组规模必须使用完整汇总，不能再用当前页 `items` 推算全量数值。列表接口同时包含 `domainType`、`sizeBytes`、`itemCount`、结构化 `uploader`、持久化自定义组别 `inventoryGroups`、资源自定义组别 `inventoryGroupId` 和当前用户是否可修改可见范围的 `canManageAccess`；可手动配置的访问角色列表不会返回超级管理员角色，后台仍强制保留该访问范围；常规业务目录 `/api/catalog/resources/` 仍只返回启用且用户可访问的数据资源，因此禁用资源会从业务查询、加载和搜索流程中隐藏，但保留在系统中。
+存量数据管理入口为 `/admin/data/inventory`。具备 `catalog.view_dataresource`、`catalog.change_dataresource`、`catalog.delete_dataresource` 或 `catalog.export_dataresource` 的用户可以查看当前用户可见或本人上传且符合筛选条件的存量数据；超级管理员角色可查看全部存量数据；仅具备 `catalog.add_dataresource` 的上传者可以进入该页查看自己上传的数据并修改其可见范围。界面按权威四大类及其叶节点展示系统分组，并继续展示用户新建的自定义分组；“全部数据”默认展开，顶层分组和叶节点分别采用单分支展开，打开 LUCC 等分类时会自动收起先前明细，避免同一资源在“全部数据”、大类和小类中同时堆叠。分组汇总表与资源明细表使用独立横向宽度，长资源名称在明细表内部滚动且不挤压状态、来源和操作列。历史未分类资源进入“未分组（其他）”；自定义分组不改变权威业务分类。接口的 `summary` 和 `groupSummaries` 始终按当前筛选与权限范围统计完整结果，不受明细分页影响；`items` 只承载当前页明细。前端统计卡片和分组规模必须使用完整汇总，不能再用当前页 `items` 推算全量数值。列表接口同时包含 `domainType`、`sizeBytes`、`itemCount`、结构化 `uploader`、持久化自定义组别 `inventoryGroups`、资源自定义组别 `inventoryGroupId` 和当前用户是否可修改可见范围的 `canManageAccess`；可手动配置的访问角色列表不会返回超级管理员角色，后台仍强制保留该访问范围；常规业务目录 `/api/catalog/resources/` 仍只返回启用且用户可访问的数据资源，因此禁用资源会从业务查询、加载和搜索流程中隐藏，但保留在系统中。
 
 关键接口：
 
 - `GET /api/admin/data/resources/`：按关键词、数据类型、状态、来源、提供单位和日期范围筛选当前用户可见或本人上传的存量数据。`items` 返回当前页明细；`summary` 返回筛选范围内的总数、启停数、受限访问数、数据大小和条目数；`groupSummaries` 返回“全部数据”、十个业务类型组及全部自定义组的完整规模。接口还返回当前主体可见的数据访问角色、上传用户、业务类型 `domainType`、用户自定义组 `inventoryGroups`、资源自定义组 `inventoryGroupId` 和 `canManageAccess`。超级管理员可查看全部资源；仅具备 `catalog.add_dataresource` 时只返回当前用户上传的数据资源。若资源维护人是当前主体不可见的超级管理员用户，`maintainer` 返回空字符串且 `uploader` 返回 `null`。
 - `POST /api/admin/data/resource-groups/`：新建存量数据内容组别，需要 `catalog.change_dataresource`。组别只用于管理表格分组，不影响访问权限。
 - `POST /api/admin/data/resource-groups/{groupId}/`：通过 `action=update` 改名或 `action=delete` 删除自定义组别，需要 `catalog.change_dataresource`。删除组别时，后端将组内资源的 `inventoryGroupId` 置为 `null`；资源仍保留在“全部数据”和对应业务类型系统分组中，数据本身不会被删除。
-- `POST /api/admin/data/resources/{id}/`：通过 `action` 执行 `setStatus`、`saveVisualization`、`updateAccess`、`updateInventoryGroup`、`update` 或 `delete`。目标数据必须对当前用户可见或由当前用户上传；不可见数据按不存在处理；超级管理员不受对象可见范围限制。上传者本人或具备 `catalog.change_dataresource` 的用户可执行 `updateAccess`；启停、内容组别、默认可视化和普通编辑需要 `catalog.change_dataresource`；删除需要 `catalog.delete_dataresource` 并提交与数据名称完全一致的 `confirmationName`。
+- `POST /api/admin/data/resources/{id}/`：通过 `action` 执行 `setStatus`、`saveVisualization`、`updateAccess`、`updateInventoryGroup`、`update` 或 `delete`。`update` 可通过 `name` 重命名数据资源；名称去除首尾空白后必须为 1–160 个字符。重命名只改变目录、搜索和存量数据中展示的 `DataResource.name`，不改变稳定编号 `code`、物理存储标识 `storage_path`、文件/数据表或地图默认图层名称。目标数据必须对当前用户可见或由当前用户上传；不可见数据按不存在处理；超级管理员不受对象可见范围限制。上传者本人或具备 `catalog.change_dataresource` 的用户可执行 `updateAccess`；重命名、启停、内容组别、默认可视化和普通编辑需要 `catalog.change_dataresource`；删除需要 `catalog.delete_dataresource` 并提交与数据名称完全一致的 `confirmationName`。
 - `GET /api/admin/data/resources/export/?format=csv|xlsx`：按当前筛选条件导出当前用户可见或本人上传的存量数据清单，需要 `catalog.export_dataresource`；超级管理员可导出全部资源。
 
 数据可见范围：
 
 - 用户导入数据时，上传者本人强制可见，超级管理员角色强制可见。
 - `accessGroupIds` 表示额外可见角色；后端会自动补齐超级管理员角色。访问角色列表不返回超级管理员角色，所有用户都不能选择或取消后台强制可见规则。
-- 选择游客角色表示无需账号即可通过游客会话浏览和查询该数据，前端必须给出醒目提示。
+- 选择游客角色表示该对象公开：无需账号即可通过游客会话浏览和查询，其他已登录角色也保留访问权；前端必须给出醒目提示。
 
 默认可视化方案保存在 `DataResource.default_visualization`。空间资源存在或创建关联 `MapLayer` 时，会同步默认图层名称、默认显隐、默认透明度、矢量符号化和栅格规则。对栅格数据只保存规则和图层配置，栅格符号化仍由后端渲染流程完成，不在前端执行。
 
@@ -2102,7 +2136,7 @@ A: 搜索结果按相关性排序，与关键词匹配度越高的结果越靠�
 - `GET /api/admin/workspaces/`：按关键词、类型、状态和分页参数查询工程专题，返回 `accessGroups`、`owner` 和 `canManageAccess`。
 - `POST /api/admin/workspaces/{workspaceId}/`：通过 `action` 执行 `setStatus`、`updateAccess`、`update` 或 `delete`。拥有者本人或具备 `catalog.change_workspacescene` 的用户可执行 `updateAccess`；启停和信息修改需要 `catalog.change_workspacescene`，删除需要 `catalog.delete_workspacescene`。删除必须提交与工程专题名称完全一致的 `confirmationName`；无关联工程会移除记录，已被专题出图稿引用的工程会转为停用隐藏。
 
-工程专题访问范围与存量数据一致：超级管理员角色由后端强制可见，选择游客角色表示无需账号即可通过游客会话访问。普通业务搜索和工作台加载接口必须继续按对象访问范围过滤，前端菜单和按钮控制只作为可用性提示，不能替代后端权限校验。
+工程专题访问范围与存量数据一致：超级管理员角色由后端强制可见，选择游客角色表示对象公开，游客会话和其他已登录角色均可访问。普通业务搜索和工作台加载接口必须继续按对象访问范围过滤，前端菜单和按钮控制只作为可用性提示，不能替代后端权限校验。
 
 工程和成果的启停/发布、信息修改、访问范围配置和删除都应写入 `OperationLog`；前端分别使用“工程管理”和“成果管理”，动作和说明使用中文。
 
@@ -2338,8 +2372,10 @@ A: 重新提交相同的任务请求即可。
 数据导入页提供两个互不替代的目标：
 
 - “导入为数据资源”继续使用原表格、矢量和栅格导入流程。
-- “导入并发布成果”调用 `POST /api/catalog/results/`，支持 PNG、JPG、PDF、CSV、XLSX；导入时必须直接发布并至少选择一个访问角色，不再创建新的导入草稿。账号需要独立的成果查看、导入和发布权限。
+- “导入并发布成果”调用 `POST /api/catalog/results/`，支持 PNG、JPG/JPEG、PDF、CSV、XLSX；导入时必须直接发布并至少选择一个访问角色，不再创建新的导入草稿。账号需要独立的成果查看、导入和发布权限。
 
-成果展示页聚合已发布 `MapComposition` 与已发布 `ResultArtifact`。图片和 PDF 可在线预览，CSV/XLSX 仅允许授权下载。成果文件按访问角色共享；历史草稿或被下架成果仅创建者、超级管理员和平台管理员可见。
+成果上传以真实内容而不是浏览器 Content-Type 为准：PNG/JPG/JPEG 由 Pillow 解码且扩展名必须匹配实际 PNG/JPEG；PDF 必须具备 `%PDF-` 文件头和尾部 `%%EOF`；CSV 必须非空、无 NUL，编码仅接受 UTF-8/UTF-8-SIG 或 GB18030；XLSX 必须是含 `[Content_Types].xml` 与 `xl/workbook.xml` 的有效工作簿 ZIP，并受 10,000 条目及解压规模限制。后端保存可信 MIME。所有成功文件响应包含 `X-Content-Type-Options: nosniff`；PNG/JPG/JPEG/PDF 的 `variant=preview` 还包含沙箱 CSP 和 `Referrer-Policy: no-referrer`，CSV/XLSX 只提供具备下载权限的 artifact 下载。
+
+成果展示页聚合已发布 `MapComposition` 与已发布 `ResultArtifact`。图片和 PDF 可在线预览，CSV/XLSX 仅允许授权下载。成果文件按访问角色共享；选择游客角色的成果视为公开成果，游客与其他已登录角色均可见；历史草稿或被下架成果仅创建者、超级管理员和平台管理员可见。
 
 数据资源模块原“专题管理”入口升级为“成果管理”，同一页面分别管理工作台生成的专题图成果和导入/分析成果。专题图继续支持打开来源工程、预览、下载、选择版本发布、更新范围、下架和删除；导入成果支持预览、下载、发布历史草稿、更新范围、下架和永久删除。`POST /api/catalog/results/{resultId}/` 使用 `publish|unpublish|delete` 动作完成这些管理操作并写入审计日志。

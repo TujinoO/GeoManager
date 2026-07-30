@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExportLayersPayload, ResourceListItem } from "../types";
-import { ApiError, api } from "./client";
+import {
+  ApiError,
+  api,
+  registerForbiddenHandler,
+  unregisterForbiddenHandler,
+} from "./client";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   const headers = new Headers(init.headers);
@@ -32,6 +37,7 @@ describe("api client", () => {
   });
 
   afterEach(() => {
+    unregisterForbiddenHandler();
     vi.unstubAllGlobals();
   });
 
@@ -108,6 +114,42 @@ describe("api client", () => {
       message: "无权访问该数据资源",
       data: { detail: "无权访问该数据资源" },
     });
+  });
+
+  it("notifies once when concurrent business requests report an expired session", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(jsonResponse({ detail: "请先登录" }, { status: 401 })),
+    );
+    let finishRefresh: (() => void) | undefined;
+    const refresh = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRefresh = resolve;
+        }),
+    );
+    registerForbiddenHandler(refresh);
+
+    const requests = [api.layers(), api.layers()];
+    await Promise.allSettled(requests);
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    finishRefresh?.();
+    await Promise.resolve();
+  });
+
+  it("does not treat expected authentication 401 responses as session expiry", async () => {
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(jsonResponse({ detail: "请先登录" }, { status: 401 })),
+    );
+    const refresh = vi.fn();
+    registerForbiddenHandler(refresh);
+
+    await expect(api.me()).rejects.toMatchObject({ status: 401 });
+    await expect(api.login("missing", "wrong", false)).rejects.toMatchObject({
+      status: 401,
+    });
+
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("does not surface full HTML debug pages as the error message", async () => {

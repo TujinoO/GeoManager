@@ -267,10 +267,37 @@ FEATURE_PERMISSIONS: tuple[FeaturePermissionDef, ...] = (
 
 FEATURE_PERMISSION_NAMES = tuple(item.perm_name for item in FEATURE_PERMISSIONS)
 ALWAYS_GRANTED_FEATURE_PERMISSIONS = frozenset({"core.view_own_operation_logs"})
+GUEST_DENIED_FEATURE_PERMISSIONS = frozenset(
+    {
+        "core.view_operation_logs",
+        "core.view_all_operation_logs",
+        "core.view_own_operation_logs",
+        "core.view_group_operation_logs",
+    }
+)
+ADMIN_ACCESS_PERMISSIONS = (
+    "core.manage_feature_permissions",
+    "core.create_user",
+    "core.view_operation_logs",
+    "core.view_system_logs",
+    "core.view_all_operation_logs",
+    "core.view_group_operation_logs",
+    "core.manage_system_settings",
+    "core.manage_data_backup",
+    "core.manage_auth",
+    "core.view_dashboard_resource_card",
+    "core.view_dashboard_layer_card",
+    "core.view_dashboard_raster_card",
+    "core.view_dashboard_user_card",
+    "core.view_dashboard_active_users_card",
+    "core.view_dashboard_system_card",
+)
 
 
 def has_feature_perm(user, perm_name: str) -> bool:
     if not user.is_authenticated:
+        return False
+    if perm_name in _principal_denied_feature_permissions(user):
         return False
     if perm_name in ALWAYS_GRANTED_FEATURE_PERMISSIONS:
         return True
@@ -281,16 +308,25 @@ def has_feature_perm(user, perm_name: str) -> bool:
     )
 
 
+def can_access_admin(user) -> bool:
+    """Return whether the user has at least one operations-admin capability."""
+    return any(
+        has_feature_perm(user, permission) for permission in ADMIN_ACCESS_PERMISSIONS
+    )
+
+
 def granted_feature_permissions(user) -> set[str]:
     if not user.is_authenticated:
         return set()
     if user.is_superuser:
-        return set(FEATURE_PERMISSION_NAMES)
-    return ALWAYS_GRANTED_FEATURE_PERMISSIONS | {
-        permission
-        for permission in FEATURE_PERMISSION_NAMES
-        if user.has_perm(permission)
-    }
+        granted = set(FEATURE_PERMISSION_NAMES)
+    else:
+        granted = ALWAYS_GRANTED_FEATURE_PERMISSIONS | {
+            permission
+            for permission in FEATURE_PERMISSION_NAMES
+            if user.has_perm(permission)
+        }
+    return granted - _principal_denied_feature_permissions(user)
 
 
 def disabled_feature_permissions(user) -> set[str]:
@@ -316,10 +352,12 @@ def disabled_feature_permissions(user) -> set[str]:
 
 def effective_feature_permissions(user) -> set[str]:
     if user.is_superuser:
-        return set(FEATURE_PERMISSION_NAMES)
-    return (
-        granted_feature_permissions(user) - disabled_feature_permissions(user)
-    ) | ALWAYS_GRANTED_FEATURE_PERMISSIONS
+        effective = set(FEATURE_PERMISSION_NAMES)
+    else:
+        effective = (
+            granted_feature_permissions(user) - disabled_feature_permissions(user)
+        ) | ALWAYS_GRANTED_FEATURE_PERMISSIONS
+    return effective - _principal_denied_feature_permissions(user)
 
 
 def direct_feature_permissions(user) -> set[str]:
@@ -339,6 +377,14 @@ def _user_profile(user):
         return user.profile
     except ObjectDoesNotExist:
         return None
+
+
+def _principal_denied_feature_permissions(user) -> set[str]:
+    from apps.core.initialization import is_guest_user
+
+    if is_guest_user(user):
+        return set(GUEST_DENIED_FEATURE_PERMISSIONS)
+    return set()
 
 
 def group_names(user) -> str:

@@ -52,6 +52,10 @@ import type {
   VectorImportValidatePayload,
   VectorImportValidateResult,
   MapLayerListItem,
+  NonGeoAnalytics,
+  NonGeoTableQueryPayload,
+  NonGeoTableQueryResult,
+  LoginOverviewResponse,
   MapComposition,
   MapCompositionCreateRequest,
   MapCompositionDeleteResponse,
@@ -167,13 +171,18 @@ interface HeyApiResponse<T = unknown> {
   response?: Response;
 }
 
+interface RequestLifecycleOptions {
+  signal?: AbortSignal;
+}
+
 async function unwrap<T>(request: Promise<HeyApiResponse>): Promise<T> {
   const { data, error, response } = await request;
   if (error !== undefined) {
-    const status = response?.status ?? 0;
-    if (status === 403 && onForbiddenHandler) {
-      onForbiddenHandler();
+    if (isAbortError(error)) {
+      throw error;
     }
+    const status = response?.status ?? 0;
+    notifyAuthorizationFailure(status, response?.url);
     throw new ApiError(errorMessage(error, status), status, error);
   }
   return data as T;
@@ -185,9 +194,7 @@ async function unwrapBlob(
   const { data, error, response } = await request;
   const status = response?.status ?? 0;
   if (error !== undefined) {
-    if (status === 403 && onForbiddenHandler) {
-      onForbiddenHandler();
-    }
+    notifyAuthorizationFailure(status, response?.url);
     throw new ApiError(errorMessage(error, status), status, error);
   }
   if (!(data instanceof Blob)) {
@@ -235,6 +242,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isAbortError(error: unknown) {
+  return isRecord(error) && error.name === "AbortError";
+}
+
 function getCookie(name: string): string | null {
   const match = document.cookie
     .split("; ")
@@ -263,9 +274,7 @@ async function requestJson<T>(
   const response = await fetch(request);
   const data = await parseResponseBody(response);
   if (!response.ok) {
-    if (response.status === 403 && onForbiddenHandler) {
-      onForbiddenHandler();
-    }
+    notifyAuthorizationFailure(response.status, request.url);
     throw new ApiError(
       errorMessage(data, response.status),
       response.status,
@@ -299,9 +308,7 @@ async function requestForm<T>(
   );
   const data = await parseResponseBody(response);
   if (!response.ok) {
-    if (response.status === 403 && onForbiddenHandler) {
-      onForbiddenHandler();
-    }
+    notifyAuthorizationFailure(response.status, response.url || url);
     throw new ApiError(
       errorMessage(data, response.status),
       response.status,
@@ -338,9 +345,7 @@ function requestFormWithUploadProgress<T>(
     xhr.onload = () => {
       const data = parseXhrBody(xhr);
       if (xhr.status < 200 || xhr.status >= 300) {
-        if (xhr.status === 403 && onForbiddenHandler) {
-          onForbiddenHandler();
-        }
+        notifyAuthorizationFailure(xhr.status, url);
         reject(new ApiError(errorMessage(data, xhr.status), xhr.status, data));
         return;
       }
@@ -378,8 +383,53 @@ async function parseResponseBody(response: Response) {
   return response.text();
 }
 
-type ForbiddenHandler = () => void;
+type ForbiddenHandler = () => void | Promise<void>;
 let onForbiddenHandler: ForbiddenHandler | null = null;
+let authorizationRefreshInFlight = false;
+
+const EXPECTED_UNAUTHENTICATED_PATHS = new Set([
+  "/api/auth/csrf/",
+  "/api/auth/me/",
+  "/api/auth/login/",
+  "/api/auth/guest-login/",
+  "/api/auth/register/",
+  "/api/auth/logout/",
+]);
+
+function notifyAuthorizationFailure(status: number, url?: string) {
+  if (!onForbiddenHandler || (status !== 401 && status !== 403)) {
+    return;
+  }
+  if (status === 401 && isExpectedUnauthenticatedRequest(url)) {
+    return;
+  }
+  if (authorizationRefreshInFlight) {
+    return;
+  }
+  authorizationRefreshInFlight = true;
+  try {
+    void Promise.resolve(onForbiddenHandler())
+      .catch(() => undefined)
+      .finally(() => {
+        authorizationRefreshInFlight = false;
+      });
+  } catch {
+    authorizationRefreshInFlight = false;
+  }
+}
+
+function isExpectedUnauthenticatedRequest(url?: string) {
+  if (!url) {
+    return false;
+  }
+  try {
+    return EXPECTED_UNAUTHENTICATED_PATHS.has(
+      new URL(url, window.location.origin).pathname,
+    );
+  } catch {
+    return false;
+  }
+}
 
 export function registerForbiddenHandler(handler: ForbiddenHandler) {
   onForbiddenHandler = handler;
@@ -387,10 +437,12 @@ export function registerForbiddenHandler(handler: ForbiddenHandler) {
 
 export function unregisterForbiddenHandler() {
   onForbiddenHandler = null;
+  authorizationRefreshInFlight = false;
 }
 
 export const api = {
   bootstrap: () => requestJson<Bootstrap>("/api/bootstrap/"),
+  loginOverview: () => unwrap<LoginOverviewResponse>(sdk.getLoginOverview()),
   csrf: () => requestJson<{ detail: string }>("/api/auth/csrf/"),
   me: () => requestJson<MeResponse>("/api/auth/me/"),
   login: (username: string, password: string, remember: boolean) =>
@@ -419,10 +471,17 @@ export const api = {
     ),
   adminSystemLogs: (filters: AdminSystemLogQuery = {}) =>
     unwrap<AdminSystemLog>(sdk.listAdminSystemLogs({ query: filters })),
-  adminDashboard: (period: "day" | "week" | "month" = "day") =>
-    unwrap<AdminDashboard>(sdk.getAdminDashboard({ query: { period } })),
-  adminDashboardServer: () =>
-    unwrap<AdminDashboardServer>(sdk.getAdminDashboardServer()),
+  adminDashboard: (
+    period: "day" | "week" | "month" = "day",
+    options: RequestLifecycleOptions = {},
+  ) =>
+    unwrap<AdminDashboard>(
+      sdk.getAdminDashboard({ query: { period }, signal: options.signal }),
+    ),
+  adminDashboardServer: (options: RequestLifecycleOptions = {}) =>
+    unwrap<AdminDashboardServer>(
+      sdk.getAdminDashboardServer({ signal: options.signal }),
+    ),
   adminUsers: () => unwrap<ListResponse<User>>(sdk.listUsers()),
   roleApplications: (status?: RoleApplicationStatus) =>
     unwrap<RoleApplicationListResponse>(
@@ -479,8 +538,10 @@ export const api = {
   adminSettings: () => unwrap<AdminSettings>(sdk.getAdminSettings()),
   updateAdminSettings: (payload: AdminSettingsUpdate) =>
     unwrap<AdminSettings>(sdk.updateAdminSettings({ body: payload })),
-  adminBackupOverview: () =>
-    unwrap<AdminBackupOverview>(sdk.getAdminBackupOverview()),
+  adminBackupOverview: (options: RequestLifecycleOptions = {}) =>
+    unwrap<AdminBackupOverview>(
+      sdk.getAdminBackupOverview({ signal: options.signal }),
+    ),
   adminBackupSettings: () =>
     unwrap<AdminBackupSettings>(sdk.getAdminBackupSettings()),
   updateAdminBackupSettings: (payload: AdminBackupSettingsUpdate) =>
@@ -491,14 +552,19 @@ export const api = {
     unwrap<AdminBackupTargetTestResult>(
       sdk.testAdminBackupTarget({ body: payload }),
     ),
-  adminBackupRuns: (filters: AdminBackupRunFilters = {}) =>
+  adminBackupRuns: (
+    filters: AdminBackupRunFilters = {},
+    options: RequestLifecycleOptions = {},
+  ) =>
     unwrap<PaginatedListResponse<AdminBackupRun>>(
-      sdk.listAdminBackupRuns({ query: filters }),
+      sdk.listAdminBackupRuns({ query: filters, signal: options.signal }),
     ),
   createAdminBackupRun: (payload: AdminBackupRunCreate) =>
     unwrap<AdminBackupRun>(sdk.createAdminBackupRun({ body: payload })),
-  adminBackupRun: (runId: number) =>
-    unwrap<AdminBackupRun>(sdk.getAdminBackupRun({ path: { runId } })),
+  adminBackupRun: (runId: number, options: RequestLifecycleOptions = {}) =>
+    unwrap<AdminBackupRun>(
+      sdk.getAdminBackupRun({ path: { runId }, signal: options.signal }),
+    ),
   downloadAdminBackupRun: (runId: number) =>
     unwrapBlob(
       sdk.downloadAdminBackupRun({
@@ -784,6 +850,15 @@ export const api = {
         query: params,
       }),
     ),
+  nonGeoAnalysis: (resourceId: number) =>
+    requestJson<NonGeoAnalytics>(
+      `/api/catalog/resources/${resourceId}/nongeo-analysis/`,
+    ),
+  nonGeoQuery: (resourceId: number, payload: NonGeoTableQueryPayload = {}) =>
+    requestJson<NonGeoTableQueryResult>(
+      `/api/catalog/resources/${resourceId}/nongeo-query/`,
+      { method: "POST", body: payload },
+    ),
   queryResource: (resource: ResourceListItem, payload: ResourceQueryPayload) =>
     unwrap<ResourceQueryResult>(
       sdk.queryResource({
@@ -813,14 +888,25 @@ export const api = {
     unwrap<RasterRenderResult>(
       sdk.renderRaster({ body: { layerId, rulesMode, rules } }),
     ),
-  renderRasterAsync: (payload: {
-    layerId?: number | null;
-    datasetId?: number | null;
-    rules?: Record<string, unknown>;
-    rulesMode?: "default" | "custom";
-  }) => unwrap<RasterJob>(sdk.renderRasterAsync({ body: payload })),
-  rasterJob: (jobId: string) =>
-    unwrap<RasterJob>(sdk.getJobStatus({ path: { job_id: jobId } })),
+  renderRasterAsync: (
+    payload: {
+      layerId?: number | null;
+      datasetId?: number | null;
+      rules?: Record<string, unknown>;
+      rulesMode?: "default" | "custom";
+    },
+    options: RequestLifecycleOptions = {},
+  ) =>
+    unwrap<RasterJob>(
+      sdk.renderRasterAsync({ body: payload, signal: options.signal }),
+    ),
+  rasterJob: (jobId: string, options: RequestLifecycleOptions = {}) =>
+    unwrap<RasterJob>(
+      sdk.getJobStatus({
+        path: { job_id: jobId },
+        signal: options.signal,
+      }),
+    ),
   classifyRasterUniqueValues: (datasetId: number, band: number) =>
     unwrap<RasterUniqueValuesResult>(
       sdk.getUniqueValues({ body: { datasetId, band } }),

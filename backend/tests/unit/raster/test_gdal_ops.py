@@ -18,7 +18,10 @@ class GdalOpsTests(SimpleTestCase):
             stdout='{"size":[1,1]}',
             stderr="",
         )
-        with mock.patch.object(gdal_ops, "run_cli_capture", return_value=result) as run:
+        with (
+            mock.patch.object(gdal_ops, "_gdal_timeout_seconds", return_value=120),
+            mock.patch.object(gdal_ops, "run_cli_capture", return_value=result) as run,
+        ):
             self.assertEqual(gdal_ops.gdalinfo_json(Path("a.tif")), {"size": [1, 1]})
 
         run.assert_called_once_with(
@@ -30,6 +33,7 @@ class GdalOpsTests(SimpleTestCase):
                 "-json",
                 "a.tif",
             ],
+            timeout=120,
         )
 
     def test_gdalinfo_can_request_approximate_statistics(self):
@@ -39,7 +43,10 @@ class GdalOpsTests(SimpleTestCase):
             stdout='{"size":[1,1]}',
             stderr="",
         )
-        with mock.patch.object(gdal_ops, "run_cli_capture", return_value=result) as run:
+        with (
+            mock.patch.object(gdal_ops, "_gdal_timeout_seconds", return_value=120),
+            mock.patch.object(gdal_ops, "run_cli_capture", return_value=result) as run,
+        ):
             gdal_ops.gdalinfo_json(Path("a.tif"), calculate_statistics=True)
 
         run.assert_called_once_with(
@@ -52,14 +59,17 @@ class GdalOpsTests(SimpleTestCase):
                 "-approx_stats",
                 "a.tif",
             ],
+            timeout=120,
         )
 
     def test_gdal_command_uses_cli_wrapper(self):
         process = mock.Mock()
-        process.stdout.read.side_effect = ["", ""]
-        process.poll.return_value = 0
-        process.wait.return_value = 0
-        with mock.patch.object(gdal_ops, "popen_cli", return_value=process) as popen:
+        process.communicate.return_value = ("", None)
+        process.returncode = 0
+        with (
+            mock.patch.object(gdal_ops, "_gdal_timeout_seconds", return_value=120),
+            mock.patch.object(gdal_ops, "popen_cli", return_value=process) as popen,
+        ):
             gdal_ops.run_gdal_command(["gdalwarp", "in.tif", "out.tif"])
 
         popen.assert_called_once()
@@ -69,6 +79,24 @@ class GdalOpsTests(SimpleTestCase):
         )
         self.assertEqual(popen.call_args.kwargs["stdout"], subprocess.PIPE)
         self.assertEqual(popen.call_args.kwargs["stderr"], subprocess.STDOUT)
+        process.communicate.assert_called_once_with(timeout=120)
+
+    def test_gdal_command_terminates_process_after_timeout(self):
+        process = mock.Mock()
+        process.communicate.side_effect = [
+            subprocess.TimeoutExpired("gdalwarp", 3),
+            ("partial output", None),
+        ]
+        with (
+            mock.patch.object(gdal_ops, "popen_cli", return_value=process),
+            mock.patch.object(gdal_ops, "_terminate_process_tree") as terminate,
+        ):
+            with self.assertRaisesMessage(RasterImportError, "执行超时"):
+                gdal_ops.run_gdal_command(
+                    ["gdalwarp", "in.tif", "out.tif"], timeout_seconds=3
+                )
+
+        terminate.assert_called_once_with(process)
 
     def test_gdalinfo_raises_import_error_on_command_failure(self):
         result = subprocess.CompletedProcess(
@@ -77,6 +105,9 @@ class GdalOpsTests(SimpleTestCase):
             stdout="",
             stderr="failed",
         )
-        with mock.patch.object(gdal_ops, "run_cli_capture", return_value=result):
+        with (
+            mock.patch.object(gdal_ops, "_gdal_timeout_seconds", return_value=120),
+            mock.patch.object(gdal_ops, "run_cli_capture", return_value=result),
+        ):
             with self.assertRaisesMessage(RasterImportError, "failed"):
                 gdal_ops.gdalinfo_json(Path("a.tif"))

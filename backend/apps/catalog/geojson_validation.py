@@ -9,78 +9,120 @@ from apps.catalog.importer import position_error_meters
 UNCERTAINTY_RATIO_THRESHOLD = 200
 
 
-def validate_geojson_geometries(gdf) -> tuple[Any, list[dict[str, Any]]]:
-    warnings: list[dict[str, Any]] = []
-    keep_indexes = []
-    missing_geometry_count = 0
-    invalid_longitude_count = 0
-    invalid_latitude_count = 0
-    coordinate_errors = []
+class GeometryValidationAccumulator:
+    """Validate geometry chunks without retaining every coordinate in memory."""
 
-    for index, geometry in gdf.geometry.items():
-        coordinates = list(_coordinate_pairs(geometry))
-        if not coordinates:
-            missing_geometry_count += 1
-            continue
+    def __init__(self) -> None:
+        self.missing_geometry_count = 0
+        self.invalid_longitude_count = 0
+        self.invalid_latitude_count = 0
+        self.minimum_error: float | None = None
+        self.maximum_error: float | None = None
 
-        has_invalid_longitude = any(
-            not _is_finite(longitude) or longitude < -180 or longitude > 180
-            for longitude, _ in coordinates
-        )
-        has_invalid_latitude = any(
-            not _is_finite(latitude) or latitude < -90 or latitude > 90
-            for _, latitude in coordinates
-        )
-        if has_invalid_longitude:
-            invalid_longitude_count += 1
-        if has_invalid_latitude:
-            invalid_latitude_count += 1
-        if has_invalid_longitude or has_invalid_latitude:
-            continue
+    def filter(self, gdf):
+        keep_indexes = []
 
-        keep_indexes.append(index)
-        for longitude, latitude in coordinates:
-            coordinate_errors.append(
-                position_error_meters(str(longitude), str(latitude))
+        for index, geometry in gdf.geometry.items():
+            has_coordinates = False
+            has_invalid_longitude = False
+            has_invalid_latitude = False
+            geometry_minimum_error: float | None = None
+            geometry_maximum_error: float | None = None
+
+            for longitude, latitude in _coordinate_pairs(geometry):
+                has_coordinates = True
+                longitude_is_valid = _is_finite(longitude) and -180 <= longitude <= 180
+                latitude_is_valid = _is_finite(latitude) and -90 <= latitude <= 90
+                has_invalid_longitude = has_invalid_longitude or not longitude_is_valid
+                has_invalid_latitude = has_invalid_latitude or not latitude_is_valid
+                if not longitude_is_valid or not latitude_is_valid:
+                    continue
+
+                error = position_error_meters(str(longitude), str(latitude))
+                if error <= 0:
+                    continue
+                geometry_minimum_error = (
+                    error
+                    if geometry_minimum_error is None
+                    else min(geometry_minimum_error, error)
+                )
+                geometry_maximum_error = (
+                    error
+                    if geometry_maximum_error is None
+                    else max(geometry_maximum_error, error)
+                )
+
+            if not has_coordinates:
+                self.missing_geometry_count += 1
+                continue
+            if has_invalid_longitude:
+                self.invalid_longitude_count += 1
+            if has_invalid_latitude:
+                self.invalid_latitude_count += 1
+            if has_invalid_longitude or has_invalid_latitude:
+                continue
+
+            keep_indexes.append(index)
+            if geometry_minimum_error is not None:
+                self.minimum_error = (
+                    geometry_minimum_error
+                    if self.minimum_error is None
+                    else min(self.minimum_error, geometry_minimum_error)
+                )
+            if geometry_maximum_error is not None:
+                self.maximum_error = (
+                    geometry_maximum_error
+                    if self.maximum_error is None
+                    else max(self.maximum_error, geometry_maximum_error)
+                )
+
+        return gdf.loc[keep_indexes]
+
+    def warnings(self) -> list[dict[str, Any]]:
+        warnings: list[dict[str, Any]] = []
+
+        if self.missing_geometry_count:
+            warnings.append(
+                {
+                    "code": "missing_geometry",
+                    "count": self.missing_geometry_count,
+                    "message": f"已忽略 {self.missing_geometry_count} 条不含地理坐标的数据。",
+                }
+            )
+        if self.invalid_longitude_count:
+            warnings.append(
+                {
+                    "code": "invalid_longitude",
+                    "count": self.invalid_longitude_count,
+                    "message": f"已忽略 {self.invalid_longitude_count} 条经度不在 -180 到 180 范围内的数据。",
+                }
+            )
+        if self.invalid_latitude_count:
+            warnings.append(
+                {
+                    "code": "invalid_latitude",
+                    "count": self.invalid_latitude_count,
+                    "message": f"已忽略 {self.invalid_latitude_count} 条纬度不在 -90 到 90 范围内的数据。",
+                }
             )
 
-    if missing_geometry_count:
-        warnings.append(
-            {
-                "code": "missing_geometry",
-                "count": missing_geometry_count,
-                "message": f"已忽略 {missing_geometry_count} 条不含地理坐标的数据。",
-            }
-        )
-    if invalid_longitude_count:
-        warnings.append(
-            {
-                "code": "invalid_longitude",
-                "count": invalid_longitude_count,
-                "message": f"已忽略 {invalid_longitude_count} 条经度不在 -180 到 180 范围内的数据。",
-            }
-        )
-    if invalid_latitude_count:
-        warnings.append(
-            {
-                "code": "invalid_latitude",
-                "count": invalid_latitude_count,
-                "message": f"已忽略 {invalid_latitude_count} 条纬度不在 -90 到 90 范围内的数据。",
-            }
-        )
+        _append_uncertainty_warning(warnings, self.minimum_error, self.maximum_error)
+        return warnings
 
-    _append_uncertainty_warning(warnings, coordinate_errors)
-    return gdf.loc[keep_indexes].copy(), warnings
+
+def validate_geojson_geometries(gdf) -> tuple[Any, list[dict[str, Any]]]:
+    accumulator = GeometryValidationAccumulator()
+    filtered = accumulator.filter(gdf)
+    return filtered, accumulator.warnings()
 
 
 def _append_uncertainty_warning(
-    warnings: list[dict[str, Any]], coordinate_errors: list[float]
+    warnings: list[dict[str, Any]],
+    minimum: float | None,
+    maximum: float | None,
 ) -> None:
-    positive_errors = [error for error in coordinate_errors if error > 0]
-    if not positive_errors:
+    if minimum is None or maximum is None or minimum <= 0:
         return
-    minimum = min(positive_errors)
-    maximum = max(positive_errors)
     ratio = maximum / minimum
     if ratio <= UNCERTAINTY_RATIO_THRESHOLD:
         return

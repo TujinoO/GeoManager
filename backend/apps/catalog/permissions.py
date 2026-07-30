@@ -1,6 +1,7 @@
 from django.db.models import Q
 
 from apps.core.initialization import (
+    GUEST_GROUP_NAME,
     PLATFORM_ADMIN_GROUP_NAME,
     SUPERADMIN_GROUP_NAME,
 )
@@ -14,6 +15,32 @@ def user_group_ids(user) -> set[int]:
         cached = set(user.groups.values_list("id", flat=True))
         setattr(user, "_huyang_group_ids", cached)
     return cached
+
+
+def effective_access_group_ids(user) -> set[int]:
+    """Return the user's roles plus the public guest audience.
+
+    Sharing an object with the guest role marks it as public. Authenticated
+    users must retain access to that public content even though their account
+    is not a member of the dedicated guest group.
+    """
+    group_ids = set(user_group_ids(user))
+    if user.is_anonymous:
+        return group_ids
+    guest_group_id = getattr(user, "_huyang_guest_group_id", None)
+    if guest_group_id is None:
+        from django.contrib.auth.models import Group
+
+        guest_group_id = (
+            Group.objects.filter(name=GUEST_GROUP_NAME)
+            .values_list("id", flat=True)
+            .first()
+            or 0
+        )
+        setattr(user, "_huyang_guest_group_id", guest_group_id)
+    if guest_group_id:
+        group_ids.add(guest_group_id)
+    return group_ids
 
 
 def user_is_superadmin_group_member(user) -> bool:
@@ -50,7 +77,7 @@ def user_has_full_data_access(user) -> bool:
 def access_filter(user):
     if user_has_full_data_access(user):
         return Q()
-    group_ids = user_group_ids(user)
+    group_ids = effective_access_group_ids(user)
     if not group_ids:
         return Q(access_groups__isnull=True)
     return Q(access_groups__isnull=True) | Q(access_groups__in=group_ids)
@@ -59,7 +86,7 @@ def access_filter(user):
 def resource_access_filter(user):
     if user_has_full_data_access(user):
         return Q()
-    group_ids = user_group_ids(user)
+    group_ids = effective_access_group_ids(user)
     if not group_ids:
         return Q(maintainer=user)
     return Q(access_groups__in=group_ids) | Q(maintainer=user)
@@ -68,7 +95,7 @@ def resource_access_filter(user):
 def related_access_filter(user, relation: str):
     if user_has_full_data_access(user):
         return Q()
-    group_ids = user_group_ids(user)
+    group_ids = effective_access_group_ids(user)
     maintainer_lookup = f"{relation}__maintainer"
     if not group_ids:
         return Q(**{relation: None}) | Q(**{maintainer_lookup: user})
@@ -107,13 +134,13 @@ def user_can_access(obj, user) -> bool:
         access_groups = prefetched["access_groups"]
         if not access_groups:
             return not _model_has_field(obj.__class__, "maintainer")
-        groups = user_group_ids(user)
+        groups = effective_access_group_ids(user)
         return any(group.id in groups for group in access_groups)
 
     access_groups = obj.access_groups
     if not access_groups.exists():
         return not _model_has_field(obj.__class__, "maintainer")
-    return access_groups.filter(id__in=user_group_ids(user)).exists()
+    return access_groups.filter(id__in=effective_access_group_ids(user)).exists()
 
 
 def _model_has_field(model, field_name: str) -> bool:

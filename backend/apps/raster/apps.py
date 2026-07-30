@@ -16,8 +16,6 @@ class RasterConfig(AppConfig):
 
         import os
         import sys
-        import threading
-
         from django.conf import settings
 
         if settings.PROJECT_CONFIG.runtime.disable_raster_startup_scan:
@@ -27,20 +25,19 @@ class RasterConfig(AppConfig):
         if _runserver_autoreload_parent(sys.argv, os.environ):
             return
 
-        def run_scan() -> None:
-            from django.db import close_old_connections, connection
+        # Startup and API-triggered scans go through the same single-flight job
+        # and the same bounded heavy-task executor.
+        from django.db import close_old_connections, connection
 
-            from apps.raster.services import scan_unprocessed_source_files_safely
+        from apps.raster.services.jobs import start_scan_job
 
-            close_old_connections()
-            try:
-                scan_unprocessed_source_files_safely()
-            finally:
-                connection.close()
-
-        threading.Thread(
-            target=run_scan, name="raster-startup-scan", daemon=True
-        ).start()
+        close_old_connections()
+        try:
+            start_scan_job()
+        finally:
+            # This is the startup thread's connection. The executor worker has
+            # its own thread-local connection lifecycle.
+            connection.close()
 
 
 def _server_startup_command(argv: list[str]) -> bool:

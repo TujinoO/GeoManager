@@ -14,18 +14,11 @@ import WorkspaceHeader from "../components/WorkspaceHeader";
 import { useAppContext } from "../contexts/AppContext";
 import type { User } from "../types";
 
-const baseAdminRoutes: MenuDataItem[] = [
-  {
-    path: "/admin/dashboard",
-    name: "运行概览",
-    icon: <DashboardOutlined />,
-  },
-  {
-    path: "/admin/profile",
-    name: "用户设置",
-    icon: <UserOutlined />,
-  },
-];
+const profileRoute: MenuDataItem = {
+  path: "/admin/profile",
+  name: "用户设置",
+  icon: <UserOutlined />,
+};
 
 const authRoute: MenuDataItem = {
   path: "/admin/auth",
@@ -44,7 +37,16 @@ const authRoute: MenuDataItem = {
 };
 
 function adminRouteFor(user: User | null) {
-  const routes = [...baseAdminRoutes];
+  const routes: MenuDataItem[] = user?.permissions.canAccessAdmin
+    ? [
+        {
+          path: "/admin/dashboard",
+          name: "运行概览",
+          icon: <DashboardOutlined />,
+        },
+        profileRoute,
+      ]
+    : [profileRoute];
   if (
     user?.permissions.canViewOperationLogs ||
     user?.permissions.canViewOwnOperationLogs

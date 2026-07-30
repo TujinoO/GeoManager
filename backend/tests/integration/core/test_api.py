@@ -52,6 +52,26 @@ from django.utils import timezone
 from geomanager.settings import _default_csrf_trusted_origins
 
 
+class FrontendSecurityHeadersTests(SimpleTestCase):
+    def test_spa_document_blocks_unexpected_media_and_picture_in_picture(self):
+        response = self.client.get("/resources/data/import")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("media-src 'none'", response["Content-Security-Policy"])
+        self.assertIn("object-src 'none'", response["Content-Security-Policy"])
+        self.assertEqual(
+            response["Permissions-Policy"],
+            "autoplay=(), picture-in-picture=()",
+        )
+
+    def test_json_api_response_does_not_receive_document_only_headers(self):
+        response = self.client.get("/api/health/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("Content-Security-Policy", response)
+        self.assertNotIn("Permissions-Policy", response)
+
+
 class BootstrapApiTests(TestCase):
     def test_bootstrap_returns_public_runtime_settings(self):
         SystemSetting.objects.update_or_create(
@@ -88,6 +108,28 @@ class BootstrapApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.json()["allowRegistration"])
 
+    def test_bootstrap_upgrades_known_legacy_platform_name(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research").replace(
+                    'name = "测试系统"',
+                    'name = "中亚胡杨林生态系统保护数据共享平台"',
+                ),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+
+            with override_settings(PROJECT_CONFIG=config):
+                response = self.client.get("/api/bootstrap/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["systemName"],
+            "全球胡杨林生态系统保护数据共享平台",
+        )
+
 
 class MapThumbnailTileApiTests(TestCase):
     def test_thumbnail_tile_is_served_from_same_origin_and_cached(self):
@@ -96,8 +138,8 @@ class MapThumbnailTileApiTests(TestCase):
             config_path = root / "app.toml"
             config_path.write_text(
                 _minimal_config_text(
-                    (root / "app").as_posix(),
-                    (root / "research").as_posix(),
+                    root / "app",
+                    root / "research",
                 ),
                 encoding="utf-8",
             )
@@ -127,8 +169,8 @@ class MapThumbnailTileApiTests(TestCase):
             config_path = root / "app.toml"
             config_path.write_text(
                 _minimal_config_text(
-                    (root / "app").as_posix(),
-                    (root / "research").as_posix(),
+                    root / "app",
+                    root / "research",
                 ),
                 encoding="utf-8",
             )
@@ -156,8 +198,8 @@ class MapThumbnailTileApiTests(TestCase):
             config_path = root / "app.toml"
             config_path.write_text(
                 _minimal_config_text(
-                    (root / "app").as_posix(),
-                    (root / "research").as_posix(),
+                    root / "app",
+                    root / "research",
                 ),
                 encoding="utf-8",
             )
@@ -243,7 +285,7 @@ class LoginOverviewApiTests(TestCase):
         self.assertEqual(metrics["monitoringSites"]["value"], 1)
         self.assertEqual(metrics["coveredBasins"]["value"], 1)
         self.assertEqual(metrics["dataResources"]["displayValue"], "1")
-        self.assertEqual(payload["serviceStatus"]["nodeSummary"]["total"], 24)
+        self.assertEqual(payload["serviceStatus"]["nodeSummary"]["total"], 3)
         self.assertEqual(payload["serviceStatus"]["nodeSummary"]["warning"], 0)
         encoded_payload = json.dumps(payload, ensure_ascii=False)
         self.assertNotIn("storage_path", encoded_payload)
@@ -295,6 +337,46 @@ class CsrfSettingsTests(SimpleTestCase):
 
 
 class AdminSettingsApiTests(TestCase):
+    def test_update_upgrades_known_legacy_platform_name_before_persisting(self):
+        user = get_user_model().objects.create_user(
+            username="settings-brand-admin", password="pass12345"
+        )
+        grant(user, ("core", "manage_system_settings"))
+        self.client.force_login(user)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+
+            with override_settings(PROJECT_CONFIG=config):
+                response = self.client.post(
+                    "/api/admin/settings/",
+                    data=json.dumps(
+                        {
+                            "systemName": (
+                                "中亚胡杨林生态系统保护数据共享平台"
+                            )
+                        }
+                    ),
+                    content_type="application/json",
+                )
+
+            persisted = config_path.read_text(encoding="utf-8")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["systemName"],
+            "全球胡杨林生态系统保护数据共享平台",
+        )
+        self.assertIn(
+            'name = "全球胡杨林生态系统保护数据共享平台"', persisted
+        )
+
     def test_update_refreshes_runtime_upload_limit_without_restart(self):
         user = get_user_model().objects.create_user(
             username="settings-upload-admin", password="pass12345"
@@ -326,7 +408,9 @@ class AdminSettingsApiTests(TestCase):
 
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(settings.PROJECT_CONFIG.limits.upload_max_mb, 1000)
-                self.assertIsNone(settings.DATA_UPLOAD_MAX_MEMORY_SIZE)
+                self.assertEqual(
+                    settings.DATA_UPLOAD_MAX_MEMORY_SIZE, 10 * 1024 * 1024
+                )
 
     def test_rejects_invalid_map_numbers_without_writing_config(self):
         user = get_user_model().objects.create_user(
@@ -666,6 +750,180 @@ class RegistrationApiTests(TestCase):
             ).exists()
         )
 
+    def test_auth_responses_include_required_disabled_permissions(self):
+        login_user = get_user_model().objects.create_user(
+            username="auth-shape-login-user", password="StrongPass12345"
+        )
+        grant(login_user, ("core", "browse_data"))
+        UserProfile.objects.create(
+            user=login_user,
+            disabled_permissions=["core.browse_data"],
+        )
+        login_client = self.client_class()
+
+        login_response = login_client.post(
+            "/api/auth/login/",
+            data=json.dumps(
+                {
+                    "username": login_user.username,
+                    "password": "StrongPass12345",
+                }
+            ),
+            content_type="application/json",
+        )
+        me_response = login_client.get("/api/auth/me/")
+
+        guest_client = self.client_class()
+        guest_response = guest_client.post("/api/auth/guest-login/")
+
+        SystemSetting.objects.update_or_create(
+            pk=1, defaults={"allow_registration": True}
+        )
+        register_client = self.client_class()
+        register_response = register_client.post(
+            "/api/auth/register/",
+            data=json.dumps(
+                {
+                    "username": "auth-shape-registered-user",
+                    "email": "auth.shape@example.com",
+                    "password": "StrongPass12345",
+                    "passwordConfirm": "StrongPass12345",
+                    "accountPurpose": "standard",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(login_response.status_code, 200)
+        self.assertEqual(me_response.status_code, 200)
+        self.assertEqual(guest_response.status_code, 200)
+        self.assertEqual(register_response.status_code, 200)
+        self.assertEqual(
+            login_response.json()["user"]["disabledPermissions"],
+            ["core.browse_data"],
+        )
+        self.assertEqual(
+            me_response.json()["user"]["disabledPermissions"],
+            ["core.browse_data"],
+        )
+        self.assertEqual(guest_response.json()["user"]["disabledPermissions"], [])
+        self.assertEqual(
+            register_response.json()["user"]["disabledPermissions"], []
+        )
+
+    def test_guest_sessions_remain_valid_when_another_visitor_logs_in(self):
+        first_visitor = self.client_class()
+        second_visitor = self.client_class()
+
+        self.assertEqual(
+            first_visitor.post("/api/auth/guest-login/").status_code,
+            200,
+        )
+        self.assertEqual(
+            second_visitor.post("/api/auth/guest-login/").status_code,
+            200,
+        )
+
+        first_me = first_visitor.get("/api/auth/me/")
+        first_resources = first_visitor.get("/api/catalog/resources/")
+
+        self.assertEqual(first_me.status_code, 200)
+        self.assertEqual(first_me.json()["user"]["username"], "guest")
+        self.assertEqual(first_resources.status_code, 200)
+
+    def test_guest_cannot_pollute_shared_account_from_an_independent_session(self):
+        first_visitor = self.client_class()
+        second_visitor = self.client_class()
+        self.assertEqual(
+            first_visitor.post("/api/auth/guest-login/").status_code, 200
+        )
+        self.assertEqual(
+            second_visitor.post("/api/auth/guest-login/").status_code, 200
+        )
+        guest = get_user_model().objects.get(username="guest")
+        guest.refresh_from_db()
+        guest.profile.refresh_from_db()
+        password_before = guest.password
+        profile_before = {
+            "avatarUrl": guest.profile.avatar_url,
+            "avatarData": guest.profile.avatar_data,
+            "department": guest.profile.department,
+            "disabledPermissions": list(guest.profile.disabled_permissions),
+        }
+        second_before = second_visitor.get("/api/auth/me/").json()["user"]
+        log_count_before = OperationLog.objects.filter(user=guest).count()
+
+        profile_response = first_visitor.post(
+            "/api/admin/profile/update/",
+            data=json.dumps(
+                {
+                    "displayName": "被污染的游客",
+                    "email": "polluted@example.com",
+                    "avatarUrl": "https://example.com/polluted.png",
+                    "department": "污染部门",
+                }
+            ),
+            content_type="application/json",
+        )
+        avatar_response = first_visitor.post("/api/admin/profile/avatar/", data={})
+        permissions_response = first_visitor.post(
+            "/api/admin/profile/permissions/",
+            data=json.dumps({"disabledPermissions": ["core.browse_data"]}),
+            content_type="application/json",
+        )
+        password_response = first_visitor.post(
+            "/api/admin/profile/password/",
+            data=json.dumps(
+                {
+                    "currentPassword": "",
+                    "newPassword": "PollutedPass12345",
+                    "passwordConfirm": "PollutedPass12345",
+                }
+            ),
+            content_type="application/json",
+        )
+        logs_response = first_visitor.get("/api/admin/operation-logs/")
+
+        for response in (
+            profile_response,
+            avatar_response,
+            permissions_response,
+            password_response,
+            logs_response,
+        ):
+            with self.subTest(path=response.request["PATH_INFO"]):
+                self.assertEqual(response.status_code, 403)
+
+        guest.refresh_from_db()
+        guest.profile.refresh_from_db()
+        second_after = second_visitor.get("/api/auth/me/").json()["user"]
+        self.assertEqual(guest.password, password_before)
+        self.assertFalse(guest.has_usable_password())
+        self.assertEqual(guest.first_name, "游客")
+        self.assertEqual(guest.email, "")
+        self.assertEqual(guest.profile.avatar_url, profile_before["avatarUrl"])
+        self.assertEqual(guest.profile.avatar_data, profile_before["avatarData"])
+        self.assertEqual(guest.profile.department, profile_before["department"])
+        self.assertEqual(
+            guest.profile.disabled_permissions,
+            profile_before["disabledPermissions"],
+        )
+        for key in (
+            "displayName",
+            "email",
+            "avatarUrl",
+            "department",
+            "disabledPermissions",
+        ):
+            self.assertEqual(second_after[key], second_before[key])
+        self.assertFalse(second_after["permissions"]["canViewOwnOperationLogs"])
+        self.assertNotIn(
+            "core.view_own_operation_logs", second_after["effectivePermissions"]
+        )
+        self.assertEqual(
+            OperationLog.objects.filter(user=guest).count(), log_count_before
+        )
+
     def test_registration_can_be_closed_by_system_setting(self):
         SystemSetting.objects.update_or_create(
             pk=1, defaults={"allow_registration": False}
@@ -691,6 +949,30 @@ class FeaturePermissionTests(TestCase):
         response = self.client.get("/admin2/")
 
         self.assertEqual(response.status_code, 404)
+
+    def test_data_only_user_does_not_receive_admin_entry_permission(self):
+        user = get_user_model().objects.create_user(
+            username="data-only-user", password="pass12345"
+        )
+        grant(user, ("core", "browse_data"), ("core", "query_data"))
+        self.client.force_login(user)
+
+        response = self.client.get("/api/auth/me/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["user"]["permissions"]["canAccessAdmin"])
+
+    def test_operations_permission_enables_admin_entry(self):
+        user = get_user_model().objects.create_user(
+            username="operations-user", password="pass12345"
+        )
+        grant(user, ("core", "view_dashboard_user_card"))
+        self.client.force_login(user)
+
+        response = self.client.get("/api/auth/me/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["user"]["permissions"]["canAccessAdmin"])
 
     def test_user_can_disable_only_granted_feature_permissions(self):
         user = get_user_model().objects.create_user(
@@ -836,6 +1118,149 @@ class FeaturePermissionTests(TestCase):
             update_response.json()["detail"],
             "只有超级管理员可以分配平台管理员角色",
         )
+
+    def test_regular_auth_manager_cannot_mutate_platform_admin_account(self):
+        ensure_superadmin_defaults(create_account=False)
+        platform_group = Group.objects.get(name=PLATFORM_ADMIN_GROUP_NAME)
+        ordinary_group = Group.objects.get(name=DEFAULT_USER_GROUP_NAME)
+        manager = get_user_model().objects.create_user(
+            username="platform-account-blocked-manager", password="pass12345"
+        )
+        grant(
+            manager,
+            ("core", "manage_auth"),
+            ("core", "manage_feature_permissions"),
+        )
+        target = get_user_model().objects.create_user(
+            username="protected-platform-admin", password="OldPass12345"
+        )
+        target.groups.add(platform_group)
+        password_before = target.password
+        log_count_before = OperationLog.objects.count()
+        self.client.force_login(manager)
+
+        responses = (
+            self.client.post(f"/api/users/{target.id}/password/reset/"),
+            self.client.post(
+                f"/api/users/{target.id}/",
+                data=json.dumps({"isActive": False}),
+                content_type="application/json",
+            ),
+            self.client.post(
+                f"/api/users/{target.id}/",
+                data=json.dumps({"action": "delete"}),
+                content_type="application/json",
+            ),
+            self.client.post(
+                f"/api/users/{target.id}/groups/",
+                data=json.dumps({"groupIds": [ordinary_group.id]}),
+                content_type="application/json",
+            ),
+            self.client.post(
+                f"/api/users/{target.id}/permissions/",
+                data=json.dumps({"directPermissions": ["core.query_data"]}),
+                content_type="application/json",
+            ),
+        )
+
+        for response in responses:
+            with self.subTest(path=response.request["PATH_INFO"]):
+                self.assertEqual(response.status_code, 403)
+                self.assertEqual(
+                    response.json()["detail"],
+                    "只有超级管理员可以管理平台管理员账号",
+                )
+        target.refresh_from_db()
+        self.assertTrue(target.is_active)
+        self.assertEqual(target.password, password_before)
+        self.assertEqual(list(target.groups.all()), [platform_group])
+        self.assertEqual(target.user_permissions.count(), 0)
+        self.assertEqual(OperationLog.objects.count(), log_count_before)
+
+    def test_superadmin_can_mutate_platform_admin_account(self):
+        superadmin, _ = ensure_superadmin_defaults()
+        platform_group = Group.objects.get(name=PLATFORM_ADMIN_GROUP_NAME)
+        ordinary_group = Group.objects.get(name=DEFAULT_USER_GROUP_NAME)
+        target = get_user_model().objects.create_user(
+            username="superadmin-managed-platform-admin",
+            password="OldPass12345",
+        )
+        target.groups.add(platform_group)
+        self.client.force_login(superadmin)
+
+        reset_response = self.client.post(
+            f"/api/users/{target.id}/password/reset/"
+        )
+        disable_response = self.client.post(
+            f"/api/users/{target.id}/",
+            data=json.dumps({"isActive": False}),
+            content_type="application/json",
+        )
+        permissions_response = self.client.post(
+            f"/api/users/{target.id}/permissions/",
+            data=json.dumps({"directPermissions": ["core.query_data"]}),
+            content_type="application/json",
+        )
+        groups_response = self.client.post(
+            f"/api/users/{target.id}/groups/",
+            data=json.dumps({"groupIds": [platform_group.id, ordinary_group.id]}),
+            content_type="application/json",
+        )
+        delete_response = self.client.post(
+            f"/api/users/{target.id}/",
+            data=json.dumps({"action": "delete"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(reset_response.status_code, 200)
+        self.assertEqual(disable_response.status_code, 200)
+        self.assertEqual(permissions_response.status_code, 200)
+        self.assertEqual(groups_response.status_code, 200)
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertFalse(get_user_model().objects.filter(pk=target.id).exists())
+
+    def test_guest_group_cannot_be_assigned_to_non_guest_accounts(self):
+        ensure_superadmin_defaults(create_account=False)
+        guest_group = Group.objects.get(name=GUEST_GROUP_NAME)
+        ordinary_group = Group.objects.get(name=DEFAULT_USER_GROUP_NAME)
+        manager = get_user_model().objects.create_user(
+            username="guest-role-assignment-manager", password="pass12345"
+        )
+        grant(manager, ("core", "manage_auth"), ("core", "create_user"))
+        target = get_user_model().objects.create_user(
+            username="guest-role-update-target", password="pass12345"
+        )
+        target.groups.add(ordinary_group)
+        self.client.force_login(manager)
+
+        create_response = self.client.post(
+            "/api/users/",
+            data=json.dumps(
+                {
+                    "username": "guest-role-create-target",
+                    "email": "guest.role.create@example.com",
+                    "groupIds": [guest_group.id],
+                }
+            ),
+            content_type="application/json",
+        )
+        update_response = self.client.post(
+            f"/api/users/{target.id}/groups/",
+            data=json.dumps({"groupIds": [guest_group.id]}),
+            content_type="application/json",
+        )
+
+        for response in (create_response, update_response):
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(
+                response.json()["detail"], "游客角色只能分配给游客账号"
+            )
+        self.assertFalse(
+            get_user_model().objects.filter(
+                username="guest-role-create-target"
+            ).exists()
+        )
+        self.assertEqual(list(target.groups.all()), [ordinary_group])
 
     def test_profile_email_is_normalized_and_cannot_duplicate_another_user(self):
         user = get_user_model().objects.create_user(
@@ -1248,6 +1673,30 @@ class FeaturePermissionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["permissions"], ["core.query_data"])
         self.assertEqual(response.json()["lockedPermissions"], [])
+
+    def test_manage_auth_cannot_escalate_through_own_group_permissions(self):
+        manager = get_user_model().objects.create_user(
+            username="group-permission-escalation-manager", password="pass12345"
+        )
+        grant(manager, ("core", "manage_auth"))
+        group = Group.objects.create(name="权限提升防护测试组")
+        manager.groups.add(group)
+        self.client.force_login(manager)
+
+        response = self.client.post(
+            f"/api/groups/{group.id}/",
+            data=json.dumps(
+                {"permissions": ["core.manage_feature_permissions"]}
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["detail"], "当前用户无权限配置角色")
+        group.refresh_from_db()
+        manager.refresh_from_db()
+        self.assertEqual(group.permissions.count(), 0)
+        self.assertFalse(manager.has_perm("core.manage_feature_permissions"))
 
     def test_guest_account_is_protected_from_admin_user_mutations(self):
         manager = get_user_model().objects.create_user(
@@ -2565,27 +3014,22 @@ class StoragePathTests(SimpleTestCase):
             research_path("gene", "../secret.fasta")
 
     def test_raster_paths_are_under_raster_root(self):
-        self.assertTrue(
-            str(raster_source_path("a.tif")).endswith("/raster/original/a.tif")
+        self.assertEqual(
+            raster_source_path("a.tif").parts[-3:],
+            ("raster", "original", "a.tif"),
         )
-        self.assertTrue(
-            str(raster_processed_path("a.cog.tif")).endswith(
-                "/raster/preprocessed/a.cog.tif"
-            )
+        self.assertEqual(
+            raster_processed_path("a.cog.tif").parts[-3:],
+            ("raster", "preprocessed", "a.cog.tif"),
         )
-        self.assertTrue(
-            str(raster_metadata_path("source/a.tif.gdalinfo.json")).endswith(
-                "/raster/metadata/source/a.tif.gdalinfo.json"
-            )
+        self.assertEqual(
+            raster_metadata_path("source/a.tif.gdalinfo.json").parts[-4:],
+            ("raster", "metadata", "source", "a.tif.gdalinfo.json"),
         )
 
     def test_gene_and_table_paths_are_under_fixed_subdirectories(self):
-        self.assertTrue(
-            str(gene_data_path("sample.fasta")).endswith("/gene/sample.fasta")
-        )
-        self.assertTrue(
-            str(table_data_path("survey.csv")).endswith("/table/survey.csv")
-        )
+        self.assertEqual(gene_data_path("sample.fasta").parts[-2:], ("gene", "sample.fasta"))
+        self.assertEqual(table_data_path("survey.csv").parts[-2:], ("table", "survey.csv"))
 
 
 class ConfigLoaderTests(TestCase):
@@ -2689,8 +3133,8 @@ name = "测试系统"
 allow_registration = true
 
 [application.storage]
-app_data = "{business_root}"
-research_data_root = "{research_root}"
+app_data = "{business_root.as_posix()}"
+research_data_root = "{research_root.as_posix()}"
 
 [application.map]
 default_center = [80.0, 41.5]
@@ -2743,8 +3187,8 @@ name = "测试系统"
 allow_registration = true
 
 [application.storage]
-app_data = "{business_root}"
-research_data_root = "{research_root}"
+app_data = "{business_root.as_posix()}"
+research_data_root = "{research_root.as_posix()}"
 
 [application.map]
 default_center = [80.0, 41.5]
@@ -2802,8 +3246,8 @@ name = "测试系统"
 allow_registration = true
 
 [application.storage]
-app_data = "{business_root}"
-research_data_root = "{research_root}"
+app_data = "{business_root.as_posix()}"
+research_data_root = "{research_root.as_posix()}"
 
 [application.map]
 default_center = [80.0, 41.5]

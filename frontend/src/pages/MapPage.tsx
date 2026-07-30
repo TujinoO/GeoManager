@@ -32,12 +32,7 @@ import WorkspaceScenePanel from "../components/WorkspaceScenePanel";
 import WorkspaceHeader from "../components/WorkspaceHeader";
 import MapCompositionPanel from "../components/map-composition/MapCompositionPanel";
 import { useAppContext } from "../contexts/AppContext";
-import {
-  type ExportOptions,
-  type ExportProgressHandler,
-  LayerContext,
-  type LayerContextValue,
-} from "../hooks/LayerContext";
+import { LayerContext, type LayerContextValue } from "../hooks/LayerContext";
 import { useLayerGroups } from "../hooks/useLayerGroups";
 import { useMapCompositions } from "../hooks/useMapCompositions";
 import { useRasterRender } from "../hooks/useRasterRender";
@@ -63,7 +58,6 @@ import type {
   DataSchemaSummary,
   DataResource,
   DataResourceProfile,
-  ExportLayerItem,
   FeatureInfo,
   GeoJsonFeatureCollection,
   GeoJsonGeometry,
@@ -178,6 +172,168 @@ const MapCompositionEditor = lazy(
   () => import("../components/map-composition/MapCompositionEditor"),
 );
 
+const EXPORT_POLL_INITIAL_DELAY_MS = 900;
+const EXPORT_POLL_MAX_DELAY_MS = 4000;
+const EXPORT_POLL_TIMEOUT_MS = 120_000;
+const EXPORT_POLL_TIMEOUT_MESSAGE =
+  "导出任务等待超时，请稍后重试或在任务中心查看状态";
+
+interface LayerExportMessageApi {
+  warning: (content: string) => unknown;
+  error: (content: string) => unknown;
+  success: (content: string) => unknown;
+}
+
+interface UseLayerExportOptions {
+  canExportData: boolean;
+  permissionDeniedMessage: string;
+  message: LayerExportMessageApi;
+}
+
+export function useLayerExport({
+  canExportData,
+  permissionDeniedMessage,
+  message,
+}: UseLayerExportOptions): LayerContextValue["exportLayers"] {
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(
+    () => () => {
+      const controller = abortControllerRef.current;
+      abortControllerRef.current = null;
+      controller?.abort();
+    },
+    [],
+  );
+
+  return useCallback(
+    async (items, options, onProgress) => {
+      if (!canExportData) {
+        message.warning(permissionDeniedMessage);
+        return;
+      }
+
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      const { signal } = controller;
+
+      try {
+        const job = await api.exportLayersAsync({
+          epsg: options.epsg,
+          reproject: options.reproject,
+          clip: options.clip,
+          clipGeometry: options.clipGeometry,
+          format: options.format,
+          items,
+        });
+        throwIfExportAborted(signal);
+        onProgress?.({
+          status: job.status,
+          percent: job.progressPercent,
+          messages: job.messages,
+        });
+        if (job.status === "failed") {
+          throw new Error(job.error || "导出失败");
+        }
+
+        const pollStartedAt = Date.now();
+        let pollDelayMs = EXPORT_POLL_INITIAL_DELAY_MS;
+        let status = job.status;
+        while (status !== "ready") {
+          const elapsedMs = Date.now() - pollStartedAt;
+          const remainingMs = EXPORT_POLL_TIMEOUT_MS - elapsedMs;
+          if (remainingMs <= 0) {
+            throw new Error(EXPORT_POLL_TIMEOUT_MESSAGE);
+          }
+          await waitForExportPollDelay(
+            Math.min(pollDelayMs, remainingMs),
+            signal,
+          );
+          throwIfExportAborted(signal);
+          if (Date.now() - pollStartedAt >= EXPORT_POLL_TIMEOUT_MS) {
+            throw new Error(EXPORT_POLL_TIMEOUT_MESSAGE);
+          }
+
+          const next = await api.rasterJob(job.id);
+          throwIfExportAborted(signal);
+          if (Date.now() - pollStartedAt >= EXPORT_POLL_TIMEOUT_MS) {
+            throw new Error(EXPORT_POLL_TIMEOUT_MESSAGE);
+          }
+          onProgress?.({
+            status: next.status,
+            percent: next.progressPercent,
+            messages: next.messages,
+          });
+          if (next.status === "failed") {
+            throw new Error(next.error || "导出失败");
+          }
+          status = next.status;
+          pollDelayMs = Math.min(
+            Math.round(pollDelayMs * 1.5),
+            EXPORT_POLL_MAX_DELAY_MS,
+          );
+        }
+
+        throwIfExportAborted(signal);
+        const { blob, filename } = await api.downloadExport(job.id);
+        throwIfExportAborted(signal);
+        downloadBlob(blob, filename);
+        message.success("导出任务已完成");
+      } catch (error) {
+        if (signal.aborted || isExportAbortError(error)) {
+          return;
+        }
+        message.error(error instanceof Error ? error.message : "导出失败");
+        throw error;
+      } finally {
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+        }
+      }
+    },
+    [canExportData, message, permissionDeniedMessage],
+  );
+}
+
+function waitForExportPollDelay(delayMs: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(createExportAbortError());
+      return;
+    }
+
+    const handleAbort = () => {
+      window.clearTimeout(timer);
+      reject(createExportAbortError());
+    };
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener("abort", handleAbort);
+      resolve();
+    }, delayMs);
+    signal.addEventListener("abort", handleAbort, { once: true });
+  });
+}
+
+function throwIfExportAborted(signal: AbortSignal) {
+  if (signal.aborted) {
+    throw createExportAbortError();
+  }
+}
+
+function createExportAbortError() {
+  return new DOMException("导出任务已取消", "AbortError");
+}
+
+function isExportAbortError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "AbortError"
+  );
+}
+
 interface LastGeoInsightCache {
   resource: ResourceListItem | null;
   profile: DataResourceProfile | null;
@@ -196,7 +352,6 @@ export default function MapPage() {
 
   const [resources, setResources] = useState<ResourceListItem[]>([]);
   const [loadingResources, setLoadingResources] = useState(false);
-  const [scanningResources, setScanningResources] = useState(false);
   const [dataSchema, setDataSchema] = useState<DataSchemaSummary | null>(null);
   const [resourceSearchKeyword, setResourceSearchKeyword] = useState("");
   const [selectedResource, setSelectedResource] =
@@ -252,6 +407,9 @@ export default function MapPage() {
     useState<LastGeoInsightCache | null>(() => initialGeoInsightCache);
   const [activeLeftPanel, setActiveLeftPanel] =
     useState<LeftPanelTabKey>("data");
+  const [mobileMapPanel, setMobileMapPanel] = useState<
+    "map" | "left" | "right"
+  >("map");
   const [tableLayer, setTableLayer] = useState<LoadedLayer | null>(null);
   const [visibleLayerExtentIds, setVisibleLayerExtentIds] = useState<
     Set<string>
@@ -266,7 +424,10 @@ export default function MapPage() {
     { min: 0, max: 22 },
   );
   const mapInstanceRef = useRef<MapboxMap | null>(null);
-  const startupScanStartedRef = useRef(false);
+  const resourceRequestSequenceRef = useRef(0);
+  const resourceProfileRequestSequenceRef = useRef(0);
+  const spatialProfileRequestSequenceRef = useRef(0);
+  const latestResourceFiltersRef = useRef<ResourceFilters>({});
   const loadedSceneIdRef = useRef<number | null>(null);
   const loadedCompositionIdRef = useRef<number | null>(null);
   const lastMapErrorRef = useRef<{ message: string; timestamp: number } | null>(
@@ -301,6 +462,11 @@ export default function MapPage() {
     layerGroups.updateRasterLayer,
   );
   const permissionDeniedMessage = `当前角色"${userRoles.length > 0 ? userRoles.join("、") : "未分配角色"}"无权限`;
+  const exportLayers = useLayerExport({
+    canExportData: permissions.canExportData,
+    permissionDeniedMessage,
+    message,
+  });
   const handleWorkspaceLoaded = useCallback(() => {
     setTableLayer(null);
     setSelectedFeature(null);
@@ -318,6 +484,7 @@ export default function MapPage() {
     canViewWorkspaces: permissions.canViewWorkspaces,
     canQueryData: permissions.canQueryData,
     canLoadVectorLayer: permissions.canLoadVectorLayer,
+    canLoadRasterLayer: permissions.canLoadRasterLayer,
     queryResultLimit: bootstrap.limits.queryResultLimit,
     groups: layerGroups.groups,
     selectedLayerId,
@@ -630,6 +797,8 @@ export default function MapPage() {
 
   const loadResources = useCallback(
     async (filters: ResourceFilters) => {
+      const requestId = ++resourceRequestSequenceRef.current;
+      latestResourceFiltersRef.current = filters;
       setLoadingResources(true);
       try {
         const response = await api.resources({
@@ -637,6 +806,9 @@ export default function MapPage() {
           spatialClass: "spatial",
         });
         const items = response.items.filter(isGeographicResource);
+        if (requestId !== resourceRequestSequenceRef.current) {
+          return items;
+        }
         setResources(items);
         setSelectedResource((current) =>
           current && !items.some((item) => item.id === current.id)
@@ -660,12 +832,16 @@ export default function MapPage() {
         );
         return items;
       } catch (error) {
-        message.error(
-          error instanceof Error ? error.message : "数据资源加载失败",
-        );
+        if (requestId === resourceRequestSequenceRef.current) {
+          message.error(
+            error instanceof Error ? error.message : "数据资源加载失败",
+          );
+        }
         return [];
       } finally {
-        setLoadingResources(false);
+        if (requestId === resourceRequestSequenceRef.current) {
+          setLoadingResources(false);
+        }
       }
     },
     [message],
@@ -711,87 +887,55 @@ export default function MapPage() {
     void loadResources(urlResourceFilters);
   }, [loadResources, permissions.canBrowseData, urlResourceFilters]);
 
-  const waitForJob = useCallback(async (jobId: string) => {
-    while (true) {
-      await new Promise((resolve) => window.setTimeout(resolve, 900));
-      const job = await api.rasterJob(jobId);
-      if (job.status === "ready") {
-        return job;
-      }
-      if (job.status === "failed") {
-        throw new Error(job.error || "数据目录扫描失败");
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!permissions.canBrowseData || startupScanStartedRef.current) {
-      return;
-    }
-    startupScanStartedRef.current = true;
-    setScanningResources(true);
-
-    async function scanAndRefreshResources() {
-      try {
-        const scanJobs: Promise<unknown>[] = [];
-        scanJobs.push(api.scanCatalogSources());
-        const rasterScanJob = await api.scanRasterSources();
-        scanJobs.push(waitForJob(rasterScanJob.id));
-        if (scanJobs.length > 0) {
-          await Promise.all(scanJobs);
-        }
-      } catch (error) {
-        message.warning(
-          error instanceof Error ? error.message : "数据目录自动扫描失败",
-        );
-      } finally {
-        await loadResources(urlResourceFilters);
-        setScanningResources(false);
-      }
-    }
-
-    void scanAndRefreshResources();
-  }, [
-    loadResources,
-    message,
-    permissions.canBrowseData,
-    urlResourceFilters,
-    waitForJob,
-  ]);
-
   async function fetchResourceProfile(resource: ResourceListItem) {
+    const requestSequence = ++resourceProfileRequestSequenceRef.current;
     setSelectedResource(resource);
+    setResourceProfile(null);
     setLoadingProfile(true);
     try {
       const profile = await api.resourceProfile(resource);
-      setResourceProfile(profile);
+      if (requestSequence === resourceProfileRequestSequenceRef.current) {
+        setResourceProfile(profile);
+      }
       return profile;
     } catch (error) {
-      setResourceProfile(null);
-      message.error(
-        error instanceof Error ? error.message : "读取字段和元信息失败",
-      );
+      if (requestSequence === resourceProfileRequestSequenceRef.current) {
+        setResourceProfile(null);
+        message.error(
+          error instanceof Error ? error.message : "读取字段和元信息失败",
+        );
+      }
       return null;
     } finally {
-      setLoadingProfile(false);
+      if (requestSequence === resourceProfileRequestSequenceRef.current) {
+        setLoadingProfile(false);
+      }
     }
   }
 
   async function fetchSpatialTargetResourceProfile(resource: ResourceListItem) {
+    const requestSequence = ++spatialProfileRequestSequenceRef.current;
     setSpatialTargetResource(resource);
+    setSpatialTargetResourceProfile(null);
     setLoadingSpatialTargetProfile(true);
     try {
       const profile = await api.resourceProfile(resource);
-      setSpatialTargetResourceProfile(profile);
+      if (requestSequence === spatialProfileRequestSequenceRef.current) {
+        setSpatialTargetResourceProfile(profile);
+      }
       return profile;
     } catch (error) {
-      setSpatialTargetResourceProfile(null);
-      message.error(
-        error instanceof Error ? error.message : "读取查询对象元信息失败",
-      );
+      if (requestSequence === spatialProfileRequestSequenceRef.current) {
+        setSpatialTargetResourceProfile(null);
+        message.error(
+          error instanceof Error ? error.message : "读取查询对象元信息失败",
+        );
+      }
       return null;
     } finally {
-      setLoadingSpatialTargetProfile(false);
+      if (requestSequence === spatialProfileRequestSequenceRef.current) {
+        setLoadingSpatialTargetProfile(false);
+      }
     }
   }
 
@@ -1122,56 +1266,6 @@ export default function MapPage() {
       }
     },
     [tableLayer],
-  );
-
-  const exportLayers = useCallback(
-    async (
-      items: ExportLayerItem[],
-      options: ExportOptions,
-      onProgress?: ExportProgressHandler,
-    ) => {
-      if (!permissions.canExportData) {
-        message.warning(permissionDeniedMessage);
-        return;
-      }
-      try {
-        const job = await api.exportLayersAsync({
-          epsg: options.epsg,
-          reproject: options.reproject,
-          clip: options.clip,
-          clipGeometry: options.clipGeometry,
-          format: options.format,
-          items,
-        });
-        onProgress?.({
-          status: job.status,
-          percent: job.progressPercent,
-          messages: job.messages,
-        });
-        while (true) {
-          await new Promise((resolve) => window.setTimeout(resolve, 900));
-          const next = await api.rasterJob(job.id);
-          onProgress?.({
-            status: next.status,
-            percent: next.progressPercent,
-            messages: next.messages,
-          });
-          if (next.status === "ready") {
-            break;
-          }
-          if (next.status === "failed") {
-            throw new Error(next.error || "导出失败");
-          }
-        }
-        const { blob, filename } = await api.downloadExport(job.id);
-        downloadBlob(blob, filename);
-        message.success("导出任务已完成");
-      } catch (error) {
-        message.error(error instanceof Error ? error.message : "导出失败");
-        throw error;
-      }
-    },
-    [message, permissionDeniedMessage, permissions.canExportData],
   );
 
   const exportCurrentMapPng = useCallback(
@@ -1766,7 +1860,7 @@ export default function MapPage() {
       resources={resources}
       profile={resourceProfile}
       selectedResourceId={selectedResource?.id ?? null}
-      loadingResources={loadingResources || scanningResources}
+      loadingResources={loadingResources}
       loadingProfile={loadingProfile}
       querying={querying}
       permissions={permissions}
@@ -1816,6 +1910,36 @@ export default function MapPage() {
             : "workspace-body-spatial-collapsed"
         }`}
       >
+        <div
+          className="mobile-map-panel-switcher"
+          role="group"
+          aria-label="移动端地图面板切换"
+        >
+          <Button
+            size="small"
+            type={mobileMapPanel === "map" ? "primary" : "text"}
+            aria-pressed={mobileMapPanel === "map"}
+            onClick={() => setMobileMapPanel("map")}
+          >
+            地图
+          </Button>
+          <Button
+            size="small"
+            type={mobileMapPanel === "left" ? "primary" : "text"}
+            aria-pressed={mobileMapPanel === "left"}
+            onClick={() => setMobileMapPanel("left")}
+          >
+            数据与图层
+          </Button>
+          <Button
+            size="small"
+            type={mobileMapPanel === "right" ? "primary" : "text"}
+            aria-pressed={mobileMapPanel === "right"}
+            onClick={() => setMobileMapPanel("right")}
+          >
+            数据洞察
+          </Button>
+        </div>
         <main className="map-stage">
           <Suspense
             fallback={
@@ -1839,7 +1963,13 @@ export default function MapPage() {
             />
           </Suspense>
         </main>
-        <aside className="floating-panel floating-panel-left">
+        <aside
+          className={`floating-panel floating-panel-left ${
+            mobileMapPanel === "left"
+              ? "mobile-map-panel-visible"
+              : "mobile-map-panel-hidden"
+          }`}
+        >
           <ConfigProvider theme={workspacePanelTheme}>
             <LayerContext.Provider value={layerContextValue}>
               <Tabs
@@ -1928,7 +2058,11 @@ export default function MapPage() {
           </ConfigProvider>
         </aside>
         <aside
-          className="floating-panel floating-panel-right"
+          className={`floating-panel floating-panel-right ${
+            mobileMapPanel === "right"
+              ? "mobile-map-panel-visible"
+              : "mobile-map-panel-hidden"
+          }`}
           aria-label="要素信息面板"
         >
           <ConfigProvider theme={workspacePanelTheme}>

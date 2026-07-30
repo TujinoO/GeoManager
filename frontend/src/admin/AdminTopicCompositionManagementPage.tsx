@@ -81,6 +81,7 @@ export default function AdminTopicCompositionManagementPage() {
   const [previewUrl, setPreviewUrl] = useState("");
   const [previewTitle, setPreviewTitle] = useState("");
   const [previewFormat, setPreviewFormat] = useState("");
+  const [previewingKey, setPreviewingKey] = useState<string | null>(null);
   const [availableAudienceGroups, setAvailableAudienceGroups] = useState<
     WorkspaceAccessGroup[]
   >([]);
@@ -248,11 +249,15 @@ export default function AdminTopicCompositionManagementPage() {
       message.warning("该专题暂无可预览成果");
       return;
     }
+    const key = `mapping-${composition.id}`;
+    setPreviewingKey(key);
     try {
-      const result = await api.downloadMapCompositionVersion(
-        composition.id,
-        composition.currentVersion.versionNumber,
-        "preview",
+      const result = await withPreviewTimeout(
+        api.downloadMapCompositionVersion(
+          composition.id,
+          composition.currentVersion.versionNumber,
+          "preview",
+        ),
       );
       const nextUrl = URL.createObjectURL(result.blob);
       setPreviewUrl((current) => {
@@ -265,6 +270,8 @@ export default function AdminTopicCompositionManagementPage() {
       setPreviewFormat("png");
     } catch (error) {
       message.error(error instanceof Error ? error.message : "专题预览失败");
+    } finally {
+      setPreviewingKey((current) => (current === key ? null : current));
     }
   }
 
@@ -370,8 +377,12 @@ export default function AdminTopicCompositionManagementPage() {
       message.warning("该成果格式不支持在线预览");
       return;
     }
+    const key = `artifact-${artifact.id}`;
+    setPreviewingKey(key);
     try {
-      const result = await api.downloadResultArtifact(artifact.id, "preview");
+      const result = await withPreviewTimeout(
+        api.downloadResultArtifact(artifact.id, "preview"),
+      );
       const nextUrl = URL.createObjectURL(result.blob);
       setPreviewUrl((current) => {
         if (current) URL.revokeObjectURL(current);
@@ -381,6 +392,8 @@ export default function AdminTopicCompositionManagementPage() {
       setPreviewFormat(artifact.fileFormat);
     } catch (error) {
       message.error(error instanceof Error ? error.message : "成果预览失败");
+    } finally {
+      setPreviewingKey((current) => (current === key ? null : current));
     }
   }
 
@@ -507,6 +520,7 @@ export default function AdminTopicCompositionManagementPage() {
           <Button
             type="link"
             icon={<EyeOutlined />}
+            loading={previewingKey === `mapping-${record.id}`}
             disabled={!record.canPreview || !record.currentVersion}
             onClick={() => void preview(record)}
           >
@@ -624,6 +638,7 @@ export default function AdminTopicCompositionManagementPage() {
           <Button
             type="link"
             icon={<EyeOutlined />}
+            loading={previewingKey === `artifact-${record.id}`}
             disabled={!record.canPreview}
             onClick={() => void previewArtifact(record)}
           >
@@ -867,6 +882,19 @@ export default function AdminTopicCompositionManagementPage() {
       </Modal>
     </div>
   );
+}
+
+function withPreviewTimeout<T>(request: Promise<T>, timeoutMs = 20_000) {
+  let timeoutId: number | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(
+      () => reject(new Error("成果预览等待超时，请稍后重试")),
+      timeoutMs,
+    );
+  });
+  return Promise.race([request, timeout]).finally(() => {
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+  });
 }
 
 function formatFileSize(value: number) {

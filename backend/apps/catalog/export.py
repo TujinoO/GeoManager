@@ -4,7 +4,6 @@ import csv
 import json
 import re
 import zipfile
-from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Callable
@@ -32,18 +31,45 @@ def export_layers_zip(
     vector_format: str = "geojson",
     progress: ProgressCallback | None = None,
 ) -> bytes:
+    """Compatibility wrapper for callers that still require in-memory bytes."""
+
+    with TemporaryDirectory() as tmpdir:
+        zip_path = Path(tmpdir) / "layers.zip"
+        export_layers_zip_to_path(
+            items,
+            epsg,
+            output_path=zip_path,
+            reproject=reproject,
+            clip_geometry=clip_geometry,
+            vector_format=vector_format,
+            progress=progress,
+        )
+        return zip_path.read_bytes()
+
+
+def export_layers_zip_to_path(
+    items: list[dict[str, Any]],
+    epsg: int | None,
+    *,
+    output_path: Path,
+    reproject: bool = True,
+    clip_geometry: dict[str, Any] | None = None,
+    vector_format: str = "geojson",
+    progress: ProgressCallback | None = None,
+) -> Path:
     if not items:
         raise ExportError("缺少导出图层")
     if reproject and (epsg is None or epsg < 1024 or epsg > 999999):
         raise ExportError("EPSG code 不合法")
     vector_format = validate_vector_format(vector_format)
 
-    with TemporaryDirectory() as tmpdir:
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(prefix="geomanager-export-work-") as tmpdir:
         root = Path(tmpdir)
-        zip_path = root / "layers.zip"
         cutline_path = write_cutline(root, clip_geometry) if clip_geometry else None
         with zipfile.ZipFile(
-            zip_path, "w", compression=zipfile.ZIP_DEFLATED
+            output_path, "w", compression=zipfile.ZIP_DEFLATED
         ) as archive:
             for index, item in enumerate(items, start=1):
                 layer_type = item.get("layerType")
@@ -74,7 +100,7 @@ def export_layers_zip(
                     raise ExportError(f"不支持的图层类型：{layer_type}")
         if progress:
             progress("导出压缩包已生成 100%")
-        return zip_path.read_bytes()
+    return output_path
 
 
 def validate_vector_format(value: Any) -> str:
@@ -131,7 +157,7 @@ def export_vector_geojson(geojson: Any, epsg: int, output: Path) -> None:
         gdf = gpd.GeoDataFrame.from_features(features, crs="EPSG:4326")
         if epsg != 4326:
             gdf = gdf.to_crs(epsg=epsg)
-        output.write_text(gdf.to_json(drop_id=True), encoding="utf-8")
+        gdf.to_file(output, driver="GeoJSON", index=False)
     except Exception as exc:
         raise ExportError(f"导出矢量 GeoJSON 失败：{exc}") from exc
 
@@ -145,18 +171,19 @@ def export_vector_attributes_csv(geojson: Any, output: Path) -> None:
 
     columns = attribute_columns(features)
     index_column = unique_index_column(columns)
-    buffer = StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=[index_column, *columns])
-    writer.writeheader()
-    for index, feature in enumerate(features, start=1):
-        properties = {}
-        if isinstance(feature, dict) and isinstance(feature.get("properties"), dict):
-            properties = feature["properties"]
-        row = {index_column: index}
-        for column in columns:
-            row[column] = csv_value(properties.get(column))
-        writer.writerow(row)
-    output.write_text("\ufeff" + buffer.getvalue(), encoding="utf-8")
+    with output.open("w", encoding="utf-8-sig", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=[index_column, *columns])
+        writer.writeheader()
+        for index, feature in enumerate(features, start=1):
+            properties = {}
+            if isinstance(feature, dict) and isinstance(
+                feature.get("properties"), dict
+            ):
+                properties = feature["properties"]
+            row = {index_column: index}
+            for column in columns:
+                row[column] = csv_value(properties.get(column))
+            writer.writerow(row)
 
 
 def attribute_columns(features: list[Any]) -> list[str]:
@@ -230,16 +257,22 @@ def export_raster_tif(
     try:
         command = [
             "gdalwarp",
+            "--config",
+            "GDAL_CACHEMAX",
+            "128",
             "-overwrite",
             "-of",
             "GTiff",
             "-r",
             "near",
-            "-multi",
             "-wo",
-            "NUM_THREADS=ALL_CPUS",
+            "NUM_THREADS=1",
+            "-wm",
+            "128",
             "-co",
             "COMPRESS=DEFLATE",
+            "-co",
+            "NUM_THREADS=1",
         ]
         if epsg:
             command.extend(["-t_srs", f"EPSG:{epsg}"])

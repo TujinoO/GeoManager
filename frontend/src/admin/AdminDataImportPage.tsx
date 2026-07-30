@@ -32,6 +32,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ApiError, api } from "../api/client";
 import { useAppContext } from "../contexts/AppContext";
+import { applyPlatformDocumentTitle } from "../config/platformBrand";
 import type {
   AdminDataResourceAccessGroup,
   DataDomainType,
@@ -53,6 +54,7 @@ import {
   type ImportAccessScopeId,
   type ImportFormValues,
 } from "./importValues";
+import { startSequentialPolling } from "../utils/sequentialPolling";
 import VectorImportWorkflow from "./VectorImportWorkflow";
 import ResultImportWorkflow from "./ResultImportWorkflow";
 import { taxonomyLeafOptions } from "../utils/taxonomy";
@@ -539,7 +541,7 @@ export default function AdminDataImportPage() {
       .then((nextBootstrap) => {
         if (!ignore) {
           setBootstrap(nextBootstrap);
-          document.title = nextBootstrap.systemName;
+          applyPlatformDocumentTitle(nextBootstrap.systemName);
         }
       })
       .catch(() => {
@@ -666,38 +668,37 @@ export default function AdminDataImportPage() {
     };
   }, [hasPendingImport, location.hash, location.pathname, location.search]);
 
+  const activeRasterJobId =
+    rasterJob && isActiveRasterJob(rasterJob) ? rasterJob.id : null;
+
   useEffect(() => {
-    if (!rasterJob || !isActiveRasterJob(rasterJob)) {
+    if (!activeRasterJobId) {
       return;
     }
-    let cancelled = false;
-    const timer = window.setInterval(() => {
-      void api
-        .rasterJob(rasterJob.id)
-        .then((nextJob) => {
-          if (!cancelled) {
+    return startSequentialPolling(
+      async (signal) => {
+        try {
+          const nextJob = await api.rasterJob(activeRasterJobId, { signal });
+          if (!signal.aborted) {
             setRasterJob(nextJob);
           }
-        })
-        .catch((error) => {
-          if (cancelled) {
-            return;
-          }
+          return !signal.aborted && isActiveRasterJob(nextJob);
+        } catch (error) {
+          if (signal.aborted) return false;
           const text =
             error instanceof Error ? error.message : "栅格任务查询失败";
           setRasterJob((current) =>
-            current?.id === rasterJob.id
+            current?.id === activeRasterJobId
               ? { ...current, status: "failed", error: text }
               : current,
           );
           message.error(text);
-        });
-    }, 1000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [message, rasterJob]);
+          return false;
+        }
+      },
+      { intervalMs: 1000 },
+    );
+  }, [activeRasterJobId, message]);
 
   if (!canImportResources && !canImportResults) {
     return <Navigate to="/admin/profile" replace />;

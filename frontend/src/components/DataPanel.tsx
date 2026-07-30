@@ -90,9 +90,9 @@ export default function DataPanel({
     useState<AttributeFilter["operator"]>("contains");
   const [value, setValue] = useState("");
   const [valueTo, setValueTo] = useState("");
-  const [quickLoadingResourceId, setQuickLoadingResourceId] = useState<
-    ResourceListItem["id"] | null
-  >(null);
+  const [quickLoadingResourceIds, setQuickLoadingResourceIds] = useState(
+    () => new Set<ResourceListItem["id"]>(),
+  );
 
   const categoryFilterOptions = useMemo(
     () => [
@@ -180,13 +180,15 @@ export default function DataPanel({
   }
 
   async function quickLoadResource(resource: ResourceListItem) {
-    setQuickLoadingResourceId(resource.id);
+    setQuickLoadingResourceIds((current) => new Set(current).add(resource.id));
     try {
       await onQuickLoadResource(resource);
     } finally {
-      setQuickLoadingResourceId((current) =>
-        current === resource.id ? null : current,
-      );
+      setQuickLoadingResourceIds((current) => {
+        const next = new Set(current);
+        next.delete(resource.id);
+        return next;
+      });
     }
   }
 
@@ -306,7 +308,7 @@ export default function DataPanel({
                 ghost
                 className="resource-quick-load-button"
                 disabled={!resource.isQueryable && !resource.isRenderable}
-                loading={quickLoadingResourceId === resource.id}
+                loading={quickLoadingResourceIds.has(resource.id)}
                 onClick={() => void quickLoadResource(resource)}
               >
                 快速加载

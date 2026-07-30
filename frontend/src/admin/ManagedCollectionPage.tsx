@@ -96,7 +96,9 @@ interface ManagedCollectionPageProps<TItem extends ManagedItemBase> {
   ownerScopeLabel: string;
   accessScopeNotice?: ReactNode;
   canMaintain: boolean;
+  canMaintainItem?: (item: TItem) => boolean;
   canDelete?: boolean;
+  canDeleteItem?: (item: TItem) => boolean;
   canExport?: boolean;
   exportFormats?: string[];
   detailItems: (item: TItem) => { label: string; value: ReactNode }[];
@@ -127,7 +129,9 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
   ownerScopeLabel,
   accessScopeNotice,
   canMaintain,
+  canMaintainItem,
   canDelete = canMaintain,
+  canDeleteItem,
   canExport = false,
   exportFormats = [],
   detailItems,
@@ -164,30 +168,40 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
         title: "操作",
         key: "actions",
         width: 164,
-        render: (_, record) => (
-          <Space>
-            <Tooltip title="配置">
-              <Button
-                aria-label={`配置${rowName(record)}`}
-                icon={<SettingOutlined />}
-                onClick={() => openDrawer(record)}
-                disabled={!canMaintain && !record.canManageAccess}
-              />
-            </Tooltip>
-            <Tooltip title={canDelete ? "删除" : "当前用户无删除权限"}>
-              <Button
-                aria-label={`删除${rowName(record)}`}
-                danger
-                icon={<DeleteOutlined />}
-                disabled={!canDelete}
-                onClick={() => setDeleteTarget(record)}
-              />
-            </Tooltip>
-          </Space>
-        ),
+        render: (_, record) => {
+          const recordCanMaintain =
+            canMaintain && (canMaintainItem?.(record) ?? true);
+          const recordCanDelete =
+            canDelete && (canDeleteItem?.(record) ?? true);
+          return (
+            <Space>
+              <Tooltip title="配置">
+                <Button
+                  aria-label={`配置${rowName(record)}`}
+                  icon={<SettingOutlined />}
+                  onClick={() => openDrawer(record)}
+                  disabled={!recordCanMaintain && !record.canManageAccess}
+                />
+              </Tooltip>
+              <Tooltip title={recordCanDelete ? "删除" : "当前用户无删除权限"}>
+                <Button
+                  aria-label={`删除${rowName(record)}`}
+                  danger
+                  icon={<DeleteOutlined />}
+                  disabled={!recordCanDelete}
+                  onClick={() => setDeleteTarget(record)}
+                />
+              </Tooltip>
+            </Space>
+          );
+        },
       },
     ],
-    [canDelete, canMaintain, columns, rowName],
+    [canDelete, canDeleteItem, canMaintain, canMaintainItem, columns, rowName],
+  );
+
+  const selectedCanMaintain = Boolean(
+    selectedItem && canMaintain && (canMaintainItem?.(selectedItem) ?? true),
   );
 
   const tablePagination: TablePaginationConfig = {
@@ -243,7 +257,11 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
   }
 
   async function confirmDelete() {
-    if (!deleteTarget) {
+    if (
+      !deleteTarget ||
+      !canDelete ||
+      !(canDeleteItem?.(deleteTarget) ?? true)
+    ) {
       return;
     }
     setDeleting(true);
@@ -353,7 +371,7 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
             type="primary"
             icon={<SaveOutlined />}
             loading={saving}
-            disabled={!canMaintain && !selectedItem?.canManageAccess}
+            disabled={!selectedCanMaintain && !selectedItem?.canManageAccess}
             onClick={saveSelected}
           >
             保存
@@ -378,7 +396,9 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
               <Form.Item name="accessGroupIds" label="允许访问的角色">
                 <Select
                   mode="multiple"
-                  disabled={!canMaintain && !selectedItem.canManageAccess}
+                  disabled={
+                    !selectedCanMaintain && !selectedItem.canManageAccess
+                  }
                   placeholder="选择需要共享的角色"
                   onChange={(nextValue) =>
                     editForm.setFieldValue(
@@ -407,7 +427,7 @@ export default function ManagedCollectionPage<TItem extends ManagedItemBase>({
                   title="游客可见后，无需登录账号即可浏览和查询该对象。"
                 />
               )}
-              {renderFormItems(selectedItem, canMaintain)}
+              {renderFormItems(selectedItem, selectedCanMaintain)}
             </Form>
           </Space>
         )}

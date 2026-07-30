@@ -39,6 +39,10 @@ export function showGeojsonWarnings(
     return;
   }
   notification.warning({
+    key: `geojson-warning-${warnings
+      .map((warning) => warning.code)
+      .sort()
+      .join("-")}`,
     message: "地理坐标数据警告",
     description: (
       <div className="geojson-warning-list">

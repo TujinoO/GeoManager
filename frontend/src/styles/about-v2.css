@@ -8,6 +8,7 @@
   --about-v2-shadow: 0 14px 38px rgba(16, 87, 74, 0.07);
 }
 
+.about-page-main-panel > .about-v2-system-hero,
 .about-page-main-panel > .about-v2-platform-statement,
 .about-page-main-panel > .about-v2-section,
 .about-page-main-panel > .about-v2-directory-hero,
@@ -699,15 +700,26 @@
 }
 .about-v2-member-grid article {
   display: grid;
-  grid-template-columns: 48px 1fr;
-  gap: 13px;
+  grid-template-columns: 68px 1fr;
+  gap: 15px;
+  min-height: 126px;
+  align-items: center;
 }
+.about-v2-member-grid article > img,
 .about-v2-member-grid article > span {
   display: grid;
-  width: 48px;
-  height: 48px;
+  width: 68px;
+  height: 88px;
   place-items: center;
-  border-radius: 50%;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(7, 67, 57, 0.12);
+}
+.about-v2-member-grid article > img {
+  object-fit: cover;
+  object-position: center top;
+  background: #dceeea;
+}
+.about-v2-member-grid article > span {
   color: #1c8d7a;
   background: #dcf6f0;
 }

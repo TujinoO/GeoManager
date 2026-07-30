@@ -150,31 +150,76 @@ docker run -d --name data-platform \
   -p 80:8000 \
   -v /srv/data-platform/app.toml:/config/app.toml \
   -v huyang-data:/data \
+  --memory=2300m \
+  --memory-reservation=1800m \
+  --memory-swap=2300m \
+  --cpus=2 \
+  --pids-limit=256 \
+  --restart=unless-stopped \
+  --log-driver=json-file \
+  --log-opt max-size=10m \
+  --log-opt max-file=5 \
   data-platform-django:latest serve /config/app.toml
 ```
 
 Docker 配置中的数据目录应直接使用容器内路径 `/data/app` 和 `/data/research`。`docker run -p` 的宿主机端口应与 `runtime.waitress_port` 保持一致，或按反向代理需求另行映射。
 
+### 4 GB 主机的内存安全基线
+
+`config/app.docker.toml` 默认面向小内存单机：Waitress 使用 2 个请求线程，查询单次最多返回 5,000 条，上传限制为 64 MB，栅格单边限制为 6,000 像素，并关闭目录与栅格启动扫描。需要扫描时应在平台稳定后由有维护权限的用户手动触发；栅格导入、扫描、渲染和导出共用单并发、有界等待队列，不能通过提高 Waitress 线程数绕开该限制。
+
+这些文件是新部署样例，不会覆盖现有服务器 bind mount 的 `/config/app.toml`。升级已有容器前必须先修改宿主机实际挂载的 TOML，再显式重建容器以应用 memory、CPU、pids、restart 和日志参数；单独执行 Watchtower 不会改变挂载配置或现有 HostConfig。本文示例容器名为 `data-platform`；现网容器名如果是 `geomanager`，所有检查、重建和 Watchtower 目标必须统一使用 `geomanager`，不能混用。
+
+容器的 `2300m` 硬限制用于给 4 GB 宿主机、Docker daemon 和反向代理保留约 1.5 GB。容器可能在超限时单独重启，但不得再次拖垮宿主机。`--memory-swap` 与 `--memory` 设为相同值表示不允许容器额外消耗 swap；若宿主机有其他业务，应继续下调，而不是取消限制。镜像内置 `/api/health/` 健康检查，并从挂载的 `/config/app.toml` 自动读取容器内 Waitress 端口；宿主机端口映射仍需与实际端口保持一致。
+
+发生卡顿或 OOM 时先保留证据，不要立即清理镜像或日志：
+
+```bash
+journalctl -k --since "30 minutes ago" --no-pager
+docker inspect data-platform --format 'Status={{.State.Status}} OOMKilled={{.State.OOMKilled}} Exit={{.State.ExitCode}} RestartCount={{.RestartCount}}'
+docker stats --no-stream data-platform
+docker top data-platform -eo pid,ppid,nlwp,rss,vsz,etimes,args
+docker exec data-platform sh -c 'cat /sys/fs/cgroup/memory.current; cat /sys/fs/cgroup/memory.max; cat /sys/fs/cgroup/memory.events'
+```
+
+如果数据库里存在服务重启前遗留的 `queued/running` 栅格任务，新进程首次访问任务系统时会将其标记为失败并提示重新提交；不要把这些僵尸状态误判为仍在执行。
+
+### 镜像更新与回滚
+
+Watchtower 只会根据容器当前的 image tag 拉取容器镜像，不会在服务器上执行 `git pull`，也不会从 GitHub Fork 直接构建代码。当前 Fork 工作流发布到 `ghcr.io/tujinoo/geomanager`；推送源码后必须先确认 GitHub Actions 已成功发布镜像，并确保远端容器也使用该镜像地址。
+
+生产更新应记录当前 image ID/digest，优先部署提交 SHA tag 或固定 digest，完成健康检查和关键页面冒烟验证后再清理旧镜像。首次故障恢复不要使用 Watchtower `--cleanup`，否则新镜像异常时可能失去便捷回滚目标。回滚时使用记录的旧 SHA tag/digest 重建同配置容器，数据卷保持不变。
+
+远程管理应使用 SSH key，并关闭公网密码登录。密码一旦出现在聊天、终端录屏或共享日志中，应立即轮换；任何口令都不得写入仓库、部署脚本或命令历史。
+
 如果容器前面有 Nginx、Caddy、云负载均衡或 CDN，反向代理必须把源头客户端 IP 通过 `X-Forwarded-For`、`X-Real-IP`、`CF-Connecting-IP`、`True-Client-IP` 或标准 `Forwarded` 请求头传给后端。操作日志会优先从这些请求头中选择公网 IP；只有没有有效公网 IP 时才回退到 `REMOTE_ADDR`，此时 Docker 网桥环境可能显示为 `172.19.x.x` 之类的内网地址。
 
-### Mapbox GL JS CSP
+### 浏览器内容安全策略与 Mapbox GL JS
 
-如部署侧启用 `Content-Security-Policy`，需要允许 Mapbox GL JS 的 worker、瓦片、glyph、sprite、样式和导出图片资源。当前前端使用依赖包中的 ESM 版 `mapbox-gl`，并已禁用 Mapbox events 采集，因此 CSP 至少应包含：
+平台对 Django 返回的 HTML 强制发送 `Content-Security-Policy` 和 `Permissions-Policy`，前端入口 HTML 也包含同等 CSP 兜底。策略禁止页面加载音视频、对象插件、外域脚本和外域框架，并禁用自动播放及画中画，以阻断数据导入页等功能页面上由被污染入口或代理注入的媒体浮层。
+
+当前前端使用依赖包中的 ESM 版 `mapbox-gl`，并已禁用 Mapbox events 采集。完整策略为：
 
 ```text
+default-src 'self';
+base-uri 'self';
+object-src 'none';
+frame-ancestors 'none';
+form-action 'self';
+script-src 'self';
+style-src 'self' 'unsafe-inline';
 worker-src 'self' blob:;
-img-src 'self' data: blob: https://api.mapbox.com;
-connect-src 'self'
-  https://api.mapbox.com
-  https://api.mapbox.com/v4/
-  https://api.mapbox.com/styles/v1/mapbox/
-  https://api.mapbox.com/fonts/v1/mapbox/
-  https://api.mapbox.com/models/v1/mapbox/
-  https://api.mapbox.com/mapbox-gl-js/
-  https://api.mapbox.com/map-sessions/v1/;
+img-src 'self' data: blob: https://api.mapbox.com https://tiles.openfreemap.org https://*.tile.openstreetmap.org https://images.unsplash.com;
+font-src 'self' data:;
+connect-src 'self' https://api.mapbox.com https://tiles.openfreemap.org https://*.tile.openstreetmap.org;
+frame-src 'self' blob:;
+media-src 'none';
+manifest-src 'self';
 ```
 
 如果后续使用非 Mapbox 官方账号的自定义样式或字体，需要同步把对应的 `/styles/v1/{username}/`、`/fonts/v1/{username}/` 端点加入 `connect-src`。只有重新启用 Mapbox events 采集时，才需要额外允许 `https://events.mapbox.com`。
+
+如果页面仍出现带关闭按钮的陌生视频或广告浮层，先在无扩展的浏览器访客窗口复测，并检查响应头是否保留上述 CSP。浏览器特权扩展可以绕过站点策略，HTTP 链路也可能被代理篡改；生产环境应优先使用 HTTPS，并停用或卸载触发注入的浏览器扩展。反向代理可以补充安全响应头，但不得覆盖为更宽松的策略。
 
 默认数据卷名称为 `huyang-data`。如需改名，直接创建并挂载新的 Docker volume：
 

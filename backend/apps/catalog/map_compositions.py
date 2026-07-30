@@ -24,8 +24,8 @@ from apps.catalog.models import (
     WorkspaceScene,
 )
 from apps.catalog.permissions import (
+    effective_access_group_ids,
     resource_access_filter,
-    user_group_ids,
     user_has_full_data_access,
 )
 from apps.core.api import api_login_required
@@ -551,7 +551,7 @@ def _composition_queryset(user):
     if user_has_full_data_access(user):
         return queryset
     query = Q(owner=user)
-    group_ids = user_group_ids(user)
+    group_ids = effective_access_group_ids(user)
     if group_ids:
         query |= Q(
             status=MapComposition.Status.PUBLISHED,
@@ -596,7 +596,7 @@ def _user_can_load_source_project(composition: MapComposition, user) -> bool:
     if user_has_full_data_access(user) or composition.project.owner_id == user.id:
         return True
     project_group_ids = {group.id for group in composition.project.access_groups.all()}
-    return bool(project_group_ids & user_group_ids(user))
+    return bool(project_group_ids & effective_access_group_ids(user))
 
 
 def _composition_values(

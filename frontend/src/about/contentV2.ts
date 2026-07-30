@@ -5,6 +5,14 @@ import poplarWaterGoldenImage from "../assets/about/poplar-water-golden.jpeg";
 import siJianhuaPortrait from "../assets/about/sijianhua-portrait.jpeg";
 import tarimCarbonAnalysisImage from "../assets/about/tarim-carbon-analysis.png";
 import teamGreenhouseImage from "../assets/about/team-greenhouse.png";
+import xiegDengRuiPortrait from "../assets/about/xieg-deng-rui.jpg";
+import xiegFanJingchaoPortrait from "../assets/about/xieg-fan-jingchao.jpg";
+import xiegLiRuonanPortrait from "../assets/about/xieg-li-ruonan.jpg";
+import xiegLiuJiaweiPortrait from "../assets/about/xieg-liu-jiawei.jpg";
+import xiegTangShanshanPortrait from "../assets/about/xieg-tang-shanshan.jpg";
+import xiegYanYanghaoPortrait from "../assets/about/xieg-yan-yanghao.jpg";
+import xiegZhangJiudanPortrait from "../assets/about/xieg-zhang-jiudan.jpg";
+import xiegZhangTianPortrait from "../assets/about/xieg-zhang-tian.jpg";
 import xjafsMonitoringTowerImage from "../assets/about/xjafs-monitoring-tower.png";
 import xjafsSeedBaseImage from "../assets/about/xjafs-seed-base.png";
 
@@ -12,6 +20,7 @@ export type InstitutionMember = {
   name: string;
   role: string;
   focus: string;
+  portrait?: string;
 };
 
 export type InstitutionProfile = {
@@ -122,18 +131,19 @@ export const institutionProfiles: InstitutionProfile[] = [
     id: "xieg-cas",
     shortName: "新疆生地所",
     name: "中国科学院新疆生态与地理研究所 · 李均力研究员团队",
-    eyebrow: "遥感智能监测 · 生态输水评估",
+    eyebrow: "遥感智能监测 · 干旱区生态响应",
     leader: "李均力",
     leaderTitle: "研究员、博士生导师，新疆遥感与地理信息系统应用重点实验室主任",
     email: "lijl@ms.xjb.ac.cn",
-    positioning: "以遥感大数据和人工智能量化胡杨林生态输水成效与生态安全变化。",
+    positioning:
+      "以遥感大数据和人工智能连接胡杨林、水资源、湿地与干旱区生态环境监测。",
     summary:
-      "团队长期从事遥感信息提取、干旱区水资源变化与生态环境响应研究，依托空间对地观测、地面验证和系统模拟一体化平台，面向塔里木河流域开展大区域长时序监测、生态输水效益评估和生态安全预警技术研究。",
+      "团队长期从事遥感信息提取、干旱区水资源变化与生态环境响应研究，依托空间对地观测、地面验证和系统模拟一体化平台，形成由研究人员、博士研究生和硕士研究生协同参与的科研梯队。当前研究覆盖胡杨林智能信息提取、湿地与冰川动态监测、土壤风蚀、盐碱灾害以及塔里木河水资源变化与生态响应。",
     focusAreas: [
       "遥感大数据智能处理与长时序产品生产",
-      "干旱区生态要素提取与生态安全监测",
-      "胡杨林生态输水淹灌范围和恢复效益评估",
-      "人工智能辅助流域水资源配置与生态响应分析",
+      "胡杨林智能信息提取与生态输水成效评估",
+      "干旱区湿地、冰川与生态系统动态监测",
+      "土壤风蚀、盐碱灾害与流域生态响应分析",
     ],
     contributions: [
       "构建大区域长时序资源环境遥感动态监测技术体系。",
@@ -169,14 +179,52 @@ export const institutionProfiles: InstitutionProfile[] = [
     ],
     members: [
       {
-        name: "包安明",
-        role: "研究员",
-        focus: "干旱区水资源遥感与生态响应评估",
+        name: "张久丹",
+        role: "助理研究员 / 博士后",
+        focus: "干旱区湿地生态系统遥感",
+        portrait: xiegZhangJiudanPortrait,
       },
       {
-        name: "刘铁",
-        role: "助理研究员",
-        focus: "生态输水效益评估与遥感数据处理",
+        name: "刘嘉伟",
+        role: "2024 级硕士研究生",
+        focus: "胡杨林智能信息提取",
+        portrait: xiegLiuJiaweiPortrait,
+      },
+      {
+        name: "李若楠",
+        role: "2026 级博士研究生",
+        focus: "冰川动态监测与稳定性评估",
+        portrait: xiegLiRuonanPortrait,
+      },
+      {
+        name: "汤珊珊",
+        role: "2026 级博士研究生",
+        focus: "干旱区生态系统监测研究",
+        portrait: xiegTangShanshanPortrait,
+      },
+      {
+        name: "邓蕊",
+        role: "2024 级硕士研究生",
+        focus: "土壤风蚀研究",
+        portrait: xiegDengRuiPortrait,
+      },
+      {
+        name: "张甜",
+        role: "2025 级硕士研究生",
+        focus: "湿地遥感",
+        portrait: xiegZhangTianPortrait,
+      },
+      {
+        name: "范景超",
+        role: "2025 级硕士研究生",
+        focus: "干旱区盐碱灾害监测",
+        portrait: xiegFanJingchaoPortrait,
+      },
+      {
+        name: "闫杨豪",
+        role: "2025 级硕士研究生",
+        focus: "塔里木河水资源变化及生态环境响应",
+        portrait: xiegYanYanghaoPortrait,
       },
     ],
     heroImage: poplarWaterGoldenImage,

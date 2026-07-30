@@ -393,7 +393,7 @@ def _validated_category_code(payload: dict) -> str:
 @require_POST
 @api_login_required
 def scan_sources(request):
-    if not has_feature_perm(request.user, "core.browse_data"):
+    if not can_manage_raster_data(request.user):
         return feature_denied_response(request.user)
     job = start_scan_job(created_by_id=request.user.id)
     return JsonResponse(job.as_dict(), status=202)

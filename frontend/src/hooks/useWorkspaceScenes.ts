@@ -27,6 +27,7 @@ interface UseWorkspaceScenesOptions {
   canViewWorkspaces: boolean;
   canQueryData: boolean;
   canLoadVectorLayer: boolean;
+  canLoadRasterLayer: boolean;
   queryResultLimit: number;
   groups: LoadedLayerGroup[];
   selectedLayerId: string | null;
@@ -41,6 +42,7 @@ export function useWorkspaceScenes({
   canViewWorkspaces,
   canQueryData,
   canLoadVectorLayer,
+  canLoadRasterLayer,
   queryResultLimit,
   groups,
   selectedLayerId,
@@ -207,6 +209,7 @@ export function useWorkspaceScenes({
         savedGroups: snapshot.groups,
         canQueryData,
         canLoadVectorLayer,
+        canLoadRasterLayer,
         queryResultLimit,
         notification,
         onProgress: (state) => {
@@ -267,6 +270,7 @@ export function useWorkspaceScenes({
       onWorkspaceLoaded,
       replaceGroups,
       canLoadVectorLayer,
+      canLoadRasterLayer,
       canQueryData,
       queryResultLimit,
       setSelectedLayerId,

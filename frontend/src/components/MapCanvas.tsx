@@ -8,7 +8,8 @@ import {
 import { Button, Tooltip } from "antd";
 import mapboxgl, { type Map as MapboxMap, type MapboxOptions } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import BasemapStatusIndicator from "./BasemapStatusIndicator";
 import {
   applyBasemapExpressionSafety,
   applyChineseBasemapLanguage,
@@ -93,6 +94,7 @@ export default function MapCanvas({
   onViewStateChange,
 }: Props) {
   const mapRef = useRef<MapboxMap | null>(null);
+  const [mapObject, setMapObject] = useState<MapboxMap | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const coordinatePanelRef = useRef<HTMLDivElement | null>(null);
   const pointerUpdateFrameRef = useRef<number | null>(null);
@@ -207,6 +209,7 @@ export default function MapCanvas({
     window.addEventListener("resize", resizeAndEmitViewState);
     emitViewState();
     mapRef.current = map;
+    setMapObject(map);
     onMapReady?.(map);
 
     return () => {
@@ -325,6 +328,7 @@ export default function MapCanvas({
     <div className="map-shell">
       <div ref={containerRef} className="map-container" />
       <div className="map-toolbar">
+        <BasemapStatusIndicator map={mapObject} />
         <div
           ref={coordinatePanelRef}
           className="map-coordinate-panel"

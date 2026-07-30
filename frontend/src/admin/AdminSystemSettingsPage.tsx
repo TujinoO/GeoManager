@@ -5,6 +5,7 @@ import type { Key } from "react";
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { useAppContext } from "../contexts/AppContext";
+import { applyPlatformDocumentTitle } from "../config/platformBrand";
 import type { AdminSettings, AdminSettingsUpdate } from "../types";
 
 interface BasicSettingValues {
@@ -187,7 +188,7 @@ export default function AdminSystemSettingsPage() {
       map: updated.map,
       limits: updated.limits,
     });
-    document.title = updated.systemName;
+    applyPlatformDocumentTitle(updated.systemName);
     message.success("系统设置已写入运行配置");
     return true;
   }

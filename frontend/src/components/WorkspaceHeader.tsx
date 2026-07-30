@@ -107,7 +107,7 @@ export default function WorkspaceHeader({
   onLoadMapComposition,
   onSearchFocus,
 }: WorkspaceHeaderProps) {
-  const { bootstrap, user, setUser } = useAppContext();
+  const { user, setUser } = useAppContext();
   const { message } = App.useApp();
   const navigate = useNavigate();
   const [searchText, setSearchText] = useState("");
@@ -160,6 +160,9 @@ export default function WorkspaceHeader({
     user?.username === "guest" || Boolean(user?.roles.includes("游客"));
   const showAdminTab =
     Boolean(user?.permissions.canAccessAdmin) && !isGuestUser;
+  const showResourceCenter = Boolean(
+    user && !isGuestUser && (canBrowseData || showAdminTab),
+  );
   const showDataImportShortcut = Boolean(
     user?.permissions.canUploadData ||
     (user?.permissions.canViewResultArtifacts &&
@@ -187,43 +190,50 @@ export default function WorkspaceHeader({
   }, [tourStorageKey, user]);
 
   useEffect(() => {
-    const shouldLoadResources = resources === undefined;
-    const shouldLoadWorkspaceScenes = workspaceScenes === undefined;
+    const shouldLoadResources = resources === undefined && canBrowseData;
+    const shouldLoadWorkspaceScenes =
+      workspaceScenes === undefined &&
+      Boolean(user?.permissions.canViewWorkspaces);
     const shouldLoadMapCompositions =
       mapCompositions === undefined &&
       Boolean(user?.permissions.canViewMapCompositions);
     if (
-      !canBrowseData ||
-      (!shouldLoadResources &&
-        !shouldLoadWorkspaceScenes &&
-        !shouldLoadMapCompositions)
+      !shouldLoadResources &&
+      !shouldLoadWorkspaceScenes &&
+      !shouldLoadMapCompositions
     ) {
       return;
     }
     let mounted = true;
     async function loadGlobalSearchItems() {
-      try {
-        const [resourceResponse, sceneResponse, compositionResponse] =
-          await Promise.all([
-            shouldLoadResources ? api.resources({}) : null,
-            shouldLoadWorkspaceScenes ? api.workspaces() : null,
-            shouldLoadMapCompositions ? api.mapCompositions() : null,
-          ]);
-        if (!mounted) {
-          return;
-        }
-        if (resourceResponse) {
-          setLocalResources(resourceResponse.items);
-        }
-        if (sceneResponse) {
-          setLocalWorkspaceScenes(sceneResponse.items);
-        }
-        if (compositionResponse) {
-          setLocalMapCompositions(compositionResponse.items);
-        }
-      } catch (error) {
+      const [resourceResult, sceneResult, compositionResult] =
+        await Promise.allSettled([
+          shouldLoadResources ? api.resources({}) : null,
+          shouldLoadWorkspaceScenes ? api.workspaces() : null,
+          shouldLoadMapCompositions ? api.mapCompositions() : null,
+        ]);
+      if (!mounted) {
+        return;
+      }
+      if (resourceResult.status === "fulfilled" && resourceResult.value) {
+        setLocalResources(resourceResult.value.items);
+      }
+      if (sceneResult.status === "fulfilled" && sceneResult.value) {
+        setLocalWorkspaceScenes(sceneResult.value.items);
+      }
+      if (compositionResult.status === "fulfilled" && compositionResult.value) {
+        setLocalMapCompositions(compositionResult.value.items);
+      }
+      const failedResult = [
+        resourceResult,
+        sceneResult,
+        compositionResult,
+      ].find((result) => result.status === "rejected");
+      if (failedResult?.status === "rejected") {
         message.warning(
-          error instanceof Error ? error.message : "全局搜索内容加载失败",
+          failedResult.reason instanceof Error
+            ? failedResult.reason.message
+            : "部分全局搜索内容加载失败",
         );
       }
     }
@@ -237,6 +247,7 @@ export default function WorkspaceHeader({
     message,
     resources,
     user?.permissions.canViewMapCompositions,
+    user?.permissions.canViewWorkspaces,
     workspaceScenes,
   ]);
 
@@ -612,7 +623,7 @@ export default function WorkspaceHeader({
   );
 
   function handleResourceCenter() {
-    if (!canBrowseData && !showAdminTab) {
+    if (!showResourceCenter) {
       message.warning("当前账号暂无数据资源浏览权限");
       return;
     }
@@ -836,7 +847,7 @@ export default function WorkspaceHeader({
       },
     ];
 
-    if (canBrowseData || showAdminTab) {
+    if (showResourceCenter) {
       steps.push({
         title: "数据资源",
         description:
@@ -873,14 +884,16 @@ export default function WorkspaceHeader({
       },
       {
         title: "个人入口",
-        description: "查看个人信息、进入个人设置或安全退出当前账号。",
+        description: isGuestUser
+          ? "查看当前游客身份、重新打开使用引导或安全退出。"
+          : "查看个人信息、进入个人设置或安全退出当前账号。",
         target: () => userButtonRef.current ?? document.body,
         placement: "bottomRight",
       },
     );
 
     return steps;
-  }, [canBrowseData, showAdminTab]);
+  }, [canBrowseData, isGuestUser, showAdminTab, showResourceCenter]);
 
   const dataButton = (
     <Dropdown
@@ -945,9 +958,11 @@ export default function WorkspaceHeader({
         >
           显示引导
         </Button>
-        <Button size="small" onClick={() => navigate("/admin/profile")}>
-          个人信息
-        </Button>
+        {!isGuestUser && (
+          <Button size="small" onClick={() => navigate("/admin/profile")}>
+            个人信息
+          </Button>
+        )}
         <Button size="small" icon={<LogoutOutlined />} onClick={handleLogout}>
           安全退出
         </Button>
@@ -1053,7 +1068,7 @@ export default function WorkspaceHeader({
         <span className="brand-logo-frame">
           <img
             src={capfedLogoWhite}
-            alt={`${bootstrap.systemName} Logo`}
+            alt={`${platformChineseName} Logo`}
             width={40}
             height={40}
           />
@@ -1118,7 +1133,7 @@ export default function WorkspaceHeader({
             <HomeOutlined aria-hidden="true" style={{ fontSize: 16 }} />
             <span className="tab-text">首页</span>
           </Button>
-          {(canBrowseData || showAdminTab) && dataButton}
+          {showResourceCenter && dataButton}
           <Dropdown
             menu={{ items: mapCategoryMenuItems }}
             trigger={["hover"]}

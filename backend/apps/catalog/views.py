@@ -1,5 +1,8 @@
 import json
+import threading
 from datetime import datetime
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 from django.contrib.auth.models import Group
@@ -7,7 +10,7 @@ from django.core.exceptions import RequestDataTooBig
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError
-from django.http import FileResponse, HttpResponse, JsonResponse
+from django.http import FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
@@ -20,7 +23,7 @@ from apps.catalog.data_query import (
 )
 from apps.catalog.export import (
     ExportError,
-    export_layers_zip,
+    export_layers_zip_to_path,
     validate_epsg,
     validate_vector_format,
 )
@@ -42,6 +45,7 @@ from apps.catalog.models import (
     WorkspaceScene,
 )
 from apps.catalog.permissions import (
+    effective_access_group_ids,
     filter_accessible,
     filter_accessible_layers,
     user_can_access,
@@ -62,10 +66,11 @@ from apps.core.principal_visibility import (
     selectable_access_groups_for,
     user_is_visible_to,
 )
+from apps.raster.models import RasterDataset
 from apps.raster.services import (
     RasterJobError,
     get_job,
-    get_job_artifact_path,
+    open_job_artifact_for_download,
     start_export_job,
 )
 from apps.core.initialization import (
@@ -73,9 +78,38 @@ from apps.core.initialization import (
     SUPERADMIN_GROUP_NAME,
     ensure_superadmin_defaults,
 )
+
 from apps.standards.models import DataDomainType
 
+_CATALOG_SCAN_LOCK = threading.Lock()
+_RESOURCE_QUERY_GATE = threading.BoundedSemaphore(value=1)
+
 WORKSPACE_SNAPSHOT_MAX_BODY_BYTES = 1024 * 1024
+RESOURCE_QUERY_MAX_BODY_BYTES = 1024 * 1024
+EXPORT_REQUEST_MAX_BODY_BYTES = 10 * 1024 * 1024
+RESOURCE_QUERY_GATE_WAIT_SECONDS = 1.0
+
+
+class _TemporaryExportFile:
+    def __init__(self, file_object, temporary: TemporaryDirectory) -> None:
+        self._file_object = file_object
+        self._temporary = temporary
+        self._closed = False
+
+    def read(self, *args, **kwargs):
+        return self._file_object.read(*args, **kwargs)
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self._file_object.close()
+        finally:
+            self._temporary.cleanup()
+
+    def __getattr__(self, name: str):
+        return getattr(self._file_object, name)
 
 
 @require_GET
@@ -171,9 +205,14 @@ def resources(request):
 @require_POST
 @api_login_required
 def scan_sources(request):
-    if not has_feature_perm(request.user, "core.browse_data"):
+    if not _can_create_data_resource(request.user):
         return feature_denied_response(request.user)
-    resources = scan_catalog_sources()
+    if not _CATALOG_SCAN_LOCK.acquire(blocking=False):
+        return JsonResponse({"detail": "数据目录扫描正在进行，请稍后重试"}, status=409)
+    try:
+        resources = scan_catalog_sources()
+    finally:
+        _CATALOG_SCAN_LOCK.release()
     items = [
         serialize_resource(item)
         for item in resources
@@ -917,7 +956,7 @@ def _workspace_admin_access_filter(user):
 def _workspace_access_filter(user):
     if user_has_full_data_access(user):
         return Q()
-    group_ids = set(user.groups.values_list("id", flat=True))
+    group_ids = effective_access_group_ids(user)
     query = Q(owner=user)
     if group_ids:
         query |= Q(access_groups__in=group_ids)
@@ -928,7 +967,7 @@ def _user_can_see_admin_workspace(scene: WorkspaceScene, user) -> bool:
     if user_has_full_data_access(user) or scene.owner_id == user.id:
         return True
     access_group_ids = {group.id for group in scene.access_groups.all()}
-    return bool(access_group_ids & set(user.groups.values_list("id", flat=True)))
+    return bool(access_group_ids & effective_access_group_ids(user))
 
 
 def _serialize_admin_workspace(scene: WorkspaceScene, request_user) -> dict[str, Any]:
@@ -1012,13 +1051,18 @@ def _json_payload(
     request, *, max_body_bytes: int | None = None
 ) -> dict[str, Any] | JsonResponse:
     if max_body_bytes is not None:
-        content_length = int(request.META.get("CONTENT_LENGTH") or 0)
+        try:
+            content_length = int(request.META.get("CONTENT_LENGTH") or 0)
+        except (TypeError, ValueError):
+            return JsonResponse({"detail": "Content-Length 不合法"}, status=400)
         if content_length > max_body_bytes:
             return JsonResponse({"detail": "请求体过大"}, status=413)
     try:
         payload = json.loads(request.body.decode("utf-8") or "{}")
     except RequestDataTooBig:
         return JsonResponse({"detail": "请求体过大"}, status=413)
+    except UnicodeDecodeError:
+        return JsonResponse({"detail": "请求体编码必须是 UTF-8"}, status=400)
     except json.JSONDecodeError:
         return JsonResponse({"detail": "请求体不是有效 JSON"}, status=400)
     if not isinstance(payload, dict):
@@ -1026,16 +1070,31 @@ def _json_payload(
     return payload
 
 
-def _json_payload_from_stream(request) -> dict[str, Any] | JsonResponse:
+def _json_payload_from_stream(
+    request, *, max_body_bytes: int = EXPORT_REQUEST_MAX_BODY_BYTES
+) -> dict[str, Any] | JsonResponse:
     try:
         content_length = int(request.META.get("CONTENT_LENGTH") or 0)
-    except ValueError:
-        content_length = 0
+    except (TypeError, ValueError):
+        return JsonResponse({"detail": "Content-Length 不合法"}, status=400)
+    if content_length < 0:
+        return JsonResponse({"detail": "Content-Length 不合法"}, status=400)
+    if content_length > max_body_bytes:
+        return JsonResponse({"detail": "请求体过大"}, status=413)
+
     stream = request.META.get("wsgi.input")
     try:
-        raw = stream.read(content_length) if stream and content_length else b""
+        if stream is not None:
+            read_size = content_length if content_length else max_body_bytes + 1
+            raw = stream.read(min(read_size, max_body_bytes + 1))
+        else:
+            raw = request.body
+    except RequestDataTooBig:
+        return JsonResponse({"detail": "请求体过大"}, status=413)
     except OSError:
-        raw = b""
+        return JsonResponse({"detail": "读取请求体失败"}, status=400)
+    if len(raw) > max_body_bytes:
+        return JsonResponse({"detail": "请求体过大"}, status=413)
     if not raw:
         raw = b"{}"
     try:
@@ -1175,26 +1234,36 @@ def resource_query(request, pk: int):
     )
     if not user_can_access(resource, request.user):
         return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
-    try:
-        payload = json.loads(request.body.decode("utf-8"))
-    except json.JSONDecodeError:
-        return JsonResponse({"detail": "请求体不是有效 JSON"}, status=400)
-    try:
-        result = query_data_resource(resource, payload)
-    except DataQueryError as exc:
-        log_operation(
-            request.user,
-            "数据查询",
-            "查询数据资源",
-            "failed",
-            f"{resource.name}：{exc}",
-            request,
-            target_type="data_resource",
-            target_id=resource.id,
-            target_code=resource.code,
-            target_name=resource.name,
+    payload = _json_payload(request, max_body_bytes=RESOURCE_QUERY_MAX_BODY_BYTES)
+    if isinstance(payload, JsonResponse):
+        return payload
+    if not _RESOURCE_QUERY_GATE.acquire(
+        timeout=RESOURCE_QUERY_GATE_WAIT_SECONDS
+    ):
+        response = JsonResponse(
+            {"detail": "查询任务繁忙，请稍后重试"}, status=503
         )
-        return JsonResponse({"detail": str(exc)}, status=400)
+        response["Retry-After"] = "2"
+        return response
+    try:
+        try:
+            result = query_data_resource(resource, payload)
+        except DataQueryError as exc:
+            log_operation(
+                request.user,
+                "数据查询",
+                "查询数据资源",
+                "failed",
+                f"{resource.name}：{exc}",
+                request,
+                target_type="data_resource",
+                target_id=resource.id,
+                target_code=resource.code,
+                target_name=resource.name,
+            )
+            return JsonResponse({"detail": str(exc)}, status=400)
+    finally:
+        _RESOURCE_QUERY_GATE.release()
     log_operation(
         request.user,
         "数据查询",
@@ -1210,12 +1279,78 @@ def resource_query(request, pk: int):
     return JsonResponse(result)
 
 
+def _validate_export_item_access(item: Any, user) -> JsonResponse | None:
+    if not isinstance(item, dict):
+        return JsonResponse({"detail": "items 中的图层必须是对象"}, status=400)
+
+    resource_id = item.get("resourceId")
+    if item.get("layerType") != "raster":
+        if resource_id:
+            resource = get_object_or_404(
+                DataResource,
+                pk=resource_id,
+                status=DataResource.Status.ACTIVE,
+            )
+            if not user_can_access(resource, user):
+                return JsonResponse(
+                    {"detail": "无权访问该数据资源"}, status=403
+                )
+        return None
+
+    dataset_id = _positive_export_id(item.get("datasetId"))
+    if dataset_id is None:
+        return JsonResponse(
+            {"detail": "栅格图层缺少有效 datasetId"}, status=400
+        )
+    dataset = (
+        RasterDataset.objects.select_related("data_resource")
+        .filter(pk=dataset_id)
+        .first()
+    )
+    if dataset is None:
+        return JsonResponse({"detail": "栅格数据集不存在"}, status=404)
+
+    resource = dataset.data_resource
+    if resource is None:
+        return JsonResponse(
+            {"detail": "栅格数据集未关联数据资源"}, status=400
+        )
+    if resource.status != DataResource.Status.ACTIVE:
+        return JsonResponse({"detail": "数据资源不存在"}, status=404)
+    if not user_can_access(resource, user):
+        return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
+
+    if "resourceId" in item:
+        supplied_resource_id = _positive_export_id(resource_id)
+        if supplied_resource_id is None:
+            return JsonResponse({"detail": "resourceId 不合法"}, status=400)
+        if supplied_resource_id != resource.id:
+            return JsonResponse(
+                {"detail": "resourceId 与栅格数据集不匹配"}, status=400
+            )
+    return None
+
+
+def _positive_export_id(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        parsed = value
+    elif isinstance(value, str) and value.strip().isdecimal():
+        parsed = int(value.strip())
+    else:
+        return None
+    return parsed if parsed > 0 else None
+
+
 @require_POST
 @api_login_required
 def export_loaded_layers(request):
     if not has_feature_perm(request.user, "catalog.export_dataresource"):
         return feature_denied_response(request.user)
-    payload = _json_payload_from_stream(request)
+    payload = _json_payload_from_stream(
+        request, max_body_bytes=EXPORT_REQUEST_MAX_BODY_BYTES
+    )
     if isinstance(payload, JsonResponse):
         return payload
     try:
@@ -1232,23 +1367,23 @@ def export_loaded_layers(request):
         return JsonResponse({"detail": "items 必须是数组"}, status=400)
 
     for item in items:
-        resource_id = item.get("resourceId")
-        if resource_id:
-            resource = get_object_or_404(
-                DataResource, pk=resource_id, status=DataResource.Status.ACTIVE
-            )
-            if not user_can_access(resource, request.user):
-                return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
+        access_error = _validate_export_item_access(item, request.user)
+        if access_error is not None:
+            return access_error
 
+    temporary = TemporaryDirectory(prefix="geomanager-export-")
+    output_path = Path(temporary.name) / "layers.zip"
     try:
-        content = export_layers_zip(
+        export_layers_zip_to_path(
             items,
             epsg,
+            output_path=output_path,
             reproject=bool(payload.get("reproject", True)),
             clip_geometry=payload.get("clipGeometry") if payload.get("clip") else None,
             vector_format=vector_format,
         )
     except ExportError as exc:
+        temporary.cleanup()
         log_operation(
             request.user,
             "数据导出",
@@ -1258,10 +1393,25 @@ def export_loaded_layers(request):
             request,
         )
         return JsonResponse({"detail": str(exc)}, status=400)
+    except Exception:
+        temporary.cleanup()
+        raise
 
     filename = f"layers-export-{datetime.now().strftime('%Y%m%d%H%M%S')}.zip"
-    response = HttpResponse(content, content_type="application/zip")
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    try:
+        artifact_file = _TemporaryExportFile(output_path.open("rb"), temporary)
+        response = FileResponse(
+            artifact_file,
+            as_attachment=True,
+            filename=filename,
+            content_type="application/zip",
+        )
+    except Exception:
+        if "artifact_file" in locals():
+            artifact_file.close()
+        else:
+            temporary.cleanup()
+        raise
     log_operation(
         request.user,
         "数据导出",
@@ -1278,7 +1428,9 @@ def export_loaded_layers(request):
 def export_loaded_layers_async(request):
     if not has_feature_perm(request.user, "catalog.export_dataresource"):
         return feature_denied_response(request.user)
-    payload = _json_payload_from_stream(request)
+    payload = _json_payload_from_stream(
+        request, max_body_bytes=EXPORT_REQUEST_MAX_BODY_BYTES
+    )
     if isinstance(payload, JsonResponse):
         return payload
 
@@ -1299,13 +1451,9 @@ def export_loaded_layers_async(request):
         return JsonResponse({"detail": "items 必须是数组"}, status=400)
 
     for item in items:
-        resource_id = item.get("resourceId")
-        if resource_id:
-            resource = get_object_or_404(
-                DataResource, pk=resource_id, status=DataResource.Status.ACTIVE
-            )
-            if not user_can_access(resource, request.user):
-                return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
+        access_error = _validate_export_item_access(item, request.user)
+        if access_error is not None:
+            return access_error
 
     clip_geometry = payload.get("clipGeometry") if payload.get("clip") else None
     try:
@@ -1351,13 +1499,14 @@ def export_job_download(request, job_id: str):
             and not request.user.is_superuser
         ):
             return JsonResponse({"detail": "无权访问该导出任务"}, status=403)
-        path = get_job_artifact_path(job_id)
     except RasterJobError as exc:
         return JsonResponse({"detail": str(exc)}, status=404)
     if job.status != "ready":
         return JsonResponse({"detail": "导出任务尚未完成"}, status=409)
-    if not path.exists():
-        return JsonResponse({"detail": "导出文件不存在或已过期"}, status=404)
+    try:
+        artifact_file = open_job_artifact_for_download(job_id)
+    except RasterJobError as exc:
+        return JsonResponse({"detail": str(exc)}, status=404)
     filename = (job.result or {}).get(
         "filename"
     ) or f"layers-export-{datetime.now().strftime('%Y%m%d%H%M%S')}.zip"
@@ -1369,12 +1518,16 @@ def export_job_download(request, job_id: str):
         filename,
         request,
     )
-    return FileResponse(
-        path.open("rb"),
-        as_attachment=True,
-        filename=filename,
-        content_type="application/zip",
-    )
+    try:
+        return FileResponse(
+            artifact_file,
+            as_attachment=True,
+            filename=filename,
+            content_type="application/zip",
+        )
+    except Exception:
+        artifact_file.close()
+        raise
 
 
 @require_GET

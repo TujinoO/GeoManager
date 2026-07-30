@@ -33,6 +33,7 @@ interface RestoreWorkspaceGroupsOptions {
   savedGroups: WorkspaceSceneSnapshot["groups"];
   canQueryData: boolean;
   canLoadVectorLayer: boolean;
+  canLoadRasterLayer: boolean;
   queryResultLimit: number;
   notification: AppNotification;
   onProgress?: (state: WorkspaceRestoreProgress) => void;
@@ -42,6 +43,7 @@ export async function restoreWorkspaceGroups({
   savedGroups,
   canQueryData,
   canLoadVectorLayer,
+  canLoadRasterLayer,
   queryResultLimit,
   notification,
   onProgress,
@@ -141,6 +143,17 @@ export async function restoreWorkspaceGroups({
         updateRestoreProgress(`已处理图层：${savedLayer.name}`);
         continue;
       }
+      if (!canLoadRasterLayer) {
+        issues.push({
+          layerName: savedLayer.name,
+          resourceName: savedLayer.sourceResource.name,
+          reason: "当前账号无权加载原始栅格数据，请联系管理员申请权限",
+          action: "skipped",
+        });
+        processedLayers += 1;
+        updateRestoreProgress(`已跳过图层：${savedLayer.name}`);
+        continue;
+      }
       try {
         const profile = await api.resourceProfile(savedLayer.sourceResource);
         if (!profile.raster) {
@@ -162,6 +175,17 @@ export async function restoreWorkspaceGroups({
           });
         }
       } catch (error) {
+        if (isForbiddenError(error)) {
+          issues.push({
+            layerName: savedLayer.name,
+            resourceName: savedLayer.sourceResource.name,
+            reason: "当前账号无权访问原始栅格数据，请联系管理员申请权限",
+            action: "skipped",
+          });
+          processedLayers += 1;
+          updateRestoreProgress(`已跳过图层：${savedLayer.name}`);
+          continue;
+        }
         issues.push({
           layerName: savedLayer.name,
           resourceName: savedLayer.sourceResource.name,
@@ -199,4 +223,13 @@ export async function restoreWorkspaceGroups({
     }
   }
   return { groups: restored, issues };
+}
+
+function isForbiddenError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    error.status === 403
+  );
 }

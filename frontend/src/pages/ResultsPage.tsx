@@ -219,6 +219,7 @@ export default function ResultsPage() {
             )
           : await api.downloadResultArtifact(result.item.id);
       downloadBlob(response.blob, response.filename);
+      message.success("成果下载已开始，请查看浏览器下载列表");
     } catch (error) {
       message.error(errorMessage(error, "成果下载失败"));
     } finally {
@@ -714,7 +715,7 @@ function ResultCard({
 function ResultCover({ item }: { item: PublishedResult }) {
   const previewUrl = resultPreviewUrl(item);
   const format = resultFormat(item);
-  const imagePreview = ["png", "jpg", "jpeg"].includes(format);
+  const imagePreview = resultPreviewIsImage(item);
   return (
     <div
       className={`result-card-cover${imagePreview ? "" : " result-card-cover-file"}`}
@@ -740,15 +741,18 @@ function ResultCover({ item }: { item: PublishedResult }) {
 function ResultDetail({ item }: { item: PublishedResult }) {
   const format = resultFormat(item);
   const previewUrl = resultPreviewUrl(item);
-  const imagePreview = ["png", "jpg", "jpeg"].includes(format);
+  const imagePreview = resultPreviewIsImage(item);
   return (
     <Space orientation="vertical" size={20} className="full-width">
       {previewUrl && imagePreview && (
         <Image alt={`${resultName(item)}成果预览`} src={previewUrl} />
       )}
-      {previewUrl && format === "pdf" && (
+      {previewUrl && !imagePreview && format === "pdf" && (
         <iframe
           className="result-pdf-preview"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          sandbox=""
           src={previewUrl}
           title={`${resultName(item)} PDF 预览`}
         />
@@ -852,6 +856,13 @@ function resultPreviewUrl(item: PublishedResult) {
   return item.kind === "mapping"
     ? item.item.publishedVersion!.previewUrl
     : item.item.previewUrl;
+}
+
+function resultPreviewIsImage(item: PublishedResult) {
+  return (
+    item.kind === "mapping" ||
+    ["png", "jpg", "jpeg"].includes(resultFormat(item))
+  );
 }
 
 function resultCanDownload(item: PublishedResult) {

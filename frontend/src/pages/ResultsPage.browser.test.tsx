@@ -9,6 +9,8 @@ import type { Bootstrap, MapComposition, User } from "../types";
 import ResultsPage from "./ResultsPage";
 
 const mockApi = vi.hoisted(() => ({
+  resources: vi.fn(),
+  workspaces: vi.fn(),
   mapCompositions: vi.fn(),
   resultArtifacts: vi.fn(),
   downloadMapCompositionVersion: vi.fn(),
@@ -104,7 +106,7 @@ const publishedVersion = {
   id: 103,
   compositionId: 27,
   versionNumber: 3,
-  format: "png" as const,
+  format: "pdf" as const,
   dpi: 300,
   widthPx: 3200,
   heightPx: 2400,
@@ -182,6 +184,8 @@ function renderResultsPage() {
 describe("ResultsPage published map compositions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockApi.resources.mockResolvedValue({ items: [] });
+    mockApi.workspaces.mockResolvedValue({ items: [] });
     mockApi.mapCompositions.mockResolvedValue({
       items: [publishedComposition],
       availableAudienceGroups: [],
@@ -212,6 +216,15 @@ describe("ResultsPage published map compositions", () => {
     expect(
       screen.getByAltText("塔里木河胡杨分布专题图成果预览"),
     ).toHaveAttribute("src", publishedVersion.previewUrl);
+
+    fireEvent.click(screen.getByRole("button", { name: /查看详情/ }));
+
+    expect(
+      screen.getAllByAltText("塔里木河胡杨分布专题图成果预览"),
+    ).toHaveLength(2);
+    expect(
+      screen.queryByTitle("塔里木河胡杨分布专题图 PDF 预览"),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /下载成果/ }));
 

@@ -9,6 +9,7 @@ import { appTheme } from "./theme";
 import type {
   Bootstrap,
   DataResourceProfile,
+  NonGeoAnalytics,
   ResourceListItem,
   ResourceQueryResult,
   User,
@@ -30,6 +31,7 @@ const { MockApiError, mockApi } = vi.hoisted(() => {
     MockApiError,
     mockApi: {
       bootstrap: vi.fn(),
+      loginOverview: vi.fn(),
       csrf: vi.fn(),
       me: vi.fn(),
       login: vi.fn(),
@@ -39,6 +41,8 @@ const { MockApiError, mockApi } = vi.hoisted(() => {
       resources: vi.fn(),
       resourceProfile: vi.fn(),
       resourceVisualizationSummary: vi.fn(),
+      nonGeoAnalysis: vi.fn(),
+      nonGeoQuery: vi.fn(),
       queryResource: vi.fn(),
       workspaces: vi.fn(),
       scanCatalogSources: vi.fn(),
@@ -212,6 +216,132 @@ const nonGeoTableResource: ResourceListItem = {
   itemCount: 8,
 };
 
+const nonGeoAnalytics: NonGeoAnalytics = {
+  resource: nonGeoTableResource,
+  summary: {
+    rowCount: 2,
+    analyzedRowCount: 2,
+    sampled: false,
+    fieldCount: 3,
+    numericFieldCount: 1,
+    textFieldCount: 1,
+    categoricalFieldCount: 1,
+    completeness: 1,
+    updatedAt: "2026-07-14T10:00:00+08:00",
+    suggestedView: "species",
+  },
+  fields: [
+    {
+      name: "sample_id",
+      type: "string",
+      label: "sample_id",
+      description: "样本编号",
+      unit: "",
+      role: "identifier",
+      nullable: false,
+      nonNullCount: 2,
+      nullCount: 0,
+      completeness: 1,
+      uniqueCount: 2,
+      sampleValues: ["S-1", "S-2"],
+    },
+    {
+      name: "species",
+      type: "string",
+      label: "species",
+      description: "物种",
+      unit: "",
+      role: "category",
+      nullable: false,
+      nonNullCount: 2,
+      nullCount: 0,
+      completeness: 1,
+      uniqueCount: 2,
+      sampleValues: ["胡杨", "柽柳"],
+    },
+    {
+      name: "height",
+      type: "float",
+      label: "height",
+      description: "高度",
+      unit: "m",
+      role: "measure",
+      nullable: false,
+      nonNullCount: 2,
+      nullCount: 0,
+      completeness: 1,
+      uniqueCount: 2,
+      sampleValues: [12.5, 5.2],
+      min: 5.2,
+      max: 12.5,
+      mean: 8.85,
+    },
+  ],
+  categoricalDistributions: [
+    {
+      field: "species",
+      label: "species",
+      total: 2,
+      items: [
+        { value: "胡杨", count: 1, ratio: 0.5 },
+        { value: "柽柳", count: 1, ratio: 0.5 },
+      ],
+    },
+  ],
+  numericDistributions: [
+    {
+      field: "height",
+      label: "height",
+      min: 5.2,
+      max: 12.5,
+      mean: 8.85,
+      median: 8.85,
+      q1: 7.025,
+      q3: 10.675,
+      bins: [
+        { label: "5.2-12.5", min: 5.2, max: 12.5, count: 2, ratio: 1 },
+      ],
+    },
+  ],
+  correlation: null,
+  tablePreview: {
+    resourceId: nonGeoTableResource.id,
+    resourceName: nonGeoTableResource.name,
+    totalCount: 2,
+    returnedCount: 2,
+    limit: 80,
+    offset: 0,
+    fields: [
+      {
+        name: "sample_id",
+        type: "string",
+        nullable: false,
+        sampleValues: ["S-1", "S-2"],
+        description: "样本编号",
+      },
+      {
+        name: "species",
+        type: "string",
+        nullable: false,
+        sampleValues: ["胡杨", "柽柳"],
+        description: "物种",
+      },
+      {
+        name: "height",
+        type: "float",
+        nullable: false,
+        sampleValues: [12.5, 5.2],
+        description: "高度",
+      },
+    ],
+    rows: [
+      { sample_id: "S-1", species: "胡杨", height: 12.5 },
+      { sample_id: "S-2", species: "柽柳", height: 5.2 },
+    ],
+  },
+  insights: ["资源包含 2 条真实记录和 3 个字段。"],
+};
+
 const tarimVectorProfile: DataResourceProfile = {
   resource: tarimVectorResource,
   fields: [
@@ -321,6 +451,7 @@ describe("application critical flows", () => {
       fn.mockReset();
     }
     mockApi.bootstrap.mockResolvedValue(bootstrap);
+    mockApi.loginOverview.mockRejectedValue(new Error("测试未配置登录概览"));
     mockApi.csrf.mockResolvedValue({ detail: "csrf cookie set" });
     mockApi.me.mockRejectedValue(new MockApiError("未登录", 401));
     mockApi.login.mockResolvedValue({ user: normalUser });
@@ -356,6 +487,8 @@ describe("application critical flows", () => {
     mockApi.resourceVisualizationSummary.mockResolvedValue(
       tarimVisualizationSummary,
     );
+    mockApi.nonGeoAnalysis.mockResolvedValue(nonGeoAnalytics);
+    mockApi.nonGeoQuery.mockResolvedValue(nonGeoAnalytics.tablePreview);
     mockApi.queryResource.mockResolvedValue(tarimQueryResult);
     mockApi.workspaces.mockResolvedValue({
       items: [],
@@ -438,6 +571,18 @@ describe("application critical flows", () => {
     expect(
       screen.getByRole("button", { name: /后台管理/ }),
     ).toBeInTheDocument();
+  });
+
+  it("upgrades a legacy bootstrap name in the browser tab", async () => {
+    mockApi.bootstrap.mockResolvedValueOnce({
+      ...bootstrap,
+      systemName: "中亚胡杨林生态系统保护数据共享平台",
+    });
+
+    renderApp("/login");
+
+    await screen.findByRole("heading", { name: "用户登录" });
+    expect(document.title).toBe("全球胡杨林生态系统保护数据共享平台");
   });
 
   it("submits required email and a separate research role application", async () => {
@@ -536,6 +681,7 @@ describe("application critical flows", () => {
   });
 
   it("allows visitors to enter the unified data catalog through guest login", async () => {
+    mockApi.resources.mockResolvedValue({ items: [tarimVectorResource] });
     renderApp("/");
 
     expect(
@@ -557,6 +703,31 @@ describe("application critical flows", () => {
     expect(
       screen.queryByRole("button", { name: /后台管理/ }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^数据资源$/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /浏览公开数据/ }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /进入地理工作台/ }));
+    expect(
+      await screen.findByTestId("map-canvas", {}, { timeout: 10000 }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("塔里木河胡杨样地监测点", {}, { timeout: 10000 }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "快速加载" }));
+
+    await waitFor(() => {
+      expect(mockApi.queryResource).toHaveBeenCalledWith(tarimVectorResource, {
+        attributeFilters: [],
+        spatialFilter: null,
+        limit: 30000,
+      });
+    });
+    expect(screen.queryByText("请先登录")).not.toBeInTheDocument();
   });
 
   it("opens core platform functions from the homepage launchpad", async () => {
@@ -571,7 +742,7 @@ describe("application critical flows", () => {
         { timeout: 10000 },
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText("中亚胡杨生态数据门户")).toBeInTheDocument();
+    expect(screen.getByText("全球胡杨生态数据门户")).toBeInTheDocument();
     expect(
       screen.getByText("服务生态保护 · 科学研究 · 数据共享"),
     ).toBeInTheDocument();
@@ -661,6 +832,23 @@ describe("application critical flows", () => {
     expect(mockApi.resources).toHaveBeenCalledWith({
       spatialClass: "non_spatial",
     });
+    expect(mockApi.nonGeoAnalysis).toHaveBeenCalledWith(
+      nonGeoTableResource.id,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "查询明细" }));
+    await waitFor(() => {
+      expect(mockApi.nonGeoQuery).toHaveBeenCalledWith(
+        nonGeoTableResource.id,
+        {
+          limit: 80,
+          offset: 0,
+          sortField: "height",
+          sortDirection: "desc",
+        },
+      );
+    });
+    expect(await screen.findByText("S-1")).toBeInTheDocument();
 
     const refreshedResource = {
       ...nonGeoTableResource,
@@ -668,6 +856,15 @@ describe("application critical flows", () => {
       name: "刷新后识别的非地理资源",
     };
     mockApi.resources.mockResolvedValueOnce({ items: [refreshedResource] });
+    mockApi.nonGeoAnalysis.mockResolvedValueOnce({
+      ...nonGeoAnalytics,
+      resource: refreshedResource,
+      tablePreview: {
+        ...nonGeoAnalytics.tablePreview,
+        resourceId: refreshedResource.id,
+        resourceName: refreshedResource.name,
+      },
+    });
     fireEvent.click(screen.getByRole("button", { name: "刷新非地理数据资源" }));
 
     expect(await screen.findByText(refreshedResource.name)).toBeInTheDocument();

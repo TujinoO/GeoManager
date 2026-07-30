@@ -218,6 +218,13 @@ class BackupRun(models.Model):
                 name="core_backup_trigger_59a9e8_idx",
             ),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=("plan_type",),
+                condition=models.Q(status__in=("queued", "running")),
+                name="uniq_active_backup_run_per_plan",
+            )
+        ]
 
     def __str__(self):
         return f"{self.get_plan_type_display()} {self.status}"

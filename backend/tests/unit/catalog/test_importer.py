@@ -95,7 +95,9 @@ class ImporterUnitTests(SimpleTestCase):
         self.assertEqual(normalized.loc[0, "lat"], "40.35678889")
 
     def test_dms_supports_chinese_direction_prefixes(self):
-        df = pd.DataFrame({"lon": ["东经79度48分09.13秒"], "lat": ["北纬40度21分24.44秒"]})
+        df = pd.DataFrame(
+            {"lon": ["东经79度48分09.13秒"], "lat": ["北纬40度21分24.44秒"]}
+        )
 
         normalized = normalize_coordinate_columns(
             df, longitude_column="lon", latitude_column="lat"
@@ -122,7 +124,9 @@ class ImporterUnitTests(SimpleTestCase):
             preview = preview_uploaded_table(workbook, sheet_name="points")
 
         self.assertEqual(preview["activeSheetName"], "points")
-        self.assertEqual([sheet["name"] for sheet in preview["sheets"]], ["first", "points"])
+        self.assertEqual(
+            [sheet["name"] for sheet in preview["sheets"]], ["first", "points"]
+        )
         self.assertEqual(preview["rowCount"], 1)
         self.assertTrue(preview["detected"]["isGeographic"])
         self.assertEqual(preview["detected"]["longitudeColumn"], "经度")
@@ -206,6 +210,20 @@ class ImporterUnitTests(SimpleTestCase):
                     "survey.txt", b"name\nA\n", content_type="text/plain"
                 )
             )
+
+    def test_table_parser_applies_independent_memory_safety_limit(self):
+        uploaded = SimpleUploadedFile(
+            "large.csv",
+            b"x" * (1024 * 1024 + 1),
+            content_type="text/csv",
+        )
+
+        with (
+            mock.patch("apps.catalog.importer.runtime_upload_max_mb", return_value=64),
+            mock.patch("apps.catalog.importer.MAX_TABLE_PARSE_UPLOAD_MB", 1),
+        ):
+            with self.assertRaisesRegex(ImportDataError, "平台上传大小限制"):
+                read_uploaded_table(uploaded)
 
     def _csv_file(self, name: str, content: str) -> SimpleUploadedFile:
         return SimpleUploadedFile(

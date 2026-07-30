@@ -41,5 +41,8 @@ RUN mkdir -p /data/app /data/research /config
 
 EXPOSE 8000
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
+    CMD ["pixi", "run", "--manifest-path", "/opt/app/backend/pixi.toml", "python", "-c", "import tomllib, urllib.request; config = tomllib.load(open('/config/app.toml', 'rb')); port = int(config.get('runtime', {}).get('waitress_port', 8000)); urllib.request.urlopen(f'http://127.0.0.1:{port}/api/health/', timeout=3).read()"]
+
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/app-entrypoint"]
 CMD ["serve", "/config/app.toml"]

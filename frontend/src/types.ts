@@ -97,6 +97,8 @@ export type {
   GroupListResponse,
   GroupUpdateRequest,
   ImportDuplicateTarget,
+  LoginOverviewResponse,
+  LoginOverviewStatus,
   RasterRenderResult,
   RegisterRequest,
   RegisterResponse,
@@ -267,6 +269,107 @@ export type WorkspaceSceneSnapshot = GeneratedWorkspaceSceneSnapshot & {
 
 export type DataResourceProfile = ResourceProfileResponse;
 export type ResourceVisualizationSummary = ResourceVisualizationSummaryResponse;
+
+export type NonGeoScalar = string | number | boolean | null;
+export type NonGeoFieldRole =
+  | "identifier"
+  | "category"
+  | "measure"
+  | "date"
+  | "text"
+  | "coordinate"
+  | "unknown";
+export type NonGeoTableRow = Record<string, NonGeoScalar>;
+
+export interface NonGeoFieldProfile {
+  name: string;
+  type: string;
+  label: string;
+  description: string;
+  unit: string;
+  role: NonGeoFieldRole;
+  nullable: boolean;
+  nonNullCount: number;
+  nullCount: number;
+  completeness: number;
+  uniqueCount: number;
+  sampleValues: NonGeoScalar[];
+  min?: number | null;
+  max?: number | null;
+  mean?: number | null;
+}
+
+export interface NonGeoTableQueryResult {
+  resourceId: number;
+  resourceName: string;
+  totalCount: number;
+  returnedCount: number;
+  limit: number;
+  offset: number;
+  fields: Array<{
+    name: string;
+    type: string;
+    nullable: boolean;
+    sampleValues: NonGeoScalar[];
+    description: string;
+  }>;
+  rows: NonGeoTableRow[];
+}
+
+export interface NonGeoAnalytics {
+  resource: ResourceListItem;
+  summary: {
+    rowCount: number;
+    analyzedRowCount: number;
+    sampled: boolean;
+    fieldCount: number;
+    numericFieldCount: number;
+    textFieldCount: number;
+    categoricalFieldCount: number;
+    completeness: number;
+    updatedAt: string;
+    suggestedView:
+      | "species"
+      | "community"
+      | "traits"
+      | "environment"
+      | "generic";
+  };
+  fields: NonGeoFieldProfile[];
+  categoricalDistributions: Array<{
+    field: string;
+    label: string;
+    total: number;
+    items: Array<{ value: NonGeoScalar; count: number; ratio: number }>;
+  }>;
+  numericDistributions: Array<{
+    field: string;
+    label: string;
+    min: number;
+    max: number;
+    mean: number;
+    median: number;
+    q1: number;
+    q3: number;
+    bins: Array<{
+      label: string;
+      min: number;
+      max: number;
+      count: number;
+      ratio: number;
+    }>;
+  }>;
+  correlation: { fields: string[]; values: number[][] } | null;
+  tablePreview: NonGeoTableQueryResult;
+  insights: string[];
+}
+
+export interface NonGeoTableQueryPayload {
+  limit?: number;
+  offset?: number;
+  sortField?: string | null;
+  sortDirection?: "asc" | "desc";
+}
 
 export interface ImportCommitPayload {
   name: string;

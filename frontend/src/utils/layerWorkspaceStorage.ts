@@ -3,6 +3,8 @@ import type { LoadedLayerGroup } from "../types";
 const DB_NAME = "huyang-system-map-workspace";
 const DB_VERSION = 1;
 const STORE_NAME = "layer-groups";
+const maxInMemoryWorkspaces = 3;
+const inMemoryLayerGroups = new Map<string, LoadedLayerGroup[]>();
 
 interface CachedLayerWorkspace {
   key: string;
@@ -13,6 +15,12 @@ interface CachedLayerWorkspace {
 export async function readCachedLayerGroups(
   workspaceKey: string,
 ): Promise<LoadedLayerGroup[]> {
+  const inMemory = inMemoryLayerGroups.get(workspaceKey);
+  if (inMemory) {
+    inMemoryLayerGroups.delete(workspaceKey);
+    inMemoryLayerGroups.set(workspaceKey, inMemory);
+    return inMemory;
+  }
   if (!hasIndexedDb()) {
     return [];
   }
@@ -34,6 +42,7 @@ export async function writeCachedLayerGroups(
   workspaceKey: string,
   groups: LoadedLayerGroup[],
 ): Promise<void> {
+  rememberCachedLayerGroups(workspaceKey, groups);
   if (!hasIndexedDb()) {
     return;
   }
@@ -55,6 +64,7 @@ export async function writeCachedLayerGroups(
 }
 
 export async function clearCachedLayerGroups(): Promise<void> {
+  inMemoryLayerGroups.clear();
   if (!hasIndexedDb()) {
     return;
   }
@@ -65,6 +75,19 @@ export async function clearCachedLayerGroups(): Promise<void> {
     );
   } finally {
     db.close();
+  }
+}
+
+export function rememberCachedLayerGroups(
+  workspaceKey: string,
+  groups: LoadedLayerGroup[],
+): void {
+  inMemoryLayerGroups.delete(workspaceKey);
+  inMemoryLayerGroups.set(workspaceKey, groups);
+  while (inMemoryLayerGroups.size > maxInMemoryWorkspaces) {
+    const leastRecentlyUsedKey = inMemoryLayerGroups.keys().next().value;
+    if (leastRecentlyUsedKey === undefined) break;
+    inMemoryLayerGroups.delete(leastRecentlyUsedKey);
   }
 }
 

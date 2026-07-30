@@ -42,6 +42,7 @@ from apps.core.storage import (
     vector_geopackage_path,
     vector_original_path,
 )
+from apps.raster.models import RasterDataset
 from apps.standards.models import DataDomainType, ResourceDomain, SourceDataset
 
 
@@ -90,7 +91,7 @@ class LayerApiTests(TestCase):
             layer_type=MapLayer.LayerType.RASTER,
             is_active=True,
         )
-        restricted_group = Group.objects.create(name="科研用户")
+        restricted_group, _ = Group.objects.get_or_create(name="科研用户")
         layer.access_groups.add(restricted_group)
 
         response = self.client.get("/api/layers/")
@@ -269,6 +270,21 @@ class GuestPublicDataAccessTests(TestCase):
         self.assertIn(public_resource.id, resource_ids)
         self.assertNotIn(private_resource.id, resource_ids)
 
+        registered_user = get_user_model().objects.create_user(
+            username="registered-public-data-reader", password="pass12345"
+        )
+        grant(registered_user, ("core", "browse_data"))
+        self.client.force_login(registered_user)
+
+        registered_response = self.client.get("/api/catalog/resources/")
+
+        self.assertEqual(registered_response.status_code, 200)
+        registered_resource_ids = {
+            item["id"] for item in registered_response.json()["items"]
+        }
+        self.assertIn(public_resource.id, registered_resource_ids)
+        self.assertNotIn(private_resource.id, registered_resource_ids)
+
 
 class ResourceQueryApiTests(IsolatedCatalogStorageMixin, TestCase):
     def setUp(self):
@@ -413,6 +429,38 @@ class ResourceQueryApiTests(IsolatedCatalogStorageMixin, TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["detail"], "请求体不是有效 JSON")
+
+    def test_resource_query_rejects_oversized_json_before_querying(self):
+        with (
+            patch("apps.catalog.views.RESOURCE_QUERY_MAX_BODY_BYTES", 64),
+            patch("apps.catalog.views.query_data_resource") as query,
+        ):
+            response = self.client.post(
+                f"/api/catalog/resources/{self.resource.id}/query/",
+                data=json.dumps({"padding": "x" * 128}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 413)
+        query.assert_not_called()
+
+    def test_resource_query_returns_retryable_busy_response(self):
+        gate = MagicMock()
+        gate.acquire.return_value = False
+        with (
+            patch("apps.catalog.views._RESOURCE_QUERY_GATE", gate),
+            patch("apps.catalog.views.query_data_resource") as query,
+        ):
+            response = self.client.post(
+                f"/api/catalog/resources/{self.resource.id}/query/",
+                data=json.dumps({"limit": 10}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response["Retry-After"], "2")
+        query.assert_not_called()
+        gate.release.assert_not_called()
 
     def test_resource_query_denies_group_restricted_resource(self):
         resource = DataResource.objects.create(
@@ -709,7 +757,11 @@ class CatalogScanTests(IsolatedCatalogStorageMixin, TestCase):
         self.user = get_user_model().objects.create_user(
             username="catalog-scanner", password="pass12345"
         )
-        grant(self.user, ("core", "browse_data"))
+        grant(
+            self.user,
+            ("core", "browse_data"),
+            ("catalog", "add_dataresource"),
+        )
         self.client.force_login(self.user)
         self.layer_name = "scan_test_points"
         self.path = vector_geopackage_path()
@@ -725,8 +777,9 @@ class CatalogScanTests(IsolatedCatalogStorageMixin, TestCase):
         )
         gdf.to_file(self.path, layer=self.layer_name, driver="GPKG")
 
-    def test_scan_endpoint_requires_browse_permission(self):
+    def test_scan_endpoint_requires_data_creation_permission(self):
         self.user.user_permissions.clear()
+        grant(self.user, ("core", "browse_data"))
 
         response = self.client.post(
             "/api/catalog/scan/", data={}, content_type="application/json"
@@ -1485,6 +1538,45 @@ class DataImportApiTests(IsolatedCatalogStorageMixin, TestCase):
         self.assertIsNone(payload["detected"]["coordinateStats"])
         self.assertEqual(payload["detected"]["validationIssues"], [])
 
+    def test_all_table_import_stages_reject_oversized_files_before_parsing(self):
+        oversized_content = b"name\n" + b"x" * (1024 * 1024)
+        requests = (
+            ("/api/catalog/import/preview/", {}),
+            (
+                "/api/catalog/import/validate/",
+                {"payload": json.dumps({"importMode": "table"})},
+            ),
+            (
+                "/api/catalog/import/commit/",
+                {"payload": json.dumps({"importMode": "table"})},
+            ),
+        )
+
+        with (
+            patch("apps.catalog.importer.runtime_upload_max_mb", return_value=1),
+            patch("apps.catalog.importer.pd.read_csv") as read_csv,
+        ):
+            for endpoint, extra in requests:
+                with self.subTest(endpoint=endpoint):
+                    response = self.client.post(
+                        endpoint,
+                        data={
+                            "file": SimpleUploadedFile(
+                                "oversized.csv",
+                                oversized_content,
+                                content_type="text/csv",
+                            ),
+                            **extra,
+                        },
+                    )
+                    self.assertEqual(response.status_code, 400)
+                    self.assertEqual(
+                        response.json()["detail"],
+                        "上传表格超过平台上传大小限制",
+                    )
+
+        read_csv.assert_not_called()
+
     def test_import_preview_does_not_run_coordinate_validation(self):
         response = self.client.post(
             "/api/catalog/import/preview/",
@@ -1704,7 +1796,7 @@ class DataImportApiTests(IsolatedCatalogStorageMixin, TestCase):
         self.assertEqual(payload["detail"], "数据校验未通过")
         self.assertEqual(payload["issues"][0]["code"], "missing_geometry")
 
-    def test_import_geographic_table_rejects_non_decimal_coordinates(self):
+    def test_import_geographic_table_accepts_integer_decimal_degrees(self):
         response = self.client.post(
             "/api/catalog/import/commit/",
             data={
@@ -1724,10 +1816,7 @@ class DataImportApiTests(IsolatedCatalogStorageMixin, TestCase):
             },
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(
-            response.json()["issues"][0]["code"], "invalid_coordinate_format"
-        )
+        self.assertEqual(response.status_code, 201)
 
     def test_import_geographic_table_rejects_out_of_range_coordinates(self):
         response = self.client.post(
@@ -2424,7 +2513,9 @@ class ExportApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/zip")
-        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        archive_content = b"".join(response.streaming_content)
+        response.close()
+        with zipfile.ZipFile(io.BytesIO(archive_content)) as archive:
             names = archive.namelist()
             self.assertEqual(len(names), 2)
             geojson_name = next(name for name in names if name.endswith(".geojson"))
@@ -2444,6 +2535,137 @@ class ExportApiTests(TestCase):
             )
             self.assertEqual(rows[0]["name"], expected_name)
 
+    def test_export_rejects_oversized_json_before_starting_work(self):
+        grant(self.user, ("catalog", "export_dataresource"))
+
+        with (
+            patch("apps.catalog.views.EXPORT_REQUEST_MAX_BODY_BYTES", 64),
+            patch("apps.catalog.views.export_layers_zip_to_path") as export,
+        ):
+            response = self.client.post(
+                "/api/catalog/export/",
+                data=json.dumps({"padding": "x" * 128}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 413)
+        export.assert_not_called()
+
+    def test_raster_export_without_resource_id_checks_real_resource_access(self):
+        grant(self.user, ("catalog", "export_dataresource"))
+        restricted_resource = self._restricted_raster_resource(
+            "restricted-raster-omitted"
+        )
+        dataset = self._raster_dataset(
+            "restricted-raster-omitted", restricted_resource
+        )
+
+        self._assert_raster_export_rejected(
+            {
+                "layerType": "raster",
+                "name": "受限栅格",
+                "datasetId": dataset.id,
+            },
+            expected_status=403,
+            expected_detail="无权访问该数据资源",
+        )
+
+    def test_raster_export_rejects_forged_resource_id(self):
+        grant(self.user, ("catalog", "export_dataresource"))
+        raster_resource = self._accessible_raster_resource("owned-raster-mismatch")
+        dataset = self._raster_dataset("owned-raster-mismatch", raster_resource)
+
+        self._assert_raster_export_rejected(
+            {
+                "layerType": "raster",
+                "name": "资源不匹配栅格",
+                "datasetId": dataset.id,
+                "resourceId": self.resource.id,
+            },
+            expected_status=400,
+            expected_detail="resourceId 与栅格数据集不匹配",
+        )
+
+    def test_raster_export_rejects_matching_but_restricted_resource(self):
+        grant(self.user, ("catalog", "export_dataresource"))
+        restricted_resource = self._restricted_raster_resource(
+            "restricted-raster-matching"
+        )
+        dataset = self._raster_dataset(
+            "restricted-raster-matching", restricted_resource
+        )
+
+        self._assert_raster_export_rejected(
+            {
+                "layerType": "raster",
+                "name": "受限栅格",
+                "datasetId": dataset.id,
+                "resourceId": restricted_resource.id,
+            },
+            expected_status=403,
+            expected_detail="无权访问该数据资源",
+        )
+
+    def test_raster_export_rejects_dataset_without_data_resource(self):
+        grant(self.user, ("catalog", "export_dataresource"))
+        dataset = self._raster_dataset("orphan-raster", None)
+
+        self._assert_raster_export_rejected(
+            {
+                "layerType": "raster",
+                "name": "孤立栅格",
+                "datasetId": dataset.id,
+            },
+            expected_status=400,
+            expected_detail="栅格数据集未关联数据资源",
+        )
+
+    def test_raster_export_accepts_matching_accessible_resource(self):
+        grant(self.user, ("catalog", "export_dataresource"))
+        raster_resource = self._accessible_raster_resource("owned-raster-valid")
+        dataset = self._raster_dataset("owned-raster-valid", raster_resource)
+        item = {
+            "layerType": "raster",
+            "name": "可访问栅格",
+            "datasetId": dataset.id,
+            "resourceId": raster_resource.id,
+        }
+
+        def write_test_archive(*args, output_path, **kwargs):
+            output_path.write_bytes(b"test-archive")
+            return output_path
+
+        with patch(
+            "apps.catalog.views.export_layers_zip_to_path",
+            side_effect=write_test_archive,
+        ) as sync_export:
+            sync_response = self.client.post(
+                "/api/catalog/export/",
+                data=json.dumps({"epsg": 4326, "items": [item]}),
+                content_type="application/json",
+            )
+        self.assertEqual(sync_response.status_code, 200)
+        sync_export.assert_called_once()
+        b"".join(sync_response.streaming_content)
+        sync_response.close()
+
+        job = MagicMock()
+        job.id = "authorized-raster-export"
+        job.as_dict.return_value = {
+            "id": "authorized-raster-export",
+            "status": "queued",
+        }
+        with patch(
+            "apps.catalog.views.start_export_job", return_value=job
+        ) as async_export:
+            async_response = self.client.post(
+                "/api/catalog/export/async/",
+                data=json.dumps({"epsg": 4326, "items": [item]}),
+                content_type="application/json",
+            )
+        self.assertEqual(async_response.status_code, 202)
+        async_export.assert_called_once()
+
     def _vector_item(self):
         return {
             "layerType": "vector",
@@ -2451,6 +2673,72 @@ class ExportApiTests(TestCase):
             "resourceId": self.resource.id,
             "geojson": self.geojson,
         }
+
+    def _assert_raster_export_rejected(
+        self,
+        item,
+        *,
+        expected_status: int,
+        expected_detail: str,
+    ):
+        endpoint_services = (
+            (
+                "/api/catalog/export/",
+                "apps.catalog.views.export_layers_zip_to_path",
+            ),
+            (
+                "/api/catalog/export/async/",
+                "apps.catalog.views.start_export_job",
+            ),
+        )
+        for endpoint, service_path in endpoint_services:
+            with self.subTest(endpoint=endpoint), patch(service_path) as service:
+                response = self.client.post(
+                    endpoint,
+                    data=json.dumps({"epsg": 4326, "items": [item]}),
+                    content_type="application/json",
+                )
+
+                self.assertEqual(
+                    response.status_code, expected_status, response.content
+                )
+                self.assertEqual(response.json()["detail"], expected_detail)
+                service.assert_not_called()
+
+    def _accessible_raster_resource(self, code: str) -> DataResource:
+        return DataResource.objects.create(
+            name=code,
+            code=code,
+            data_type=DataResource.DataType.RASTER,
+            status=DataResource.Status.ACTIVE,
+            maintainer=self.user,
+        )
+
+    def _restricted_raster_resource(self, code: str) -> DataResource:
+        owner = get_user_model().objects.create_user(
+            username=f"{code}-owner", password="pass12345"
+        )
+        resource = DataResource.objects.create(
+            name=code,
+            code=code,
+            data_type=DataResource.DataType.RASTER,
+            status=DataResource.Status.ACTIVE,
+            maintainer=owner,
+        )
+        restricted_group = Group.objects.create(name=f"{code}-access")
+        resource.access_groups.add(restricted_group)
+        return resource
+
+    def _raster_dataset(
+        self, code: str, resource: DataResource | None
+    ) -> RasterDataset:
+        return RasterDataset.objects.create(
+            name=code,
+            code=code,
+            source_relative_path=f"{code}.tif",
+            data_resource=resource,
+            status=RasterDataset.Status.READY,
+        )
 
 
 class AdminDataResourceApiTests(IsolatedCatalogStorageMixin, TestCase):
@@ -2712,6 +3000,65 @@ class AdminDataResourceApiTests(IsolatedCatalogStorageMixin, TestCase):
         self.assertEqual(response.json()["detail"], "包含不存在或不可选择的角色")
         self.resource.refresh_from_db()
         self.assertEqual(list(self.resource.access_groups.all()), [])
+
+    def test_data_resource_update_renames_display_name_only(self):
+        layer = MapLayer.objects.create(
+            name="原始默认图层",
+            code="inventory-plots-layer",
+            layer_type=MapLayer.LayerType.VECTOR,
+            data_resource=self.resource,
+        )
+        original_code = self.resource.code
+        original_storage_path = self.resource.storage_path
+
+        response = self.client.post(
+            f"/api/admin/data/resources/{self.resource.id}/",
+            data=json.dumps({"action": "update", "name": "  重命名后数据  "}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["name"], "重命名后数据")
+        self.resource.refresh_from_db()
+        layer.refresh_from_db()
+        self.assertEqual(self.resource.name, "重命名后数据")
+        self.assertEqual(self.resource.code, original_code)
+        self.assertEqual(self.resource.storage_path, original_storage_path)
+        self.assertEqual(layer.name, "原始默认图层")
+        self.assertTrue(
+            OperationLog.objects.filter(
+                module="数据管理",
+                action="更新存量数据名称",
+                target_type="data_resource",
+                target_id=self.resource.id,
+                target_code=original_code,
+                target_name="重命名后数据",
+            ).exists()
+        )
+
+    def test_data_resource_update_validates_rename(self):
+        before_count = OperationLog.objects.count()
+
+        empty_response = self.client.post(
+            f"/api/admin/data/resources/{self.resource.id}/",
+            data=json.dumps({"action": "update", "name": "   "}),
+            content_type="application/json",
+        )
+        long_response = self.client.post(
+            f"/api/admin/data/resources/{self.resource.id}/",
+            data=json.dumps({"action": "update", "name": "数" * 161}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(empty_response.status_code, 400)
+        self.assertEqual(empty_response.json()["detail"], "数据资源名称不能为空")
+        self.assertEqual(long_response.status_code, 400)
+        self.assertEqual(
+            long_response.json()["detail"], "数据资源名称不能超过 160 个字符"
+        )
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.name, "存量样地数据")
+        self.assertEqual(OperationLog.objects.count(), before_count)
 
     def test_delete_requires_matching_confirmation_name(self):
         response = self.client.post(

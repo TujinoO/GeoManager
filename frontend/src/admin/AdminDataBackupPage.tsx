@@ -27,7 +27,7 @@ import {
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { api } from "../api/client";
 import type {
@@ -40,6 +40,7 @@ import type {
   BackupTargetType,
 } from "../types";
 import { downloadBlob } from "../utils/download";
+import { startSequentialPolling } from "../utils/sequentialPolling";
 
 interface BackupFormValues {
   plans: {
@@ -118,56 +119,86 @@ export default function AdminDataBackupPage() {
   );
   const [startingPlan, setStartingPlan] = useState<BackupPlanType | null>(null);
   const [pollRunId, setPollRunId] = useState<number | null>(null);
+  const startRequestInFlightRef = useRef(false);
 
-  const loadData = useCallback(async () => {
-    const [overviewData, runData, dashboardData] = await Promise.all([
-      api.adminBackupOverview(),
-      api.adminBackupRuns({ current: 1, pageSize: 20 }),
-      api.adminDashboard("day").catch(() => null),
-    ]);
-    setOverview(overviewData);
-    setRuns(runData.items);
-    setDashboard(dashboardData);
-    form.setFieldsValue(settingsToFormValues(overviewData.settings));
-  }, [form]);
+  const activeRun = useMemo(() => {
+    const runsById = new Map<number, AdminBackupRun>();
+    for (const run of overview?.activeRuns ?? []) {
+      runsById.set(run.id, run);
+    }
+    for (const run of runs) {
+      runsById.set(run.id, run);
+    }
+    return [...runsById.values()]
+      .sort((left, right) => right.id - left.id)
+      .find((run) => run.status === "queued" || run.status === "running");
+  }, [overview?.activeRuns, runs]);
+
+  const loadData = useCallback(
+    async (signal?: AbortSignal) => {
+      const [overviewData, runData, dashboardData] = await Promise.all([
+        api.adminBackupOverview({ signal }),
+        api.adminBackupRuns({ current: 1, pageSize: 20 }, { signal }),
+        api.adminDashboard("day", { signal }).catch(() => null),
+      ]);
+      if (signal?.aborted) return;
+      setOverview(overviewData);
+      setRuns(runData.items);
+      setDashboard(dashboardData);
+      form.setFieldsValue(settingsToFormValues(overviewData.settings));
+    },
+    [form],
+  );
 
   useEffect(() => {
-    let mounted = true;
+    const controller = new AbortController();
     setLoading(true);
-    loadData()
+    loadData(controller.signal)
       .catch((error) => {
-        if (!mounted) return;
+        if (controller.signal.aborted) return;
         message.error(
           error instanceof Error ? error.message : "数据备份配置加载失败",
         );
       })
       .finally(() => {
-        if (mounted) {
+        if (!controller.signal.aborted) {
           setLoading(false);
         }
       });
-    return () => {
-      mounted = false;
-    };
+    return () => controller.abort();
   }, [loadData, message]);
 
   useEffect(() => {
+    if (activeRun && pollRunId !== activeRun.id) {
+      setPollRunId(activeRun.id);
+    }
+  }, [activeRun, pollRunId]);
+
+  useEffect(() => {
     if (!pollRunId) return;
-    const timer = window.setInterval(async () => {
-      try {
-        const run = await api.adminBackupRun(pollRunId);
-        setRuns((current) => mergeRun(current, run));
-        if (run.status === "success" || run.status === "failed") {
-          window.clearInterval(timer);
-          setPollRunId(null);
-          await loadData();
+    return startSequentialPolling(
+      async (signal) => {
+        try {
+          const run = await api.adminBackupRun(pollRunId, { signal });
+          if (signal.aborted) return false;
+          setRuns((current) => mergeRun(current, run));
+          if (run.status === "success" || run.status === "failed") {
+            await loadData(signal);
+            if (!signal.aborted) {
+              setPollRunId(null);
+            }
+            return false;
+          }
+          return true;
+        } catch {
+          if (!signal.aborted) {
+            setPollRunId(null);
+          }
+          return false;
         }
-      } catch {
-        window.clearInterval(timer);
-        setPollRunId(null);
-      }
-    }, 2500);
-    return () => window.clearInterval(timer);
+      },
+      { intervalMs: 2500 },
+    );
   }, [loadData, pollRunId]);
 
   async function handleSave() {
@@ -214,6 +245,10 @@ export default function AdminDataBackupPage() {
   }
 
   async function handleStartBackup(planType: BackupPlanType) {
+    if (activeRun || startRequestInFlightRef.current) {
+      return;
+    }
+    startRequestInFlightRef.current = true;
     const values = form.getFieldsValue(true);
     const plan = values.plans[planType];
     setStartingPlan(planType);
@@ -224,13 +259,16 @@ export default function AdminDataBackupPage() {
         includeLogs: planType === "platform" ? plan.includeLogs : false,
       });
       setRuns((current) => mergeRun(current, run));
-      setPollRunId(run.id);
+      if (run.status === "queued" || run.status === "running") {
+        setPollRunId(run.id);
+      }
       message.success("备份任务已创建");
     } catch (error) {
       message.error(
         error instanceof Error ? error.message : "备份任务创建失败",
       );
     } finally {
+      startRequestInFlightRef.current = false;
       setStartingPlan(null);
     }
   }
@@ -247,13 +285,6 @@ export default function AdminDataBackupPage() {
     [message],
   );
 
-  const activeRun = useMemo(
-    () =>
-      [...(overview?.activeRuns ?? []), ...runs].find((run) =>
-        ["queued", "running"].includes(run.status),
-      ),
-    [overview?.activeRuns, runs],
-  );
   const columns = useMemo<ColumnsType<AdminBackupRun>>(
     () => backupRunColumns(handleDownload),
     [handleDownload],
@@ -459,6 +490,7 @@ export default function AdminDataBackupPage() {
                 type="primary"
                 icon={<PlayCircleOutlined />}
                 loading={startingPlan === planType}
+                disabled={Boolean(activeRun) || startingPlan !== null}
                 onClick={() => handleStartBackup(planType)}
               >
                 立即备份

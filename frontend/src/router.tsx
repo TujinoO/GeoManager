@@ -10,6 +10,28 @@ export function RequireAuth() {
   return <Outlet />;
 }
 
+/** 需要至少一项后台运维能力才能访问运行概览和管理页面 */
+export function RequireAdminAccess() {
+  const { user } = useAppContext();
+  if (!user?.permissions.canAccessAdmin) {
+    return <Navigate to="/admin/profile" replace />;
+  }
+  return <Outlet />;
+}
+
+/** 后台根路径按权限进入运行概览或个人设置 */
+export function AdminIndexRedirect() {
+  const { user } = useAppContext();
+  return (
+    <Navigate
+      to={
+        user?.permissions.canAccessAdmin ? "/admin/dashboard" : "/admin/profile"
+      }
+      replace
+    />
+  );
+}
+
 /** 需要数据维护权限才能访问的后台数据管理路由 */
 export function RequireDataMaintain() {
   const { user } = useAppContext();

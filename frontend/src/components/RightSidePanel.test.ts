@@ -10,9 +10,18 @@ import {
   thumbnailUrlTemplateWithRetry,
   thumbnailViewportForMapView,
   thumbnailViewportForMapTile,
+  formatRasterPixelCount,
+  isRasterInsightSelection,
   nextEcoTabForSelectedFeature,
+  rasterBandRangePosition,
 } from "./RightSidePanel";
-import type { FeatureInfo, MapViewState } from "../types";
+import type {
+  DataResourceProfile,
+  FeatureInfo,
+  LoadedRasterLayer,
+  MapViewState,
+  ResourceListItem,
+} from "../types";
 
 const mapTile = {
   center: [82, 42] as [number, number],
@@ -283,5 +292,46 @@ describe("nextEcoTabForSelectedFeature", () => {
   it("keeps the current tab when the selected feature is cleared", () => {
     expect(nextEcoTabForSelectedFeature("feature", null)).toBe("feature");
     expect(nextEcoTabForSelectedFeature("monitor", null)).toBe("monitor");
+  });
+});
+
+describe("raster insight helpers", () => {
+  it("identifies raster resources before they are loaded as map layers", () => {
+    const resource = { dataType: "raster" } as ResourceListItem;
+    const profile = { raster: { id: 7 } } as DataResourceProfile;
+    const layer = { layerType: "raster" } as LoadedRasterLayer;
+
+    expect(isRasterInsightSelection(resource, null, null)).toBe(true);
+    expect(isRasterInsightSelection(null, profile, null)).toBe(true);
+    expect(isRasterInsightSelection(null, null, layer)).toBe(true);
+    expect(
+      isRasterInsightSelection(
+        { dataType: "vector" } as ResourceListItem,
+        null,
+        null,
+      ),
+    ).toBe(false);
+  });
+
+  it("positions every band against one shared value domain", () => {
+    expect(rasterBandRangePosition(20, 60, 0, 100)).toEqual({
+      left: 20,
+      width: 40,
+    });
+    expect(rasterBandRangePosition(-10, 10, -20, 20)).toEqual({
+      left: 25,
+      width: 50,
+    });
+    expect(rasterBandRangePosition(20, 20, 0, 20)).toEqual({
+      left: 98,
+      width: 2,
+    });
+    expect(rasterBandRangePosition(null, 10, 0, 20)).toBeNull();
+  });
+
+  it("formats large raster cell counts without implying feature records", () => {
+    expect(formatRasterPixelCount(226_000_000)).toBe("226 百万");
+    expect(formatRasterPixelCount(12_500)).toBe("1.25 万");
+    expect(formatRasterPixelCount(null)).toBe("-");
   });
 });

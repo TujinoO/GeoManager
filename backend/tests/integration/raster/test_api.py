@@ -113,7 +113,7 @@ class RasterPermissionApiTests(TestCase):
         self.assertEqual(names, ["public-dataset"])
 
     def test_scan_endpoint_does_not_write_operation_log(self):
-        grant(self.user, ("core", "browse_data"))
+        grant(self.user, ("raster", "manage_raster_dataset"))
         job = SimpleNamespace(
             as_dict=lambda: {
                 "id": "scan-job-1",
@@ -138,6 +138,15 @@ class RasterPermissionApiTests(TestCase):
                 module="栅格管理", action="发起栅格目录扫描"
             ).exists()
         )
+
+    def test_scan_endpoint_rejects_browse_only_user(self):
+        grant(self.user, ("core", "browse_data"))
+
+        response = self.client.post(
+            "/api/raster/scan/", data={}, content_type="application/json"
+        )
+
+        self.assertEqual(response.status_code, 403)
 
     def test_import_endpoint_accepts_uploaded_raster_and_starts_job(self):
         grant(self.user, ("raster", "manage_raster_dataset"))

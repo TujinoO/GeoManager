@@ -77,6 +77,8 @@ const mockApi = vi.hoisted(() => ({
   exportAdminDataResources: vi.fn(),
   dataSchemaSummary: vi.fn(),
   germplasmAccessions: vi.fn(),
+  resources: vi.fn(),
+  workspaces: vi.fn(),
   adminWorkspaces: vi.fn(),
   updateAdminWorkspace: vi.fn(),
   mapCompositions: vi.fn(),
@@ -643,6 +645,8 @@ describe("admin routes", () => {
     );
     mockApi.bootstrap.mockResolvedValue(bootstrap);
     mockApi.logout.mockResolvedValue({ detail: "已退出" });
+    mockApi.resources.mockResolvedValue({ items: [] });
+    mockApi.workspaces.mockResolvedValue({ items: [] });
     mockApi.adminProfile.mockResolvedValue({
       user: adminUser,
       avatarUrl: "",
@@ -1164,7 +1168,7 @@ describe("admin routes", () => {
     mockApi.updateAdminDataResource.mockImplementation((resourceId, payload) =>
       Promise.resolve({
         id: resourceId,
-        name: "胡杨林样地点",
+        name: payload.name ?? "胡杨林样地点",
         code: "populus-plots",
         dataType: "vector",
         domainType: "field_survey",
@@ -1595,6 +1599,117 @@ describe("admin routes", () => {
     });
   }, 30000);
 
+  it("disables both manual backup actions while a backup is active", async () => {
+    const runningRun = {
+      ...backupRun,
+      id: 8,
+      status: "running",
+      progressPercent: 35,
+      messages: ["正在归档平台数据"],
+      finishedAt: null,
+    } as const;
+    mockApi.adminBackupOverview.mockResolvedValue({
+      ...backupOverview,
+      activeRuns: [runningRun],
+      recentRuns: [runningRun],
+    });
+    mockApi.adminBackupRuns.mockResolvedValue({
+      items: [runningRun],
+      total: 1,
+    });
+
+    renderAdminRoute("/admin/backup", adminUser);
+
+    const backupButtons = await screen.findAllByRole("button", {
+      name: /立即备份/,
+    });
+    expect(backupButtons).toHaveLength(2);
+    for (const button of backupButtons) {
+      expect(button).toBeDisabled();
+      fireEvent.click(button);
+    }
+    expect(mockApi.createAdminBackupRun).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates rapid manual backup requests before React state updates", async () => {
+    let resolveCreate!: (run: Record<string, unknown>) => void;
+    mockApi.createAdminBackupRun.mockReturnValue(
+      new Promise<Record<string, unknown>>((resolve) => {
+        resolveCreate = resolve;
+      }),
+    );
+
+    renderAdminRoute("/admin/backup", adminUser);
+
+    const backupButtons = await screen.findAllByRole("button", {
+      name: /立即备份/,
+    });
+    fireEvent.click(backupButtons[0]);
+    fireEvent.click(backupButtons[0]);
+
+    expect(mockApi.createAdminBackupRun).toHaveBeenCalledOnce();
+    for (const button of screen.getAllByRole("button", { name: /立即备份/ })) {
+      expect(button).toBeDisabled();
+    }
+
+    resolveCreate({ ...backupRun, id: 2 });
+    await waitFor(() => {
+      for (const button of screen.getAllByRole("button", {
+        name: /立即备份/,
+      })) {
+        expect(button).toBeEnabled();
+      }
+    });
+  });
+
+  it("polls an existing backup and restores both actions at terminal state", async () => {
+    const runningRun = {
+      ...backupRun,
+      id: 9,
+      status: "running",
+      progressPercent: 60,
+      messages: ["正在上传归档"],
+      finishedAt: null,
+    } as const;
+    const completedRun = {
+      ...runningRun,
+      status: "success",
+      progressPercent: 100,
+      messages: ["备份已完成"],
+      finishedAt: "2026-07-03T03:00:10+08:00",
+    } as const;
+    mockApi.adminBackupOverview.mockResolvedValue({
+      ...backupOverview,
+      activeRuns: [runningRun],
+      recentRuns: [runningRun],
+    });
+    mockApi.adminBackupRuns
+      .mockResolvedValueOnce({ items: [runningRun], total: 1 })
+      .mockResolvedValue({ items: [completedRun], total: 1 });
+    mockApi.adminBackupRun.mockResolvedValue(completedRun);
+
+    renderAdminRoute("/admin/backup", adminUser);
+
+    const backupButtons = await screen.findAllByRole("button", {
+      name: /立即备份/,
+    });
+    for (const button of backupButtons) {
+      expect(button).toBeDisabled();
+    }
+
+    await waitFor(
+      () => {
+        expect(mockApi.adminBackupRun).toHaveBeenCalledWith(9);
+        for (const button of screen.getAllByRole("button", {
+          name: /立即备份/,
+        })) {
+          expect(button).toBeEnabled();
+        }
+      },
+      { timeout: 6000 },
+    );
+  }, 10000);
+
   it("opens the user detail drawer from auth management", async () => {
     renderWithProviders(
       <MemoryRouter initialEntries={["/admin/auth/users"]}>
@@ -1694,6 +1809,42 @@ describe("admin routes", () => {
     ).toBeInTheDocument();
   }, 30000);
 
+  it("keeps the built-in guest role unavailable when creating users", async () => {
+    const guestGroup = {
+      id: 3,
+      name: "游客",
+      userCount: 1,
+      permissions: [],
+      isProtected: true,
+      lockedPermissions: [],
+    };
+    mockApi.adminGroups.mockResolvedValue({
+      items: [adminGroup, guestGroup],
+      availablePermissions,
+    });
+
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/admin/auth/users"]}>
+        <AdminAuthPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("用户列表")).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /新建用户/ }));
+    const dialog = await screen.findByRole("dialog", { name: /新建用户/ });
+    expect(
+      within(dialog).getByText(
+        "游客角色仅供系统 guest 账号使用，不能分配给其他账号。",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.mouseDown(within(dialog).getByRole("combobox", { name: "角色" }));
+    const guestOptionLabel = await screen.findByText("游客（系统专用）");
+    const guestOption = guestOptionLabel.closest(".ant-select-item-option");
+    expect(guestOption).not.toBeNull();
+    expect(guestOption).toHaveClass("ant-select-item-option-disabled");
+  }, 30000);
+
   it("does not render hidden superadmin principals in auth management", async () => {
     const researchGroup = {
       id: 3,
@@ -1735,7 +1886,7 @@ describe("admin routes", () => {
     );
 
     expect(await screen.findByText("用户列表")).toBeInTheDocument();
-    expect(screen.getByText("data_admin_li")).toBeInTheDocument();
+    expect(await screen.findByText("data_admin_li")).toBeInTheDocument();
     expect(screen.queryByText("超级管理员")).not.toBeInTheDocument();
     expect(screen.queryByText("superadmin")).not.toBeInTheDocument();
 
@@ -2077,24 +2228,9 @@ describe("admin routes", () => {
     expect(screen.getAllByText("全部数据").length).toBeGreaterThan(0);
     for (const groupName of [
       "基础地理信息数据",
-      "行政区划",
-      "基础地理要素",
-      "LUCC",
       "胡杨生境数据",
-      "水",
-      "土壤",
-      "气候",
-      "生物环境",
       "胡杨空间分布信息",
-      "分布矢量",
-      "调查点图片",
       "胡杨专题数据",
-      "基因与种质",
-      "个体",
-      "种群",
-      "群落",
-      "生态系统",
-      "景观与遥感",
       "未分组（其他）",
     ]) {
       expect(
@@ -2103,7 +2239,10 @@ describe("admin routes", () => {
     }
     expect(
       document.querySelectorAll('button[aria-label^="删除系统分组"]'),
-    ).toHaveLength(21);
+    ).toHaveLength(6);
+    expect(
+      screen.queryByRole("button", { name: "删除系统分组LUCC" }),
+    ).not.toBeInTheDocument();
     const allDataRow = screen
       .getByRole("button", { name: "删除系统分组全部数据" })
       .closest("tr");
@@ -2123,6 +2262,93 @@ describe("admin routes", () => {
     expect(screen.queryByText("超级管理员可见")).not.toBeInTheDocument();
     expect(screen.queryByText("存储位置")).not.toBeInTheDocument();
     expect(screen.queryByText("populus_plots")).not.toBeInTheDocument();
+  });
+
+  it("keeps the LUCC inventory branch readable without stacking expanded tables", async () => {
+    const initialResponse = await mockApi.adminDataResources();
+    const luccResource = {
+      ...initialResponse.items[0],
+      name: "2020—2025 年塔里木河流域土地利用与覆被变化监测数据",
+      category: {
+        id: 13,
+        type: "data_category",
+        code: "base_geo_lucc",
+        name: "LUCC",
+        parentId: 1,
+        selectable: true,
+      },
+      categoryPath: [
+        { id: 1, code: "base_geo", name: "基础地理信息数据" },
+        { id: 13, code: "base_geo_lucc", name: "LUCC" },
+      ],
+    };
+    mockApi.adminDataResources.mockResolvedValue({
+      ...initialResponse,
+      items: [luccResource],
+      ...inventoryResponseMeta({
+        total: 1,
+        categoryCode: "base_geo_lucc",
+        rootCategoryCode: "base_geo",
+      }),
+    });
+
+    renderAdminRoute("/resources/data/inventory");
+
+    expect(await screen.findByText(luccResource.name)).toBeInTheDocument();
+    const visibleResourceTables = () =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>(
+          ".inventory-group-resource-table",
+        ),
+      ).filter((table) => table.getBoundingClientRect().height > 0);
+    expect(visibleResourceTables()).toHaveLength(1);
+
+    const baseGroupRow = screen
+      .getByRole("button", {
+        name: "删除系统分组基础地理信息数据",
+      })
+      .closest("tr");
+    expect(baseGroupRow).not.toBeNull();
+    fireEvent.click(
+      within(baseGroupRow!).getByRole("button", { name: "展开行" }),
+    );
+
+    const luccDeleteButton = await screen.findByRole("button", {
+      name: "删除系统分组LUCC",
+    });
+    await waitFor(() => {
+      expect(visibleResourceTables()).toHaveLength(0);
+    });
+    const luccGroupRow = luccDeleteButton.closest("tr");
+    expect(luccGroupRow).not.toBeNull();
+    fireEvent.click(
+      within(luccGroupRow!).getByRole("button", { name: "展开行" }),
+    );
+
+    await waitFor(() => {
+      expect(visibleResourceTables()).toHaveLength(1);
+    });
+    const visibleLuccTable = visibleResourceTables()[0];
+    expect(
+      within(visibleLuccTable.closest("tr")!).getByText(
+        "本页已显示该组全部 1 项数据",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(
+        screen
+          .getByRole("button", { name: "删除系统分组全部数据" })
+          .closest("tr")!,
+      ).getByRole("button", { name: "展开行" }),
+    ).toBeInTheDocument();
+
+    const resourceTable = visibleLuccTable;
+    expect(resourceTable).toBeDefined();
+    const horizontalViewport = resourceTable.querySelector<HTMLElement>(
+      ".ant-table-body, .ant-table-content",
+    );
+    expect(horizontalViewport).not.toBeNull();
+    expect(getComputedStyle(horizontalViewport!).overflowX).not.toBe("visible");
   });
 
   it("places pending resources in the unclassified inventory group", async () => {
@@ -2164,6 +2390,36 @@ describe("admin routes", () => {
     expect(
       screen.getByText(/历史草稿可在成果管理中发布或删除/),
     ).toBeInTheDocument();
+  });
+
+  it("renames an inventory data resource without changing its default layer name", async () => {
+    renderAdminRoute("/resources/data/inventory");
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "配置胡杨林样地点" }),
+    );
+    const resourceNameInput = await screen.findByLabelText("数据资源名称");
+    const layerNameInput = screen.getByLabelText("默认图层名称");
+    expect(resourceNameInput).toHaveValue("胡杨林样地点");
+    expect(layerNameInput).toHaveValue("胡杨林样地点");
+
+    fireEvent.change(resourceNameInput, {
+      target: { value: "胡杨林长期监测样地点" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /保存/ }));
+
+    await waitFor(() => {
+      expect(mockApi.updateAdminDataResource).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          action: "update",
+          name: "胡杨林长期监测样地点",
+          visualization: expect.objectContaining({
+            layerName: "胡杨林样地点",
+          }),
+        }),
+      );
+    });
   });
 
   it("syncs data status from inventory group checkboxes", async () => {
@@ -2509,6 +2765,178 @@ describe("admin routes", () => {
     expect(await screen.findByText("胡杨监测年度报告")).toBeInTheDocument();
   });
 
+  it("applies record-level workspace permissions for research users", async () => {
+    const researchUser: User = {
+      ...adminUser,
+      id: 2,
+      username: "researcher",
+      displayName: "张研究员",
+      roles: ["科研用户"],
+      groupIds: [2],
+      permissions: {
+        ...adminUser.permissions,
+        canAccessAdmin: false,
+        canManageFeaturePermissions: false,
+        canCreateUser: false,
+        canManageAuth: false,
+        canManageDataBackup: false,
+        canManageSystemSettings: false,
+        canChangeWorkspaces: true,
+        canDeleteWorkspaces: true,
+      },
+    };
+    window.localStorage.setItem(
+      `huyang-system.workspace-tour.v1.${researchUser.id}.${researchUser.username}`,
+      "completed",
+    );
+    mockApi.adminWorkspaces.mockResolvedValue({
+      items: [
+        {
+          id: 21,
+          kind: "project",
+          name: "本人科研工程",
+          description: "研究员本人保存的工程",
+          snapshot: { version: 1, groups: [] },
+          owner: {
+            id: researchUser.id,
+            username: researchUser.username,
+            displayName: researchUser.displayName,
+          },
+          createdAt: "2026-07-28T10:00:00+08:00",
+          updatedAt: "2026-07-29T10:00:00+08:00",
+          status: "active",
+          accessGroups: [],
+          isOwner: true,
+          canEdit: true,
+          canDelete: true,
+          canManageAccess: true,
+        },
+        {
+          id: 22,
+          kind: "project",
+          name: "他人共享工程",
+          description: "其他研究员共享的只读工程",
+          snapshot: { version: 1, groups: [] },
+          owner: {
+            id: 9,
+            username: "other_researcher",
+            displayName: "其他研究员",
+          },
+          createdAt: "2026-07-27T10:00:00+08:00",
+          updatedAt: "2026-07-29T09:00:00+08:00",
+          status: "active",
+          accessGroups: [
+            { id: 2, name: "科研用户", isGuest: false, isSuperadmin: false },
+          ],
+          isOwner: false,
+          canEdit: false,
+          canDelete: false,
+          canManageAccess: false,
+        },
+        {
+          id: 23,
+          kind: "project",
+          name: "仅授权管理工程",
+          description: "只能维护可见范围的共享工程",
+          snapshot: { version: 1, groups: [] },
+          owner: {
+            id: 10,
+            username: "workspace_owner",
+            displayName: "工程负责人",
+          },
+          createdAt: "2026-07-26T10:00:00+08:00",
+          updatedAt: "2026-07-29T08:00:00+08:00",
+          status: "active",
+          accessGroups: [],
+          isOwner: false,
+          canEdit: false,
+          canDelete: false,
+          canManageAccess: true,
+        },
+      ],
+      total: 3,
+      availableAccessGroups: [
+        { id: 2, name: "科研用户", isGuest: false, isSuperadmin: false },
+      ],
+    });
+
+    renderAdminRoute("/resources/manage/projects", researchUser);
+
+    const ownProjectName = await screen.findByText("本人科研工程");
+    const ownProjectRow = ownProjectName.closest("tr");
+    expect(ownProjectRow).not.toBeNull();
+    expect(
+      within(ownProjectRow!).getByRole("button", {
+        name: "配置本人科研工程",
+      }),
+    ).toBeEnabled();
+    expect(
+      within(ownProjectRow!).getByRole("button", {
+        name: "删除本人科研工程",
+      }),
+    ).toBeEnabled();
+    const ownStatusSwitch = within(ownProjectRow!).getByRole("switch");
+    expect(ownStatusSwitch).toBeEnabled();
+
+    const sharedProjectName = screen.getByText("他人共享工程");
+    const sharedProjectRow = sharedProjectName.closest("tr");
+    expect(sharedProjectRow).not.toBeNull();
+    expect(
+      within(sharedProjectRow!).getByRole("button", {
+        name: "配置他人共享工程",
+      }),
+    ).toBeDisabled();
+    expect(
+      within(sharedProjectRow!).getByRole("button", {
+        name: "删除他人共享工程",
+      }),
+    ).toBeDisabled();
+    expect(within(sharedProjectRow!).getByRole("switch")).toBeDisabled();
+
+    const accessProjectName = screen.getByText("仅授权管理工程");
+    const accessProjectRow = accessProjectName.closest("tr");
+    expect(accessProjectRow).not.toBeNull();
+    const accessConfigButton = within(accessProjectRow!).getByRole("button", {
+      name: "配置仅授权管理工程",
+    });
+    expect(accessConfigButton).toBeEnabled();
+    expect(
+      within(accessProjectRow!).getByRole("button", {
+        name: "删除仅授权管理工程",
+      }),
+    ).toBeDisabled();
+    expect(within(accessProjectRow!).getByRole("switch")).toBeDisabled();
+
+    fireEvent.click(accessConfigButton);
+    const accessDrawer = (await screen.findByText("工程配置")).closest(
+      ".ant-drawer",
+    );
+    expect(accessDrawer).not.toBeNull();
+    expect(within(accessDrawer!).getByLabelText("工程名称")).toBeDisabled();
+    expect(
+      within(accessDrawer!).getByRole("combobox", {
+        name: "允许访问的角色",
+      }),
+    ).toBeEnabled();
+    fireEvent.click(
+      within(accessDrawer!).getByRole("button", { name: /保存/ }),
+    );
+    await waitFor(() => {
+      expect(mockApi.updateAdminWorkspace).toHaveBeenCalledWith(23, {
+        action: "updateAccess",
+        accessGroupIds: [],
+      });
+    });
+
+    fireEvent.click(ownStatusSwitch);
+    await waitFor(() => {
+      expect(mockApi.updateAdminWorkspace).toHaveBeenCalledWith(21, {
+        action: "setStatus",
+        status: "inactive",
+      });
+    });
+  }, 30000);
+
   it("uses usernames when superadmin workspace owner display names are empty", async () => {
     mockApi.adminWorkspaces.mockResolvedValue({
       items: [
@@ -2527,6 +2955,8 @@ describe("admin routes", () => {
           updatedAt: "2026-06-01T10:00:00+08:00",
           status: "active",
           accessGroups: [],
+          canEdit: true,
+          canDelete: true,
           canManageAccess: true,
         },
       ],

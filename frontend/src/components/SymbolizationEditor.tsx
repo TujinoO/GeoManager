@@ -2304,27 +2304,27 @@ function mergeRecommendedSymbolization(
     renderer,
     circle: {
       ...current.circle,
-      ...(symbolization.circle ?? {}),
+      ...symbolization.circle,
     },
     symbol: {
       ...current.symbol,
-      ...(symbolization.symbol ?? {}),
+      ...symbolization.symbol,
     },
     heatmap: {
       ...current.heatmap,
-      ...(symbolization.heatmap ?? {}),
+      ...symbolization.heatmap,
     },
     cluster: {
       ...(current.cluster ?? defaultVectorSymbolization.cluster),
-      ...(symbolization.cluster ?? {}),
+      ...symbolization.cluster,
     },
     line: {
       ...current.line,
-      ...(symbolization.line ?? {}),
+      ...symbolization.line,
     },
     fill: {
       ...current.fill,
-      ...(symbolization.fill ?? {}),
+      ...symbolization.fill,
     },
   };
 }

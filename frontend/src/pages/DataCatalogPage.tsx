@@ -32,7 +32,7 @@ import {
 } from "antd";
 import type { DataNode } from "antd/es/tree";
 import type { CSSProperties } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import capfedLogoWhite from "../assets/capfed-logo-white.svg";
@@ -124,7 +124,24 @@ export default function DataCatalogPage() {
   const [detailResource, setDetailResource] = useState<ResourceListItem | null>(
     null,
   );
+  const resourceRequestSequenceRef = useRef(0);
   const canBrowseData = Boolean(user?.permissions.canBrowseData);
+  const visiblePortalQuickActions = useMemo(
+    () =>
+      user?.username === "guest"
+        ? portalQuickActions.map((action) =>
+            action.key === "overview"
+              ? {
+                  ...action,
+                  title: "浏览公开数据",
+                  description: "按业务分类和数据形态筛选当前可访问资源",
+                  path: "#public-data-catalog",
+                }
+              : action,
+          )
+        : portalQuickActions,
+    [user?.username],
+  );
   const categoryCode = searchParams.get("categoryCode") ?? "";
   const tree = useMemo(() => taxonomyTree(schema), [schema]);
   const selectedNode = useMemo(
@@ -138,6 +155,7 @@ export default function DataCatalogPage() {
 
   const loadResources = useCallback(
     async (filters: ResourceFilters) => {
+      const requestSequence = ++resourceRequestSequenceRef.current;
       if (!canBrowseData) {
         setResources([]);
         setLoading(false);
@@ -146,17 +164,33 @@ export default function DataCatalogPage() {
       setLoading(true);
       try {
         const response = await api.resources(filters);
-        setResources(response.items);
+        if (requestSequence === resourceRequestSequenceRef.current) {
+          setResources(response.items);
+        }
       } catch (error) {
-        message.error(
-          error instanceof Error ? error.message : "数据目录加载失败",
-        );
+        if (requestSequence === resourceRequestSequenceRef.current) {
+          message.error(
+            error instanceof Error ? error.message : "数据目录加载失败",
+          );
+        }
       } finally {
-        setLoading(false);
+        if (requestSequence === resourceRequestSequenceRef.current) {
+          setLoading(false);
+        }
       }
     },
     [canBrowseData, message],
   );
+
+  function openQuickAction(path: string) {
+    if (path === "#public-data-catalog") {
+      document
+        .getElementById("public-data-catalog")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    navigate(path);
+  }
 
   useEffect(() => {
     if (!canBrowseData) return;
@@ -273,7 +307,7 @@ export default function DataCatalogPage() {
               <Statistic
                 title={
                   <span>
-                    <DatabaseOutlined /> 收录资源
+                    <DatabaseOutlined /> 当前账号可见资源
                   </span>
                 }
                 value={resources.length}
@@ -336,7 +370,7 @@ export default function DataCatalogPage() {
             </Typography.Paragraph>
           </div>
           <div className="data-catalog-feature-grid">
-            {portalQuickActions.map((action, index) => (
+            {visiblePortalQuickActions.map((action, index) => (
               <Button
                 key={action.key}
                 type="text"
@@ -347,7 +381,7 @@ export default function DataCatalogPage() {
                     "--data-catalog-action-order": index,
                   } as CSSProperties
                 }
-                onClick={() => navigate(action.path)}
+                onClick={() => openQuickAction(action.path)}
               >
                 <span className="data-catalog-feature-glow" aria-hidden />
                 <span className="data-catalog-feature-icon">{action.icon}</span>
@@ -367,7 +401,7 @@ export default function DataCatalogPage() {
           <Alert type="warning" showIcon title="当前账号没有数据资源浏览权限" />
         )}
 
-        <section className="data-catalog-toolbar">
+        <section id="public-data-catalog" className="data-catalog-toolbar">
           <Input.Search
             allowClear
             value={keyword}
@@ -457,7 +491,7 @@ export default function DataCatalogPage() {
                   ))}
                 </div>
               ) : (
-                <Empty description="当前分类和筛选条件下暂无资源" />
+                <Empty description="当前账号在该分类和筛选条件下暂无可见资源；如需访问更多数据，请联系管理员申请权限。" />
               )}
             </Spin>
           </section>

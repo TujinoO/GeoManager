@@ -13,21 +13,25 @@ import type {
 } from "../types";
 import {
   readCachedLayerGroups,
+  rememberCachedLayerGroups,
   writeCachedLayerGroups,
 } from "../utils/layerWorkspaceStorage";
 import { useLayerGroups } from "./useLayerGroups";
 
 vi.mock("../utils/layerWorkspaceStorage", () => ({
   readCachedLayerGroups: vi.fn(),
+  rememberCachedLayerGroups: vi.fn(),
   writeCachedLayerGroups: vi.fn(),
 }));
 
 const readCachedLayerGroupsMock = vi.mocked(readCachedLayerGroups);
+const rememberCachedLayerGroupsMock = vi.mocked(rememberCachedLayerGroups);
 const writeCachedLayerGroupsMock = vi.mocked(writeCachedLayerGroups);
 
 describe("useLayerGroups", () => {
   beforeEach(() => {
     readCachedLayerGroupsMock.mockReset();
+    rememberCachedLayerGroupsMock.mockReset();
     writeCachedLayerGroupsMock.mockReset();
     readCachedLayerGroupsMock.mockResolvedValue([]);
     writeCachedLayerGroupsMock.mockResolvedValue();

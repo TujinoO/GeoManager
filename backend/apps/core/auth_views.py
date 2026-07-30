@@ -25,6 +25,8 @@ from apps.core.initialization import (
 from apps.core.passwords import password_validation_errors
 from apps.core.models import RoleApplication, UserProfile
 from apps.core.permissions import (
+    can_access_admin,
+    disabled_feature_permissions,
     direct_feature_permissions,
     effective_feature_permissions,
     feature_permission_queryset,
@@ -234,7 +236,7 @@ def serialize_user(user):
     can_change_map_composition = has_feature_perm(user, "catalog.change_mapcomposition")
     can_delete_map_composition = has_feature_perm(user, "catalog.delete_mapcomposition")
     permissions = {
-        "canAccessAdmin": True,
+        "canAccessAdmin": can_access_admin(user),
         "canManageFeaturePermissions": has_feature_perm(
             user, "core.manage_feature_permissions"
         ),
@@ -336,6 +338,7 @@ def serialize_user(user):
         "isActive": user.is_active,
         "groupPermissions": sorted(group_feature_permissions(user)),
         "directPermissions": sorted(direct_feature_permissions(user)),
+        "disabledPermissions": sorted(disabled_feature_permissions(user)),
         "effectivePermissions": sorted(effective_feature_permissions(user)),
         "operationLogGroupIds": visible_group_ids_for(
             profile["operation_log_group_ids"], user

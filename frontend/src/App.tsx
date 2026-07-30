@@ -8,8 +8,11 @@ import {
   unregisterForbiddenHandler,
 } from "./api/client";
 import { AppContext } from "./contexts/AppContext";
+import { applyPlatformDocumentTitle } from "./config/platformBrand";
 import {
+  AdminIndexRedirect,
   RedirectIfAuth,
+  RequireAdminAccess,
   RequireAuth,
   RequireDataInventory,
   RequireDataUpload,
@@ -115,7 +118,7 @@ export default function App() {
         if (mounted) {
           setBootstrap(bootstrapData);
           setUser(currentUser);
-          document.title = bootstrapData.systemName;
+          applyPlatformDocumentTitle(bootstrapData.systemName);
         }
       } catch (error) {
         message.error(
@@ -267,25 +270,33 @@ export default function App() {
               </Route>
             </Route>
             <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route
-                path="dashboard"
-                element={<AdminDashboardPage scope="operations" />}
-              />
+              <Route index element={<AdminIndexRedirect />} />
               <Route path="profile" element={<AdminProfilePage />} />
-              <Route element={<RequireViewOperationLogs />}>
-                <Route path="logs" element={<AdminOperationLogsPage />} />
-              </Route>
-              <Route element={<RequireManageSystemSettings />}>
-                <Route path="settings" element={<AdminSystemSettingsPage />} />
-              </Route>
-              <Route element={<RequireManageDataBackup />}>
-                <Route path="backup" element={<AdminDataBackupPage />} />
-              </Route>
-              <Route element={<RequireManageAuth />}>
-                <Route path="auth" element={<Navigate to="users" replace />} />
-                <Route path="auth/users" element={<AdminAuthPage />} />
-                <Route path="auth/groups" element={<AdminAuthPage />} />
+              <Route element={<RequireAdminAccess />}>
+                <Route
+                  path="dashboard"
+                  element={<AdminDashboardPage scope="operations" />}
+                />
+                <Route element={<RequireViewOperationLogs />}>
+                  <Route path="logs" element={<AdminOperationLogsPage />} />
+                </Route>
+                <Route element={<RequireManageSystemSettings />}>
+                  <Route
+                    path="settings"
+                    element={<AdminSystemSettingsPage />}
+                  />
+                </Route>
+                <Route element={<RequireManageDataBackup />}>
+                  <Route path="backup" element={<AdminDataBackupPage />} />
+                </Route>
+                <Route element={<RequireManageAuth />}>
+                  <Route
+                    path="auth"
+                    element={<Navigate to="users" replace />}
+                  />
+                  <Route path="auth/users" element={<AdminAuthPage />} />
+                  <Route path="auth/groups" element={<AdminAuthPage />} />
+                </Route>
               </Route>
             </Route>
           </Route>

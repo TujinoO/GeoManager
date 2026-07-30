@@ -48,6 +48,7 @@ from apps.raster.services.jobs import (
     RasterJob,
     get_job,
     get_job_artifact_path,
+    open_job_artifact_for_download,
     start_export_job,
     start_import_job,
     start_render_job,
@@ -98,6 +99,7 @@ __all__ = [
     "start_export_job",
     "get_job",
     "get_job_artifact_path",
+    "open_job_artifact_for_download",
     # importer
     "scan_unprocessed_source_files",
     "scan_unprocessed_source_files_safely",

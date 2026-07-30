@@ -1,15 +1,25 @@
 import json
 import sqlite3
 import tempfile
+import threading
 from contextlib import closing
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 from zipfile import ZipFile
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
-from django.test import TestCase, override_settings
+from django.db import close_old_connections, connection
+from django.test import TestCase, TransactionTestCase, override_settings
 
-from apps.core.backup_service import _sqlite_snapshot, start_backup_run
+from apps.core.backup_service import (
+    BackupRunConflictError,
+    _sqlite_snapshot,
+    start_backup_run,
+    start_due_backup_runs,
+)
 from apps.core.config import load_project_config
 from apps.core.initialization import ensure_superadmin_defaults
 from apps.core.models import BackupRun
@@ -197,6 +207,118 @@ class BackupLocalRunTests(TestCase):
                 manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
             self.assertEqual(manifest["planType"], "platform")
             self.assertGreaterEqual(manifest["fileCount"], 1)
+
+
+class BackupSingleFlightTests(TransactionTestCase):
+    reset_sequences = True
+
+    def test_concurrent_same_plan_creates_one_queued_run(self):
+        barrier = threading.Barrier(2)
+
+        def start_one():
+            close_old_connections()
+            try:
+                barrier.wait(timeout=5)
+                try:
+                    return start_backup_run(
+                        plan_type=BackupRun.PlanType.PLATFORM,
+                        target_type=BackupRun.TargetType.LOCAL,
+                        trigger=BackupRun.Trigger.MANUAL,
+                        run_async=True,
+                    )
+                except BackupRunConflictError as exc:
+                    return exc
+            finally:
+                connection.close()
+
+        with (
+            patch("apps.core.backup_service._ensure_target_configured"),
+            patch("apps.core.backup_service._launch_backup_run"),
+            ThreadPoolExecutor(max_workers=2) as executor,
+        ):
+            results = list(executor.map(lambda _index: start_one(), range(2)))
+
+        runs = [result for result in results if isinstance(result, BackupRun)]
+        conflicts = [
+            result for result in results if isinstance(result, BackupRunConflictError)
+        ]
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(len(conflicts), 1)
+        self.assertEqual(conflicts[0].active_run.id, runs[0].id)
+        self.assertEqual(
+            BackupRun.objects.filter(
+                plan_type=BackupRun.PlanType.PLATFORM,
+                status__in=(BackupRun.Status.QUEUED, BackupRun.Status.RUNNING),
+            ).count(),
+            1,
+        )
+
+    def test_api_returns_structured_conflict_and_archive_names_are_unique(self):
+        superadmin, _group = ensure_superadmin_defaults()
+        self.client.force_login(superadmin)
+        payload = {
+            "planType": BackupRun.PlanType.PLATFORM,
+            "targetType": BackupRun.TargetType.LOCAL,
+        }
+
+        with (
+            patch("apps.core.backup_service._ensure_target_configured"),
+            patch("apps.core.backup_service._launch_backup_run"),
+        ):
+            first_response = self.client.post(
+                "/api/admin/backups/runs/",
+                data=json.dumps(payload),
+                content_type="application/json",
+            )
+            conflict_response = self.client.post(
+                "/api/admin/backups/runs/",
+                data=json.dumps(payload),
+                content_type="application/json",
+            )
+            first_run = BackupRun.objects.get(pk=first_response.json()["id"])
+            first_run.status = BackupRun.Status.SUCCESS
+            first_run.save(update_fields=["status", "updated_at"])
+            second_response = self.client.post(
+                "/api/admin/backups/runs/",
+                data=json.dumps(payload),
+                content_type="application/json",
+            )
+
+        self.assertEqual(first_response.status_code, 202)
+        self.assertEqual(conflict_response.status_code, 409)
+        self.assertEqual(
+            conflict_response.json()["code"], "backup_run_conflict"
+        )
+        self.assertEqual(
+            conflict_response.json()["activeRun"]["id"], first_run.id
+        )
+        self.assertEqual(second_response.status_code, 202)
+        second_run = BackupRun.objects.get(pk=second_response.json()["id"])
+        self.assertNotEqual(first_run.archive_name, second_run.archive_name)
+        self.assertIn(f"-{first_run.id}-", first_run.archive_name)
+        self.assertIn(f"-{second_run.id}-", second_run.archive_name)
+
+    def test_scheduler_skips_plan_that_became_active_after_due_check(self):
+        active_run = BackupRun.objects.create(
+            plan_type=BackupRun.PlanType.PLATFORM,
+            target_type=BackupRun.TargetType.LOCAL,
+            trigger=BackupRun.Trigger.MANUAL,
+        )
+        plan = SimpleNamespace(target=BackupRun.TargetType.LOCAL)
+
+        with (
+            patch(
+                "apps.core.backup_service.due_backup_plans",
+                return_value=[(BackupRun.PlanType.PLATFORM, plan)],
+            ),
+            patch(
+                "apps.core.backup_service.start_backup_run",
+                side_effect=BackupRunConflictError(active_run),
+            ),
+        ):
+            runs = start_due_backup_runs()
+
+        self.assertEqual(runs, [])
 
 
 def grant(user, *specs):

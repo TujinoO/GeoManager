@@ -142,10 +142,10 @@
                   "metrics": [
                     {
                       "id": "dataResources",
-                      "label": "数据资源",
+                      "label": "平台数据资源",
                       "value": 1286,
                       "displayValue": "1,286",
-                      "note": "空间、表格、文档",
+                      "note": "平台已接入总量，登录后按权限显示",
                       "updatedAt": "2026-06-15T10:30:00+08:00"
                     },
                     {
@@ -198,25 +198,25 @@
                       }
                     ],
                     "nodeSummary": {
-                      "total": 24,
-                      "normal": 21,
-                      "warning": 2,
-                      "risk": 1,
+                      "total": 3,
+                      "normal": 3,
+                      "warning": 0,
+                      "risk": 0,
                       "legend": [
                         {
                           "status": "normal",
                           "label": "正常",
-                          "count": 21
+                          "count": 3
                         },
                         {
                           "status": "warning",
                           "label": "待同步",
-                          "count": 2
+                          "count": 0
                         },
                         {
                           "status": "risk",
                           "label": "异常",
-                          "count": 1
+                          "count": 0
                         }
                       ]
                     }
@@ -557,7 +557,7 @@
           "认证接口"
         ],
         "summary": "游客登录",
-        "description": "使用系统维护的专用 `guest` 账号建立游客会话。游客账号不可使用密码登录，只归属 `游客` 用户组；默认仅具备公开数据浏览、查询、图层加载和共享成果查看权限，管理员可在认证授权中调整游客角色权限。\n",
+        "description": "使用系统维护的专用 `guest` 账号建立游客会话。游客账号不可使用密码登录，只归属 `游客` 用户组；默认仅具备公开数据浏览、查询、图层加载和共享成果查看权限，管理员可在认证授权中调整游客角色权限。同一对象选择 `游客` 访问角色即表示公开共享，其他已登录角色也保留对该公开对象的访问权。\n",
         "operationId": "guestLogin",
         "security": [],
         "responses": {
@@ -7392,7 +7392,7 @@
           "数据目录"
         ],
         "summary": "获取工程和专题列表",
-        "description": "返回当前登录用户拥有或其所属角色可访问的启用工程；超级管理员和平台管理员返回平台全部启用工程。需要 `catalog.view_workspacescene`，并返回保存时可选择的额外访问角色。",
+        "description": "返回当前登录用户拥有或其所属角色可访问的启用工程；选择 `游客` 访问角色的工程视为公开工程，对游客及其他已登录角色可见；超级管理员和平台管理员返回平台全部启用工程。需要 `catalog.view_workspacescene`，并返回保存时可选择的额外访问角色。",
         "operationId": "listCatalogWorkspaces",
         "security": [
           {
@@ -13303,7 +13303,7 @@
         "properties": {
           "canAccessAdmin": {
             "type": "boolean",
-            "description": "当前登录会话是否可访问管理后台。后台入口对所有登录用户开放，因此认证用户恒为 true；后台内部内容由其他细粒度权限控制。"
+            "description": "当前登录会话是否具备至少一项运行概览、日志、系统设置、备份或认证授权等运维权限。普通用户、科研用户和游客在仅有数据业务权限时为 false，前端隐藏后台入口；个人设置仍可独立访问。"
           },
           "canManageFeaturePermissions": {
             "type": "boolean",
@@ -16126,7 +16126,7 @@
           "draft",
           "published"
         ],
-        "description": "草稿仅创建者和管理员可见，已发布成果按访问角色共享"
+        "description": "草稿仅创建者和管理员可见，已发布成果按访问角色共享；游客角色表示公开成果，游客及其他已登录角色均可见"
       },
       "ResultArtifactCreatePayload": {
         "type": "object",
@@ -16572,7 +16572,7 @@
           },
           "isGuest": {
             "type": "boolean",
-            "description": "是否为系统内置游客用户组；选择该组表示无需账号即可通过游客会话访问数据"
+            "description": "是否为系统内置游客用户组；选择该组表示对象公开，既可通过游客会话访问，其他已登录角色也保留访问权"
           },
           "isSuperadmin": {
             "type": "boolean",
@@ -17144,7 +17144,7 @@
           },
           "accessGroupIds": {
             "type": "array",
-            "description": "updateAccess 或 update 时写入的额外可见用户组 ID 列表；调用方不能选择超级管理员用户组，后端会强制补齐超级管理员用户组，上传者本人不依赖用户组也始终可见。包含游客用户组时表示未登录用户可通过游客会话访问该数据。",
+            "description": "updateAccess 或 update 时写入的额外可见用户组 ID 列表；调用方不能选择超级管理员用户组，后端会强制补齐超级管理员用户组，上传者本人不依赖用户组也始终可见。包含游客用户组时表示该数据公开，游客会话和其他已登录角色均可访问。",
             "items": {
               "type": "integer"
             }
@@ -17258,7 +17258,7 @@
           },
           "accessGroupIds": {
             "type": "array",
-            "description": "updateAccess 或 update 时写入的额外可见用户组 ID 列表；不能选择超级管理员用户组，后端会强制保留管理员访问，所属用户本人始终可见。包含游客用户组时表示游客会话可以访问该工程。",
+            "description": "updateAccess 或 update 时写入的额外可见用户组 ID 列表；不能选择超级管理员用户组，后端会强制保留管理员访问，所属用户本人始终可见。包含游客用户组时表示该工程公开，游客会话和其他已登录角色均可访问。",
             "items": {
               "type": "integer"
             }
