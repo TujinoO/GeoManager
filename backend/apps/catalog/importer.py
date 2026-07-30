@@ -5,6 +5,7 @@ import math
 import re
 import sqlite3
 import uuid
+import zipfile
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
@@ -24,6 +25,7 @@ from apps.catalog.vector_store import geopackage_layer_exists
 from apps.catalog.vector_storage import append_geopackage_layer
 from apps.core.initialization import ensure_superadmin_defaults
 from apps.core.principal_visibility import selectable_access_groups_for
+from apps.core.runtime_config import RuntimeConfigError, runtime_upload_max_mb
 from apps.core.storage import table_data_path, vector_geopackage_path
 from apps.standards.models import DataDomainType
 
@@ -34,6 +36,8 @@ class ImportDataError(ValueError):
 
 MAX_PREVIEW_ROWS = 8
 MAX_TABLE_NAME_LENGTH = 63
+MAX_TABLE_PARSE_UPLOAD_MB = 16
+MAX_XLSX_EXPANDED_BYTES = 128 * 1024 * 1024
 COORDINATE_UNCERTAINTY_RATIO_THRESHOLD = 200
 TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
 LATITUDE_ALIASES = {
@@ -104,10 +108,11 @@ def preview_uploaded_table(
     uploaded_file, sheet_name: str | None = None
 ) -> dict[str, Any]:
     filename = str(uploaded_file.name or "")
-    raw = _uploaded_file_bytes(uploaded_file)
-    sheets = workbook_sheet_summaries(raw, filename)
+    source = _uploaded_table_source(uploaded_file, filename)
+    sheets = workbook_sheet_summaries(source, filename)
     active_sheet = _selected_sheet_name(sheets, sheet_name)
-    df = read_table_bytes(raw, filename, sheet_name=active_sheet)
+    _rewind_table_source(source)
+    df = read_table_source(source, filename, sheet_name=active_sheet)
     columns = list(df.columns)
     longitude_column, latitude_column = infer_coordinate_columns(df)
     suggested_name = _suggested_display_name(Path(filename).stem, active_sheet, sheets)
@@ -387,23 +392,30 @@ def import_plain_table(
 
 def read_uploaded_table(uploaded_file, sheet_name: str | None = None) -> pd.DataFrame:
     filename = str(uploaded_file.name or "")
-    raw = _uploaded_file_bytes(uploaded_file)
-    return read_table_bytes(raw, filename, sheet_name=sheet_name)
+    source = _uploaded_table_source(uploaded_file, filename)
+    return read_table_source(source, filename, sheet_name=sheet_name)
 
 
 def read_table_bytes(
     raw: bytes, filename: str, *, sheet_name: str | None = None
 ) -> pd.DataFrame:
+    return read_table_source(BytesIO(raw), filename, sheet_name=sheet_name)
+
+
+def read_table_source(
+    source, filename: str, *, sheet_name: str | None = None
+) -> pd.DataFrame:
     suffix = Path(filename).suffix.lower()
-    if not raw:
+    if _table_source_is_empty(source):
         raise ImportDataError("上传文件为空")
 
     try:
         if suffix == ".csv":
-            df = _read_csv_bytes(raw)
+            df = _read_csv_source(source)
         elif suffix in {".xls", ".xlsx"}:
+            _rewind_table_source(source)
             df = pd.read_excel(
-                BytesIO(raw),
+                source,
                 sheet_name=sheet_name or 0,
                 dtype=str,
                 keep_default_na=False,
@@ -423,38 +435,42 @@ def read_table_bytes(
     return normalize_dataframe(df)
 
 
-def workbook_sheet_summaries(raw: bytes, filename: str) -> list[WorkbookSheetSummary]:
+def workbook_sheet_summaries(source, filename: str) -> list[WorkbookSheetSummary]:
     suffix = Path(filename).suffix.lower()
     if suffix not in {".xls", ".xlsx"}:
         return []
-    if not raw:
+    if _table_source_is_empty(source):
         raise ImportDataError("上传文件为空")
     try:
-        workbook = pd.ExcelFile(BytesIO(raw))
+        _rewind_table_source(source)
+        workbook = pd.ExcelFile(source)
     except Exception as exc:
         raise ImportDataError(f"读取上传表格失败：{exc}") from exc
 
     summaries: list[WorkbookSheetSummary] = []
-    for sheet in workbook.sheet_names:
-        df = pd.read_excel(
-            workbook,
-            sheet_name=sheet,
-            dtype=str,
-            keep_default_na=False,
-            na_filter=False,
-        )
-        normalized = normalize_dataframe(df)
-        longitude_column, latitude_column = infer_coordinate_columns(normalized)
-        summaries.append(
-            WorkbookSheetSummary(
-                name=str(sheet),
-                row_count=int(len(normalized)),
-                column_count=len(normalized.columns),
-                is_geographic=bool(longitude_column and latitude_column),
-                longitude_column=longitude_column,
-                latitude_column=latitude_column,
+    try:
+        for sheet in workbook.sheet_names:
+            df = pd.read_excel(
+                workbook,
+                sheet_name=sheet,
+                dtype=str,
+                keep_default_na=False,
+                na_filter=False,
             )
-        )
+            normalized = normalize_dataframe(df)
+            longitude_column, latitude_column = infer_coordinate_columns(normalized)
+            summaries.append(
+                WorkbookSheetSummary(
+                    name=str(sheet),
+                    row_count=int(len(normalized)),
+                    column_count=len(normalized.columns),
+                    is_geographic=bool(longitude_column and latitude_column),
+                    longitude_column=longitude_column,
+                    latitude_column=latitude_column,
+                )
+            )
+    finally:
+        workbook.close()
     return summaries
 
 
@@ -481,17 +497,20 @@ def coordinate_stats_for(
     df: pd.DataFrame, longitude_column: str, latitude_column: str
 ) -> CoordinateStats:
     valid_mask = _valid_coordinate_mask(df, longitude_column, latitude_column)
-    errors = []
+    minimum_error: float | None = None
+    maximum_error: float | None = None
     for _, row in df[valid_mask].iterrows():
         lon_text = str(row[longitude_column]).strip()
         lat_text = str(row[latitude_column]).strip()
-        errors.append(_position_error_meters(lon_text, lat_text))
+        error = _position_error_meters(lon_text, lat_text)
+        minimum_error = error if minimum_error is None else min(minimum_error, error)
+        maximum_error = error if maximum_error is None else max(maximum_error, error)
     return CoordinateStats(
         total_rows=int(len(df)),
         valid_rows=int(valid_mask.sum()),
         missing_rows=int(len(df) - valid_mask.sum()),
-        error_min_meters=round(min(errors), 6) if errors else None,
-        error_max_meters=round(max(errors), 6) if errors else None,
+        error_min_meters=round(minimum_error, 6) if minimum_error is not None else None,
+        error_max_meters=round(maximum_error, 6) if maximum_error is not None else None,
     )
 
 
@@ -503,7 +522,8 @@ def validate_coordinate_columns(
     invalid_format_count = 0
     invalid_longitude_count = 0
     invalid_latitude_count = 0
-    errors = []
+    minimum_positive_error: float | None = None
+    maximum_positive_error: float | None = None
 
     for _, row in df.iterrows():
         lon_text = str(row[longitude_column]).strip()
@@ -525,7 +545,18 @@ def validate_coordinate_columns(
             invalid_latitude_count += 1
             row_has_range_error = True
         if not row_has_range_error:
-            errors.append(_position_error_meters(lon_text, lat_text))
+            error = _position_error_meters(lon_text, lat_text)
+            if error > 0:
+                minimum_positive_error = (
+                    error
+                    if minimum_positive_error is None
+                    else min(minimum_positive_error, error)
+                )
+                maximum_positive_error = (
+                    error
+                    if maximum_positive_error is None
+                    else max(maximum_positive_error, error)
+                )
 
     if missing_count:
         issues.append(
@@ -560,23 +591,21 @@ def validate_coordinate_columns(
             )
         )
 
-    positive_errors = [error for error in errors if error > 0]
-    if positive_errors:
-        minimum = min(positive_errors)
-        maximum = max(positive_errors)
-        ratio = maximum / minimum
+    if minimum_positive_error is not None and maximum_positive_error is not None:
+        ratio = maximum_positive_error / minimum_positive_error
         if ratio > COORDINATE_UNCERTAINTY_RATIO_THRESHOLD:
             issues.append(
                 ImportValidationIssue(
                     code="coordinate_uncertainty",
                     blocking=False,
-                    min_meters=round(minimum, 6),
-                    max_meters=round(maximum, 6),
+                    min_meters=round(minimum_positive_error, 6),
+                    max_meters=round(maximum_positive_error, 6),
                     ratio=round(ratio, 2),
                     message=(
                         "坐标不确定性差距超过 "
                         f"{COORDINATE_UNCERTAINTY_RATIO_THRESHOLD} 倍："
-                        f"最小约 {minimum:.6f} 米，最大约 {maximum:.6f} 米。"
+                        f"最小约 {minimum_positive_error:.6f} 米，"
+                        f"最大约 {maximum_positive_error:.6f} 米。"
                     ),
                 )
             )
@@ -746,12 +775,13 @@ def write_sqlite_field_metadata(
     )
 
 
-def _read_csv_bytes(raw: bytes) -> pd.DataFrame:
+def _read_csv_source(source) -> pd.DataFrame:
     last_error: Exception | None = None
     for encoding in ("utf-8-sig", "gb18030"):
         try:
+            _rewind_table_source(source)
             return pd.read_csv(
-                BytesIO(raw),
+                source,
                 dtype=str,
                 keep_default_na=False,
                 na_filter=False,
@@ -762,11 +792,54 @@ def _read_csv_bytes(raw: bytes) -> pd.DataFrame:
     raise ImportDataError(f"CSV 编码无法识别：{last_error}")
 
 
-def _uploaded_file_bytes(uploaded_file) -> bytes:
-    raw = uploaded_file.read()
-    if not raw:
+def _uploaded_table_source(uploaded_file, filename: str):
+    try:
+        configured_max_mb = runtime_upload_max_mb()
+    except RuntimeConfigError as exc:
+        raise ImportDataError(str(exc)) from exc
+    safe_max_mb = min(configured_max_mb, MAX_TABLE_PARSE_UPLOAD_MB)
+    max_size_bytes = safe_max_mb * 1024 * 1024
+    upload_size = int(getattr(uploaded_file, "size", 0) or 0)
+    if upload_size > max_size_bytes:
+        raise ImportDataError("上传表格超过平台上传大小限制")
+    if upload_size <= 0:
         raise ImportDataError("上传文件为空")
-    return raw
+
+    temporary_path = getattr(uploaded_file, "temporary_file_path", None)
+    source = Path(temporary_path()) if callable(temporary_path) else uploaded_file
+    _rewind_table_source(source)
+    if Path(filename).suffix.lower() == ".xlsx":
+        _validate_xlsx_expanded_size(source)
+        _rewind_table_source(source)
+    return source
+
+
+def _validate_xlsx_expanded_size(source) -> None:
+    try:
+        with zipfile.ZipFile(source) as archive:
+            expanded_size = sum(item.file_size for item in archive.infolist())
+    except (OSError, zipfile.BadZipFile) as exc:
+        raise ImportDataError(f"读取上传表格失败：{exc}") from exc
+    if expanded_size > MAX_XLSX_EXPANDED_BYTES:
+        raise ImportDataError("XLSX 解压后超过 128 MB 在线解析安全限制")
+
+
+def _rewind_table_source(source) -> None:
+    seek = getattr(source, "seek", None)
+    if callable(seek):
+        seek(0)
+
+
+def _table_source_is_empty(source) -> bool:
+    if isinstance(source, (str, Path)):
+        try:
+            return Path(source).stat().st_size == 0
+        except OSError:
+            return True
+    getbuffer = getattr(source, "getbuffer", None)
+    if callable(getbuffer):
+        return len(getbuffer()) == 0
+    return False
 
 
 def _payload_sheet_name(payload: dict[str, Any]) -> str | None:

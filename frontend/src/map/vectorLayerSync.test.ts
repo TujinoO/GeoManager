@@ -5,6 +5,7 @@ import type { LoadedVectorLayer } from "../types";
 import {
   addLoadedStyleLayers,
   loadedStyleLayerIds,
+  reorderLoadedStyleLayers,
   setLoadedLayerGroupVisibility,
 } from "./vectorLayerSync";
 
@@ -15,7 +16,10 @@ function createVectorLayer(
     id: "layer-1",
     name: "Test layer",
     layerType: "vector",
-    sourceResource: { id: 1, name: "Resource" } as LoadedVectorLayer["sourceResource"],
+    sourceResource: {
+      id: 1,
+      name: "Resource",
+    } as LoadedVectorLayer["sourceResource"],
     geojson: {
       type: "FeatureCollection",
       features: [
@@ -68,6 +72,36 @@ describe("setLoadedLayerGroupVisibility", () => {
         "visible",
       );
     }
+  });
+});
+
+describe("reorderLoadedStyleLayers", () => {
+  it("keeps the first layer in the tree above later layers on the map", () => {
+    const upper = { ...createVectorLayer(), id: "upper" };
+    const lower = { ...createVectorLayer(), id: "lower" };
+    const existingIds = new Set([
+      "loaded-upper-fill",
+      "loaded-upper-line",
+      "loaded-lower-fill",
+      "loaded-lower-line",
+    ]);
+    const moveLayer = vi.fn();
+    const map = {
+      style: {},
+      getLayer: vi.fn((id: string) =>
+        existingIds.has(id) ? { id } : undefined,
+      ),
+      moveLayer,
+    } as unknown as MapboxMap;
+
+    reorderLoadedStyleLayers(map, [upper, lower]);
+
+    expect(moveLayer.mock.calls.map(([id]) => id)).toEqual([
+      "loaded-lower-fill",
+      "loaded-lower-line",
+      "loaded-upper-fill",
+      "loaded-upper-line",
+    ]);
   });
 });
 

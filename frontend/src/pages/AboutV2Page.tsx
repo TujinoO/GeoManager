@@ -361,7 +361,7 @@ function InstitutionOverview({
               </div>
               <Button
                 icon={<ArrowRightOutlined />}
-                iconPosition="end"
+                iconPlacement="end"
                 type="primary"
                 onClick={() => onNavigate(`/about/${mode}/${institution.id}`)}
               >
@@ -395,7 +395,7 @@ function InstitutionDetail({
         </Button>
         <Button
           icon={<ArrowRightOutlined />}
-          iconPosition="end"
+          iconPlacement="end"
           onClick={onSwitch}
         >
           {isTeam ? "查看成员名录" : "查看团队介绍"}
@@ -517,15 +517,19 @@ function InstitutionDetail({
             <SectionTitle
               icon={<UsergroupAddOutlined />}
               eyebrow="MEMBER DIRECTORY"
-              title={`${institution.shortName}核心成员`}
-              description="成员按研究角色与专业方向组织，负责人信息在上方独立展示。"
+              title={`${institution.shortName}团队成员`}
+              description={`共 ${institution.members.length} 位成员，按研究角色与专业方向组织；负责人信息在上方独立展示。`}
             />
             <div className="about-v2-member-grid">
               {institution.members.map((member) => (
                 <article key={member.name}>
-                  <span>
-                    <UserOutlined />
-                  </span>
+                  {member.portrait ? (
+                    <img alt={`${member.name}证件照`} src={member.portrait} />
+                  ) : (
+                    <span>
+                      <UserOutlined />
+                    </span>
+                  )}
                   <div>
                     <strong>{member.name}</strong>
                     <small>{member.role}</small>

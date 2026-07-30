@@ -76,6 +76,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "apps.core.middleware.FrontendSecurityHeadersMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -142,7 +143,10 @@ STORAGES = {
 }
 MEDIA_URL = "media/"
 MEDIA_ROOT = PROJECT_CONFIG.app_path("media")
-DATA_UPLOAD_MAX_MEMORY_SIZE = None
+# Keep ordinary JSON/form requests bounded. Multipart file bodies are streamed by
+# Django's upload handlers and are validated separately against the runtime limit.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "/"

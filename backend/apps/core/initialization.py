@@ -196,18 +196,20 @@ def ensure_guest_user():
         user.is_active = True
         user.is_staff = False
         user.is_superuser = False
-        user.set_unusable_password()
-        user.save(
-            update_fields=[
-                "first_name",
-                "last_name",
-                "email",
-                "is_active",
-                "is_staff",
-                "is_superuser",
-                "password",
-            ]
-        )
+        password_changed = user.has_usable_password()
+        if password_changed:
+            user.set_unusable_password()
+        update_fields = [
+            "first_name",
+            "last_name",
+            "email",
+            "is_active",
+            "is_staff",
+            "is_superuser",
+        ]
+        if password_changed:
+            update_fields.append("password")
+        user.save(update_fields=update_fields)
         user.groups.set([guest_group])
         user.user_permissions.clear()
         profile, _ = UserProfile.objects.get_or_create(user=user)

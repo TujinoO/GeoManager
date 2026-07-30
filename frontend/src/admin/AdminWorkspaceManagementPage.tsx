@@ -84,13 +84,8 @@ export default function AdminWorkspaceManagementPage({
   const [loading, setLoading] = useState(false);
   const canView = Boolean(user?.permissions.canViewWorkspaces);
   const canChange = Boolean(user?.permissions.canChangeWorkspaces);
-  const canManageAllData = Boolean(
-    user?.roles.includes("平台管理员") || user?.permissions.canManageDataBackup,
-  );
-  const canMaintain = canChange && canManageAllData;
-  const canDelete = Boolean(
-    user?.permissions.canDeleteWorkspaces && canManageAllData,
-  );
+  const canMaintain = canChange;
+  const canDelete = Boolean(user?.permissions.canDeleteWorkspaces);
   const canOpen = canView || canChange || canDelete;
   const label = kindLabels[kind];
 
@@ -184,7 +179,11 @@ export default function AdminWorkspaceManagementPage({
     values: ManagedFormValues,
   ) {
     try {
-      if (!canMaintain) {
+      if (!canMaintain || !item.canEdit) {
+        if (!item.canManageAccess) {
+          message.warning(`当前用户无${label}编辑权限`);
+          return;
+        }
         const updated = await api.updateAdminWorkspace(item.id, {
           action: "updateAccess",
           accessGroupIds: realAccessGroupIds(values.accessGroupIds),
@@ -218,7 +217,7 @@ export default function AdminWorkspaceManagementPage({
   }
 
   async function toggleStatus(item: AdminWorkspaceScene, checked: boolean) {
-    if (!canMaintain) {
+    if (!canMaintain || !item.canEdit) {
       message.warning(`当前用户无${label}编辑权限`);
       return;
     }
@@ -241,7 +240,7 @@ export default function AdminWorkspaceManagementPage({
     item: AdminWorkspaceScene,
     confirmationName: string,
   ) {
-    if (!canDelete) {
+    if (!canDelete || !item.canDelete) {
       message.warning(`当前用户无${label}删除权限`);
       return;
     }
@@ -306,7 +305,7 @@ export default function AdminWorkspaceManagementPage({
           checked={record.status === "active"}
           checkedChildren="启用"
           unCheckedChildren="禁用"
-          disabled={!canMaintain}
+          disabled={!canMaintain || !record.canEdit}
           onChange={(checked) => toggleStatus(record, checked)}
         />
       ),
@@ -393,7 +392,9 @@ export default function AdminWorkspaceManagementPage({
         </Typography.Text>
       }
       canMaintain={canMaintain}
+      canMaintainItem={(item) => item.canEdit}
       canDelete={canDelete}
+      canDeleteItem={(item) => item.canDelete}
       detailItems={(item) => [
         { label: `${label}名称`, value: item.name },
         { label: "类型", value: kindLabels[item.kind] },

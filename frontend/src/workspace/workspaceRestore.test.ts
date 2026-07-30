@@ -121,6 +121,7 @@ describe("restoreWorkspaceGroups", () => {
       savedGroups: [makeGroup([makeSavedVectorLayer({ query: undefined })])],
       canQueryData: true,
       canLoadVectorLayer: true,
+      canLoadRasterLayer: true,
       queryResultLimit: 30000,
       notification,
     });
@@ -142,6 +143,7 @@ describe("restoreWorkspaceGroups", () => {
       savedGroups: [makeGroup([makeSavedVectorLayer()])],
       canQueryData: true,
       canLoadVectorLayer: true,
+      canLoadRasterLayer: true,
       queryResultLimit: 30000,
       notification,
     });
@@ -163,6 +165,7 @@ describe("restoreWorkspaceGroups", () => {
       savedGroups: [makeGroup([makeSavedRasterLayer()])],
       canQueryData: true,
       canLoadVectorLayer: true,
+      canLoadRasterLayer: true,
       queryResultLimit: 30000,
       notification,
     });
@@ -178,11 +181,57 @@ describe("restoreWorkspaceGroups", () => {
     ]);
   });
 
+  it("skips raster snapshot references when the current account cannot load rasters", async () => {
+    const result = await restoreWorkspaceGroups({
+      savedGroups: [makeGroup([makeSavedRasterLayer()])],
+      canQueryData: true,
+      canLoadVectorLayer: true,
+      canLoadRasterLayer: false,
+      queryResultLimit: 30000,
+      notification,
+    });
+
+    expect(mockApi.resourceProfile).not.toHaveBeenCalled();
+    expect(result.groups).toEqual([]);
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        layerName: "栅格图层",
+        reason: expect.stringContaining("申请权限"),
+        action: "skipped",
+      }),
+    ]);
+  });
+
+  it("skips forbidden raster snapshot references instead of requesting stale tiles", async () => {
+    mockApi.resourceProfile.mockRejectedValue(
+      Object.assign(new Error("Forbidden"), { status: 403 }),
+    );
+
+    const result = await restoreWorkspaceGroups({
+      savedGroups: [makeGroup([makeSavedRasterLayer()])],
+      canQueryData: true,
+      canLoadVectorLayer: true,
+      canLoadRasterLayer: true,
+      queryResultLimit: 30000,
+      notification,
+    });
+
+    expect(result.groups).toEqual([]);
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        layerName: "栅格图层",
+        reason: expect.stringContaining("申请权限"),
+        action: "skipped",
+      }),
+    ]);
+  });
+
   it("restores manually created empty groups", async () => {
     const result = await restoreWorkspaceGroups({
       savedGroups: [{ ...makeGroup([]), isManual: true }],
       canQueryData: true,
       canLoadVectorLayer: true,
+      canLoadRasterLayer: true,
       queryResultLimit: 30000,
       notification,
     });

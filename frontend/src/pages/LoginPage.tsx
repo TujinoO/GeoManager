@@ -22,13 +22,18 @@ import {
   Radio,
   Typography,
 } from "antd";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import capfedLogoWhite from "../assets/capfed-logo-white.svg";
 import { oceanBorderBeam } from "../components/oceanBorderBeam";
 import { platformBrand } from "../config/platformBrand";
 import { useAppContext } from "../contexts/AppContext";
-import type { LoginFormValues, RegisterFormValues } from "../types";
+import type {
+  LoginFormValues,
+  LoginOverviewResponse,
+  LoginOverviewStatus,
+  RegisterFormValues,
+} from "../types";
 
 const platformChineseName = platformBrand.chineseName;
 const platformEnglishName = platformBrand.englishName;
@@ -36,34 +41,7 @@ const platformShortName = platformBrand.shortName;
 const platformEdition = platformBrand.edition;
 const platformVersion = "v1.0.0";
 
-const loginStats = [
-  {
-    icon: <DatabaseOutlined style={{ fontSize: 18 }} />,
-    label: "数据资源",
-    note: "空间、表格、文档",
-    value: "1,286",
-  },
-  {
-    icon: <FundProjectionScreenOutlined style={{ fontSize: 18 }} />,
-    label: "专题图层",
-    note: "生态保护专题",
-    value: "37",
-  },
-  {
-    icon: <DeploymentUnitOutlined style={{ fontSize: 18 }} />,
-    label: "监测站点",
-    note: "长期观测网络",
-    value: "94",
-  },
-  {
-    icon: <EnvironmentOutlined style={{ fontSize: 18 }} />,
-    label: "覆盖流域",
-    note: "中亚重点区域",
-    value: "12",
-  },
-] as const;
-
-const capabilityTags = [
+const fallbackCapabilityTags = [
   "遥感影像",
   "矢量边界",
   "野外样方",
@@ -71,34 +49,64 @@ const capabilityTags = [
   "专题共享",
 ];
 
-const stationStatuses = Array.from({ length: 24 }, (_, index) => {
-  const position = index + 1;
-  let state = "normal";
-  if (position === 8 || position === 19) {
-    state = "warning";
-  }
-  return { id: `station-${position}`, state };
-});
+function fallbackLoginStats() {
+  return [
+    {
+      id: "dataResources",
+      icon: <DatabaseOutlined style={{ fontSize: 18 }} />,
+      label: "平台数据资源",
+      note: "实时统计暂不可用",
+      value: 0,
+      displayValue: "--",
+    },
+    {
+      id: "thematicLayers",
+      icon: <FundProjectionScreenOutlined style={{ fontSize: 18 }} />,
+      label: "专题图层",
+      note: "实时统计暂不可用",
+      value: 0,
+      displayValue: "--",
+    },
+    {
+      id: "monitoringSites",
+      icon: <DeploymentUnitOutlined style={{ fontSize: 18 }} />,
+      label: "监测站点",
+      note: "实时统计暂不可用",
+      value: 0,
+      displayValue: "--",
+    },
+    {
+      id: "coveredBasins",
+      icon: <EnvironmentOutlined style={{ fontSize: 18 }} />,
+      label: "覆盖流域",
+      note: "实时统计暂不可用",
+      value: 0,
+      displayValue: "--",
+    },
+  ];
+}
 
-const serviceStatusSummary = [
-  {
-    label: "正常",
-    state: "normal",
-    value: stationStatuses.filter((station) => station.state === "normal")
-      .length,
-  },
-  {
-    label: "待同步",
-    state: "warning",
-    value: stationStatuses.filter((station) => station.state === "warning")
-      .length,
-  },
-  {
-    label: "异常",
-    state: "risk",
-    value: stationStatuses.filter((station) => station.state === "risk").length,
-  },
-] as const;
+function metricIcon(metricId: string) {
+  const style = { fontSize: 18 };
+  if (metricId === "dataResources") return <DatabaseOutlined style={style} />;
+  if (metricId === "thematicLayers") {
+    return <FundProjectionScreenOutlined style={style} />;
+  }
+  if (metricId === "monitoringSites") {
+    return <DeploymentUnitOutlined style={style} />;
+  }
+  return <EnvironmentOutlined style={style} />;
+}
+
+function serviceNodes(overview: LoginOverviewResponse | null) {
+  if (!overview) return [];
+  return overview.serviceStatus.nodeSummary.legend.flatMap((item) =>
+    Array.from({ length: item.count }, (_, index) => ({
+      id: `${item.status}-${index + 1}`,
+      state: item.status as LoginOverviewStatus,
+    })),
+  );
+}
 
 export default function LoginPage() {
   const { bootstrap, setUser } = useAppContext();
@@ -109,7 +117,36 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [accountPurpose, setAccountPurpose] =
     useState<RegisterFormValues["accountPurpose"]>("standard");
+  const [overview, setOverview] = useState<LoginOverviewResponse | null>(null);
   const isSubmitting = submittingAction !== null;
+
+  useEffect(() => {
+    let mounted = true;
+    api
+      .loginOverview()
+      .then((result) => {
+        if (mounted) setOverview(result);
+      })
+      .catch(() => {
+        if (mounted) setOverview(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const loginStats = useMemo(
+    () =>
+      overview?.metrics.map((metric) => ({
+        ...metric,
+        icon: metricIcon(metric.id),
+      })) ?? fallbackLoginStats(),
+    [overview],
+  );
+  const capabilityTags =
+    overview?.hero.capabilityTags ?? fallbackCapabilityTags;
+  const stationStatuses = useMemo(() => serviceNodes(overview), [overview]);
+  const serviceStatusSummary = overview?.serviceStatus.nodeSummary.legend ?? [];
 
   async function handleFinish(values: LoginFormValues) {
     setSubmittingAction("login");
@@ -195,7 +232,7 @@ export default function LoginPage() {
             <BorderBeam color={oceanBorderBeam} key={stat.label}>
               <div className="login-stat">
                 <span className="login-stat-icon">{stat.icon}</span>
-                <strong>{stat.value}</strong>
+                <strong>{stat.displayValue}</strong>
                 <span>{stat.label}</span>
                 <small>{stat.note}</small>
               </div>
@@ -206,10 +243,13 @@ export default function LoginPage() {
         <BorderBeam color={oceanBorderBeam}>
           <div className="login-ops-panel">
             <div className="login-ops-copy">
-              <span>平台服务状态</span>
-              <strong>资源目录已接入 · 图层服务可用 · 权限认证开启</strong>
+              <span>{overview?.serviceStatus.title ?? "平台服务状态"}</span>
+              <strong>
+                {overview?.serviceStatus.headline ?? "正在读取平台实时状态"}
+              </strong>
               <small>
-                登录后可按账号权限进入数据目录、地理工作台与后台管理功能。
+                {overview?.serviceStatus.description ??
+                  "平台统计暂不可用，但不影响登录和游客访问。"}
               </small>
             </div>
             <div className="login-ops-status">
@@ -220,9 +260,9 @@ export default function LoginPage() {
               </div>
               <div className="login-status-legend">
                 {serviceStatusSummary.map((item) => (
-                  <span key={item.state}>
-                    <i data-state={item.state} />
-                    {item.label} {item.value}
+                  <span key={item.status}>
+                    <i data-state={item.status} />
+                    {item.label} {item.count}
                   </span>
                 ))}
               </div>
@@ -231,9 +271,11 @@ export default function LoginPage() {
         </BorderBeam>
 
         <footer className="login-version-bar">
-          <span>{platformEdition}</span>
-          <span>{platformVersion}</span>
-          <span>统计口径待接入后端平台概览接口</span>
+          <span>{overview?.platform.edition ?? platformEdition}</span>
+          <span>{overview?.platform.version ?? platformVersion}</span>
+          <span>
+            {overview?.footer.statisticsNotice ?? "正在读取后端平台概览统计"}
+          </span>
         </footer>
       </section>
 
@@ -259,6 +301,7 @@ export default function LoginPage() {
 
           {mode === "login" ? (
             <Form<LoginFormValues>
+              key="login"
               className="login-form"
               layout="vertical"
               initialValues={{ remember: true }}
@@ -355,6 +398,7 @@ export default function LoginPage() {
             </Form>
           ) : (
             <Form<RegisterFormValues>
+              key="register"
               className="login-form"
               layout="vertical"
               initialValues={{ accountPurpose: "standard" }}

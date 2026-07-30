@@ -394,6 +394,62 @@ describe("DataPanel", () => {
     await waitFor(() => expect(button).not.toHaveClass("ant-btn-loading"));
   });
 
+  it("tracks simultaneous quick loads independently", async () => {
+    const secondResource: ResourceListItem = {
+      ...vectorResource,
+      id: 4,
+      code: "poplar-samples-second",
+      name: "Second vector resource",
+    };
+    const resolvers = new Map<ResourceListItem["id"], () => void>();
+    const onQuickLoadResource = vi.fn(
+      (resource: ResourceListItem) =>
+        new Promise<void>((resolve) => {
+          resolvers.set(resource.id, resolve);
+        }),
+    );
+
+    renderWithAntd(
+      <DataPanel
+        resources={[vectorResource, secondResource]}
+        profile={null}
+        selectedResourceId={null}
+        queryResult={null}
+        loadingProfile={false}
+        querying={false}
+        permissions={permissions}
+        onFilterResources={vi.fn()}
+        onSelectResource={vi.fn()}
+        onQuickLoadResource={onQuickLoadResource}
+        onQueryAndLoad={vi.fn()}
+        onLoadRaster={vi.fn()}
+      />,
+    );
+
+    const buttons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        ".resource-quick-load-button",
+      ),
+    );
+    expect(buttons).toHaveLength(2);
+    fireEvent.click(buttons[0]);
+    fireEvent.click(buttons[1]);
+
+    await waitFor(() => {
+      expect(buttons[0]).toHaveClass("ant-btn-loading");
+      expect(buttons[1]).toHaveClass("ant-btn-loading");
+    });
+
+    resolvers.get(vectorResource.id)?.();
+    await waitFor(() => expect(buttons[0]).not.toHaveClass("ant-btn-loading"));
+    expect(buttons[1]).toHaveClass("ant-btn-loading");
+
+    resolvers.get(secondResource.id)?.();
+    await waitFor(() =>
+      expect(buttons[1]).not.toHaveClass("ant-btn-loading"),
+    );
+  });
+
   it("hides vector query execution when the user lacks query permissions", () => {
     renderWithAntd(
       <DataPanel

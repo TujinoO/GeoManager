@@ -23,7 +23,7 @@ import {
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useAppContext } from "../contexts/AppContext";
@@ -46,6 +46,7 @@ import ManagedCollectionPage, {
 } from "./ManagedCollectionPage";
 
 type VisualizationFormValues = ManagedFormValues & {
+  resourceName: string;
   categoryCode: string;
   layerName: string;
   defaultVisible: boolean;
@@ -152,7 +153,8 @@ const unclassifiedInventoryGroup: InventoryGroupDefinition = {
 const inventoryGroupNameColumnWidth = 220;
 const inventoryResourceNameColumnWidth = 260;
 const inventoryActionColumnWidth = 112;
-const inventoryTableScrollX = 1280;
+const inventoryGroupTableScrollX = 720;
+const inventoryResourceTableScrollX = 1600;
 const inventoryResourceColumnWidths: Record<string, number> = {
   name: inventoryResourceNameColumnWidth,
   dataType: 92,
@@ -224,6 +226,7 @@ export default function AdminDataInventoryPage() {
   });
   const [data, setData] = useState<AdminDataResourceList>(initialList);
   const [loading, setLoading] = useState(false);
+  const resourceRequestSequenceRef = useRef(0);
   const [groupName, setGroupName] = useState("");
   const [groupModal, setGroupModal] = useState<GroupModalState>(null);
   const [savingGroup, setSavingGroup] = useState(false);
@@ -240,6 +243,12 @@ export default function AdminDataInventoryPage() {
   const [movingResourceId, setMovingResourceId] = useState<number | null>(null);
   const [updatingGroupId, setUpdatingGroupId] =
     useState<InventoryGroupId | null>(null);
+  const [expandedInventoryGroupIds, setExpandedInventoryGroupIds] = useState<
+    InventoryGroupId[]
+  >([allInventoryGroupId]);
+  const [expandedLeafGroupIds, setExpandedLeafGroupIds] = useState<
+    InventoryGroupId[]
+  >([]);
 
   const canView = Boolean(user?.permissions.canViewDataResources);
   const canChange = Boolean(user?.permissions.canChangeDataResources);
@@ -262,16 +271,23 @@ export default function AdminDataInventoryPage() {
 
   const loadResources = useCallback(
     async (nextFilters: AdminDataResourceFilters) => {
+      const requestSequence = ++resourceRequestSequenceRef.current;
       setLoading(true);
       try {
         const result = await api.adminDataResources(nextFilters);
-        setData(result);
+        if (requestSequence === resourceRequestSequenceRef.current) {
+          setData(result);
+        }
       } catch (error) {
-        message.error(
-          error instanceof Error ? error.message : "存量数据加载失败",
-        );
+        if (requestSequence === resourceRequestSequenceRef.current) {
+          message.error(
+            error instanceof Error ? error.message : "存量数据加载失败",
+          );
+        }
       } finally {
-        setLoading(false);
+        if (requestSequence === resourceRequestSequenceRef.current) {
+          setLoading(false);
+        }
       }
     },
     [message],
@@ -323,6 +339,7 @@ export default function AdminDataInventoryPage() {
       );
       const updated = await api.updateAdminDataResource(resource.id, {
         action: "update",
+        name: formValues.resourceName.trim(),
         categoryCode: formValues.categoryCode,
         accessGroupIds: realAccessGroupIds(formValues.accessGroupIds),
         visualization: {
@@ -336,7 +353,7 @@ export default function AdminDataInventoryPage() {
       if ("id" in updated) {
         replaceResource(updated);
         void loadResources(filters);
-        message.success("数据权限与默认可视化方案已保存");
+        message.success("数据名称、权限与默认可视化方案已保存");
         return updated;
       }
     } catch (error) {
@@ -912,7 +929,7 @@ export default function AdminDataInventoryPage() {
           dataSource={group.resources}
           pagination={false}
           tableLayout="fixed"
-          scroll={{ x: inventoryTableScrollX }}
+          scroll={{ x: inventoryResourceTableScrollX }}
           onRow={(resource) => ({
             draggable: canChange,
             onDragStart: () => setDraggingResourceId(resource.id),
@@ -935,14 +952,17 @@ export default function AdminDataInventoryPage() {
           columns={groupColumns}
           dataSource={group.subgroups}
           tableLayout="fixed"
-          scroll={{ x: inventoryTableScrollX }}
+          scroll={{ x: inventoryGroupTableScrollX }}
           pagination={false}
           expandable={{
-            defaultExpandedRowKeys: group.subgroups
-              .filter((child) => child.resourceCount > 0)
-              .map((child) => child.id),
+            expandedRowKeys: expandedLeafGroupIds,
             rowExpandable: (child) => child.resourceCount > 0,
             expandedRowRender: renderGroupResources,
+            onExpand: (expanded, child) => {
+              setExpandedLeafGroupIds((current) =>
+                expanded ? [child.id] : current.filter((id) => id !== child.id),
+              );
+            },
           }}
         />
       ) : (
@@ -976,7 +996,7 @@ export default function AdminDataInventoryPage() {
           columns={groupColumns}
           dataSource={inventoryGroups}
           tableLayout="fixed"
-          scroll={{ x: inventoryTableScrollX }}
+          scroll={{ x: inventoryGroupTableScrollX }}
           pagination={false}
           onRow={(group) => ({
             onDragOver: (event) => {
@@ -995,14 +1015,16 @@ export default function AdminDataInventoryPage() {
             },
           })}
           expandable={{
-            defaultExpandedRowKeys: [
-              ...categoryInventoryGroups.map((group) => group.id),
-              unclassifiedInventoryGroupId,
-              allInventoryGroupId,
-            ],
+            expandedRowKeys: expandedInventoryGroupIds,
             rowExpandable: (group) =>
               group.subgroups.length > 0 || group.resourceCount > 0,
             expandedRowRender: renderExpandedGroup,
+            onExpand: (expanded, group) => {
+              setExpandedInventoryGroupIds((current) =>
+                expanded ? [group.id] : current.filter((id) => id !== group.id),
+              );
+              setExpandedLeafGroupIds([]);
+            },
           }}
         />
       </Space>
@@ -1071,6 +1093,21 @@ export default function AdminDataInventoryPage() {
         formInitialValues={(resource) => initialVisualizationValues(resource)}
         renderFormItems={(resource, maintainable) => (
           <>
+            <Typography.Title level={5}>基本信息</Typography.Title>
+            <Form.Item
+              name="resourceName"
+              label="数据资源名称"
+              rules={[
+                {
+                  required: true,
+                  whitespace: true,
+                  message: "请输入数据资源名称",
+                },
+                { max: 160, message: "数据资源名称不能超过 160 个字符" },
+              ]}
+            >
+              <Input disabled={!maintainable} />
+            </Form.Item>
             <Typography.Title level={5}>权威业务分类</Typography.Title>
             <Form.Item
               name="categoryCode"
@@ -1273,6 +1310,7 @@ function initialVisualizationValues(
       ? (visualization.rasterRules as Record<string, unknown>)
       : (layer?.rasterRules ?? {});
   return {
+    resourceName: resource.name,
     categoryCode: resource.category?.code ?? "",
     layerName:
       textValue(visualization.layerName) || layer?.name || resource.name,

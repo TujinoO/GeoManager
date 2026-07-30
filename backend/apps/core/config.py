@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+import os
 from pathlib import Path
+import tempfile
+import threading
 from typing import Any
 
 import tomlkit
@@ -35,6 +38,9 @@ DEFAULT_CONFIG_CANDIDATES = (
     Path("config/app.example.toml"),
 )
 INTERNAL_DEFAULT_SYMBOLIZER_SCRIPT = "scripts/raster_symbolizers/basic_gradient.py"
+
+_CONFIG_LOCKS_GUARD = threading.Lock()
+_CONFIG_LOCKS: dict[Path, threading.RLock] = {}
 
 
 class ConfigValidationError(RuntimeError):
@@ -221,19 +227,64 @@ def load_runtime_config_document(config: ProjectConfig) -> dict[str, Any]:
 
 
 def write_runtime_config_document(config: ProjectConfig, raw: dict[str, Any]) -> None:
-    """直接写入源配置。"""
-    config.config_path.write_text(tomlkit.dumps(raw), encoding="utf-8")
+    """原子写入源配置，避免并发或中断写入损坏 TOML。"""
+    with _config_file_lock(config.config_path):
+        _write_runtime_config_document_atomic(config.config_path, raw)
 
 
 def update_runtime_application_config(
     config: ProjectConfig,
     patch: dict[str, Any],
 ) -> dict[str, Any]:
-    raw = load_runtime_config_document(config)
-    application = _table(raw, "application")
-    _deep_update(application, patch)
-    write_runtime_config_document(config, raw)
-    return raw
+    with _config_file_lock(config.config_path):
+        raw = load_runtime_config_document(config)
+        application = _table(raw, "application")
+        _deep_update(application, patch)
+        write_runtime_config_document(config, raw)
+        return raw
+
+
+def _config_file_lock(path: Path) -> threading.RLock:
+    resolved_path = path.expanduser().resolve()
+    with _CONFIG_LOCKS_GUARD:
+        lock = _CONFIG_LOCKS.get(resolved_path)
+        if lock is None:
+            lock = threading.RLock()
+            _CONFIG_LOCKS[resolved_path] = lock
+        return lock
+
+
+def _write_runtime_config_document_atomic(
+    path: Path,
+    raw: dict[str, Any],
+) -> None:
+    serialized = tomlkit.dumps(raw)
+    target_path = path.expanduser().resolve()
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="",
+            prefix=f".{target_path.name}.",
+            suffix=".tmp",
+            dir=target_path.parent,
+            delete=False,
+        ) as temporary_file:
+            temporary_path = Path(temporary_file.name)
+            temporary_file.write(serialized)
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+
+        _load_toml_document(temporary_path)
+        os.replace(temporary_path, target_path)
+        temporary_path = None
+    finally:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def _load_toml_document(path: Path) -> dict[str, Any]:

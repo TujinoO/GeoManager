@@ -24,6 +24,9 @@ const { clearCachedLayerGroupsMock, mockApi } = vi.hoisted(() => ({
   clearCachedLayerGroupsMock: vi.fn(),
   mockApi: {
     logout: vi.fn(),
+    resources: vi.fn(),
+    workspaces: vi.fn(),
+    mapCompositions: vi.fn(),
   },
 }));
 
@@ -233,9 +236,19 @@ function sectionByTitle(title: string) {
 
 describe("WorkspaceHeader", () => {
   beforeEach(() => {
-    mockApi.logout.mockReset();
+    for (const fn of Object.values(mockApi)) {
+      fn.mockReset();
+    }
     clearCachedLayerGroupsMock.mockReset();
     mockApi.logout.mockResolvedValue({ detail: "已退出" });
+    mockApi.resources.mockResolvedValue({ items: [resource] });
+    mockApi.workspaces.mockResolvedValue({
+      items: [scene(1, "project", "塔里木河监测工程")],
+    });
+    mockApi.mapCompositions.mockResolvedValue({
+      items: [topicComposition],
+      availableAudienceGroups: [],
+    });
     clearCachedLayerGroupsMock.mockResolvedValue(undefined);
   });
 
@@ -306,6 +319,118 @@ describe("WorkspaceHeader", () => {
       screen.queryByRole("button", { name: "数据导入" }),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("location-path")).toHaveTextContent("/");
+  });
+
+  it("hides data management and personal settings from guest sessions", async () => {
+    const guestUser: User = {
+      ...user,
+      id: 99,
+      username: "guest",
+      displayName: "Guest",
+      roles: ["游客"],
+    };
+
+    renderHeader({}, guestUser);
+
+    expect(
+      screen.queryByRole("button", { name: "数据资源" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "用户信息" }));
+    expect(
+      await screen.findByRole("button", { name: /安全退出/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "个人信息" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/");
+  });
+
+  it("does not request workspaces without workspace view permission", async () => {
+    renderHeader({ resources: undefined, workspaceScenes: undefined });
+
+    await waitFor(() => {
+      expect(mockApi.resources).toHaveBeenCalledOnce();
+    });
+    expect(mockApi.workspaces).not.toHaveBeenCalled();
+  });
+
+  it("loads workspace search without requiring data browse permission", async () => {
+    const workspaceOnlyUser: User = {
+      ...user,
+      permissions: {
+        ...permissions,
+        canBrowseData: false,
+        canViewWorkspaces: true,
+      },
+    };
+    renderHeader(
+      {
+        canBrowseData: false,
+        resources: undefined,
+        workspaceScenes: undefined,
+        mapCompositions: [],
+      },
+      workspaceOnlyUser,
+    );
+
+    await waitFor(() => {
+      expect(mockApi.workspaces).toHaveBeenCalledOnce();
+    });
+    expect(mockApi.resources).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByPlaceholderText("搜索数据、工程、专题"));
+    expect(await screen.findByText("塔里木河监测工程")).toBeInTheDocument();
+  });
+
+  it("keeps resource search available when workspace search fails", async () => {
+    mockApi.workspaces.mockRejectedValue(new Error("工程搜索加载失败"));
+    const workspaceUser: User = {
+      ...user,
+      permissions: {
+        ...permissions,
+        canViewWorkspaces: true,
+      },
+    };
+    renderHeader(
+      {
+        resources: undefined,
+        workspaceScenes: undefined,
+        mapCompositions: [],
+      },
+      workspaceUser,
+    );
+
+    await waitFor(() => {
+      expect(mockApi.resources).toHaveBeenCalledOnce();
+      expect(mockApi.workspaces).toHaveBeenCalledOnce();
+    });
+    fireEvent.click(screen.getByPlaceholderText("搜索数据、工程、专题"));
+    expect(await screen.findByText(resource.name)).toBeInTheDocument();
+  });
+
+  it("keeps workspace search available when resource search fails", async () => {
+    mockApi.resources.mockRejectedValue(new Error("数据搜索加载失败"));
+    const workspaceUser: User = {
+      ...user,
+      permissions: {
+        ...permissions,
+        canViewWorkspaces: true,
+      },
+    };
+    renderHeader(
+      {
+        resources: undefined,
+        workspaceScenes: undefined,
+        mapCompositions: [],
+      },
+      workspaceUser,
+    );
+
+    await waitFor(() => {
+      expect(mockApi.resources).toHaveBeenCalledOnce();
+      expect(mockApi.workspaces).toHaveBeenCalledOnce();
+    });
+    fireEvent.click(screen.getByPlaceholderText("搜索数据、工程、专题"));
+    expect(await screen.findByText("塔里木河监测工程")).toBeInTheDocument();
   });
 
   it("opens the data import page from the highlighted shortcut", () => {

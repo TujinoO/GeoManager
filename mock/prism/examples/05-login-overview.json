@@ -23,10 +23,10 @@
       "metrics": [
         {
           "id": "dataResources",
-          "label": "数据资源",
+          "label": "平台数据资源",
           "value": 1286,
           "displayValue": "1,286",
-          "note": "空间、表格、文档",
+          "note": "平台已接入总量，登录后按权限显示",
           "updatedAt": "2026-06-15T10:30:00+08:00"
         },
         {
@@ -79,25 +79,25 @@
           }
         ],
         "nodeSummary": {
-          "total": 24,
-          "normal": 21,
-          "warning": 2,
-          "risk": 1,
+          "total": 3,
+          "normal": 3,
+          "warning": 0,
+          "risk": 0,
           "legend": [
             {
               "status": "normal",
               "label": "正常",
-              "count": 21
+              "count": 3
             },
             {
               "status": "warning",
               "label": "待同步",
-              "count": 2
+              "count": 0
             },
             {
               "status": "risk",
               "label": "异常",
-              "count": 1
+              "count": 0
             }
           ]
         }

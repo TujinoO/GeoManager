@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import io
 import threading
+import time
+from collections import OrderedDict
+from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
@@ -23,9 +26,57 @@ from apps.raster.services.geo_utils import (
 from apps.raster.services.rules_engine import normalize_rules, read_source_bands
 
 
-_TILE_STYLES: dict[tuple[int, str], dict[str, Any]] = {}
+@dataclass
+class _TileStyleCacheEntry:
+    style: dict[str, Any]
+    last_accessed_at: float
+
+
+_TILE_STYLES: OrderedDict[
+    tuple[int, str], _TileStyleCacheEntry
+] = OrderedDict()
 _TILE_STYLES_LOCK = threading.RLock()
+TILE_STYLE_CACHE_MAX_ENTRIES = 256
+TILE_STYLE_CACHE_TTL_SECONDS = 60 * 60
 RASTER_RENDERER_VERSION = 2
+
+
+def _prune_tile_styles_locked(*, now: float) -> None:
+    while _TILE_STYLES:
+        _, oldest = next(iter(_TILE_STYLES.items()))
+        if now - oldest.last_accessed_at < TILE_STYLE_CACHE_TTL_SECONDS:
+            break
+        _TILE_STYLES.popitem(last=False)
+    while len(_TILE_STYLES) > TILE_STYLE_CACHE_MAX_ENTRIES:
+        _TILE_STYLES.popitem(last=False)
+
+
+def _remember_tile_style(
+    key: tuple[int, str],
+    style: dict[str, Any],
+    *,
+    now: float | None = None,
+) -> None:
+    accessed_at = time.monotonic() if now is None else now
+    with _TILE_STYLES_LOCK:
+        _prune_tile_styles_locked(now=accessed_at)
+        _TILE_STYLES.pop(key, None)
+        _TILE_STYLES[key] = _TileStyleCacheEntry(style, accessed_at)
+        _prune_tile_styles_locked(now=accessed_at)
+
+
+def _get_tile_style(
+    key: tuple[int, str], *, now: float | None = None
+) -> dict[str, Any] | None:
+    accessed_at = time.monotonic() if now is None else now
+    with _TILE_STYLES_LOCK:
+        _prune_tile_styles_locked(now=accessed_at)
+        entry = _TILE_STYLES.pop(key, None)
+        if entry is None:
+            return None
+        entry.last_accessed_at = accessed_at
+        _TILE_STYLES[key] = entry
+        return entry.style
 
 
 def register_tile_style(
@@ -45,12 +96,14 @@ def register_tile_style(
         },
     )
 
-    with _TILE_STYLES_LOCK:
-        _TILE_STYLES[(dataset.id, sh)] = {
+    _remember_tile_style(
+        (dataset.id, sh),
+        {
             "dataset_id": dataset.id,
             "rules": normalized_rules,
             "created_at": timezone.now().isoformat(),
-        }
+        },
+    )
     RasterStyle.objects.update_or_create(
         dataset=dataset,
         style_hash=sh,
@@ -74,15 +127,15 @@ def render_xyz_tile(dataset_id: int, style_hash: str, z: int, x: int, y: int) ->
     return _render_xyz_tile_cached(dataset_id, style_hash, z, x, y)
 
 
-@lru_cache(maxsize=512)
+@lru_cache(maxsize=128)
 def _render_xyz_tile_cached(
     dataset_id: int, style_hash: str, z: int, x: int, y: int
 ) -> bytes:
     if z < 0 or x < 0 or y < 0 or x >= 2**z or y >= 2**z:
         raise RasterTileOutsideExtent("瓦片坐标超出有效范围")
 
-    with _TILE_STYLES_LOCK:
-        style = _TILE_STYLES.get((dataset_id, style_hash))
+    style_key = (dataset_id, style_hash)
+    style = _get_tile_style(style_key)
     if not style:
         persisted = RasterStyle.objects.filter(
             dataset_id=dataset_id, style_hash=style_hash
@@ -93,8 +146,7 @@ def _render_xyz_tile_cached(
                 "rules": persisted.rules,
                 "created_at": persisted.created_at.isoformat(),
             }
-            with _TILE_STYLES_LOCK:
-                _TILE_STYLES[(dataset_id, style_hash)] = style
+            _remember_tile_style(style_key, style)
         else:
             raise RasterRenderError("符号化瓦片样式不存在或已过期")
     dataset = RasterDataset.objects.get(
@@ -125,3 +177,9 @@ def _render_xyz_tile_cached(
     buffer = io.BytesIO()
     Image.fromarray(rgba, mode="RGBA").save(buffer, format="PNG")
     return buffer.getvalue()
+
+
+def _clear_renderer_caches() -> None:
+    with _TILE_STYLES_LOCK:
+        _TILE_STYLES.clear()
+    _render_xyz_tile_cached.cache_clear()

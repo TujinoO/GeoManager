@@ -5,6 +5,7 @@ import json
 import sqlite3
 import threading
 import time
+import uuid
 from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,7 +13,7 @@ from typing import Any, Callable
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from django.conf import settings
-from django.db import close_old_connections, connection
+from django.db import IntegrityError, close_old_connections, connection, transaction
 from django.http import JsonResponse
 from django.utils import timezone
 
@@ -28,6 +29,7 @@ from apps.core.backup_targets import (
     ObjectStorageBackupTarget,
 )
 from apps.core.models import BackupRun
+from apps.core.runtime_config import runtime_system_name
 from apps.core.storage import app_path, research_path
 
 SQLITE_EXTENSIONS = {".db", ".sqlite", ".sqlite3", ".gpkg"}
@@ -35,6 +37,16 @@ SQLITE_EXTENSIONS = {".db", ".sqlite", ".sqlite3", ".gpkg"}
 
 class BackupServiceError(RuntimeError):
     pass
+
+
+class BackupRunConflictError(BackupServiceError):
+    code = "backup_run_conflict"
+
+    def __init__(self, active_run: BackupRun):
+        self.active_run = active_run
+        super().__init__(
+            f"{active_run.get_plan_type_display()}已有等待中或运行中的备份任务"
+        )
 
 
 @dataclass(frozen=True)
@@ -45,6 +57,7 @@ class BackupFileEntry:
 
 
 ProgressCallback = Callable[[str, int | None], None]
+_BACKUP_START_LOCK = threading.Lock()
 
 
 def serialize_backup_run(run: BackupRun) -> dict[str, Any]:
@@ -111,23 +124,54 @@ def start_backup_run(
         raise BackupServiceError("targetType 仅支持 local 或 object_storage")
     _ensure_target_configured(selected_target)
 
-    archive_name = f"{plan_type}-backup-{timezone.localtime():%Y%m%d%H%M%S}.zip"
-    run = BackupRun.objects.create(
-        plan_type=plan_type,
-        target_type=selected_target,
-        trigger=trigger,
-        archive_name=archive_name,
-        created_by=user if getattr(user, "is_authenticated", False) else None,
-        messages=["备份任务已创建"],
-    )
+    with _BACKUP_START_LOCK:
+        try:
+            with transaction.atomic():
+                active_run = (
+                    BackupRun.objects.select_for_update()
+                    .filter(
+                        plan_type=plan_type,
+                        status__in=(
+                            BackupRun.Status.QUEUED,
+                            BackupRun.Status.RUNNING,
+                        ),
+                    )
+                    .order_by("-created_at")
+                    .first()
+                )
+                if active_run is not None:
+                    raise BackupRunConflictError(active_run)
+                run = BackupRun.objects.create(
+                    plan_type=plan_type,
+                    target_type=selected_target,
+                    trigger=trigger,
+                    created_by=(
+                        user if getattr(user, "is_authenticated", False) else None
+                    ),
+                    messages=["备份任务已创建"],
+                )
+                run.archive_name = (
+                    f"{plan_type}-backup-{timezone.localtime():%Y%m%d%H%M%S}"
+                    f"-{run.id}-{uuid.uuid4().hex}.zip"
+                )
+                run.save(update_fields=["archive_name", "updated_at"])
+        except IntegrityError as exc:
+            active_run = (
+                BackupRun.objects.filter(
+                    plan_type=plan_type,
+                    status__in=(
+                        BackupRun.Status.QUEUED,
+                        BackupRun.Status.RUNNING,
+                    ),
+                )
+                .order_by("-created_at")
+                .first()
+            )
+            if active_run is not None:
+                raise BackupRunConflictError(active_run) from exc
+            raise BackupServiceError("备份任务创建失败，请稍后重试") from exc
     if run_async:
-        threading.Thread(
-            target=lambda: _run_with_database_connection(
-                lambda: execute_backup_run(run.id, include_logs=include_logs)
-            ),
-            name=f"backup-run-{run.id}",
-            daemon=True,
-        ).start()
+        _launch_backup_run(run.id, include_logs=include_logs)
     else:
         execute_backup_run(run.id, include_logs=include_logs)
         run.refresh_from_db()
@@ -269,14 +313,16 @@ def due_backup_plans(now=None) -> list[tuple[str, BackupPlanSettings]]:
 def start_due_backup_runs() -> list[BackupRun]:
     runs: list[BackupRun] = []
     for plan_type, plan in due_backup_plans():
-        runs.append(
-            start_backup_run(
+        try:
+            run = start_backup_run(
                 plan_type=plan_type,
                 target_type=plan.target,
                 trigger=BackupRun.Trigger.SCHEDULED,
                 run_async=True,
             )
-        )
+        except BackupRunConflictError:
+            continue
+        runs.append(run)
     return runs
 
 
@@ -325,7 +371,7 @@ def _build_backup_archive(
             "manifestVersion": 1,
             "planType": plan_type,
             "createdAt": timezone.localtime().isoformat(),
-            "systemName": settings.PROJECT_CONFIG.system_name,
+            "systemName": runtime_system_name(),
             "includeLogs": include_logs,
             "fileCount": len(file_entries),
             "totalSourceBytes": total_source_bytes,
@@ -545,3 +591,13 @@ def _run_with_database_connection(target) -> None:
         target()
     finally:
         connection.close()
+
+
+def _launch_backup_run(run_id: int, *, include_logs: bool | None) -> None:
+    threading.Thread(
+        target=lambda: _run_with_database_connection(
+            lambda: execute_backup_run(run_id, include_logs=include_logs)
+        ),
+        name=f"backup-run-{run_id}",
+        daemon=True,
+    ).start()

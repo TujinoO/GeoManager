@@ -13,13 +13,12 @@ from apps.core.config import APP_SUBDIRS, RESEARCH_SUBDIRS
 from apps.core.config import load_runtime_config_document
 from apps.core.map_thumbnail import thumbnail_tile
 from apps.core.models import SystemSetting
-from apps.core.runtime_config import runtime_allow_registration, runtime_system_name
-
-PLATFORM_ENGLISH_NAME = (
-    "Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform"
+from apps.core.platform_brand import (
+    PLATFORM_ABBREVIATION,
+    PLATFORM_EDITION,
+    PLATFORM_ENGLISH_NAME,
 )
-PLATFORM_ABBREVIATION = "GPEDSP"
-PLATFORM_EDITION = "GPEDSP · WebGIS Research Edition"
+from apps.core.runtime_config import runtime_allow_registration, runtime_system_name
 
 
 def registration_allowed() -> bool:
@@ -38,7 +37,7 @@ def bootstrap(request):
     application = runtime_document["application"]
     return JsonResponse(
         {
-            "systemName": application["system"]["name"],
+            "systemName": runtime_system_name(),
             "allowRegistration": registration_allowed(),
             "map": {
                 "defaultCenter": application["map"]["default_center"],
@@ -153,9 +152,9 @@ def _login_overview_metrics(generated_at: str) -> list[dict]:
     metric_values = [
         (
             "dataResources",
-            "数据资源",
+            "平台数据资源",
             active_resources.count(),
-            "空间、表格、文档",
+            "平台已接入总量，登录后按权限显示",
         ),
         (
             "thematicLayers",
@@ -226,17 +225,17 @@ def _login_overview_service_status(
     return {
         "title": "平台服务状态",
         "headline": _service_status_headline(services),
-        "description": "登录后可按账号权限进入数据目录、地图工作台与后台管理功能。",
+        "description": "登录后可按账号权限进入数据目录和地图工作台；具备运维权限时显示后台管理入口。",
         "services": services,
         "nodeSummary": node_summary,
     }
 
 
 def _login_overview_node_summary(services: list[dict]) -> dict:
-    total = 24
+    total = len(services)
     risk = sum(1 for service in services if service["status"] == "risk")
     warning = sum(1 for service in services if service["status"] == "warning")
-    normal = max(total - warning - risk, 0)
+    normal = sum(1 for service in services if service["status"] == "normal")
     return {
         "total": total,
         "normal": normal,

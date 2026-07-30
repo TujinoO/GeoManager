@@ -88,16 +88,17 @@ backend/apps/
 - 坐标量化误差按经纬度文本小数位数估算：每个坐标分量取最后一位小数半个单位作为最大角度误差，纬度方向按 111320 m/deg 换算，经度方向乘以 `cos(latitude)`，再合成平面最大可能误差；该值只表示坐标记录精度引入的位置不确定性，不包含测量设备误差。
 - 栅格数据统一放在地理数据根目录的 `raster/` 总目录下：源文件放在 `raster/original/`，导入后预处理 COG 放在 `raster/preprocessed/`，两份 `gdalinfo -json` 元数据放在 `raster/metadata/source/` 和 `raster/metadata/preprocessed/`。
 - 非地理数据统一放在非地理数据根目录下：基因数据放在 `gene/`，表格数据放在 `table/`。后端目录扫描会登记 `gene` 和 `table` 类型的 `DataResource`，不创建地图图层。
-- 栅格导入预处理固定使用 `gdalwarp` 将源文件转换为 EPSG:3857 的 COG 格式，导入记录保存源文件、预处理文件、两份 GDAL 元数据、导入时间、处理日志、错误信息、默认符号化规则、范围和关联数据资源/地图图层。
+- 栅格导入预处理固定使用 `gdalwarp` 将源文件转换为 EPSG:3857 的 COG 格式，导入记录保存源文件、预处理文件、两份 GDAL 元数据、导入时间、处理日志、错误信息、默认符号化规则、范围和关联数据资源/地图图层。GDAL 命令统一使用单线程、128 MB 缓存/工作内存和 TOML `symbolizer_timeout_seconds` 硬超时；超时必须终止进程组，不能让任务线程永久等待。
 - 命令行工具统一通过 `apps.core.cli` 调用。未检测到已激活 Pixi 环境时以 `pixi run --executable ...` 从 `backend/` 工作目录启动；Docker entrypoint 通过 Pixi hook 激活环境后直接运行普通命令。业务模块不应自行拼接 Pixi 命令。
 - Docker 入口脚本不得硬编码 `.pixi/envs/default/bin` 或具体 Python 路径；启动时先通过 `pixi shell-hook --no-completions --manifest-path /opt/app/backend/pixi.toml` 激活 Pixi 环境，再执行普通 `python manage.py ...`、`waitress-serve` 等命令。
 - 后台数据导入页支持直接上传栅格源文件；后端必须先保存到 TOML 驱动的科研数据根目录 `raster/original/uploaded/`，再复用现有异步导入任务执行 GDAL 预处理。前端只负责上传、轮询 `/api/raster/jobs/{job_id}/` 和展示进度，不做栅格解析、重投影、COG 生成或符号化。
 - 浏览器上传的栅格只有完整预处理并登记成功后才保留；异步导入失败时必须删除本次 `uploaded/` 源文件、预处理文件和两份 GDAL 元数据。服务端已有 `sourcePath` 导入和目录扫描失败时不得删除原始研究数据。
-- 栅格导入、扫描、渲染和导出等后台线程必须在任务线程内建立并关闭自己的 Django 数据库连接。SQLite 元数据库启用 WAL 和 30 秒 busy timeout；导入进度属于临时任务态，只更新内存任务消息，不写入 `RasterDataset.progress_log`，避免上传预处理期间频繁写库导致 `database is locked`。
+- 栅格导入、扫描、渲染和导出共用一个单并发且等待队列有硬上限的重型任务执行器，并且必须在任务线程内建立、关闭自己的 Django 数据库连接。队列饱和时任务要明确失败并提示稍后重试，不能为每次请求裸建线程。SQLite 元数据库启用 WAL 和 30 秒 busy timeout；导入进度属于临时任务态，只更新内存任务消息，不写入 `RasterDataset.progress_log`，避免上传预处理期间频繁写库导致 `database is locked`。完成任务的内存缓存必须同时受 TTL 和最大条目数约束，服务重启后遗留的 queued/running 持久任务要标记为中断。
 - 系统设置页更新运行期配置后，后端必须同步刷新运行中的 `settings.PROJECT_CONFIG`；业务运行期可变配置统一通过 `apps.core.runtime_config` 从当前 TOML 读取，包括系统名称、注册开关、查询结果上限、栅格上传大小和栅格单边像素上限，避免手工改配置或设置页保存后继续使用旧值。前端也必须同步刷新应用 `bootstrap.limits`，避免栅格上传前校验继续使用旧上限。栅格导入界面分开展示浏览器文件上传进度和后端 GDAL 预处理进度。
 - 前端加载栅格 XYZ 瓦片源时必须用数据集 `imageCoordinates`/`bounds4326` 约束 Mapbox source 的 `bounds`，避免按整个地图视窗请求无关瓦片；后端对栅格空间范围外的瓦片请求返回 `204 No Content`，并且应在打开栅格文件前优先用 `RasterDataset.bounds_3857` 快速判断。
-- 后端启动 `runserver` 或 WSGI/ASGI 进程时会异步扫描 `vector/vector.gpkg`、非地理数据 `gene/`、`table/` 和 `raster/original/` 下已有数据；矢量图层会登记为 `DataResource/MapLayer`，非地理文件登记为 `DataResource`，栅格源文件会完成预处理并登记目录。迁移、测试等管理命令不触发扫描。可在 TOML 的 `[runtime]` 段设置 `disable_catalog_startup_scan` 或 `disable_raster_startup_scan` 关闭启动扫描。
-- 启动扫描的服务命令判断必须覆盖 `runserver`、`waitress`、`uvicorn` 和 `daphne`；Docker 的 `waitress-serve geomanager.wsgi:application` 是生产启动路径，不能被当成普通管理命令跳过。目录扫描会通过 SQLite 读取统一 GeoPackage 元数据并枚举全部图层，为每个图层同步 `DataResource` 与 `MapLayer`；空间查询优先使用 GeoPackage RTree 表做 bbox 候选集预筛选，再由 GeoPandas 对候选要素执行精确几何过滤和 GeoJSON 输出。
+- 后端启动 `runserver` 或 WSGI/ASGI 进程时可异步扫描 `vector/vector.gpkg`、非地理数据 `gene/`、`table/` 和 `raster/original/` 下已有数据；矢量图层会登记为 `DataResource/MapLayer`，非地理文件登记为 `DataResource`，栅格源文件会完成预处理并登记目录。迁移、测试等管理命令不触发扫描。小内存生产示例默认通过 TOML 的 `disable_catalog_startup_scan` 和 `disable_raster_startup_scan` 关闭启动扫描，待服务健康后再由维护用户手动触发。
+- 启动扫描的服务命令判断必须覆盖 `runserver`、`waitress`、`uvicorn` 和 `daphne`；Docker 的 `waitress-serve geomanager.wsgi:application` 是生产启动路径，不能被当成普通管理命令跳过。目录扫描会通过 SQLite 读取统一 GeoPackage 元数据并枚举全部图层，为每个图层同步 `DataResource` 与 `MapLayer`；空间查询优先使用 GeoPackage RTree/bbox 和属性 SQL 下推，再以固定大小 GeoDataFrame 分块执行精确几何过滤，最多只保留本次返回上限内的结果。几何校验只能单遍维护计数和误差 min/max，不得保存全量顶点或误差列表。
+- 普通 JSON/form 请求体由 Django 10 MB 内存上限保护；导出 JSON 另有 10 MB 有限流读取，缺少或伪造 `Content-Length` 也不能绕过。同步和异步 ZIP 导出均直接写临时文件并以流式文件响应下载，生产路径不得调用 `Path.read_bytes()` 构造完整 ZIP 副本。Excel/CSV 在线解析上限固定取平台上传限制和 16 MB 的较小值，XLSX 解压后另受 128 MB 上限保护，并直接从上传文件/临时文件交给 Pandas，避免原始 bytes 副本。
 - 启动扫描或目录扫描新发现的数据资源不设置上传者/维护人，后台界面显示为“未知”；资源和关联图层访问组强制且仅保留 `超级管理员`，避免首次部署时把存量数据自动暴露给普通角色。若扫描命中已经由用户上传登记的 GeoPackage 图层，只刷新范围、坐标系、条目数等技术元数据，必须保留 `DataResource.maintainer`、用户填写名称、上传大小、访问组以及已保存的默认图层样式，并让维护人继续可见其关联 `MapLayer`。
 
 ## 统一功能权限
@@ -236,13 +237,14 @@ frontend/src/
 
 - 数据加载后的默认展示单位是顶级图层，不再在界面上自动显示为图层组。用户需要组合管理时，可通过“新建图层组”手动创建组并将图层拖入。
 - 前端运行态仍使用 `LoadedLayerGroup.children` 作为统一容器，以兼容缓存、工程/专题快照、图层排序和栅格渲染上下文；非手动且只有一个子图层的容器在图层面板中渲染为顶级图层。
+- 图层树从上到下对应地图从上到下的覆盖顺序，树中第一项为地图最上层。拖拽落点必须在 `drop` 发生时按当前目标元素和当前指针纵坐标同步判定，禁止复用上一帧 `dragover` 的异步状态；结束拖拽时必须取消待执行动画帧，避免旧落点覆盖最终顺序。
 - 矢量数据查询结果来自统一 GeoJSON 数据源，正常情况下每次加载生成一个顶级矢量图层。
 - 栅格数据在前端状态模型中持有栅格子图层，子图层包含 `tileUrl`、Mapbox 图片角点、透明度、元数据和符号化配置；栅格符号化仍由后端完成。
 - 手动图层组保留显隐、定位、导出、排序和移除入口，不再提供图层组符号化入口；子图层保留独立显隐、定位、导出和符号化入口。
 - 子图层提供数据表按钮，点击后以弹窗展示整层属性表；元数据在底部导航面板中展示。
 - 已加载图层组默认按当前用户写入浏览器 IndexedDB 的 `huyang-system-map-workspace/layer-groups`，保存完整前端运行态（包含矢量 GeoJSON 查询结果、栅格 tile URL、显隐、顺序、命名、符号化方案、栅格渲染元数据和当前本地工作台状态）。地图页刷新或切换界面后由 `useLayerGroups` 自动恢复；缓存失败只影响本地恢复，不改变后端数据和权限边界。服务器端工程/专题只在用户显式保存时写入 `WorkspaceScene`，并且只保存轻量引用快照：图层结构、资源引用、查询条件、空间范围、符号化和栅格 tile/渲染引用元数据，不保存矢量 GeoJSON 要素集合、属性表行或查询结果数据本体；恢复时按资源引用和查询条件重新查询。后端会拒绝包含 `geojson` 或 `FeatureCollection.features` 的快照以及超大请求体，不做实时 server autosave。
 - 保存工程或专题时，前端保存弹窗支持新建保存项或覆盖当前用户已有的同类型保存项。新建调用 `createWorkspace`，覆盖调用 `updateWorkspace` 并只替换轻量快照，已有保存项名称和说明保持不变。
-- 恢复工程或专题时，前端按快照中的资源引用重新查询矢量图层，并校验栅格原始资源 profile。缺少查询条件、权限不足、原始资源不存在/停用、栅格资源变更等情况必须在加载完成后汇总提示用户；可恢复的图层继续恢复，不可重建的矢量图层跳过，栅格图层可保留快照中的瓦片引用但要提示风险。
+- 恢复工程或专题时，前端按快照中的资源引用重新查询矢量图层，并校验栅格原始资源 profile。缺少查询条件、权限不足、原始资源不存在/停用、栅格资源变更等情况必须在加载完成后汇总提示用户；可恢复的图层继续恢复，不可重建的矢量图层跳过。账号缺少栅格加载权限或 profile 返回 403 时，栅格图层必须直接跳过且不得复用旧瓦片 URL；只有其他临时校验异常才允许保留快照引用并提示风险。
 
 ## 矢量图层符号化与交互
 
@@ -522,6 +524,12 @@ CREATE TABLE gpkg_data_columns (
 - 缩略图地图使用 Web Mercator 投影，中心与主 3D 地球当前中心同步，缩放使用主图缩放小 3 级；初始中心和缩放必须来自主图 `MapViewState`，不使用硬编码默认视角。
 - 缩略图不再显示中心点、中心经纬度或缩放等级。当前主地图视口范围通过缩略图内的红色 GeoJSON 线框表示；缩略图不承载栅格符号化，栅格渲染仍由后端瓦片/PNG 服务负责。
 
+## 右侧栅格数据洞察
+
+- 右侧地理数据洞察按数据形态分流：矢量继续使用“概览、要素、监测”，栅格使用“概览、波段、质量”，选择栅格图层时不自动进入单要素属性视图。
+- 栅格概览只解释后端 profile 和可视化摘要中的元数据，按“数据集状态与规模、波段统一值域、当前后端渲染方案、空间范围与数据体量”组织；只有最小值和最大值时不得伪装成像元直方图或真实分布。
+- 栅格波段页展示波段编号、描述、数据类型、颜色解释和值域，质量页展示元数据、COG 预处理和 XYZ 瓦片三段可用性。前端可以预览已有色带和规则，但不得读取原始栅格或执行符号化计算。
+
 ## 工作台检索与地图工具
 
 - 地图工具栏的“复位”按钮统一定义为定位到项目范围，使用项目范围边界 `[50, 35]` 至 `[100, 48]` 执行 `fitBounds`；原独立“定位到项目范围”按钮移除。
@@ -611,7 +619,7 @@ CREATE TABLE gpkg_data_columns (
 
 # 2026-07-22 平台品牌与智能预警占位
 
-- 平台规范中文名称统一为“全球胡杨林生态系统保护数据共享平台”，英文名称统一为 “Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform”，英文缩写统一为 `GPEDSP`（Global Populus euphratica Data Sharing Platform）；前端展示、后端登录概览、运行配置、OpenAPI 示例、Mock 和帮助入口需保持一致。前端可见品牌字段集中维护在 `frontend/src/config/platformBrand.ts`，避免导航栏、登录页和内容页再次产生口径漂移。
+- 平台规范中文名称统一为“全球胡杨林生态系统保护数据共享平台”，英文名称统一为 “Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform”，英文缩写统一为 `GPEDSP`（Global Populus euphratica Data Sharing Platform）；前端展示、后端登录概览、运行配置、OpenAPI 示例、Mock 和帮助入口需保持一致。前端可见品牌字段集中维护在 `frontend/src/config/platformBrand.ts`，后端规范字段集中维护在 `backend/apps/core/platform_brand.py`；启动接口、系统设置、浏览器标签和备份清单均会把已知“中亚胡杨”历史名称升级为当前全球名称，但保留其他自定义部署名称。`pnpm run brand:check` 会阻止活动代码重新引入旧名称或绕过统一标题函数直接修改 `document.title`。
 - 登录页使用 `frontend/src/assets/login-golden-poplar-bg.png` 作为金色胡杨封面；可见品牌图标继续统一复用透明底盾牌胡杨 Logo，并同步维护 SVG 的可访问标题。
 - 顶部主导航预留“智能预警”按钮并进入 `/warning` 正式占位页；当前不新增实时监测 API、权限或后台业务实现，后续接入时再补齐契约与权限设计。
 
@@ -636,3 +644,46 @@ CREATE TABLE gpkg_data_columns (
 - 团队介绍与团队成员均采用四单位总览和单位二级路由，路径分别为 `/about/team/:institutionId` 与 `/about/members/:institutionId`；机构标识固定为 `tarim-university`、`xieg-cas`、`xjafs`、`nieer-cas`。
 - 联系我们从团队内容中拆为 `/about/contact` 独立页面：数据使用、权限与资料提交联系 `lizhijun0202@126.com`，平台建设、功能问题与 Bug 修复联系 `wanghaoyu191@mails.ucas.ac.cn`。
 - 帮助中心 PDF 保持稳定下载路径 `/docs/CAPFED-help-center.pdf`，文档升级至 v2.0（2026-07-23），按九大一级页面、成果管理、专题制图、科普、四单位二级页和双邮箱支持流程重写。
+
+# 2026-07-29 游客会话与公开对象继承
+
+- 专用 `guest` 账号的不可用密码只在账号仍存在可用密码时重置；重复游客登录不得改变认证摘要，多个浏览器的游客会话必须可以并存。
+- `游客` 访问角色是公开受众标记，不是与登录角色互斥的数据范围。资源、图层、工程、专题图和导入成果选择游客角色后，游客会话与所有已登录角色均可访问；登录不能导致公开数据不可见。
+
+# 2026-07-29 测试报告缺陷修复
+
+- 工程恢复必须同时检查矢量与栅格加载权限。资源 profile 返回 403 的栅格图层直接跳过并汇总提示申请权限，不再把旧瓦片 URL 交给 Mapbox 请求；其他临时校验异常才允许保留快照引用并提示风险。
+- `canAccessAdmin` 只表示运维后台能力，不再对所有认证用户恒为 true。仅有数据业务权限的普通用户、科研用户和游客隐藏后台入口，直接访问运行概览时回到仍可用的个人设置页。
+- GeoPackage 中内容全部可解析为数字的文本字段按数值字段建立查询语义，数值比较和区间过滤先统一转换，非法数值条件返回结构化查询错误。
+- 登录页只消费 `/api/login/overview/` 的实时统计和服务状态；服务节点数等于实际返回的服务数，不再展示固定 24 节点或硬编码资源数量。
+
+# 2026-07-30 新疆生地所团队资料更新
+
+- 新疆生地所成员名录按项目方最新材料更新为张久丹、刘嘉伟、李若楠、汤珊珊、邓蕊、张甜、范景超、闫杨豪，成员卡片展示正式照片与研究方向；旧成员刘铁、包安明不再展示。
+- 团队介绍补充胡杨林智能信息提取、湿地与冰川监测、土壤风蚀、盐碱灾害和塔里木河水资源生态响应等当前研究方向。本次变更仅涉及前端静态内容与展示样式，不涉及 API、权限、数据路径或栅格渲染。
+
+# 2026-07-30 地理工作台网络与底图状态提示
+
+- 地理工作台复用公开的 `/api/health/` 检查浏览器到平台的连接，同时监听 Mapbox 底图 source、idle 和 error 事件统计当前视野底图的可访问状态与最近响应耗时；不新增诊断接口，也不把业务图层瓦片错误计入底图状态。
+- 诊断口径按链路分段：浏览器明确离线归为网络异常；健康接口无响应归为平台连接异常；平台可访问但底图资源失败归为底图服务异常；两段链路同时高延迟时优先提示网络较慢。该提示是浏览器端快速判断，不替代服务端监控或故障根因分析。
+
+# 2026-07-30 非地理真实数据分析合同
+
+- 非地理工作台不再使用演示统计。`GET /api/catalog/resources/{id}/nongeo-analysis/` 从 SQLite 后台表或受支持的表格/基因文件读取真实记录，返回字段画像、分类与数值分布、相关矩阵、明细预览和分析口径；最多分析 10,000 条记录，但真实总数必须单独返回并通过 `sampled` 标识抽样。
+- `POST /api/catalog/resources/{id}/nongeo-query/` 使用 `limit/offset` 分页并支持单字段升降序。`limit` 固定为 1–500，`offset` 固定为 0–10,000,000；排序字段必须存在于真实字段集合中，SQLite 标识符先经过字段白名单验证再安全引用，禁止把请求值直接拼接为 SQL。
+- 两个接口统一要求登录、`core.query_data`、启用的 table/gene 资源和对象访问范围。直接文件分析支持 CSV/TSV/XLS/XLSX、FASTA/FASTQ、VCF、GFF/GFF3、GB/GBK，大小上限取运行时上传限制与 64 MB 的较小值。
+
+# 2026-07-30 扫描入口权限边界
+
+- `POST /api/catalog/scan/` 是维护性资源发现动作，要求 `catalog.add_dataresource`；同一时刻只允许一个目录扫描，已有扫描运行时返回 409。普通浏览用户和游客不得触发。
+- `POST /api/raster/scan/` 复用栅格管理授权，允许 `raster.manage_raster_dataset` 或 `catalog.change_dataresource` 任一权限；同一进程存在排队或运行中的扫描时复用活动任务。两类扫描都属于系统/任务日志范围，不写用户操作日志。
+
+# 2026-07-30 成果文件真实格式与响应安全
+
+- `POST /api/catalog/results/` 是“查看成果、导入文件、立即发布”的原子动作，必须同时具备 `catalog.view_resultartifact`、`catalog.add_resultartifact` 和 `catalog.publish_resultartifact`。文件校验不信任客户端 Content-Type：PNG/JPG/JPEG 使用 Pillow 解码并核对扩展名，PDF 检查 `%PDF-` 与尾部 `%%EOF`，CSV 拒绝空文件和 NUL 且仅接受 UTF-8/UTF-8-SIG/GB18030，XLSX 校验工作簿关键 ZIP 条目并限制条目数与解压规模；落盘 MIME 由后端可信识别结果决定。
+- `GET /api/catalog/results/{resultId}/file/` 的成功响应统一返回 `X-Content-Type-Options: nosniff`。只有 PNG/JPG/JPEG/PDF 允许 `variant=preview`，并额外返回 `X-Frame-Options: SAMEORIGIN`、`Content-Security-Policy: sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'` 与 `Referrer-Policy: no-referrer`，以允许成果页同源嵌入 PDF；`variant=artifact` 仍要求 `catalog.download_resultartifact` 并保留全局 `X-Frame-Options: DENY`。
+
+# 2026-07-30 角色二次授权与受保护账号
+
+- 角色增删改查以 `core.manage_auth` 为基础；创建角色并设置权限需要同时具备 `core.manage_feature_permissions`，更新请求只要包含 `permissions` 也必须执行该二次校验。五个内置角色不可删除或重命名；超级管理员角色对非超级管理员隐藏且权限锁定，其他内置角色可由具备双权限的管理员调整权限。
+- `游客` 角色只允许系统 guest 账号持有，不能创建或分配给其他账号；guest 账号不可删除、停用、重置密码、改角色或配置直授权限。平台管理员角色只能由超级管理员分配；平台管理员账号是受保护管理目标，非超级管理员不能修改其状态、密码、角色、权限或删除账号。

@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -11,11 +12,14 @@ import pandas as pd
 from apps.catalog.vector_store import (
     DataQueryError,
     _coerce_value,
+    _field_type,
     _json_value,
     _limit,
     _returned_bounds,
     _rtree_candidate_feature_ids,
+    apply_attribute_filters,
     geometry_type,
+    geopackage_field_profiles,
     geopackage_layer_exists,
     geopackage_layer_metadata,
     geopackage_layer_names,
@@ -71,7 +75,7 @@ class FieldMetadataTests(SimpleTestCase):
     def test_missing_gpkg_data_columns_returns_empty_metadata(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "vector.gpkg"
-            with sqlite3.connect(path):
+            with closing(sqlite3.connect(path)):
                 pass
 
             self.assertEqual(read_field_metadata(path, "sample_layer"), {})
@@ -79,7 +83,7 @@ class FieldMetadataTests(SimpleTestCase):
     def test_invalid_gpkg_data_columns_schema_raises_query_error(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "vector.gpkg"
-            with sqlite3.connect(path) as connection:
+            with closing(sqlite3.connect(path)) as connection:
                 connection.execute("CREATE TABLE gpkg_data_columns (broken TEXT)")
 
             with self.assertRaises(DataQueryError):
@@ -88,7 +92,7 @@ class FieldMetadataTests(SimpleTestCase):
     def test_reads_field_descriptions(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "vector.gpkg"
-            with sqlite3.connect(path) as connection:
+            with closing(sqlite3.connect(path)) as connection:
                 connection.execute(
                     "CREATE TABLE gpkg_data_columns (table_name TEXT, column_name TEXT, description TEXT)"
                 )
@@ -96,6 +100,7 @@ class FieldMetadataTests(SimpleTestCase):
                     "INSERT INTO gpkg_data_columns VALUES (?, ?, ?)",
                     ("sample_layer", "height", "树高"),
                 )
+                connection.commit()
 
             self.assertEqual(
                 read_field_metadata(path, "sample_layer"),
@@ -169,6 +174,39 @@ class CoerceValueTests(SimpleTestCase):
         result = _coerce_value(series, "2025-01-03")
         self.assertEqual(str(result), "2025-01-03 00:00:00")
 
+    def test_rejects_invalid_numeric_condition(self):
+        series = pd.Series([1.0, 2.0])
+        with self.assertRaises(DataQueryError):
+            _coerce_value(series, "不是数字")
+
+
+class AttributeFilterTests(SimpleTestCase):
+    def test_numeric_text_field_uses_numeric_comparison(self):
+        frame = pd.DataFrame(
+            {
+                "longitude": ["9.5", "10.2", "81.25"],
+                "name": ["低值", "中值", "高值"],
+            }
+        )
+
+        result = apply_attribute_filters(
+            frame,
+            [{"field": "longitude", "operator": "gt", "value": "10"}],
+        )
+
+        self.assertEqual(result["name"].tolist(), ["中值", "高值"])
+        self.assertEqual(_field_type(frame["longitude"]), "number")
+
+    def test_text_field_keeps_lexical_equality(self):
+        frame = pd.DataFrame({"name": ["样点一", "样点二"]})
+
+        result = apply_attribute_filters(
+            frame,
+            [{"field": "name", "operator": "eq", "value": "样点二"}],
+        )
+
+        self.assertEqual(result["name"].tolist(), ["样点二"])
+
 
 class JsonValueTests(SimpleTestCase):
     def test_returns_none_for_nan(self):
@@ -221,6 +259,141 @@ class NormalizeForGeojsonTests(SimpleTestCase):
         self.assertEqual(result["name"].iloc[0], "A")
         self.assertEqual(result["value"].iloc[0], 42)
 
+    def test_converts_numeric_coordinate_text_to_numbers(self):
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        gdf = gpd.GeoDataFrame(
+            {
+                "longitude": ["87.6000"],
+                "纬度": ["43.8000"],
+                "sample_code": ["0012"],
+                "geometry": [Point(87.6, 43.8)],
+            },
+            crs="EPSG:4326",
+        )
+
+        result = normalize_for_geojson(gdf)
+
+        self.assertEqual(result["longitude"].iloc[0], 87.6)
+        self.assertEqual(result["纬度"].iloc[0], 43.8)
+        self.assertEqual(result["sample_code"].iloc[0], "0012")
+
+
+class GeopackageQueryPushdownTests(SimpleTestCase):
+    def test_profiles_and_filters_numeric_text_without_loading_the_full_layer(self):
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "vector.gpkg"
+            gdf = gpd.GeoDataFrame(
+                [
+                    {"longitude": "9.5", "name": "低值", "geometry": Point(9.5, 1)},
+                    {"longitude": "10.2", "name": "中值", "geometry": Point(10.2, 1)},
+                    {"longitude": "81.25", "name": "高值", "geometry": Point(81.25, 1)},
+                ],
+                crs="EPSG:4326",
+            )
+            gdf.to_file(path, layer="sample_points", driver="GPKG")
+            resource = DataResource(
+                id=7,
+                name="numeric text coordinates",
+                data_type=DataResource.DataType.VECTOR,
+                storage_path="sample_points",
+            )
+
+            fields = geopackage_field_profiles(path, "sample_points")
+            longitude = next(field for field in fields if field["name"] == "longitude")
+            self.assertEqual(longitude["type"], "number")
+
+            with (
+                patch("apps.catalog.vector_store.vector_geopackage_path", return_value=path),
+                patch("apps.catalog.vector_store.runtime_query_result_limit", return_value=30_000),
+            ):
+                result = query_resource(
+                    resource,
+                    {
+                        "attributeFilters": [
+                            {"field": "longitude", "operator": "gt", "value": "10"}
+                        ],
+                        "spatialFilter": None,
+                        "limit": 1,
+                    },
+                )
+
+            self.assertEqual(result["totalCount"], 2)
+            self.assertEqual(result["returnedCount"], 1)
+            self.assertTrue(result["limitExceeded"])
+            self.assertIsInstance(
+                result["geojson"]["features"][0]["properties"]["longitude"], float
+            )
+
+    def test_spatial_query_pages_candidates_without_changing_exact_counts(self):
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "vector.gpkg"
+            gdf = gpd.GeoDataFrame(
+                [
+                    {"name": f"point-{index}", "geometry": Point(index, 0)}
+                    for index in range(6)
+                ],
+                crs="EPSG:4326",
+            )
+            gdf.to_file(path, layer="paged_points", driver="GPKG")
+            resource = DataResource(
+                id=8,
+                name="paged spatial query",
+                data_type=DataResource.DataType.VECTOR,
+                storage_path="paged_points",
+            )
+
+            with (
+                patch(
+                    "apps.catalog.vector_store.vector_geopackage_path",
+                    return_value=path,
+                ),
+                patch(
+                    "apps.catalog.vector_store.runtime_query_result_limit",
+                    return_value=5_000,
+                ),
+                patch("apps.catalog.vector_store.SPATIAL_QUERY_CHUNK_SIZE", 2),
+            ):
+                result = query_resource(
+                    resource,
+                    {
+                        "spatialFilter": {
+                            "mode": "polygon",
+                            "geometry": {
+                                "type": "Polygon",
+                                "coordinates": [
+                                    [
+                                        [-0.5, -0.5],
+                                        [4.5, -0.5],
+                                        [4.5, 0.5],
+                                        [-0.5, 0.5],
+                                        [-0.5, -0.5],
+                                    ]
+                                ],
+                            },
+                        },
+                        "limit": 3,
+                    },
+                )
+
+            self.assertEqual(result["totalCount"], 5)
+            self.assertEqual(result["returnedCount"], 3)
+            self.assertTrue(result["limitExceeded"])
+            self.assertEqual(
+                [
+                    feature["properties"]["name"]
+                    for feature in result["geojson"]["features"]
+                ],
+                ["point-0", "point-1", "point-2"],
+            )
+
 
 class QueryResourceSummaryTests(SimpleTestCase):
     def test_returns_spatial_workbench_summary_fields(self):
@@ -244,7 +417,22 @@ class QueryResourceSummaryTests(SimpleTestCase):
 
         with (
             patch("apps.catalog.vector_store.read_resource", return_value=gdf),
-            patch("apps.catalog.vector_store.field_metadata_for_layer", return_value={}),
+            patch(
+                "apps.catalog.vector_store.geopackage_layer_exists", return_value=True
+            ),
+            patch(
+                "apps.catalog.vector_store.geopackage_field_profiles",
+                return_value=[
+                    {
+                        "name": "name",
+                        "type": "string",
+                        "nullable": False,
+                        "sampleValues": ["inside", "outside"],
+                        "description": "",
+                    }
+                ],
+            ),
+            patch("apps.catalog.vector_store._geopackage_filtered_count", return_value=2),
             patch("apps.catalog.vector_store.runtime_query_result_limit", return_value=1),
         ):
             result = query_resource(

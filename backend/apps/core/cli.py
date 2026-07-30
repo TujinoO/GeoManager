@@ -113,7 +113,11 @@ def build_cli_command(
 ) -> list[str]:
     active_env = dict(os.environ if env is None else env)
     prefix = conda_environment_prefix(env)
-    if active_env.get("PIXI_PROJECT_MANIFEST") or active_env.get("CONDA_PREFIX") or prefix:
+    if (
+        active_env.get("PIXI_PROJECT_MANIFEST")
+        or active_env.get("CONDA_PREFIX")
+        or prefix
+    ):
         if prefix is not None:
             active_env.setdefault("CONDA_PREFIX", str(prefix))
         return resolve_cli_executable(command, active_env)
@@ -125,6 +129,7 @@ def run_cli_capture(
     *,
     cwd: Path = BACKEND_ROOT,
     env: dict[str, str] | None = None,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     process_env = cli_environment(env)
     return subprocess.run(
@@ -134,6 +139,7 @@ def run_cli_capture(
         encoding="utf-8",
         errors="replace",
         check=False,
+        timeout=timeout,
         env=process_env,
         cwd=cwd,
     )

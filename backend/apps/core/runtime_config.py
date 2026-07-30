@@ -5,6 +5,7 @@ from typing import Any
 from django.conf import settings
 
 from apps.core.config import load_runtime_config_document
+from apps.core.platform_brand import canonicalize_platform_name
 
 
 def runtime_application() -> dict[str, Any]:
@@ -17,7 +18,7 @@ def runtime_application() -> dict[str, Any]:
 
 def runtime_system_name() -> str:
     try:
-        return str(runtime_application()["system"]["name"])
+        return canonicalize_platform_name(runtime_application()["system"]["name"])
     except (KeyError, TypeError) as exc:
         raise RuntimeConfigError("无法读取系统名称配置") from exc
 
@@ -42,6 +43,16 @@ def runtime_query_result_limit() -> int:
 
 def runtime_max_raster_side_pixels() -> int:
     return runtime_limit_int("max_raster_side_pixels", "栅格单边像素上限")
+
+
+def runtime_symbolizer_timeout_seconds() -> int:
+    try:
+        value = int(runtime_application()["raster"]["symbolizer_timeout_seconds"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeConfigError("无法读取栅格任务超时限制") from exc
+    if value <= 0:
+        raise RuntimeConfigError("栅格任务超时限制必须是正整数")
+    return value
 
 
 def runtime_limit_int(key: str, label: str) -> int:

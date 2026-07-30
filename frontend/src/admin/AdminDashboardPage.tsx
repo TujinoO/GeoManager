@@ -62,6 +62,7 @@ import {
 } from "../map/basemapStyle";
 import { fitBoundsOptions } from "../map/mapViewport";
 import type { AdminDashboard, AdminDashboardServer } from "../types";
+import { startSequentialPolling } from "../utils/sequentialPolling";
 import { UserSummaryCards } from "./UserSummaryCards";
 
 const serverRefreshMs = 5000;
@@ -147,45 +148,70 @@ export default function AdminDashboardPage({
     showOperationCards && user?.permissions.canViewDashboardSystemCard,
   );
 
-  const loadDashboard = useCallback(async () => {
-    setDashboardLoading(true);
-    try {
-      setDashboard(await api.adminDashboard(period));
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : "概览加载失败");
-    } finally {
-      setDashboardLoading(false);
-    }
-  }, [message, period]);
+  const loadDashboard = useCallback(
+    async (signal?: AbortSignal) => {
+      setDashboardLoading(true);
+      try {
+        const nextDashboard = await api.adminDashboard(period, { signal });
+        if (!signal?.aborted) {
+          setDashboard(nextDashboard);
+        }
+      } catch (error) {
+        if (signal?.aborted) return;
+        message.error(error instanceof Error ? error.message : "概览加载失败");
+      } finally {
+        if (!signal?.aborted) {
+          setDashboardLoading(false);
+        }
+      }
+    },
+    [message, period],
+  );
 
-  const loadServer = useCallback(async () => {
+  const loadServer = useCallback(
+    async (signal: AbortSignal) => {
+      if (!canViewServerCards) {
+        setServer(null);
+        setServerLoading(false);
+        return false;
+      }
+      try {
+        const nextServer = await api.adminDashboardServer({ signal });
+        if (!signal.aborted) {
+          setServer(nextServer);
+        }
+      } catch (error) {
+        if (signal.aborted) return false;
+        message.error(
+          error instanceof Error ? error.message : "服务器监控加载失败",
+        );
+      } finally {
+        if (!signal.aborted) {
+          setServerLoading(false);
+        }
+      }
+      return !signal.aborted;
+    },
+    [canViewServerCards, message],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadDashboard(controller.signal);
+    return () => controller.abort();
+  }, [loadDashboard]);
+
+  useEffect(() => {
     if (!canViewServerCards) {
       setServer(null);
       setServerLoading(false);
       return;
     }
-    try {
-      setServer(await api.adminDashboardServer());
-    } catch (error) {
-      message.error(
-        error instanceof Error ? error.message : "服务器监控加载失败",
-      );
-    } finally {
-      setServerLoading(false);
-    }
-  }, [canViewServerCards, message]);
-
-  useEffect(() => {
-    loadDashboard();
-    loadServer();
-  }, [loadDashboard, loadServer]);
-
-  useEffect(() => {
-    if (!canViewServerCards) {
-      return;
-    }
-    const timer = window.setInterval(loadServer, serverRefreshMs);
-    return () => window.clearInterval(timer);
+    setServerLoading(true);
+    return startSequentialPolling(loadServer, {
+      intervalMs: serverRefreshMs,
+      runImmediately: true,
+    });
   }, [canViewServerCards, loadServer]);
 
   const activeChartData = useMemo(() => {

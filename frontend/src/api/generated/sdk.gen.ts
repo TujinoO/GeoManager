@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { CommitVectorImportData, CommitVectorImportErrors, CommitVectorImportResponses, CreateAdminBackupRunData, CreateAdminBackupRunErrors, CreateAdminBackupRunResponses, CreateAdminDataResourceGroupData, CreateAdminDataResourceGroupErrors, CreateAdminDataResourceGroupResponses, CreateCatalogWorkspaceData, CreateCatalogWorkspaceErrors, CreateCatalogWorkspaceResponses, CreateGroupData, CreateGroupErrors, CreateGroupResponses, CreateMapCompositionData, CreateMapCompositionErrors, CreateMapCompositionResponses, CreateMapCompositionVersionData, CreateMapCompositionVersionErrors, CreateMapCompositionVersionResponses, CreateResultArtifactData, CreateResultArtifactErrors, CreateResultArtifactResponses, CreateUserData, CreateUserErrors, CreateUserResponses, DownloadAdminBackupRunData, DownloadAdminBackupRunErrors, DownloadAdminBackupRunResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, DownloadMapCompositionVersionData, DownloadMapCompositionVersionErrors, DownloadMapCompositionVersionResponses, DownloadResultArtifactData, DownloadResultArtifactErrors, DownloadResultArtifactResponses, ExportAdminDataResourcesData, ExportAdminDataResourcesErrors, ExportAdminDataResourcesResponses, ExportLayersAsyncData, ExportLayersAsyncErrors, ExportLayersAsyncResponses, ExportLayersData, ExportLayersErrors, ExportLayersResponses, GetAdminBackupOverviewData, GetAdminBackupOverviewErrors, GetAdminBackupOverviewResponses, GetAdminBackupRunData, GetAdminBackupRunErrors, GetAdminBackupRunResponses, GetAdminBackupSettingsData, GetAdminBackupSettingsErrors, GetAdminBackupSettingsResponses, GetAdminDashboardData, GetAdminDashboardErrors, GetAdminDashboardResponses, GetAdminDashboardServerData, GetAdminDashboardServerErrors, GetAdminDashboardServerResponses, GetAdminProfileData, GetAdminProfileErrors, GetAdminProfileResponses, GetAdminSettingsData, GetAdminSettingsErrors, GetAdminSettingsResponses, GetBootstrapData, GetBootstrapErrors, GetBootstrapResponses, GetCatalogWorkspaceData, GetCatalogWorkspaceErrors, GetCatalogWorkspaceResponses, GetCsrfCookieData, GetCsrfCookieErrors, GetCsrfCookieResponses, GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetDataSchemaSummaryData, GetDataSchemaSummaryErrors, GetDataSchemaSummaryResponses, GetDirectoriesData, GetDirectoriesErrors, GetDirectoriesResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetJobStatusData, GetJobStatusErrors, GetJobStatusResponses, GetLayersData, GetLayersErrors, GetLayersResponses, GetLoginOverviewData, GetLoginOverviewErrors, GetLoginOverviewResponses, GetMapCompositionData, GetMapCompositionErrors, GetMapCompositionResponses, GetMapThumbnailTileData, GetMapThumbnailTileErrors, GetMapThumbnailTileResponses, GetRasterDatasetsData, GetRasterDatasetsErrors, GetRasterDatasetsResponses, GetResourceProfileData, GetResourceProfileErrors, GetResourceProfileResponses, GetResourcesData, GetResourcesErrors, GetResourcesResponses, GetResourceVisualizationSummaryData, GetResourceVisualizationSummaryErrors, GetResourceVisualizationSummaryResponses, GetResultArtifactData, GetResultArtifactErrors, GetResultArtifactResponses, GetTileData, GetTileErrors, GetTileResponses, GetUniqueValuesData, GetUniqueValuesErrors, GetUniqueValuesResponses, GetUserAvatarData, GetUserAvatarErrors, GetUserAvatarResponses, GuestLoginData, GuestLoginErrors, GuestLoginResponses, ImportCommitData, ImportCommitErrors, ImportCommitResponses, ImportPreviewData, ImportPreviewErrors, ImportPreviewResponses, ImportRasterData, ImportRasterErrors, ImportRasterResponses, ImportValidateData, ImportValidateErrors, ImportValidateResponses, ListAdminBackupRunsData, ListAdminBackupRunsErrors, ListAdminBackupRunsResponses, ListAdminDataResourcesData, ListAdminDataResourcesErrors, ListAdminDataResourcesResponses, ListAdminOperationLogsData, ListAdminOperationLogsErrors, ListAdminOperationLogsResponses, ListAdminSystemLogsData, ListAdminSystemLogsErrors, ListAdminSystemLogsResponses, ListAdminWorkspacesData, ListAdminWorkspacesErrors, ListAdminWorkspacesResponses, ListCatalogWorkspacesData, ListCatalogWorkspacesErrors, ListCatalogWorkspacesResponses, ListGermplasmAccessionsData, ListGermplasmAccessionsErrors, ListGermplasmAccessionsResponses, ListGroupsData, ListGroupsErrors, ListGroupsResponses, ListMapCompositionsData, ListMapCompositionsErrors, ListMapCompositionsResponses, ListResultArtifactsData, ListResultArtifactsErrors, ListResultArtifactsResponses, ListRoleApplicationsData, ListRoleApplicationsErrors, ListRoleApplicationsResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, PreviewRasterImportData, PreviewRasterImportErrors, PreviewRasterImportResponses, PreviewVectorImportData, PreviewVectorImportErrors, PreviewVectorImportResponses, PublishMapCompositionData, PublishMapCompositionErrors, PublishMapCompositionResponses, QueryResourceData, QueryResourceErrors, QueryResourceResponses, RegisterData, RegisterErrors, RegisterResponses, RenderRasterAsyncData, RenderRasterAsyncErrors, RenderRasterAsyncResponses, RenderRasterData, RenderRasterErrors, RenderRasterResponses, ResetUserPasswordData, ResetUserPasswordErrors, ResetUserPasswordResponses, RestoreMapCompositionProjectData, RestoreMapCompositionProjectErrors, RestoreMapCompositionProjectResponses, ReviewRoleApplicationData, ReviewRoleApplicationErrors, ReviewRoleApplicationResponses, ScanCatalogSourcesData, ScanCatalogSourcesErrors, ScanCatalogSourcesResponses, ScanRasterSourcesData, ScanRasterSourcesErrors, ScanRasterSourcesResponses, SearchData, SearchErrors, SearchResponses, TestAdminBackupTargetData, TestAdminBackupTargetErrors, TestAdminBackupTargetResponses, UnpublishMapCompositionData, UnpublishMapCompositionErrors, UnpublishMapCompositionResponses, UpdateAdminBackupSettingsData, UpdateAdminBackupSettingsErrors, UpdateAdminBackupSettingsResponses, UpdateAdminDataResourceData, UpdateAdminDataResourceErrors, UpdateAdminDataResourceGroupData, UpdateAdminDataResourceGroupErrors, UpdateAdminDataResourceGroupResponses, UpdateAdminDataResourceResponses, UpdateAdminProfileData, UpdateAdminProfileErrors, UpdateAdminProfilePasswordData, UpdateAdminProfilePasswordErrors, UpdateAdminProfilePasswordResponses, UpdateAdminProfilePermissionsData, UpdateAdminProfilePermissionsErrors, UpdateAdminProfilePermissionsResponses, UpdateAdminProfileResponses, UpdateAdminSettingsData, UpdateAdminSettingsErrors, UpdateAdminSettingsResponses, UpdateAdminWorkspaceData, UpdateAdminWorkspaceErrors, UpdateAdminWorkspaceResponses, UpdateCatalogWorkspaceData, UpdateCatalogWorkspaceErrors, UpdateCatalogWorkspaceResponses, UpdateMapCompositionData, UpdateMapCompositionErrors, UpdateMapCompositionResponses, UpdateOrDeleteGroupData, UpdateOrDeleteGroupErrors, UpdateOrDeleteGroupResponses, UpdateResultArtifactData, UpdateResultArtifactErrors, UpdateResultArtifactResponses, UpdateUserGroupsData, UpdateUserGroupsErrors, UpdateUserGroupsResponses, UpdateUserOrDeleteData, UpdateUserOrDeleteErrors, UpdateUserOrDeleteResponses, UpdateUserPermissionsData, UpdateUserPermissionsErrors, UpdateUserPermissionsResponses, UploadAdminProfileAvatarData, UploadAdminProfileAvatarErrors, UploadAdminProfileAvatarResponses, ValidateVectorImportData, ValidateVectorImportErrors, ValidateVectorImportResponses } from './types.gen';
+import type { CommitVectorImportData, CommitVectorImportErrors, CommitVectorImportResponses, CreateAdminBackupRunData, CreateAdminBackupRunErrors, CreateAdminBackupRunResponses, CreateAdminDataResourceGroupData, CreateAdminDataResourceGroupErrors, CreateAdminDataResourceGroupResponses, CreateCatalogWorkspaceData, CreateCatalogWorkspaceErrors, CreateCatalogWorkspaceResponses, CreateGroupData, CreateGroupErrors, CreateGroupResponses, CreateMapCompositionData, CreateMapCompositionErrors, CreateMapCompositionResponses, CreateMapCompositionVersionData, CreateMapCompositionVersionErrors, CreateMapCompositionVersionResponses, CreateResultArtifactData, CreateResultArtifactErrors, CreateResultArtifactResponses, CreateUserData, CreateUserErrors, CreateUserResponses, DownloadAdminBackupRunData, DownloadAdminBackupRunErrors, DownloadAdminBackupRunResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, DownloadMapCompositionVersionData, DownloadMapCompositionVersionErrors, DownloadMapCompositionVersionResponses, DownloadResultArtifactData, DownloadResultArtifactErrors, DownloadResultArtifactResponses, ExportAdminDataResourcesData, ExportAdminDataResourcesErrors, ExportAdminDataResourcesResponses, ExportLayersAsyncData, ExportLayersAsyncErrors, ExportLayersAsyncResponses, ExportLayersData, ExportLayersErrors, ExportLayersResponses, GetAdminBackupOverviewData, GetAdminBackupOverviewErrors, GetAdminBackupOverviewResponses, GetAdminBackupRunData, GetAdminBackupRunErrors, GetAdminBackupRunResponses, GetAdminBackupSettingsData, GetAdminBackupSettingsErrors, GetAdminBackupSettingsResponses, GetAdminDashboardData, GetAdminDashboardErrors, GetAdminDashboardResponses, GetAdminDashboardServerData, GetAdminDashboardServerErrors, GetAdminDashboardServerResponses, GetAdminProfileData, GetAdminProfileErrors, GetAdminProfileResponses, GetAdminSettingsData, GetAdminSettingsErrors, GetAdminSettingsResponses, GetBootstrapData, GetBootstrapErrors, GetBootstrapResponses, GetCatalogWorkspaceData, GetCatalogWorkspaceErrors, GetCatalogWorkspaceResponses, GetCsrfCookieData, GetCsrfCookieErrors, GetCsrfCookieResponses, GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetDataSchemaSummaryData, GetDataSchemaSummaryErrors, GetDataSchemaSummaryResponses, GetDirectoriesData, GetDirectoriesErrors, GetDirectoriesResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetJobStatusData, GetJobStatusErrors, GetJobStatusResponses, GetLayersData, GetLayersErrors, GetLayersResponses, GetLoginOverviewData, GetLoginOverviewErrors, GetLoginOverviewResponses, GetMapCompositionData, GetMapCompositionErrors, GetMapCompositionResponses, GetMapThumbnailTileData, GetMapThumbnailTileErrors, GetMapThumbnailTileResponses, GetRasterDatasetsData, GetRasterDatasetsErrors, GetRasterDatasetsResponses, GetResourceNonGeoAnalysisData, GetResourceNonGeoAnalysisErrors, GetResourceNonGeoAnalysisResponses, GetResourceProfileData, GetResourceProfileErrors, GetResourceProfileResponses, GetResourcesData, GetResourcesErrors, GetResourcesResponses, GetResourceVisualizationSummaryData, GetResourceVisualizationSummaryErrors, GetResourceVisualizationSummaryResponses, GetResultArtifactData, GetResultArtifactErrors, GetResultArtifactResponses, GetTileData, GetTileErrors, GetTileResponses, GetUniqueValuesData, GetUniqueValuesErrors, GetUniqueValuesResponses, GetUserAvatarData, GetUserAvatarErrors, GetUserAvatarResponses, GuestLoginData, GuestLoginErrors, GuestLoginResponses, ImportCommitData, ImportCommitErrors, ImportCommitResponses, ImportPreviewData, ImportPreviewErrors, ImportPreviewResponses, ImportRasterData, ImportRasterErrors, ImportRasterResponses, ImportValidateData, ImportValidateErrors, ImportValidateResponses, ListAdminBackupRunsData, ListAdminBackupRunsErrors, ListAdminBackupRunsResponses, ListAdminDataResourcesData, ListAdminDataResourcesErrors, ListAdminDataResourcesResponses, ListAdminOperationLogsData, ListAdminOperationLogsErrors, ListAdminOperationLogsResponses, ListAdminSystemLogsData, ListAdminSystemLogsErrors, ListAdminSystemLogsResponses, ListAdminWorkspacesData, ListAdminWorkspacesErrors, ListAdminWorkspacesResponses, ListCatalogWorkspacesData, ListCatalogWorkspacesErrors, ListCatalogWorkspacesResponses, ListGermplasmAccessionsData, ListGermplasmAccessionsErrors, ListGermplasmAccessionsResponses, ListGroupsData, ListGroupsErrors, ListGroupsResponses, ListMapCompositionsData, ListMapCompositionsErrors, ListMapCompositionsResponses, ListResultArtifactsData, ListResultArtifactsErrors, ListResultArtifactsResponses, ListRoleApplicationsData, ListRoleApplicationsErrors, ListRoleApplicationsResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, PreviewRasterImportData, PreviewRasterImportErrors, PreviewRasterImportResponses, PreviewVectorImportData, PreviewVectorImportErrors, PreviewVectorImportResponses, PublishMapCompositionData, PublishMapCompositionErrors, PublishMapCompositionResponses, QueryResourceData, QueryResourceErrors, QueryResourceNonGeoTableData, QueryResourceNonGeoTableErrors, QueryResourceNonGeoTableResponses, QueryResourceResponses, RegisterData, RegisterErrors, RegisterResponses, RenderRasterAsyncData, RenderRasterAsyncErrors, RenderRasterAsyncResponses, RenderRasterData, RenderRasterErrors, RenderRasterResponses, ResetUserPasswordData, ResetUserPasswordErrors, ResetUserPasswordResponses, RestoreMapCompositionProjectData, RestoreMapCompositionProjectErrors, RestoreMapCompositionProjectResponses, ReviewRoleApplicationData, ReviewRoleApplicationErrors, ReviewRoleApplicationResponses, ScanCatalogSourcesData, ScanCatalogSourcesErrors, ScanCatalogSourcesResponses, ScanRasterSourcesData, ScanRasterSourcesErrors, ScanRasterSourcesResponses, SearchData, SearchErrors, SearchResponses, TestAdminBackupTargetData, TestAdminBackupTargetErrors, TestAdminBackupTargetResponses, UnpublishMapCompositionData, UnpublishMapCompositionErrors, UnpublishMapCompositionResponses, UpdateAdminBackupSettingsData, UpdateAdminBackupSettingsErrors, UpdateAdminBackupSettingsResponses, UpdateAdminDataResourceData, UpdateAdminDataResourceErrors, UpdateAdminDataResourceGroupData, UpdateAdminDataResourceGroupErrors, UpdateAdminDataResourceGroupResponses, UpdateAdminDataResourceResponses, UpdateAdminProfileData, UpdateAdminProfileErrors, UpdateAdminProfilePasswordData, UpdateAdminProfilePasswordErrors, UpdateAdminProfilePasswordResponses, UpdateAdminProfilePermissionsData, UpdateAdminProfilePermissionsErrors, UpdateAdminProfilePermissionsResponses, UpdateAdminProfileResponses, UpdateAdminSettingsData, UpdateAdminSettingsErrors, UpdateAdminSettingsResponses, UpdateAdminWorkspaceData, UpdateAdminWorkspaceErrors, UpdateAdminWorkspaceResponses, UpdateCatalogWorkspaceData, UpdateCatalogWorkspaceErrors, UpdateCatalogWorkspaceResponses, UpdateMapCompositionData, UpdateMapCompositionErrors, UpdateMapCompositionResponses, UpdateOrDeleteGroupData, UpdateOrDeleteGroupErrors, UpdateOrDeleteGroupResponses, UpdateResultArtifactData, UpdateResultArtifactErrors, UpdateResultArtifactResponses, UpdateUserGroupsData, UpdateUserGroupsErrors, UpdateUserGroupsResponses, UpdateUserOrDeleteData, UpdateUserOrDeleteErrors, UpdateUserOrDeleteResponses, UpdateUserPermissionsData, UpdateUserPermissionsErrors, UpdateUserPermissionsResponses, UploadAdminProfileAvatarData, UploadAdminProfileAvatarErrors, UploadAdminProfileAvatarResponses, ValidateVectorImportData, ValidateVectorImportErrors, ValidateVectorImportResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -74,7 +74,7 @@ export const login = <ThrowOnError extends boolean = false>(options: Options<Log
 /**
  * 游客登录
  *
- * 使用系统维护的专用 `guest` 账号建立游客会话。游客账号不可使用密码登录，只归属 `游客` 用户组；默认仅具备公开数据浏览、查询、图层加载和共享成果查看权限，管理员可在认证授权中调整游客角色权限。
+ * 使用系统维护的专用 `guest` 账号建立游客会话。游客账号不可使用密码登录，只归属 `游客` 用户组；默认仅具备公开数据浏览、查询、图层加载和共享成果查看权限，管理员可在认证授权中调整游客角色权限。同一对象选择 `游客` 访问角色即表示公开共享，其他已登录角色也保留对该公开对象的访问权。
  *
  */
 export const guestLogin = <ThrowOnError extends boolean = false>(options?: Options<GuestLoginData, ThrowOnError>): RequestResult<GuestLoginResponses, GuestLoginErrors, ThrowOnError> => (options?.client ?? client).post<GuestLoginResponses, GuestLoginErrors, ThrowOnError>({ url: '/api/auth/guest-login/', ...options });
@@ -300,7 +300,7 @@ export const listUsers = <ThrowOnError extends boolean = false>(options?: Option
 /**
  * 创建用户
  *
- * 具备 `core.manage_auth` 和 `core.create_user` 权限的管理员创建用户账号，邮箱必填，创建时必须指定至少一个非超级管理员用户组。密码由后端自动生成并返回。该接口不受自助注册开关影响；只有超级管理员可以分配平台管理员角色。
+ * 具备 `core.manage_auth` 和 `core.create_user` 权限的管理员创建用户账号，邮箱必填，创建时必须指定至少一个非超级管理员用户组。密码由后端自动生成并返回。该接口不受自助注册开关影响；`游客` 角色只允许系统专用 guest 账号持有，不能分配给新账号；只有超级管理员可以分配平台管理员角色。
  */
 export const createUser = <ThrowOnError extends boolean = false>(options: Options<CreateUserData, ThrowOnError>): RequestResult<CreateUserResponses, CreateUserErrors, ThrowOnError> => (options.client ?? client).post<CreateUserResponses, CreateUserErrors, ThrowOnError>({
     security: [{
@@ -319,7 +319,7 @@ export const createUser = <ThrowOnError extends boolean = false>(options: Option
 /**
  * 更新用户所属用户组
  *
- * 为指定用户设置所属用户组。普通用户必须保留至少一个用户组，非超级管理员主体不能看到或选择超级管理员用户组，也不能分配平台管理员角色；不能修改超级管理员用户；当前登录用户的用户组不能在认证授权页修改。需要 `core.manage_auth`。
+ * 为指定用户设置所属用户组。普通用户必须保留至少一个用户组，`游客` 角色只允许系统专用 guest 账号持有；guest 账号的角色不可修改。非超级管理员主体不能看到或选择超级管理员用户组，也不能分配平台管理员角色，且不能修改超级管理员或平台管理员账号；当前登录用户的用户组不能在认证授权页修改。需要 `core.manage_auth`。
  */
 export const updateUserGroups = <ThrowOnError extends boolean = false>(options: Options<UpdateUserGroupsData, ThrowOnError>): RequestResult<UpdateUserGroupsResponses, UpdateUserGroupsErrors, ThrowOnError> => (options.client ?? client).post<UpdateUserGroupsResponses, UpdateUserGroupsErrors, ThrowOnError>({
     security: [{
@@ -338,7 +338,7 @@ export const updateUserGroups = <ThrowOnError extends boolean = false>(options: 
 /**
  * 更新用户功能权限
  *
- * 为指定用户设置单独授予权限和单独关闭权限。最终生效权限为角色权限与用户直授权限合并后，再扣除用户单独关闭权限；当前登录用户不能在认证授权页修改自己的权限，应通过用户设置调整主动关闭权限。非超级管理员主体不能看到或配置超级管理员用户，也不能将超级管理员角色配置为可查看日志角色。需要 `core.manage_auth` 和 `core.manage_feature_permissions`。
+ * 为指定用户设置单独授予权限和单独关闭权限。最终生效权限为角色权限与用户直授权限合并后，再扣除用户单独关闭权限；当前登录用户不能在认证授权页修改自己的权限，应通过用户设置调整主动关闭权限。guest 账号不能获得直授权限或单独关闭权限；非超级管理员主体不能看到或配置超级管理员用户，也不能配置平台管理员账号，且不能将超级管理员角色配置为可查看日志角色。需要 `core.manage_auth` 和 `core.manage_feature_permissions`。
  */
 export const updateUserPermissions = <ThrowOnError extends boolean = false>(options: Options<UpdateUserPermissionsData, ThrowOnError>): RequestResult<UpdateUserPermissionsResponses, UpdateUserPermissionsErrors, ThrowOnError> => (options.client ?? client).post<UpdateUserPermissionsResponses, UpdateUserPermissionsErrors, ThrowOnError>({
     security: [{
@@ -357,7 +357,7 @@ export const updateUserPermissions = <ThrowOnError extends boolean = false>(opti
 /**
  * 重置用户密码
  *
- * 为指定用户生成随机新密码并立即生效。新密码规则与后台创建用户时一致，响应中的 `generatedPassword` 仅返回一次。不能重置当前登录用户密码；非超级管理员主体不能看到或重置超级管理员用户。需要 `core.manage_auth`。
+ * 为指定用户生成随机新密码并立即生效。新密码规则与后台创建用户时一致，响应中的 `generatedPassword` 仅返回一次。不能重置当前登录用户或 guest 账号密码；非超级管理员主体不能看到或重置超级管理员、平台管理员账号。需要 `core.manage_auth`。
  */
 export const resetUserPassword = <ThrowOnError extends boolean = false>(options: Options<ResetUserPasswordData, ThrowOnError>): RequestResult<ResetUserPasswordResponses, ResetUserPasswordErrors, ThrowOnError> => (options.client ?? client).post<ResetUserPasswordResponses, ResetUserPasswordErrors, ThrowOnError>({
     security: [{
@@ -376,7 +376,7 @@ export const resetUserPassword = <ThrowOnError extends boolean = false>(options:
  * - 不提供 `action`：启用或停用指定用户账号
  * - `delete`：删除指定用户账号
  *
- * 不能操作当前登录用户或初始化管理员；非超级管理员主体不能看到或操作超级管理员用户。需要 `core.manage_auth`。
+ * 不能操作当前登录用户、初始化管理员或系统 guest 账号；非超级管理员主体不能看到或操作超级管理员用户，也不能停用或删除平台管理员账号。需要 `core.manage_auth`。
  *
  */
 export const updateUserOrDelete = <ThrowOnError extends boolean = false>(options: Options<UpdateUserOrDeleteData, ThrowOnError>): RequestResult<UpdateUserOrDeleteResponses, UpdateUserOrDeleteErrors, ThrowOnError> => (options.client ?? client).post<UpdateUserOrDeleteResponses, UpdateUserOrDeleteErrors, ThrowOnError>({
@@ -434,7 +434,7 @@ export const createGroup = <ThrowOnError extends boolean = false>(options: Optio
  * - 不提供 `action`：更新用户组名称和功能权限
  * - `delete`：删除空用户组（仅当用户组没有任何关联用户且不是内置角色时允许）
  *
- * 非超级管理员主体不能看到、更新或删除超级管理员用户组。超级管理员、平台管理员、科研用户、普通用户和游客属于系统内置角色，不能删除或重命名；其中只有超级管理员的权限集合被系统锁定为全量权限，其他内置角色允许调整权限。需要 `core.manage_auth`。删除仍有关联用户的角色、删除/重命名内置角色、或关闭超级管理员锁定权限时返回 `400 ErrorResponse`。
+ * 非超级管理员主体不能看到、更新或删除超级管理员用户组。超级管理员、平台管理员、科研用户、普通用户和游客属于系统内置角色，不能删除或重命名；其中只有超级管理员的权限集合被系统锁定为全量权限，其他内置角色允许调整权限。所有操作需要 `core.manage_auth`；请求体只要包含 `permissions`，还必须具备 `core.manage_feature_permissions`。删除仍有关联用户的角色、删除/重命名内置角色、或关闭超级管理员锁定权限时返回 `400 ErrorResponse`。
  *
  */
 export const updateOrDeleteGroup = <ThrowOnError extends boolean = false>(options: Options<UpdateOrDeleteGroupData, ThrowOnError>): RequestResult<UpdateOrDeleteGroupResponses, UpdateOrDeleteGroupErrors, ThrowOnError> => (options.client ?? client).post<UpdateOrDeleteGroupResponses, UpdateOrDeleteGroupErrors, ThrowOnError>({
@@ -756,7 +756,7 @@ export const exportAdminDataResources = <ThrowOnError extends boolean = false>(o
 /**
  * 操作单个存量数据
  *
- * 支持更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。目标数据必须对当前用户可见或由当前用户上传；不可见数据按不存在处理；超级管理员不受对象可见范围限制。启停、默认可视化和普通编辑需要 `catalog.change_dataresource`；删除需要 `catalog.delete_dataresource`；数据上传者本人或具备 `catalog.change_dataresource` 的用户可以通过 `updateAccess` 修改可见范围。可手动配置的数据访问角色列表不会返回超级管理员角色，后端仍会强制保留超级管理员访问范围。成功操作会写入审计日志。
+ * 支持重命名数据资源、更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。重命名只修改数据资源显示名称，不修改数据编号、物理存储标识或默认图层名称。目标数据必须对当前用户可见或由当前用户上传；不可见数据按不存在处理；超级管理员不受对象可见范围限制。重命名、启停、默认可视化和普通编辑需要 `catalog.change_dataresource`；删除需要 `catalog.delete_dataresource`；数据上传者本人或具备 `catalog.change_dataresource` 的用户可以通过 `updateAccess` 修改可见范围。可手动配置的数据访问角色列表不会返回超级管理员角色，后端仍会强制保留超级管理员访问范围。成功操作会写入审计日志。
  */
 export const updateAdminDataResource = <ThrowOnError extends boolean = false>(options: Options<UpdateAdminDataResourceData, ThrowOnError>): RequestResult<UpdateAdminDataResourceResponses, UpdateAdminDataResourceErrors, ThrowOnError> => (options.client ?? client).post<UpdateAdminDataResourceResponses, UpdateAdminDataResourceErrors, ThrowOnError>({
     security: [{
@@ -839,7 +839,7 @@ export const getResources = <ThrowOnError extends boolean = false>(options?: Opt
 /**
  * 扫描数据源
  *
- * 触发一次数据目录源扫描，发现并同步新的数据资源
+ * 触发一次维护性数据目录源扫描，发现并同步新的数据资源。需要 `catalog.add_dataresource`；普通浏览用户和游客不得触发。若已有扫描正在运行则返回 409。
  */
 export const scanCatalogSources = <ThrowOnError extends boolean = false>(options?: Options<ScanCatalogSourcesData, ThrowOnError>): RequestResult<ScanCatalogSourcesResponses, ScanCatalogSourcesErrors, ThrowOnError> => (options?.client ?? client).post<ScanCatalogSourcesResponses, ScanCatalogSourcesErrors, ThrowOnError>({
     security: [{
@@ -854,7 +854,7 @@ export const scanCatalogSources = <ThrowOnError extends boolean = false>(options
 /**
  * 获取工程和专题列表
  *
- * 返回当前登录用户拥有或其所属角色可访问的启用工程；超级管理员和平台管理员返回平台全部启用工程。需要 `catalog.view_workspacescene`，并返回保存时可选择的额外访问角色。
+ * 返回当前登录用户拥有或其所属角色可访问的启用工程；选择 `游客` 访问角色的工程视为公开工程，对游客及其他已登录角色可见；超级管理员和平台管理员返回平台全部启用工程。需要 `catalog.view_workspacescene`，并返回保存时可选择的额外访问角色。
  */
 export const listCatalogWorkspaces = <ThrowOnError extends boolean = false>(options?: Options<ListCatalogWorkspacesData, ThrowOnError>): RequestResult<ListCatalogWorkspacesResponses, ListCatalogWorkspacesErrors, ThrowOnError> => (options?.client ?? client).get<ListCatalogWorkspacesResponses, ListCatalogWorkspacesErrors, ThrowOnError>({
     security: [{
@@ -1003,6 +1003,44 @@ export const getResourceProfile = <ThrowOnError extends boolean = false>(options
 });
 
 /**
+ * 获取非地理资源字段画像与统计分析
+ *
+ * 对当前用户可访问且处于启用状态的 table 或 gene 资源执行真实数据分析。需要 `core.query_data`。
+ * 分析最多读取 10,000 条记录；`summary.rowCount` 保留真实总数，`summary.sampled` 表示分布和相关性是否基于抽样。
+ * SQLite 后台表直接分页读取；CSV、TSV、XLS、XLSX、FASTA、FASTQ、VCF、GFF/GFF3、GenBank 文件可在线分析。
+ * 直接文件大小上限为系统上传限制与 64 MB 中的较小值。
+ *
+ */
+export const getResourceNonGeoAnalysis = <ThrowOnError extends boolean = false>(options: Options<GetResourceNonGeoAnalysisData, ThrowOnError>): RequestResult<GetResourceNonGeoAnalysisResponses, GetResourceNonGeoAnalysisErrors, ThrowOnError> => (options.client ?? client).get<GetResourceNonGeoAnalysisResponses, GetResourceNonGeoAnalysisErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/catalog/resources/{id}/nongeo-analysis/',
+    ...options
+});
+
+/**
+ * 分页查询非地理资源明细
+ *
+ * 对当前用户可访问且处于启用状态的 table 或 gene 资源返回真实明细记录。需要 `core.query_data`。排序字段必须是资源中的实际字段；SQLite 查询使用字段白名单和安全标识符引用。
+ */
+export const queryResourceNonGeoTable = <ThrowOnError extends boolean = false>(options: Options<QueryResourceNonGeoTableData, ThrowOnError>): RequestResult<QueryResourceNonGeoTableResponses, QueryResourceNonGeoTableErrors, ThrowOnError> => (options.client ?? client).post<QueryResourceNonGeoTableResponses, QueryResourceNonGeoTableErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/catalog/resources/{id}/nongeo-query/',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * 获取成果文件列表
  *
  * 返回当前用户创建的成果文件、管理员可管理的成果文件，以及发布范围包含当前用户角色的已发布成果。普通用户不会看到他人的草稿。需要 `catalog.view_resultartifact`。
@@ -1020,7 +1058,9 @@ export const listResultArtifacts = <ThrowOnError extends boolean = false>(option
 /**
  * 登记并上传成果文件
  *
- * 上传 PNG、JPG、PDF、CSV 或 XLSX 成果文件并直接发布。需要同时具备 `catalog.add_resultartifact` 和 `catalog.publish_resultartifact`，且至少选择一个可访问角色；导入环节不再创建草稿。
+ * 上传 PNG、JPG/JPEG、PDF、CSV 或 XLSX 成果文件并直接发布。需要同时具备 `catalog.view_resultartifact`、`catalog.add_resultartifact` 和 `catalog.publish_resultartifact`，且至少选择一个可访问角色；导入环节不再创建草稿。
+ * 后端不信任客户端 Content-Type，而是校验真实内容并写入可信 MIME：PNG/JPG/JPEG 由 Pillow 解码且扩展名必须匹配实际格式；PDF 必须同时包含 `%PDF-` 文件头和尾部 `%%EOF`；CSV 必须非空、无 NUL 且编码为 UTF-8/UTF-8-SIG 或 GB18030；XLSX 必须是结构完整且受条目数量、解压规模限制的工作簿 ZIP。
+ *
  */
 export const createResultArtifact = <ThrowOnError extends boolean = false>(options: Options<CreateResultArtifactData, ThrowOnError>): RequestResult<CreateResultArtifactResponses, CreateResultArtifactErrors, ThrowOnError> => (options.client ?? client).post<CreateResultArtifactResponses, CreateResultArtifactErrors, ThrowOnError>({
     ...formDataBodySerializer,
@@ -1074,7 +1114,9 @@ export const updateResultArtifact = <ThrowOnError extends boolean = false>(optio
 /**
  * 预览或下载成果文件
  *
- * 对具备 `catalog.view_resultartifact` 且处于成果访问范围内的用户返回文件。variant=preview 时使用 inline 响应；variant=artifact 还需要 `catalog.download_resultartifact` 并触发下载。
+ * 对具备 `catalog.view_resultartifact` 且处于成果访问范围内的用户返回文件。variant=preview 仅支持 PNG、JPG/JPEG 和 PDF，使用 inline 响应并增加 CSP 沙箱与禁止来源泄露响应头；variant=artifact 还需要 `catalog.download_resultartifact` 并触发下载。
+ * 所有成功响应均包含 `X-Content-Type-Options: nosniff`，并使用后端验证后的可信 MIME。
+ *
  */
 export const downloadResultArtifact = <ThrowOnError extends boolean = false>(options: Options<DownloadResultArtifactData, ThrowOnError>): RequestResult<DownloadResultArtifactResponses, DownloadResultArtifactErrors, ThrowOnError> => (options.client ?? client).get<DownloadResultArtifactResponses, DownloadResultArtifactErrors, ThrowOnError>({
     security: [{
@@ -1332,7 +1374,7 @@ export const commitVectorImport = <ThrowOnError extends boolean = false>(options
 /**
  * 查询矢量数据
  *
- * 对矢量数据资源执行属性 + 空间联合查询，返回 GeoJSON FeatureCollection 以及空间查询工作台展示所需的命中数量、返回范围、截断状态和查询耗时。需要当前用户同时具备 `core.query_data` 和 `core.load_vector_layer`，并且有权访问该数据资源。
+ * 对矢量数据资源执行属性 + 空间联合查询，返回 GeoJSON FeatureCollection 以及空间查询工作台展示所需的命中数量、返回范围、截断状态和查询耗时。需要当前用户同时具备 `core.query_data` 和 `core.load_vector_layer`，并且有权访问该数据资源。单个 Web 进程同一时间只执行一个重型矢量查询；等待超时返回 503 和 Retry-After，客户端应退避后重试。
  */
 export const queryResource = <ThrowOnError extends boolean = false>(options: Options<QueryResourceData, ThrowOnError>): RequestResult<QueryResourceResponses, QueryResourceErrors, ThrowOnError> => (options.client ?? client).post<QueryResourceResponses, QueryResourceErrors, ThrowOnError>({
     security: [{
@@ -1351,7 +1393,7 @@ export const queryResource = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * 同步导出图层
  *
- * 将指定图层数据导出为 ZIP 文件；矢量图层可选择 GeoJSON 或 Shapefile，栅格图层导出为 GeoTIFF。导出请求不受 Django `DATA_UPLOAD_MAX_MEMORY_SIZE` 上传内存限制影响。
+ * 将指定图层数据导出为 ZIP 文件；矢量图层可选择 GeoJSON 或 Shapefile，栅格图层导出为 GeoTIFF。JSON 请求体最多 10 MiB，ZIP 在服务端直接落盘并以文件流返回。
  */
 export const exportLayers = <ThrowOnError extends boolean = false>(options: Options<ExportLayersData, ThrowOnError>): RequestResult<ExportLayersResponses, ExportLayersErrors, ThrowOnError> => (options.client ?? client).post<ExportLayersResponses, ExportLayersErrors, ThrowOnError>({
     security: [{
@@ -1370,7 +1412,7 @@ export const exportLayers = <ThrowOnError extends boolean = false>(options: Opti
 /**
  * 异步导出图层
  *
- * 与同步导出参数相同，但以异步任务方式执行
+ * 与同步导出参数和 10 MiB 请求体上限相同，但以有界后台任务队列执行
  */
 export const exportLayersAsync = <ThrowOnError extends boolean = false>(options: Options<ExportLayersAsyncData, ThrowOnError>): RequestResult<ExportLayersAsyncResponses, ExportLayersAsyncErrors, ThrowOnError> => (options.client ?? client).post<ExportLayersAsyncResponses, ExportLayersAsyncErrors, ThrowOnError>({
     security: [{
@@ -1489,7 +1531,7 @@ export const importRaster = <ThrowOnError extends boolean = false>(options: Opti
 /**
  * 扫描栅格源目录
  *
- * 扫描研究数据目录中的未处理栅格文件，自动创建数据集
+ * 扫描研究数据目录中的未处理栅格文件，自动创建数据集。需要 `raster.manage_raster_dataset` 或 `catalog.change_dataresource`；普通浏览用户和游客不得触发。同一进程内已有排队或运行中的扫描时复用该活动任务。
  */
 export const scanRasterSources = <ThrowOnError extends boolean = false>(options?: Options<ScanRasterSourcesData, ThrowOnError>): RequestResult<ScanRasterSourcesResponses, ScanRasterSourcesErrors, ThrowOnError> => (options?.client ?? client).post<ScanRasterSourcesResponses, ScanRasterSourcesErrors, ThrowOnError>({
     security: [{

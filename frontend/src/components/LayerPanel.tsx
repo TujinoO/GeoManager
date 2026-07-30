@@ -232,6 +232,34 @@ export default function LayerPanel() {
     };
   }, []);
 
+  function cancelScheduledGroupDragTarget() {
+    if (groupDragFrameRef.current !== null) {
+      window.cancelAnimationFrame(groupDragFrameRef.current);
+      groupDragFrameRef.current = null;
+    }
+    groupDragPendingRef.current = null;
+  }
+
+  function cancelScheduledLayerDragTarget() {
+    if (layerDragFrameRef.current !== null) {
+      window.cancelAnimationFrame(layerDragFrameRef.current);
+      layerDragFrameRef.current = null;
+    }
+    layerDragPendingRef.current = null;
+  }
+
+  function resetGroupDragState() {
+    cancelScheduledGroupDragTarget();
+    setDraggingGroupId(null);
+    setDragTarget(null);
+  }
+
+  function resetLayerDragState() {
+    cancelScheduledLayerDragTarget();
+    setDraggingLayer(null);
+    setLayerDropTarget(null);
+  }
+
   function toggleGroup(groupId: string) {
     setCollapsedGroupIds((current) => {
       const next = new Set(current);
@@ -293,6 +321,8 @@ export default function LayerPanel() {
 
   function handleDragStart(event: DragEvent<HTMLElement>, groupId: string) {
     event.stopPropagation();
+    resetLayerDragState();
+    cancelScheduledGroupDragTarget();
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", `group:${groupId}`);
     setDraggingGroupId(groupId);
@@ -337,17 +367,16 @@ export default function LayerPanel() {
     if (sourceLayer) {
       event.preventDefault();
       event.stopPropagation();
+      cancelScheduledLayerDragTarget();
       const rect = event.currentTarget.getBoundingClientRect();
-      const placement =
-        event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+      const placement = verticalDropPlacement(event.clientY, rect);
       ctx.extractLayer(
         sourceLayer.groupId,
         sourceLayer.layerId,
         targetGroupId,
         placement,
       );
-      setDraggingLayer(null);
-      setLayerDropTarget(null);
+      resetLayerDragState();
       return;
     }
 
@@ -355,17 +384,14 @@ export default function LayerPanel() {
       groupIdFromDrag(event.dataTransfer.getData("text/plain")) ||
       draggingGroupId;
     if (!sourceGroupId || sourceGroupId === targetGroupId) {
-      setDraggingGroupId(null);
-      setDragTarget(null);
+      resetGroupDragState();
       return;
     }
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
-    const placement =
-      event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+    const placement = verticalDropPlacement(event.clientY, rect);
     ctx.reorderGroups(sourceGroupId, targetGroupId, placement);
-    setDraggingGroupId(null);
-    setDragTarget(null);
+    resetGroupDragState();
   }
 
   function handleLayerDragStart(
@@ -374,6 +400,8 @@ export default function LayerPanel() {
     layerId: string,
   ) {
     event.stopPropagation();
+    resetGroupDragState();
+    cancelScheduledLayerDragTarget();
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", `layer:${groupId}:${layerId}`);
     setDraggingLayer({ groupId, layerId });
@@ -421,18 +449,24 @@ export default function LayerPanel() {
     event: DragEvent<HTMLElement>,
     targetGroupId: string,
     targetLayerId: string | null,
-    placement: LayerDropPlacement,
   ) {
     const sourceLayer =
       layerPayloadFromDrag(event.dataTransfer.getData("text/plain")) ||
       draggingLayer;
     if (!sourceLayer) {
-      setDraggingLayer(null);
-      setLayerDropTarget(null);
+      resetLayerDragState();
       return;
     }
     event.preventDefault();
     event.stopPropagation();
+    cancelScheduledLayerDragTarget();
+    const placement: LayerDropPlacement =
+      targetLayerId !== null
+        ? verticalDropPlacement(
+            event.clientY,
+            event.currentTarget.getBoundingClientRect(),
+          )
+        : "inside";
     ctx.moveLayer(
       sourceLayer.groupId,
       sourceLayer.layerId,
@@ -440,8 +474,7 @@ export default function LayerPanel() {
       targetLayerId,
       placement,
     );
-    setDraggingLayer(null);
-    setLayerDropTarget(null);
+    resetLayerDragState();
   }
 
   function handleLayerSymbolizationChange(
@@ -532,8 +565,7 @@ export default function LayerPanel() {
                       handleLayerDragStart(event, group.id, standaloneLayer.id)
                     }
                     onDragEnd={() => {
-                      setDraggingLayer(null);
-                      setLayerDropTarget(null);
+                      resetLayerDragState();
                     }}
                     onDragOver={(event) =>
                       handleLayerDragOverLayer(
@@ -543,12 +575,7 @@ export default function LayerPanel() {
                       )
                     }
                     onDrop={(event) =>
-                      handleLayerDrop(
-                        event,
-                        group.id,
-                        standaloneLayer.id,
-                        layerDropTarget?.placement ?? "after",
-                      )
+                      handleLayerDrop(event, group.id, standaloneLayer.id)
                     }
                     onVisibilityChange={ctx.setLayerVisibility}
                     onNameChange={ctx.setLayerName}
@@ -572,7 +599,10 @@ export default function LayerPanel() {
                 tabIndex={0}
                 aria-expanded={expanded}
                 onDragOver={(event) => handleDragOver(event, group.id)}
-                onDragLeave={() => setDragTarget(null)}
+                onDragLeave={() => {
+                  cancelScheduledGroupDragTarget();
+                  setDragTarget(null);
+                }}
                 onDrop={(event) => handleDrop(event, group.id)}
               >
                 <LayerGroupNode
@@ -581,8 +611,7 @@ export default function LayerPanel() {
                   onToggleExpand={() => toggleGroup(group.id)}
                   onDragStart={(event) => handleDragStart(event, group.id)}
                   onDragEnd={() => {
-                    setDraggingGroupId(null);
-                    setDragTarget(null);
+                    resetGroupDragState();
                   }}
                   onVisibilityChange={ctx.setGroupVisibility}
                   onNameChange={ctx.setGroupName}
@@ -608,9 +637,7 @@ export default function LayerPanel() {
                     onDragOver={(event) =>
                       handleLayerDragOverGroup(event, group.id)
                     }
-                    onDrop={(event) =>
-                      handleLayerDrop(event, group.id, null, "inside")
-                    }
+                    onDrop={(event) => handleLayerDrop(event, group.id, null)}
                   >
                     {group.children.map((layer) => (
                       <LayerItemNode
@@ -631,19 +658,13 @@ export default function LayerPanel() {
                           handleLayerDragStart(event, group.id, layer.id)
                         }
                         onDragEnd={() => {
-                          setDraggingLayer(null);
-                          setLayerDropTarget(null);
+                          resetLayerDragState();
                         }}
                         onDragOver={(event) =>
                           handleLayerDragOverLayer(event, group.id, layer.id)
                         }
                         onDrop={(event) =>
-                          handleLayerDrop(
-                            event,
-                            group.id,
-                            layer.id,
-                            layerDropTarget?.placement ?? "after",
-                          )
+                          handleLayerDrop(event, group.id, layer.id)
                         }
                         onVisibilityChange={ctx.setLayerVisibility}
                         onNameChange={ctx.setLayerName}
@@ -1160,6 +1181,13 @@ function layerPayloadFromDrag(
   const match = value.match(/^layer:([^:]+):(.+)$/);
   if (!match?.[1] || !match[2]) return null;
   return { groupId: match[1], layerId: match[2] };
+}
+
+function verticalDropPlacement(
+  clientY: number,
+  rect: Pick<DOMRect, "top" | "height">,
+): DropPlacement {
+  return clientY < rect.top + rect.height / 2 ? "before" : "after";
 }
 
 interface NodeActionProps {

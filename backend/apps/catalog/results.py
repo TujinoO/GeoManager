@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
-import mimetypes
 import re
 import uuid
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -14,10 +14,14 @@ from django.db.models import Q
 from django.http import FileResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods
+from PIL import Image, UnidentifiedImageError
 
 from apps.audit.service import log_operation
 from apps.catalog.models import ResultArtifact
-from apps.catalog.permissions import user_group_ids, user_has_full_data_access
+from apps.catalog.permissions import (
+    effective_access_group_ids,
+    user_has_full_data_access,
+)
 from apps.catalog.taxonomy import (
     TaxonomyError,
     category_codes_for_filter,
@@ -36,6 +40,15 @@ from apps.core.storage import app_path
 
 ALLOWED_RESULT_EXTENSIONS = {".png", ".jpg", ".jpeg", ".pdf", ".csv", ".xlsx"}
 PREVIEWABLE_RESULT_EXTENSIONS = {".png", ".jpg", ".jpeg", ".pdf"}
+
+TRUSTED_RESULT_MIME_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".pdf": "application/pdf",
+    ".csv": "text/csv",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +162,10 @@ def _create_result_artifact(request):
         return JsonResponse({"detail": str(exc)}, status=500)
     if upload.size > max_size_bytes:
         return JsonResponse({"detail": "成果文件超过平台上传大小限制"}, status=400)
+    try:
+        trusted_mime_type = _validate_result_upload(upload, extension)
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
 
     artifact_key = uuid.uuid4().hex
     relative_path = f"exports/results/{artifact_key}/{original_name}"
@@ -171,11 +188,7 @@ def _create_result_artifact(request):
                 provider=provider,
                 file_path=relative_path,
                 file_name=original_name,
-                mime_type=(
-                    upload.content_type
-                    or mimetypes.guess_type(original_name)[0]
-                    or "application/octet-stream"
-                ),
+                mime_type=trusted_mime_type,
                 size_bytes=upload.size,
                 published_by=request.user,
                 published_at=now,
@@ -338,12 +351,79 @@ def result_artifact_file(request, result_id: int):
     path = app_path(*artifact.file_path.split("/"))
     if not path.is_file():
         return JsonResponse({"detail": "成果文件不存在"}, status=404)
-    return FileResponse(
+    response = FileResponse(
         path.open("rb"),
         as_attachment=variant == "artifact",
         filename=artifact.file_name,
-        content_type=artifact.mime_type or None,
+        content_type=TRUSTED_RESULT_MIME_TYPES.get(extension)
+        or "application/octet-stream",
     )
+    response["X-Content-Type-Options"] = "nosniff"
+    if variant == "preview":
+        response["X-Frame-Options"] = "SAMEORIGIN"
+        response["Content-Security-Policy"] = (
+            "sandbox; default-src 'none'; img-src 'self' data:; "
+            "style-src 'unsafe-inline'"
+        )
+        response["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+def _validate_result_upload(upload, extension: str) -> str:
+    """Validate the actual file structure and return a server-owned MIME type."""
+
+    try:
+        upload.seek(0)
+        if extension in {".png", ".jpg", ".jpeg"}:
+            try:
+                with Image.open(upload) as image:
+                    expected_format = "PNG" if extension == ".png" else "JPEG"
+                    if image.format != expected_format:
+                        raise ValueError("成果文件扩展名与实际图片格式不一致")
+                    image.verify()
+            except (UnidentifiedImageError, OSError, SyntaxError) as exc:
+                raise ValueError("成果图片内容无效或已损坏") from exc
+        elif extension == ".pdf":
+            header = upload.read(8)
+            upload.seek(max(int(upload.size) - 2048, 0))
+            trailer = upload.read(2048)
+            if not header.startswith(b"%PDF-") or b"%%EOF" not in trailer:
+                raise ValueError("成果 PDF 内容无效或已损坏")
+        elif extension == ".csv":
+            sample = upload.read(min(int(upload.size), 1024 * 1024))
+            if not sample or b"\x00" in sample:
+                raise ValueError("成果 CSV 内容无效或已损坏")
+            try:
+                sample.decode("utf-8-sig")
+            except UnicodeDecodeError:
+                try:
+                    sample.decode("gb18030")
+                except UnicodeDecodeError as exc:
+                    raise ValueError(
+                        "成果 CSV 编码无效，仅支持 UTF-8 或 GB18030"
+                    ) from exc
+        elif extension == ".xlsx":
+            if not zipfile.is_zipfile(upload):
+                raise ValueError("成果 XLSX 内容无效或已损坏")
+            upload.seek(0)
+            try:
+                with zipfile.ZipFile(upload) as workbook:
+                    names = set(workbook.namelist())
+                    if not {"[Content_Types].xml", "xl/workbook.xml"}.issubset(names):
+                        raise ValueError("成果 XLSX 缺少必要的工作簿结构")
+                    infos = workbook.infolist()
+                    total_uncompressed = sum(info.file_size for info in infos)
+                    if len(infos) > 10000 or total_uncompressed > max(
+                        1024 * 1024 * 1024, int(upload.size) * 200
+                    ):
+                        raise ValueError("成果 XLSX 解压内容超过安全限制")
+            except (zipfile.BadZipFile, OSError) as exc:
+                raise ValueError("成果 XLSX 内容无效或已损坏") from exc
+        else:
+            raise ValueError("成果文件格式不受支持")
+    finally:
+        upload.seek(0)
+    return TRUSTED_RESULT_MIME_TYPES[extension]
 
 
 def _result_queryset(user):
@@ -355,7 +435,7 @@ def _result_queryset(user):
     if user_has_full_data_access(user):
         return queryset
     visibility = Q(owner=user)
-    group_ids = user_group_ids(user)
+    group_ids = effective_access_group_ids(user)
     if group_ids:
         visibility |= Q(
             status=ResultArtifact.Status.PUBLISHED,

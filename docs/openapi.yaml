@@ -26,8 +26,10 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
+  - url: /
+    description: 平台同源入口（浏览器与默认 SDK）
   - url: http://localhost:8000
-    description: 开发环境
+    description: 后端本地直连开发环境
   - url: https://api.huyang.example.com
     description: 生产环境
 
@@ -209,7 +211,7 @@ paths:
       tags: [认证接口]
       summary: 游客登录
       description: |
-        使用系统维护的专用 `guest` 账号建立游客会话。游客账号不可使用密码登录，只归属 `游客` 用户组；默认仅具备公开数据浏览、查询、图层加载和共享成果查看权限，管理员可在认证授权中调整游客角色权限。
+        使用系统维护的专用 `guest` 账号建立游客会话。游客账号不可使用密码登录，只归属 `游客` 用户组；默认仅具备公开数据浏览、查询、图层加载和共享成果查看权限，管理员可在认证授权中调整游客角色权限。同一对象选择 `游客` 访问角色即表示公开共享，其他已登录角色也保留对该公开对象的访问权。
       operationId: guestLogin
       security: []
       responses:
@@ -641,7 +643,7 @@ paths:
     post:
       tags: [用户管理]
       summary: 创建用户
-      description: 具备 `core.manage_auth` 和 `core.create_user` 权限的管理员创建用户账号，邮箱必填，创建时必须指定至少一个非超级管理员用户组。密码由后端自动生成并返回。该接口不受自助注册开关影响；只有超级管理员可以分配平台管理员角色。
+      description: 具备 `core.manage_auth` 和 `core.create_user` 权限的管理员创建用户账号，邮箱必填，创建时必须指定至少一个非超级管理员用户组。密码由后端自动生成并返回。该接口不受自助注册开关影响；`游客` 角色只允许系统专用 guest 账号持有，不能分配给新账号；只有超级管理员可以分配平台管理员角色。
       operationId: createUser
       security:
         - sessionAuth: []
@@ -669,7 +671,7 @@ paths:
     post:
       tags: [用户管理]
       summary: 更新用户所属用户组
-      description: 为指定用户设置所属用户组。普通用户必须保留至少一个用户组，非超级管理员主体不能看到或选择超级管理员用户组，也不能分配平台管理员角色；不能修改超级管理员用户；当前登录用户的用户组不能在认证授权页修改。需要 `core.manage_auth`。
+      description: 为指定用户设置所属用户组。普通用户必须保留至少一个用户组，`游客` 角色只允许系统专用 guest 账号持有；guest 账号的角色不可修改。非超级管理员主体不能看到或选择超级管理员用户组，也不能分配平台管理员角色，且不能修改超级管理员或平台管理员账号；当前登录用户的用户组不能在认证授权页修改。需要 `core.manage_auth`。
       operationId: updateUserGroups
       security:
         - sessionAuth: []
@@ -706,7 +708,7 @@ paths:
     post:
       tags: [用户管理]
       summary: 更新用户功能权限
-      description: 为指定用户设置单独授予权限和单独关闭权限。最终生效权限为角色权限与用户直授权限合并后，再扣除用户单独关闭权限；当前登录用户不能在认证授权页修改自己的权限，应通过用户设置调整主动关闭权限。非超级管理员主体不能看到或配置超级管理员用户，也不能将超级管理员角色配置为可查看日志角色。需要 `core.manage_auth` 和 `core.manage_feature_permissions`。
+      description: 为指定用户设置单独授予权限和单独关闭权限。最终生效权限为角色权限与用户直授权限合并后，再扣除用户单独关闭权限；当前登录用户不能在认证授权页修改自己的权限，应通过用户设置调整主动关闭权限。guest 账号不能获得直授权限或单独关闭权限；非超级管理员主体不能看到或配置超级管理员用户，也不能配置平台管理员账号，且不能将超级管理员角色配置为可查看日志角色。需要 `core.manage_auth` 和 `core.manage_feature_permissions`。
       operationId: updateUserPermissions
       security:
         - sessionAuth: []
@@ -743,7 +745,7 @@ paths:
     post:
       tags: [用户管理]
       summary: 重置用户密码
-      description: 为指定用户生成随机新密码并立即生效。新密码规则与后台创建用户时一致，响应中的 `generatedPassword` 仅返回一次。不能重置当前登录用户密码；非超级管理员主体不能看到或重置超级管理员用户。需要 `core.manage_auth`。
+      description: 为指定用户生成随机新密码并立即生效。新密码规则与后台创建用户时一致，响应中的 `generatedPassword` 仅返回一次。不能重置当前登录用户或 guest 账号密码；非超级管理员主体不能看到或重置超级管理员、平台管理员账号。需要 `core.manage_auth`。
       operationId: resetUserPassword
       security:
         - sessionAuth: []
@@ -779,7 +781,7 @@ paths:
         - 不提供 `action`：启用或停用指定用户账号
         - `delete`：删除指定用户账号
 
-        不能操作当前登录用户或初始化管理员；非超级管理员主体不能看到或操作超级管理员用户。需要 `core.manage_auth`。
+        不能操作当前登录用户、初始化管理员或系统 guest 账号；非超级管理员主体不能看到或操作超级管理员用户，也不能停用或删除平台管理员账号。需要 `core.manage_auth`。
       operationId: updateUserOrDelete
       security:
         - sessionAuth: []
@@ -877,7 +879,7 @@ paths:
         - 不提供 `action`：更新用户组名称和功能权限
         - `delete`：删除空用户组（仅当用户组没有任何关联用户且不是内置角色时允许）
 
-        非超级管理员主体不能看到、更新或删除超级管理员用户组。超级管理员、平台管理员、科研用户、普通用户和游客属于系统内置角色，不能删除或重命名；其中只有超级管理员的权限集合被系统锁定为全量权限，其他内置角色允许调整权限。需要 `core.manage_auth`。删除仍有关联用户的角色、删除/重命名内置角色、或关闭超级管理员锁定权限时返回 `400 ErrorResponse`。
+        非超级管理员主体不能看到、更新或删除超级管理员用户组。超级管理员、平台管理员、科研用户、普通用户和游客属于系统内置角色，不能删除或重命名；其中只有超级管理员的权限集合被系统锁定为全量权限，其他内置角色允许调整权限。所有操作需要 `core.manage_auth`；请求体只要包含 `permissions`，还必须具备 `core.manage_feature_permissions`。删除仍有关联用户的角色、删除/重命名内置角色、或关闭超级管理员锁定权限时返回 `400 ErrorResponse`。
       operationId: updateOrDeleteGroup
       security:
         - sessionAuth: []
@@ -1595,7 +1597,7 @@ paths:
     post:
       tags: [管理后台]
       summary: 操作单个存量数据
-      description: 支持更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。目标数据必须对当前用户可见或由当前用户上传；不可见数据按不存在处理；超级管理员不受对象可见范围限制。启停、默认可视化和普通编辑需要 `catalog.change_dataresource`；删除需要 `catalog.delete_dataresource`；数据上传者本人或具备 `catalog.change_dataresource` 的用户可以通过 `updateAccess` 修改可见范围。可手动配置的数据访问角色列表不会返回超级管理员角色，后端仍会强制保留超级管理员访问范围。成功操作会写入审计日志。
+      description: 支持重命名数据资源、更新启停状态、保存默认可视化方案、配置访问用户组和删除确认。重命名只修改数据资源显示名称，不修改数据编号、物理存储标识或默认图层名称。目标数据必须对当前用户可见或由当前用户上传；不可见数据按不存在处理；超级管理员不受对象可见范围限制。重命名、启停、默认可视化和普通编辑需要 `catalog.change_dataresource`；删除需要 `catalog.delete_dataresource`；数据上传者本人或具备 `catalog.change_dataresource` 的用户可以通过 `updateAccess` 修改可见范围。可手动配置的数据访问角色列表不会返回超级管理员角色，后端仍会强制保留超级管理员访问范围。成功操作会写入审计日志。
       operationId: updateAdminDataResource
       security:
         - sessionAuth: []
@@ -1827,7 +1829,7 @@ paths:
     post:
       tags: [数据目录]
       summary: 扫描数据源
-      description: 触发一次数据目录源扫描，发现并同步新的数据资源
+      description: 触发一次维护性数据目录源扫描，发现并同步新的数据资源。需要 `catalog.add_dataresource`；普通浏览用户和游客不得触发。若已有扫描正在运行则返回 409。
       operationId: scanCatalogSources
       security:
         - sessionAuth: []
@@ -1842,12 +1844,18 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          description: 已有数据目录扫描正在运行
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /api/catalog/workspaces/:
     get:
       tags: [数据目录]
       summary: 获取工程和专题列表
-      description: 返回当前登录用户拥有或其所属角色可访问的启用工程；超级管理员和平台管理员返回平台全部启用工程。需要 `catalog.view_workspacescene`，并返回保存时可选择的额外访问角色。
+      description: 返回当前登录用户拥有或其所属角色可访问的启用工程；选择 `游客` 访问角色的工程视为公开工程，对游客及其他已登录角色可见；超级管理员和平台管理员返回平台全部启用工程。需要 `catalog.view_workspacescene`，并返回保存时可选择的额外访问角色。
       operationId: listCatalogWorkspaces
       security:
         - sessionAuth: []
@@ -2118,6 +2126,68 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/catalog/resources/{id}/nongeo-analysis/:
+    get:
+      tags: [数据目录]
+      summary: 获取非地理资源字段画像与统计分析
+      description: |
+        对当前用户可访问且处于启用状态的 table 或 gene 资源执行真实数据分析。需要 `core.query_data`。
+        分析最多读取 10,000 条记录；`summary.rowCount` 保留真实总数，`summary.sampled` 表示分布和相关性是否基于抽样。
+        SQLite 后台表直接分页读取；CSV、TSV、XLS、XLSX、FASTA、FASTQ、VCF、GFF/GFF3、GenBank 文件可在线分析。
+        直接文件大小上限为系统上传限制与 64 MB 中的较小值。
+      operationId: getResourceNonGeoAnalysis
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: 分析成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NonGeoAnalyticsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/catalog/resources/{id}/nongeo-query/:
+    post:
+      tags: [数据目录]
+      summary: 分页查询非地理资源明细
+      description: 对当前用户可访问且处于启用状态的 table 或 gene 资源返回真实明细记录。需要 `core.query_data`。排序字段必须是资源中的实际字段；SQLite 查询使用字段白名单和安全标识符引用。
+      operationId: queryResourceNonGeoTable
+      security:
+        - sessionAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NonGeoTableQueryRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NonGeoTableQueryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/catalog/results/:
     get:
       tags: [成果展示]
@@ -2163,7 +2233,9 @@ paths:
     post:
       tags: [成果展示]
       summary: 登记并上传成果文件
-      description: 上传 PNG、JPG、PDF、CSV 或 XLSX 成果文件并直接发布。需要同时具备 `catalog.add_resultartifact` 和 `catalog.publish_resultartifact`，且至少选择一个可访问角色；导入环节不再创建草稿。
+      description: |
+        上传 PNG、JPG/JPEG、PDF、CSV 或 XLSX 成果文件并直接发布。需要同时具备 `catalog.view_resultartifact`、`catalog.add_resultartifact` 和 `catalog.publish_resultartifact`，且至少选择一个可访问角色；导入环节不再创建草稿。
+        后端不信任客户端 Content-Type，而是校验真实内容并写入可信 MIME：PNG/JPG/JPEG 由 Pillow 解码且扩展名必须匹配实际格式；PDF 必须同时包含 `%PDF-` 文件头和尾部 `%%EOF`；CSV 必须非空、无 NUL 且编码为 UTF-8/UTF-8-SIG 或 GB18030；XLSX 必须是结构完整且受条目数量、解压规模限制的工作簿 ZIP。
       operationId: createResultArtifact
       security:
         - sessionAuth: []
@@ -2178,7 +2250,7 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: PNG、JPG、PDF、CSV 或 XLSX 成果文件
+                  description: PNG、JPG/JPEG、PDF、CSV 或 XLSX 成果文件；文件扩展名必须与后端识别的真实内容格式一致
                 payload:
                   type: string
                   description: JSON 字符串，结构为 ResultArtifactCreatePayload
@@ -2267,7 +2339,9 @@ paths:
     get:
       tags: [成果展示]
       summary: 预览或下载成果文件
-      description: 对具备 `catalog.view_resultartifact` 且处于成果访问范围内的用户返回文件。variant=preview 时使用 inline 响应；variant=artifact 还需要 `catalog.download_resultartifact` 并触发下载。
+      description: |
+        对具备 `catalog.view_resultartifact` 且处于成果访问范围内的用户返回文件。variant=preview 仅支持 PNG、JPG/JPEG 和 PDF，使用 inline 响应并增加 CSP 沙箱与禁止来源泄露响应头；variant=artifact 还需要 `catalog.download_resultartifact` 并触发下载。
+        所有成功响应均包含 `X-Content-Type-Options: nosniff`，并使用后端验证后的可信 MIME。
       operationId: downloadResultArtifact
       security:
         - sessionAuth: []
@@ -2293,6 +2367,21 @@ paths:
               schema:
                 type: string
               description: 文件名和下载方式
+            X-Content-Type-Options:
+              schema:
+                type: string
+                const: nosniff
+              description: 固定为 nosniff，禁止浏览器 MIME 嗅探
+            Content-Security-Policy:
+              schema:
+                type: string
+                const: "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'"
+              description: 仅 variant=preview 返回的沙箱策略
+            Referrer-Policy:
+              schema:
+                type: string
+                const: no-referrer
+              description: 仅 variant=preview 返回，禁止预览请求泄露来源地址
           content:
             application/octet-stream:
               schema:
@@ -2969,7 +3058,7 @@ paths:
     post:
       tags: [数据目录]
       summary: 查询矢量数据
-      description: 对矢量数据资源执行属性 + 空间联合查询，返回 GeoJSON FeatureCollection 以及空间查询工作台展示所需的命中数量、返回范围、截断状态和查询耗时。需要当前用户同时具备 `core.query_data` 和 `core.load_vector_layer`，并且有权访问该数据资源。
+      description: 对矢量数据资源执行属性 + 空间联合查询，返回 GeoJSON FeatureCollection 以及空间查询工作台展示所需的命中数量、返回范围、截断状态和查询耗时。需要当前用户同时具备 `core.query_data` 和 `core.load_vector_layer`，并且有权访问该数据资源。单个 Web 进程同一时间只执行一个重型矢量查询；等待超时返回 503 和 Retry-After，客户端应退避后重试。
       operationId: queryResource
       security:
         - sessionAuth: []
@@ -2996,12 +3085,16 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /api/catalog/export/:
     post:
       tags: [数据目录]
       summary: 同步导出图层
-      description: 将指定图层数据导出为 ZIP 文件；矢量图层可选择 GeoJSON 或 Shapefile，栅格图层导出为 GeoTIFF。导出请求不受 Django `DATA_UPLOAD_MAX_MEMORY_SIZE` 上传内存限制影响。
+      description: 将指定图层数据导出为 ZIP 文件；矢量图层可选择 GeoJSON 或 Shapefile，栅格图层导出为 GeoTIFF。JSON 请求体最多 10 MiB，ZIP 在服务端直接落盘并以文件流返回。
       operationId: exportLayers
       security:
         - sessionAuth: []
@@ -3025,12 +3118,14 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
 
   /api/catalog/export/async/:
     post:
       tags: [数据目录]
       summary: 异步导出图层
-      description: 与同步导出参数相同，但以异步任务方式执行
+      description: 与同步导出参数和 10 MiB 请求体上限相同，但以有界后台任务队列执行
       operationId: exportLayersAsync
       security:
         - sessionAuth: []
@@ -3047,10 +3142,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AsyncJobResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
 
   /api/catalog/export/jobs/{job_id}/download/:
     get:
@@ -3238,7 +3337,7 @@ paths:
     post:
       tags: [栅格数据]
       summary: 扫描栅格源目录
-      description: 扫描研究数据目录中的未处理栅格文件，自动创建数据集
+      description: 扫描研究数据目录中的未处理栅格文件，自动创建数据集。需要 `raster.manage_raster_dataset` 或 `catalog.change_dataresource`；普通浏览用户和游客不得触发。同一进程内已有排队或运行中的扫描时复用该活动任务。
       operationId: scanRasterSources
       security:
         - sessionAuth: []
@@ -3490,6 +3589,30 @@ components:
           example:
             detail: 同名工程已存在
 
+    PayloadTooLarge:
+      description: 请求体超过接口安全上限
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            detail: 请求体过大
+
+    ServiceUnavailable:
+      description: 服务当前没有可用的重型任务执行槽；可按 Retry-After 退避重试
+      headers:
+        Retry-After:
+          description: 建议等待的秒数
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            detail: 查询任务繁忙，请稍后重试
+
   schemas:
     ErrorResponse:
       type: object
@@ -3513,7 +3636,7 @@ components:
       properties:
         systemName:
           type: string
-          description: 系统显示名称
+          description: 系统显示名称；已知的“中亚胡杨”历史平台名称会自动升级为当前确认的“全球胡杨林生态系统保护数据共享平台”，自定义部署名称保持不变
           example: 全球胡杨林生态系统保护数据共享平台
         allowRegistration:
           type: boolean
@@ -4110,7 +4233,7 @@ components:
       properties:
         canAccessAdmin:
           type: boolean
-          description: 当前登录会话是否可访问管理后台。后台入口对所有登录用户开放，因此认证用户恒为 true；后台内部内容由其他细粒度权限控制。
+          description: 当前登录会话是否具备至少一项运行概览、日志、系统设置、备份或认证授权等运维权限。普通用户、科研用户和游客在仅有数据业务权限时为 false，前端隐藏后台入口；个人设置仍可独立访问。
         canManageFeaturePermissions:
           type: boolean
           description: 是否可配置功能权限
@@ -5249,7 +5372,7 @@ components:
       properties:
         systemName:
           type: string
-          description: 系统显示名称
+          description: 系统显示名称；已知历史平台名称会以当前确认的全球平台名称返回
         allowRegistration:
           type: boolean
           description: 是否开放自助注册
@@ -5268,7 +5391,7 @@ components:
       properties:
         systemName:
           type: string
-          description: 更新后的系统显示名称
+          description: 更新后的系统显示名称；提交已知历史平台名称时会规范化并持久化为当前确认的全球平台名称
         allowRegistration:
           type: boolean
           description: 是否开放自助注册
@@ -5993,7 +6116,7 @@ components:
     ResultArtifactStatus:
       type: string
       enum: [draft, published]
-      description: 草稿仅创建者和管理员可见，已发布成果按访问角色共享
+      description: 草稿仅创建者和管理员可见，已发布成果按访问角色共享；游客角色表示公开成果，游客及其他已登录角色均可见
 
     ResultArtifactCreatePayload:
       type: object
@@ -6277,7 +6400,7 @@ components:
           description: 用户组名称
         isGuest:
           type: boolean
-          description: 是否为系统内置游客用户组；选择该组表示无需账号即可通过游客会话访问数据
+          description: 是否为系统内置游客用户组；选择该组表示对象公开，既可通过游客会话访问，其他已登录角色也保留访问权
         isSuperadmin:
           type: boolean
           description: 是否为系统内置超级管理员用户组；仅超级管理员主体会收到该组，数据可见范围会在后台强制包含该组
@@ -6633,6 +6756,11 @@ components:
           type: string
           enum: [update, setStatus, saveVisualization, updateAccess, updateInventoryGroup, updateClassification, delete]
           description: 操作类型
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: update 时写入的数据资源显示名称；后端去除首尾空白，不修改数据编号、物理存储标识或默认图层名称
         status:
           type: string
           enum: [active, inactive]
@@ -6641,7 +6769,7 @@ components:
           $ref: '#/components/schemas/AdminDataResourceVisualization'
         accessGroupIds:
           type: array
-          description: updateAccess 或 update 时写入的额外可见用户组 ID 列表；调用方不能选择超级管理员用户组，后端会强制补齐超级管理员用户组，上传者本人不依赖用户组也始终可见。包含游客用户组时表示未登录用户可通过游客会话访问该数据。
+          description: updateAccess 或 update 时写入的额外可见用户组 ID 列表；调用方不能选择超级管理员用户组，后端会强制补齐超级管理员用户组，上传者本人不依赖用户组也始终可见。包含游客用户组时表示该数据公开，游客会话和其他已登录角色均可访问。
           items:
             type: integer
         inventoryGroupId:
@@ -6707,7 +6835,7 @@ components:
           description: update 时写入的工程说明
         accessGroupIds:
           type: array
-          description: updateAccess 或 update 时写入的额外可见用户组 ID 列表；不能选择超级管理员用户组，后端会强制保留管理员访问，所属用户本人始终可见。包含游客用户组时表示游客会话可以访问该工程。
+          description: updateAccess 或 update 时写入的额外可见用户组 ID 列表；不能选择超级管理员用户组，后端会强制保留管理员访问，所属用户本人始终可见。包含游客用户组时表示该工程公开，游客会话和其他已登录角色均可访问。
           items:
             type: integer
         confirmationName:
@@ -8356,6 +8484,370 @@ components:
         description:
           type: string
           description: 字段描述
+
+    NonGeoScalar:
+      oneOf:
+        - type: string
+        - type: number
+        - type: boolean
+        - type: 'null'
+      description: 非地理数据单元格或分类值；空值统一返回 null
+
+    NonGeoFieldRole:
+      type: string
+      enum: [identifier, category, measure, date, text, coordinate, unknown]
+      description: 字段在分析视图中的推断角色
+
+    NonGeoTableQueryRequest:
+      type: object
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 80
+          description: 本页最多返回的记录数
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 10000000
+          default: 0
+          description: 从零开始的记录偏移量
+        sortField:
+          type: [string, 'null']
+          description: 可选排序字段，必须与资源实际字段完全一致
+        sortDirection:
+          type: string
+          enum: [asc, desc]
+          default: asc
+          description: 排序方向
+
+    NonGeoTableField:
+      type: object
+      required: [name, type, nullable, sampleValues, description]
+      properties:
+        name:
+          type: string
+          description: 字段名
+        type:
+          type: string
+          enum: [integer, float, boolean, string]
+          description: 后端根据当前真实数据推断的字段类型
+        nullable:
+          type: boolean
+          description: 当前结果中是否检测到空值
+        sampleValues:
+          type: array
+          maxItems: 3
+          description: 当前结果中最多三个非空样例值
+          items:
+            $ref: '#/components/schemas/NonGeoScalar'
+        description:
+          type: string
+          description: 后台字段元数据说明；没有说明时为空字符串
+
+    NonGeoTableRow:
+      type: object
+      description: 以字段名为键的非地理明细记录
+      additionalProperties:
+        $ref: '#/components/schemas/NonGeoScalar'
+
+    NonGeoTableQueryResponse:
+      type: object
+      required: [resourceId, resourceName, totalCount, returnedCount, limit, offset, fields, rows]
+      properties:
+        resourceId:
+          type: integer
+          description: 数据资源 ID
+        resourceName:
+          type: string
+          description: 数据资源显示名称
+        totalCount:
+          type: integer
+          minimum: 0
+          description: 资源真实总记录数，不受当前分页限制影响
+        returnedCount:
+          type: integer
+          minimum: 0
+          maximum: 500
+          description: 本次实际返回记录数
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 500
+          description: 本次使用的分页大小
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 10000000
+          description: 本次使用的记录偏移量
+        fields:
+          type: array
+          description: 当前结果字段定义
+          items:
+            $ref: '#/components/schemas/NonGeoTableField'
+        rows:
+          type: array
+          description: 当前页真实记录
+          items:
+            $ref: '#/components/schemas/NonGeoTableRow'
+
+    NonGeoFieldProfile:
+      type: object
+      required: [name, type, label, description, unit, role, nullable, nonNullCount, nullCount, completeness, uniqueCount, sampleValues]
+      properties:
+        name:
+          type: string
+          description: 字段名
+        type:
+          type: string
+          enum: [integer, float, boolean, string]
+          description: 后端推断的数据类型
+        label:
+          type: string
+          description: 分析界面显示标签
+        description:
+          type: string
+          description: 后台字段元数据说明
+        unit:
+          type: string
+          description: 字段单位；未配置时为空字符串
+        role:
+          $ref: '#/components/schemas/NonGeoFieldRole'
+        nullable:
+          type: boolean
+          description: 分析样本中是否检测到空值
+        nonNullCount:
+          type: integer
+          minimum: 0
+          description: 非空记录数；抽样分析时按真实总数估算
+        nullCount:
+          type: integer
+          minimum: 0
+          description: 空记录数；抽样分析时按真实总数估算
+        completeness:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: 分析样本中的字段完整率
+        uniqueCount:
+          type: integer
+          minimum: 0
+          description: 分析样本中的非空唯一值数量
+        sampleValues:
+          type: array
+          maxItems: 3
+          description: 最多三个非空样例值
+          items:
+            $ref: '#/components/schemas/NonGeoScalar'
+        min:
+          type: [number, 'null']
+          description: 数值字段最小值；非数值字段省略
+        max:
+          type: [number, 'null']
+          description: 数值字段最大值；非数值字段省略
+        mean:
+          type: [number, 'null']
+          description: 数值字段平均值；非数值字段省略
+
+    NonGeoAnalyticsSummary:
+      type: object
+      required: [rowCount, analyzedRowCount, sampled, fieldCount, numericFieldCount, textFieldCount, categoricalFieldCount, completeness, updatedAt, suggestedView]
+      properties:
+        rowCount:
+          type: integer
+          minimum: 0
+          description: 资源真实总记录数
+        analyzedRowCount:
+          type: integer
+          minimum: 0
+          maximum: 10000
+          description: 本次实际参与画像与统计的记录数
+        sampled:
+          type: boolean
+          description: 是否因超过 10,000 条记录而使用抽样分析
+        fieldCount:
+          type: integer
+          minimum: 0
+          description: 字段总数
+        numericFieldCount:
+          type: integer
+          minimum: 0
+          description: 推断为数值指标的字段数
+        textFieldCount:
+          type: integer
+          minimum: 0
+          description: 推断为文本或标识符的字段数
+        categoricalFieldCount:
+          type: integer
+          minimum: 0
+          description: 推断为分类字段的字段数
+        completeness:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: 所有字段完整率的平均值
+        updatedAt:
+          type: string
+          format: date-time
+          description: 数据资源更新时间
+        suggestedView:
+          type: string
+          enum: [species, community, traits, environment, generic]
+          description: 根据字段名推断的前端分析视图
+
+    NonGeoCategoricalDistributionItem:
+      type: object
+      required: [value, count, ratio]
+      properties:
+        value:
+          $ref: '#/components/schemas/NonGeoScalar'
+        count:
+          type: integer
+          minimum: 0
+          description: 分类值计数
+        ratio:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: 分类值占当前非空样本的比例
+
+    NonGeoCategoricalDistribution:
+      type: object
+      required: [field, label, total, items]
+      properties:
+        field:
+          type: string
+          description: 字段名
+        label:
+          type: string
+          description: 字段显示标签
+        total:
+          type: integer
+          minimum: 0
+          description: 参与分类统计的非空样本数
+        items:
+          type: array
+          maxItems: 12
+          description: 按数量降序返回的前十二个分类值
+          items:
+            $ref: '#/components/schemas/NonGeoCategoricalDistributionItem'
+
+    NonGeoHistogramBin:
+      type: object
+      required: [label, min, max, count, ratio]
+      properties:
+        label:
+          type: string
+          description: 分箱显示标签
+        min:
+          type: number
+          description: 分箱下界
+        max:
+          type: number
+          description: 分箱上界
+        count:
+          type: integer
+          minimum: 0
+          description: 分箱记录数
+        ratio:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: 分箱记录占有效数值样本的比例
+
+    NonGeoNumericDistribution:
+      type: object
+      required: [field, label, min, max, mean, median, q1, q3, bins]
+      properties:
+        field:
+          type: string
+          description: 数值字段名
+        label:
+          type: string
+          description: 字段显示标签
+        min:
+          type: number
+          description: 最小值
+        max:
+          type: number
+          description: 最大值
+        mean:
+          type: number
+          description: 平均值
+        median:
+          type: number
+          description: 中位数
+        q1:
+          type: number
+          description: 第一四分位数
+        q3:
+          type: number
+          description: 第三四分位数
+        bins:
+          type: array
+          minItems: 1
+          maxItems: 5
+          description: 等宽直方图分箱；常量字段只返回一个分箱
+          items:
+            $ref: '#/components/schemas/NonGeoHistogramBin'
+
+    NonGeoCorrelation:
+      type: object
+      required: [fields, values]
+      properties:
+        fields:
+          type: array
+          minItems: 2
+          maxItems: 6
+          description: 参与相关性计算的前六个数值字段
+          items:
+            type: string
+        values:
+          type: array
+          description: 与 fields 顺序一致的相关系数矩阵
+          items:
+            type: array
+            items:
+              type: number
+              minimum: -1
+              maximum: 1
+
+    NonGeoAnalyticsResponse:
+      type: object
+      required: [resource, summary, fields, categoricalDistributions, numericDistributions, correlation, tablePreview, insights]
+      properties:
+        resource:
+          $ref: '#/components/schemas/ResourceListItem'
+        summary:
+          $ref: '#/components/schemas/NonGeoAnalyticsSummary'
+        fields:
+          type: array
+          description: 字段画像
+          items:
+            $ref: '#/components/schemas/NonGeoFieldProfile'
+        categoricalDistributions:
+          type: array
+          description: 分类字段 Top 12 分布
+          items:
+            $ref: '#/components/schemas/NonGeoCategoricalDistribution'
+        numericDistributions:
+          type: array
+          description: 数值字段描述统计与直方图
+          items:
+            $ref: '#/components/schemas/NonGeoNumericDistribution'
+        correlation:
+          oneOf:
+            - $ref: '#/components/schemas/NonGeoCorrelation'
+            - type: 'null'
+          description: 至少存在两个数值字段时返回相关系数矩阵，否则为 null
+        tablePreview:
+          $ref: '#/components/schemas/NonGeoTableQueryResponse'
+        insights:
+          type: array
+          description: 根据真实数据生成的分析口径与摘要提示
+          items:
+            type: string
 
     ResourceVisualizationSummaryResponse:
       type: object

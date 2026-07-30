@@ -7,8 +7,10 @@ import {
   useState,
 } from "react";
 import type { LoadedLayerGroup } from "../types";
+import { createLayerWorkspaceFingerprint } from "../utils/layerWorkspaceCacheBudget";
 import {
   readCachedLayerGroups,
+  rememberCachedLayerGroups,
   writeCachedLayerGroups,
 } from "../utils/layerWorkspaceStorage";
 
@@ -23,14 +25,18 @@ export function useCachedLayerGroups(
   const storageHydratedRef = useRef(false);
   const localChangeBeforeHydrationRef = useRef(false);
   const cacheWriteTimerRef = useRef<number | null>(null);
-  const lastSerializedGroupsRef = useRef("");
+  const lastPersistedFingerprintRef = useRef<{
+    cacheKey: string;
+    fingerprint: string;
+  } | null>(null);
+  const lastSkippedGroupsRef = useRef<LoadedLayerGroup[] | null>(null);
   const latestCacheKeyRef = useRef(cacheKey);
   const latestGroupsRef = useRef(groups);
   const writeInFlightRef = useRef(false);
   const pendingWriteRef = useRef<{
     cacheKey: string;
     groups: LoadedLayerGroup[];
-    serialized: string;
+    fingerprint: string;
   } | null>(null);
 
   const drainWriteQueue = useCallback(() => {
@@ -41,7 +47,12 @@ export function useCachedLayerGroups(
     writeInFlightRef.current = true;
     void writeCachedLayerGroups(next.cacheKey, next.groups)
       .then(() => {
-        lastSerializedGroupsRef.current = next.serialized;
+        if (latestCacheKeyRef.current === next.cacheKey) {
+          lastPersistedFingerprintRef.current = {
+            cacheKey: next.cacheKey,
+            fingerprint: next.fingerprint,
+          };
+        }
       })
       .catch((error) => {
         console.warn("写入本地图层缓存失败", error);
@@ -54,21 +65,36 @@ export function useCachedLayerGroups(
 
   const persistLatestGroups = useCallback(() => {
     if (!storageHydratedRef.current) return;
-    const serialized = JSON.stringify(latestGroupsRef.current);
-    if (serialized === lastSerializedGroupsRef.current) {
+    const currentGroups = latestGroupsRef.current;
+    if (lastSkippedGroupsRef.current === currentGroups) {
       return;
     }
-    const serializedBytes = new TextEncoder().encode(serialized).byteLength;
-    if (serializedBytes > maxLayerCacheBytes) {
+    const fingerprint = createLayerWorkspaceFingerprint(
+      currentGroups,
+      maxLayerCacheBytes,
+    );
+    if (!fingerprint) {
+      lastSkippedGroupsRef.current = currentGroups;
+      if (pendingWriteRef.current?.cacheKey === latestCacheKeyRef.current) {
+        pendingWriteRef.current = null;
+      }
       console.warn(
         `本地图层缓存超过 ${Math.round(maxLayerCacheBytes / 1024 / 1024)}MB，已跳过写入`,
       );
       return;
     }
+    lastSkippedGroupsRef.current = null;
+    const lastPersisted = lastPersistedFingerprintRef.current;
+    if (
+      lastPersisted?.cacheKey === latestCacheKeyRef.current &&
+      lastPersisted.fingerprint === fingerprint.fingerprint
+    ) {
+      return;
+    }
     pendingWriteRef.current = {
       cacheKey: latestCacheKeyRef.current,
-      groups: latestGroupsRef.current,
-      serialized,
+      groups: currentGroups,
+      fingerprint: fingerprint.fingerprint,
     };
     drainWriteQueue();
   }, [drainWriteQueue]);
@@ -82,6 +108,8 @@ export function useCachedLayerGroups(
     let cancelled = false;
     storageHydratedRef.current = false;
     localChangeBeforeHydrationRef.current = false;
+    lastPersistedFingerprintRef.current = null;
+    lastSkippedGroupsRef.current = null;
     setStorageHydrated(false);
     setGroupsState([]);
 
@@ -90,7 +118,14 @@ export function useCachedLayerGroups(
         const cachedGroups = await readCachedLayerGroups(cacheKey);
         if (cancelled) return;
         if (!localChangeBeforeHydrationRef.current) {
-          lastSerializedGroupsRef.current = JSON.stringify(cachedGroups);
+          const fingerprint = createLayerWorkspaceFingerprint(
+            cachedGroups,
+            maxLayerCacheBytes,
+          );
+          lastPersistedFingerprintRef.current = fingerprint
+            ? { cacheKey, fingerprint: fingerprint.fingerprint }
+            : null;
+          lastSkippedGroupsRef.current = fingerprint ? null : cachedGroups;
           setGroupsState(cachedGroups);
         }
       } catch (error) {
@@ -146,7 +181,11 @@ export function useCachedLayerGroups(
       if (!storageHydratedRef.current) {
         localChangeBeforeHydrationRef.current = true;
       }
-      setGroupsState(value);
+      setGroupsState((current) => {
+        const next = typeof value === "function" ? value(current) : value;
+        rememberCachedLayerGroups(latestCacheKeyRef.current, next);
+        return next;
+      });
     },
     [],
   );

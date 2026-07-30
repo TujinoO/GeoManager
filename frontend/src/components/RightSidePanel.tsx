@@ -2,9 +2,11 @@ import {
   AimOutlined,
   AreaChartOutlined,
   BarChartOutlined,
+  BgColorsOutlined,
   CheckCircleOutlined,
   DatabaseOutlined,
   ExclamationCircleOutlined,
+  FileImageOutlined,
   RadarChartOutlined,
   SlidersOutlined,
 } from "@ant-design/icons";
@@ -26,6 +28,10 @@ import type {
   ResourceListItem,
   ResourceVisualizationSummary,
 } from "../types";
+import {
+  rasterSymbolizationFromRules,
+  type RasterSymbolization,
+} from "../symbolization";
 import FeatureDetailPanel from "./FeatureDetailPanel";
 
 const thumbnailMinIndicatorSizePx = 10;
@@ -92,7 +98,10 @@ type Tone = "green" | "cyan" | "amber" | "red" | "blue";
 type CategoryStat = ResourceVisualizationSummary["categoryStats"][number];
 type NumericStat = ResourceVisualizationSummary["numericStats"][number];
 type QualityIssue = ResourceVisualizationSummary["qualityIssues"][number];
-type MonitorItem = ResourceVisualizationSummary["monitorPreview"]["items"][number];
+type MonitorItem =
+  ResourceVisualizationSummary["monitorPreview"]["items"][number];
+type RasterDatasetProfile = NonNullable<DataResourceProfile["raster"]>;
+type RasterBandMetadata = RasterDatasetProfile["metadata"]["bands"][number];
 
 const domainLabels: Partial<Record<DataDomainType, string>> = {
   germplasm: "种质数据",
@@ -142,7 +151,16 @@ const domainFeaturePlans: Partial<
   community: {
     title: "群落多样性与环境梯度",
     categoryHints: ["群落", "样方", "样地", "生境", "生活型", "区域"],
-    numericHints: ["Shannon", "Simpson", "Pielou", "SR", "FRic", "FDis", "RaoQ", "PD"],
+    numericHints: [
+      "Shannon",
+      "Simpson",
+      "Pielou",
+      "SR",
+      "FRic",
+      "FDis",
+      "RaoQ",
+      "PD",
+    ],
     radarTitle: "多样性指标画像",
     matrixTitle: "性状环境热力矩阵",
   },
@@ -195,11 +213,16 @@ export default function RightSidePanel({
   currentView,
   mapConfig,
 }: Props) {
+  const rasterSelected = isRasterInsightSelection(
+    selectedResource,
+    selectedResourceProfile,
+    selectedLayer,
+  );
   const [activeEcoTab, setActiveEcoTab] = useState<EcoTabKey>(() =>
     nextEcoTabForSelectedFeature(
       "overview",
       selectedFeature,
-      selectedLayer?.id ?? null,
+      selectedLayer?.layerType === "vector" ? selectedLayer.id : null,
     ),
   );
 
@@ -208,10 +231,10 @@ export default function RightSidePanel({
       nextEcoTabForSelectedFeature(
         currentTab,
         selectedFeature,
-        selectedLayer?.id ?? null,
+        selectedLayer?.layerType === "vector" ? selectedLayer.id : null,
       ),
     );
-  }, [selectedFeature, selectedLayer?.id]);
+  }, [selectedFeature, selectedLayer?.id, selectedLayer?.layerType]);
 
   const handleEcoTabChange = useCallback((key: string) => {
     if (isEcoTabKey(key)) {
@@ -222,9 +245,10 @@ export default function RightSidePanel({
   const domainType =
     visualizationSummary?.domainType ?? selectedResource?.domainType ?? null;
   const domainLabel = domainType
-    ? domainLabels[domainType] ?? "地理数据"
+    ? (domainLabels[domainType] ?? "地理数据")
     : "等待资源";
-  const sourceLabel = selectedLayer?.name ?? selectedResource?.name ?? "未选择资源";
+  const sourceLabel =
+    selectedLayer?.name ?? selectedResource?.name ?? "未选择资源";
 
   return (
     <div className="right-panel-stack">
@@ -235,10 +259,7 @@ export default function RightSidePanel({
         <FlatMapThumbnail currentView={currentView} mapConfig={mapConfig} />
       </section>
 
-      <section
-        className="right-eco-panel"
-        aria-label="地理数据洞察面板"
-      >
+      <section className="right-eco-panel" aria-label="地理数据洞察面板">
         <div className="right-panel-heading right-panel-heading-main">
           <span>
             <RadarChartOutlined style={{ fontSize: 15 }} />
@@ -280,13 +301,19 @@ export default function RightSidePanel({
               key: "feature",
               label: (
                 <span className="tab-label">
-                  <AimOutlined style={{ fontSize: 14 }} />
-                  要素
+                  {rasterSelected ? (
+                    <BgColorsOutlined style={{ fontSize: 14 }} />
+                  ) : (
+                    <AimOutlined style={{ fontSize: 14 }} />
+                  )}
+                  {rasterSelected ? "波段" : "要素"}
                 </span>
               ),
               children: (
                 <EcologyFactorPanel
                   feature={selectedFeature}
+                  selectedResource={selectedResource}
+                  selectedResourceProfile={selectedResourceProfile}
                   selectedLayer={selectedLayer}
                   summary={visualizationSummary}
                   loading={visualizationSummaryLoading}
@@ -299,12 +326,13 @@ export default function RightSidePanel({
               label: (
                 <span className="tab-label">
                   <RadarChartOutlined style={{ fontSize: 14 }} />
-                  监测
+                  {rasterSelected ? "质量" : "监测"}
                 </span>
               ),
               children: (
                 <EcologyMonitorPanel
                   selectedResource={selectedResource}
+                  selectedResourceProfile={selectedResourceProfile}
                   selectedLayer={selectedLayer}
                   summary={visualizationSummary}
                   loading={visualizationSummaryLoading}
@@ -329,6 +357,19 @@ export function nextEcoTabForSelectedFeature(
 
 function isEcoTabKey(key: string): key is EcoTabKey {
   return key === "overview" || key === "feature" || key === "monitor";
+}
+
+export function isRasterInsightSelection(
+  resource: ResourceListItem | null,
+  profile: DataResourceProfile | null,
+  layer: LoadedLayer | null,
+) {
+  return Boolean(
+    layer?.layerType === "raster" ||
+    profile?.raster ||
+    profile?.resource.dataType === "raster" ||
+    resource?.dataType === "raster",
+  );
 }
 
 function FlatMapThumbnail({
@@ -936,6 +977,45 @@ function EcologyOverviewPanel({
   loading,
   error,
 }: InsightPanelProps) {
+  if (
+    isRasterInsightSelection(
+      selectedResource ?? null,
+      selectedResourceProfile ?? null,
+      selectedLayer ?? null,
+    )
+  ) {
+    return (
+      <RasterOverviewPanel
+        error={error}
+        layer={selectedLayer?.layerType === "raster" ? selectedLayer : null}
+        loading={loading}
+        profile={selectedResourceProfile ?? null}
+        resource={selectedResource ?? null}
+        summary={summary}
+      />
+    );
+  }
+
+  return (
+    <VectorEcologyOverviewPanel
+      error={error}
+      loading={loading}
+      selectedLayer={selectedLayer}
+      selectedResource={selectedResource}
+      selectedResourceProfile={selectedResourceProfile}
+      summary={summary}
+    />
+  );
+}
+
+function VectorEcologyOverviewPanel({
+  selectedResource,
+  selectedResourceProfile,
+  selectedLayer,
+  summary,
+  loading,
+  error,
+}: InsightPanelProps) {
   const insight = useMemo(
     () =>
       createInsightStats(
@@ -943,11 +1023,15 @@ function EcologyOverviewPanel({
         selectedLayer ?? null,
         selectedResourceProfile ?? null,
         selectedResource ?? null,
-    ),
+      ),
     [selectedLayer, selectedResource, selectedResourceProfile, summary],
   );
-  const [selectedNumericField, setSelectedNumericField] = useState<string | null>(null);
-  const [selectedCategoryField, setSelectedCategoryField] = useState<string | null>(null);
+  const [selectedNumericField, setSelectedNumericField] = useState<
+    string | null
+  >(null);
+  const [selectedCategoryField, setSelectedCategoryField] = useState<
+    string | null
+  >(null);
   const numericOptions = useMemo(
     () =>
       insight.numericStats.map((stat) => ({
@@ -966,7 +1050,10 @@ function EcologyOverviewPanel({
   );
   useEffect(() => {
     setSelectedNumericField((current) => {
-      if (current && insight.numericStats.some((stat) => stat.field === current)) {
+      if (
+        current &&
+        insight.numericStats.some((stat) => stat.field === current)
+      ) {
         return current;
       }
       return insight.numericStats[0]?.field ?? null;
@@ -974,7 +1061,10 @@ function EcologyOverviewPanel({
   }, [insight.numericStats]);
   useEffect(() => {
     setSelectedCategoryField((current) => {
-      if (current && insight.categoryStats.some((stat) => stat.field === current)) {
+      if (
+        current &&
+        insight.categoryStats.some((stat) => stat.field === current)
+      ) {
         return current;
       }
       return insight.categoryStats[0]?.field ?? null;
@@ -988,7 +1078,9 @@ function EcologyOverviewPanel({
     null;
   const primaryCategory =
     (selectedCategoryField
-      ? insight.categoryStats.find((stat) => stat.field === selectedCategoryField)
+      ? insight.categoryStats.find(
+          (stat) => stat.field === selectedCategoryField,
+        )
       : null) ??
     insight.categoryStats[0] ??
     null;
@@ -1054,12 +1146,16 @@ function EcologyOverviewPanel({
 
 function EcologyFactorPanel({
   feature,
+  selectedResource,
+  selectedResourceProfile,
   selectedLayer,
   summary,
   loading,
   error,
 }: {
   feature: FeatureInfo | null;
+  selectedResource: ResourceListItem | null;
+  selectedResourceProfile: DataResourceProfile | null;
   selectedLayer: LoadedLayer | null;
   summary: ResourceVisualizationSummary | null;
   loading: boolean;
@@ -1082,6 +1178,25 @@ function EcologyFactorPanel({
 
   if (!insight.hasData && loading) {
     return <InsightState loading text="正在加载要素图表方案" />;
+  }
+
+  if (
+    isRasterInsightSelection(
+      selectedResource,
+      selectedResourceProfile,
+      selectedLayer,
+    )
+  ) {
+    return (
+      <RasterBandPanel
+        error={error}
+        layer={selectedLayer?.layerType === "raster" ? selectedLayer : null}
+        loading={loading}
+        profile={selectedResourceProfile}
+        resource={selectedResource}
+        summary={summary}
+      />
+    );
   }
 
   if (insight.domainType === "germplasm") {
@@ -1117,7 +1232,10 @@ function EcologyFactorPanel({
     );
   }
 
-  if (insight.domainType === "population" || insight.domainType === "field_survey") {
+  if (
+    insight.domainType === "population" ||
+    insight.domainType === "field_survey"
+  ) {
     return (
       <PopulationSurveyFactorPanel
         error={error}
@@ -1139,7 +1257,10 @@ function EcologyFactorPanel({
         </div>
         <div className="eco-factor-layout">
           {numericForDomain.length > 2 ? (
-            <RadarProfile stats={numericForDomain.slice(0, 6)} title={plan.radarTitle} />
+            <RadarProfile
+              stats={numericForDomain.slice(0, 6)}
+              title={plan.radarTitle}
+            />
           ) : (
             <ChartEmpty compact text="数值字段不足，暂不绘制雷达画像" />
           )}
@@ -1150,7 +1271,9 @@ function EcologyFactorPanel({
         <div className="eco-rose-card">
           <div className="right-panel-heading">
             <Typography.Text strong>
-              {categoryForDomain ? `${categoryForDomain.label} TopN` : "分类排行"}
+              {categoryForDomain
+                ? `${categoryForDomain.label} TopN`
+                : "分类排行"}
             </Typography.Text>
             <BarChartOutlined style={{ fontSize: 14 }} />
           </div>
@@ -1198,15 +1321,42 @@ function EcologyFactorPanel({
 
 function EcologyMonitorPanel({
   selectedResource,
+  selectedResourceProfile,
   selectedLayer,
   summary,
   loading,
   error,
 }: InsightPanelProps) {
   const insight = useMemo(
-    () => createInsightStats(summary, selectedLayer ?? null, null, selectedResource ?? null),
+    () =>
+      createInsightStats(
+        summary,
+        selectedLayer ?? null,
+        null,
+        selectedResource ?? null,
+      ),
     [selectedLayer, selectedResource, summary],
   );
+
+  if (
+    isRasterInsightSelection(
+      selectedResource ?? null,
+      selectedResourceProfile ?? null,
+      selectedLayer ?? null,
+    )
+  ) {
+    return (
+      <RasterQualityPanel
+        error={error}
+        insight={insight}
+        layer={selectedLayer?.layerType === "raster" ? selectedLayer : null}
+        loading={loading}
+        profile={selectedResourceProfile ?? null}
+        resource={selectedResource ?? null}
+        summary={summary}
+      />
+    );
+  }
   const monitorItems = insight.monitorItems;
   const issueCounts = issueCountsBySeverity(insight.qualityIssues);
 
@@ -1255,6 +1405,750 @@ function EcologyMonitorPanel({
         </div>
       </div>
     </div>
+  );
+}
+
+interface RasterBandInsight {
+  band: number;
+  label: string;
+  type: string;
+  colorInterpretation: string;
+  min: number | null;
+  max: number | null;
+  isInteger: boolean;
+}
+
+interface RasterInsightModel {
+  bands: RasterBandInsight[];
+  size: [number, number] | null;
+  pixelCount: number | null;
+  bounds: number[];
+  coordinateSystem: string;
+  driver: string;
+  rasterKind: RasterDatasetProfile["rasterKind"] | "unknown";
+  datasetStatus: RasterDatasetProfile["status"] | "metadata";
+  renderStatus: string;
+  renderProgress: number | null;
+  renderMessages: string[];
+  symbolization: RasterSymbolization;
+  sourceFileSize: number;
+  processedFileSize: number;
+  sourceFileName: string;
+}
+
+function RasterOverviewPanel({
+  error,
+  layer,
+  loading,
+  profile,
+  resource,
+  summary,
+}: {
+  error: string | null;
+  layer: LoadedRasterLayer | null;
+  loading: boolean;
+  profile: DataResourceProfile | null;
+  resource: ResourceListItem | null;
+  summary: ResourceVisualizationSummary | null;
+}) {
+  const raster = useMemo(
+    () => createRasterInsightModel(profile, layer, summary, resource),
+    [layer, profile, resource, summary],
+  );
+  const hasRasterMetadata = Boolean(
+    raster.bands.length || raster.size || profile?.raster || layer,
+  );
+
+  if (!hasRasterMetadata && loading) {
+    return <InsightState loading text="正在读取栅格元数据" />;
+  }
+  if (!hasRasterMetadata) {
+    return (
+      <InsightState
+        error={error}
+        text="当前栅格尚未生成可用的波段、尺寸和空间范围元数据"
+      />
+    );
+  }
+
+  return (
+    <div className="eco-tab-panel raster-overview-panel">
+      <div className="eco-status-card raster-overview-hero">
+        <div className="right-panel-heading raster-heading">
+          <span>
+            <FileImageOutlined style={{ fontSize: 16 }} />
+            <Typography.Text strong>栅格数据集概览</Typography.Text>
+          </span>
+          <Tag color={rasterStatusColor(raster.datasetStatus)}>
+            {rasterDatasetStatusLabel(raster.datasetStatus)}
+          </Tag>
+        </div>
+        <div className="raster-kind-line">
+          <strong>{rasterKindLabel(raster.rasterKind)}</strong>
+          <span>{raster.driver || "未知格式"}</span>
+          {loading ? <em>元数据刷新中</em> : null}
+        </div>
+        <div className="raster-metric-grid">
+          <span>
+            <b>
+              {raster.size
+                ? `${formatCompactNumber(raster.size[0])} × ${formatCompactNumber(raster.size[1])}`
+                : "-"}
+            </b>
+            像素尺寸
+          </span>
+          <span>
+            <b>{formatRasterPixelCount(raster.pixelCount)}</b>
+            总像元
+          </span>
+          <span>
+            <b>{raster.bands.length || "-"}</b>
+            波段
+          </span>
+          <span title={raster.coordinateSystem}>
+            <b>{raster.coordinateSystem || "-"}</b>
+            坐标系统
+          </span>
+        </div>
+      </div>
+
+      <div className="eco-trend-card raster-range-card">
+        <div className="right-panel-heading">
+          <Typography.Text strong>像元值域（元数据）</Typography.Text>
+          <Typography.Text type="secondary">
+            {raster.bands.length} 个波段
+          </Typography.Text>
+        </div>
+        <RasterBandRangeChart bands={raster.bands} />
+        <Typography.Text className="raster-chart-note" type="secondary">
+          当前仅展示后端提取的最小值与最大值，不将值域误绘制为像元分布。
+        </Typography.Text>
+      </div>
+
+      <RasterRenderingSummary raster={raster} />
+
+      <div className="eco-spatial-card raster-spatial-card">
+        <div className="right-panel-heading">
+          <Typography.Text strong>空间覆盖与数据体量</Typography.Text>
+          <Tag color={raster.bounds.length === 4 ? "green" : "warning"}>
+            {raster.bounds.length === 4 ? "范围已登记" : "缺少范围"}
+          </Tag>
+        </div>
+        <RasterFootprint raster={raster} />
+        {error ? (
+          <Typography.Text type="warning">{error}</Typography.Text>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function RasterBandPanel({
+  error,
+  layer,
+  loading,
+  profile,
+  resource,
+  summary,
+}: {
+  error: string | null;
+  layer: LoadedRasterLayer | null;
+  loading: boolean;
+  profile: DataResourceProfile | null;
+  resource: ResourceListItem | null;
+  summary: ResourceVisualizationSummary | null;
+}) {
+  const raster = useMemo(
+    () => createRasterInsightModel(profile, layer, summary, resource),
+    [layer, profile, resource, summary],
+  );
+  const [selectedBandNumber, setSelectedBandNumber] = useState<number | null>(
+    null,
+  );
+
+  useEffect(() => {
+    setSelectedBandNumber((current) => {
+      if (current && raster.bands.some((band) => band.band === current)) {
+        return current;
+      }
+      return raster.bands[0]?.band ?? null;
+    });
+  }, [raster.bands]);
+
+  const selectedBand =
+    raster.bands.find((band) => band.band === selectedBandNumber) ??
+    raster.bands[0] ??
+    null;
+
+  if (!raster.bands.length && loading) {
+    return <InsightState loading text="正在读取波段信息" />;
+  }
+
+  return (
+    <div className="eco-tab-panel raster-band-panel">
+      <div className="eco-factor-card raster-band-focus-card">
+        <div className="right-panel-heading eco-chart-heading">
+          <span>
+            <BgColorsOutlined style={{ fontSize: 15 }} />
+            <Typography.Text strong>波段值域与数据类型</Typography.Text>
+          </span>
+          <Select
+            aria-label="选择栅格波段"
+            className="eco-field-select"
+            disabled={!raster.bands.length}
+            options={raster.bands.map((band) => ({
+              label: `B${band.band} · ${band.label}`,
+              value: band.band,
+            }))}
+            size="small"
+            value={selectedBandNumber ?? undefined}
+            onChange={setSelectedBandNumber}
+          />
+        </div>
+        {selectedBand ? (
+          <RasterBandFocus band={selectedBand} />
+        ) : (
+          <ChartEmpty text="当前栅格没有可展示的波段元数据" />
+        )}
+      </div>
+
+      <div className="eco-field-profile-card raster-band-list-card">
+        <div className="right-panel-heading">
+          <Typography.Text strong>全部波段</Typography.Text>
+          <Typography.Text type="secondary">统一值域对比</Typography.Text>
+        </div>
+        <RasterBandRangeChart bands={raster.bands} />
+      </div>
+
+      <RasterRenderingSummary raster={raster} />
+
+      {error ? (
+        <div className="eco-risk-card">
+          <Typography.Text type="warning">{error}</Typography.Text>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RasterQualityPanel({
+  error,
+  insight,
+  layer,
+  loading,
+  profile,
+  resource,
+  summary,
+}: {
+  error: string | null;
+  insight: InsightStats;
+  layer: LoadedRasterLayer | null;
+  loading: boolean;
+  profile: DataResourceProfile | null;
+  resource: ResourceListItem | null;
+  summary: ResourceVisualizationSummary | null;
+}) {
+  const raster = useMemo(
+    () => createRasterInsightModel(profile, layer, summary, resource),
+    [layer, profile, resource, summary],
+  );
+  const metadataReady = Boolean(raster.size && raster.bands.length);
+  const preprocessingReady = raster.datasetStatus === "ready";
+  const tilesReady = Boolean(layer?.tileUrl && layer.renderStatus === "ready");
+
+  return (
+    <div className="eco-tab-panel raster-quality-panel">
+      <div className="eco-status-card raster-quality-hero">
+        <div className="right-panel-heading">
+          <Typography.Text strong>栅格可用性检查</Typography.Text>
+          {loading ? <Tag color="processing">刷新中</Tag> : null}
+        </div>
+        <div className="raster-readiness-grid">
+          <RasterReadinessStep
+            label="元数据"
+            detail={metadataReady ? "尺寸与波段可用" : "信息不完整"}
+            ready={metadataReady}
+          />
+          <RasterReadinessStep
+            label="COG 预处理"
+            detail={rasterDatasetStatusLabel(raster.datasetStatus)}
+            ready={preprocessingReady}
+          />
+          <RasterReadinessStep
+            label="XYZ 图层"
+            detail={
+              tilesReady
+                ? "地图已加载"
+                : layer
+                  ? renderStatusLabel(raster.renderStatus)
+                  : "尚未加载"
+            }
+            ready={tilesReady}
+          />
+        </div>
+      </div>
+
+      <div className="eco-risk-card">
+        <div className="right-panel-heading">
+          <Typography.Text strong>元数据与渲染风险</Typography.Text>
+          <Typography.Text type="secondary">
+            {insight.qualityIssues.length} 项
+          </Typography.Text>
+        </div>
+        {error ? (
+          <div className="eco-quality-list">
+            <span className="eco-quality-warning">
+              <ExclamationCircleOutlined style={{ fontSize: 14 }} />
+              <b>摘要接口异常</b>
+              <small>{error}</small>
+            </span>
+          </div>
+        ) : (
+          <QualityList issues={insight.qualityIssues} />
+        )}
+      </div>
+
+      <div className="eco-field-profile-card raster-delivery-card">
+        <div className="right-panel-heading">
+          <Typography.Text strong>后端交付状态</Typography.Text>
+          <Tag color={tilesReady ? "green" : "default"}>XYZ</Tag>
+        </div>
+        <div className="raster-delivery-facts">
+          <span>
+            <b>{renderStatusLabel(raster.renderStatus)}</b>
+            当前渲染
+          </span>
+          <span>
+            <b>
+              {raster.renderProgress === null
+                ? "-"
+                : `${Math.round(raster.renderProgress)}%`}
+            </b>
+            任务进度
+          </span>
+          <span>
+            <b>{raster.symbolization.nodata.enabled ? "已启用" : "未启用"}</b>
+            NoData 透明
+          </span>
+        </div>
+        {raster.renderMessages.length ? (
+          <div className="raster-message-list">
+            {raster.renderMessages
+              .filter(
+                (message, messageIndex, messages) =>
+                  messages.indexOf(message) === messageIndex,
+              )
+              .slice(-3)
+              .map((message) => (
+                <span key={message}>{message}</span>
+              ))}
+          </div>
+        ) : (
+          <Typography.Text type="secondary">
+            {layer ? "暂无渲染任务消息" : "加载到地图后可查看瓦片交付状态"}
+          </Typography.Text>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RasterReadinessStep({
+  detail,
+  label,
+  ready,
+}: {
+  detail: string;
+  label: string;
+  ready: boolean;
+}) {
+  return (
+    <span className={ready ? "is-ready" : "is-pending"}>
+      {ready ? (
+        <CheckCircleOutlined style={{ fontSize: 15 }} />
+      ) : (
+        <ExclamationCircleOutlined style={{ fontSize: 15 }} />
+      )}
+      <b>{label}</b>
+      <small>{detail}</small>
+    </span>
+  );
+}
+
+function RasterBandFocus({ band }: { band: RasterBandInsight }) {
+  const range =
+    band.min !== null && band.max !== null
+      ? Math.abs(band.max - band.min)
+      : null;
+  return (
+    <div className="raster-band-focus">
+      <div className="raster-band-focus-value">
+        <span>B{band.band}</span>
+        <strong>{band.label}</strong>
+        <small>{band.colorInterpretation || "未标注颜色解释"}</small>
+      </div>
+      <div className="raster-band-focus-range">
+        <i />
+        <div>
+          <span>
+            <small>最小值</small>
+            <b>{formatNumber(band.min)}</b>
+          </span>
+          <span>
+            <small>值域跨度</small>
+            <b>{formatNumber(range)}</b>
+          </span>
+          <span>
+            <small>最大值</small>
+            <b>{formatNumber(band.max)}</b>
+          </span>
+        </div>
+      </div>
+      <div className="raster-band-type-line">
+        <Tag>{band.type || "未知类型"}</Tag>
+        <Tag color={band.isInteger ? "blue" : "cyan"}>
+          {band.isInteger ? "整型像元" : "连续像元"}
+        </Tag>
+      </div>
+    </div>
+  );
+}
+
+function RasterBandRangeChart({ bands }: { bands: RasterBandInsight[] }) {
+  const validValues = bands.flatMap((band) =>
+    [band.min, band.max].filter((value): value is number => value !== null),
+  );
+  if (!bands.length) {
+    return <ChartEmpty compact text="暂无波段值域元数据" />;
+  }
+  const domainMin = validValues.length ? Math.min(...validValues) : 0;
+  const domainMax = validValues.length ? Math.max(...validValues) : 1;
+
+  return (
+    <div className="raster-band-range-chart" aria-label="栅格波段值域对比图">
+      <div className="raster-range-axis">
+        <span>{formatNumber(domainMin)}</span>
+        <span>统一值域</span>
+        <span>{formatNumber(domainMax)}</span>
+      </div>
+      {bands.slice(0, 12).map((band) => {
+        const position = rasterBandRangePosition(
+          band.min,
+          band.max,
+          domainMin,
+          domainMax,
+        );
+        return (
+          <div className="raster-range-row" key={band.band}>
+            <span className="raster-range-label" title={band.label}>
+              <b>B{band.band}</b>
+              <small>{band.label}</small>
+            </span>
+            <div className="raster-range-track">
+              {position ? (
+                <i
+                  style={
+                    {
+                      "--raster-range-left": `${position.left}%`,
+                      "--raster-range-width": `${position.width}%`,
+                    } as CSSProperties
+                  }
+                />
+              ) : (
+                <em>无值域</em>
+              )}
+            </div>
+            <span className="raster-range-values">
+              {band.min === null || band.max === null
+                ? "-"
+                : `${formatNumber(band.min)} → ${formatNumber(band.max)}`}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function rasterBandRangePosition(
+  minimum: number | null,
+  maximum: number | null,
+  domainMinimum: number,
+  domainMaximum: number,
+) {
+  if (minimum === null || maximum === null) return null;
+  const domainSpan = domainMaximum - domainMinimum;
+  if (!Number.isFinite(domainSpan) || domainSpan <= 0) {
+    return { left: 0, width: 100 };
+  }
+  const low = Math.min(minimum, maximum);
+  const high = Math.max(minimum, maximum);
+  const left = clamp(((low - domainMinimum) / domainSpan) * 100, 0, 100);
+  const right = clamp(((high - domainMinimum) / domainSpan) * 100, 0, 100);
+  const width = Math.max(2, right - left);
+  return { left: Math.min(left, 100 - width), width };
+}
+
+function RasterRenderingSummary({ raster }: { raster: RasterInsightModel }) {
+  const activeBands = raster.symbolization.bands
+    .map((band) => `B${band}`)
+    .join(" / ");
+  return (
+    <div className="eco-distribution-card raster-render-card">
+      <div className="right-panel-heading">
+        <Typography.Text strong>当前后端渲染方案</Typography.Text>
+        <Tag color="cyan">{renderModeLabel(raster.symbolization.mode)}</Tag>
+      </div>
+      <div
+        className={`raster-palette-strip raster-palette-${raster.symbolization.mode === "pseudocolor" ? raster.symbolization.palette : raster.symbolization.mode}`}
+        role="img"
+        aria-label={`${renderModeLabel(raster.symbolization.mode)}色带预览`}
+      >
+        <span>{activeBands || "未指定波段"}</span>
+      </div>
+      <div className="raster-render-facts">
+        <span>
+          <b>{activeBands || "-"}</b>
+          输出波段
+        </span>
+        <span>
+          <b>{raster.symbolization.opacity}%</b>
+          图层透明度
+        </span>
+        <span>
+          <b>{raster.symbolization.stretch.enabled ? "Min–Max" : "关闭"}</b>
+          拉伸
+        </span>
+        <span>
+          <b>{raster.symbolization.nodata.enabled ? "透明" : "保留"}</b>
+          NoData
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function RasterFootprint({ raster }: { raster: RasterInsightModel }) {
+  const bounds = raster.bounds;
+  const approximateResolution = approximateRasterResolution(
+    bounds,
+    raster.size,
+  );
+  const totalSize = raster.sourceFileSize + raster.processedFileSize;
+  return (
+    <div className="raster-footprint-layout">
+      <div className="raster-footprint-graphic" aria-label="栅格空间范围示意">
+        <i />
+        <span>Raster</span>
+      </div>
+      <div className="raster-footprint-facts">
+        <span>
+          <small>WGS84 范围</small>
+          <b title={formatBounds(bounds)}>{formatBounds(bounds)}</b>
+        </span>
+        <span>
+          <small>视图像元跨度（约）</small>
+          <b>{approximateResolution}</b>
+        </span>
+        <span>
+          <small>源文件 / 预处理</small>
+          <b>
+            {formatBytes(raster.sourceFileSize)} /{" "}
+            {formatBytes(raster.processedFileSize)}
+          </b>
+        </span>
+        <span>
+          <small>合计体量</small>
+          <b>{totalSize ? formatBytes(totalSize) : "-"}</b>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function createRasterInsightModel(
+  profile: DataResourceProfile | null,
+  layer: LoadedRasterLayer | null,
+  summary: ResourceVisualizationSummary | null,
+  resource: ResourceListItem | null,
+): RasterInsightModel {
+  const dataset = profile?.raster ?? null;
+  const metadata = dataset?.metadata ?? layer?.rasterMetadata ?? null;
+  const metadataBands = metadata?.bands ?? [];
+  const bands = metadataBands.length
+    ? metadataBands.map(rasterBandFromMetadata)
+    : (summary?.numericStats ?? []).map((stat, statIndex) => ({
+        band: bandNumberFromField(stat.field) ?? statIndex + 1,
+        label: stat.label || stat.field,
+        type: "",
+        colorInterpretation: "",
+        min: finiteNumberOrNull(stat.min),
+        max: finiteNumberOrNull(stat.max),
+        isInteger: false,
+      }));
+  const rawSize = metadata?.size ?? [];
+  const width = positiveIntegerOrNull(rawSize[0]);
+  const height = positiveIntegerOrNull(rawSize[1]);
+  const size: [number, number] | null =
+    width !== null && height !== null ? [width, height] : null;
+  const bounds =
+    dataset?.bounds4326?.length === 4
+      ? dataset.bounds4326
+      : summary?.profile.bounds?.length === 4
+        ? summary.profile.bounds
+        : profile?.bounds?.length === 4
+          ? profile.bounds
+          : parseBounds(resource?.spatialExtent ?? "");
+  const symbolization = layer?.symbolization
+    ? layer.symbolization
+    : rasterSymbolizationFromRules(dataset?.defaultRules);
+
+  return {
+    bands,
+    size,
+    pixelCount: size ? size[0] * size[1] : null,
+    bounds,
+    coordinateSystem: String(
+      metadata?.coordinateSystem ?? resource?.coordinateSystem ?? "",
+    ),
+    driver:
+      metadata?.driver || dataset?.sourceFormat || resource?.fileFormat || "",
+    rasterKind: dataset?.rasterKind ?? "unknown",
+    datasetStatus: dataset?.status ?? "metadata",
+    renderStatus:
+      layer?.renderStatus ??
+      (dataset?.status === "ready"
+        ? "not_loaded"
+        : (dataset?.status ?? "metadata")),
+    renderProgress:
+      typeof layer?.renderProgress === "number" ? layer.renderProgress : null,
+    renderMessages: layer?.renderMessages ?? [],
+    symbolization,
+    sourceFileSize: dataset?.sourceFileSize ?? 0,
+    processedFileSize: dataset?.processedFileSize ?? 0,
+    sourceFileName: dataset?.sourceFileName ?? "",
+  };
+}
+
+function rasterBandFromMetadata(band: RasterBandMetadata): RasterBandInsight {
+  return {
+    band: band.band,
+    label: band.description || `Band ${band.band}`,
+    type: band.type,
+    colorInterpretation: band.colorInterpretation,
+    min: finiteNumberOrNull(band.min),
+    max: finiteNumberOrNull(band.max),
+    isInteger: band.isInteger,
+  };
+}
+
+function finiteNumberOrNull(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function positiveIntegerOrNull(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.round(value)
+    : null;
+}
+
+function bandNumberFromField(field: string) {
+  const match = field.match(/(\d+)/);
+  return match ? Number(match[1]) : null;
+}
+
+export function formatRasterPixelCount(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return "-";
+  if (value >= 1_000_000_000)
+    return `${formatNumber(value / 1_000_000_000)} 十亿`;
+  if (value >= 1_000_000) return `${formatNumber(value / 1_000_000)} 百万`;
+  if (value >= 10_000) return `${formatNumber(value / 10_000)} 万`;
+  return formatNumber(value);
+}
+
+function approximateRasterResolution(
+  bounds: number[],
+  size: [number, number] | null,
+) {
+  if (bounds.length !== 4 || !size) return "-";
+  const [minLng, minLat, maxLng, maxLat] = bounds;
+  if (
+    minLng === undefined ||
+    minLat === undefined ||
+    maxLng === undefined ||
+    maxLat === undefined
+  ) {
+    return "-";
+  }
+  const xResolution = Math.abs((maxLng - minLng) / size[0]);
+  const yResolution = Math.abs((maxLat - minLat) / size[1]);
+  if (!Number.isFinite(xResolution) || !Number.isFinite(yResolution))
+    return "-";
+  return `${formatResolutionDegrees(xResolution)} × ${formatResolutionDegrees(yResolution)}`;
+}
+
+function formatResolutionDegrees(value: number) {
+  if (value >= 0.01) return `${value.toFixed(4)}°`;
+  if (value >= 0.0001) return `${value.toFixed(6)}°`;
+  return `${value.toExponential(2)}°`;
+}
+
+function formatBytes(value: number) {
+  if (!value || !Number.isFinite(value)) return "-";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const unitIndex = Math.min(
+    units.length - 1,
+    Math.floor(Math.log(value) / Math.log(1024)),
+  );
+  return `${formatNumber(value / 1024 ** unitIndex)} ${units[unitIndex]}`;
+}
+
+function rasterKindLabel(kind: RasterInsightModel["rasterKind"]) {
+  return {
+    imagery: "多波段影像",
+    continuous: "连续型栅格",
+    categorical: "分类栅格",
+    unknown: "栅格数据",
+  }[kind];
+}
+
+function rasterDatasetStatusLabel(status: RasterInsightModel["datasetStatus"]) {
+  return {
+    pending: "等待预处理",
+    processing: "预处理中",
+    ready: "预处理就绪",
+    failed: "预处理失败",
+    metadata: "元数据可用",
+  }[status];
+}
+
+function rasterStatusColor(status: RasterInsightModel["datasetStatus"]) {
+  if (status === "ready") return "green";
+  if (status === "failed") return "error";
+  if (status === "processing") return "processing";
+  return "default";
+}
+
+function renderModeLabel(mode: RasterSymbolization["mode"]) {
+  return {
+    gray: "单波段灰度",
+    rgb: "RGB 合成",
+    pseudocolor: "伪彩色",
+    unique: "唯一值分类",
+  }[mode];
+}
+
+function renderStatusLabel(status: string) {
+  return (
+    {
+      ready: "瓦片已就绪",
+      queued: "等待渲染",
+      running: "渲染中",
+      processing: "处理中",
+      failed: "渲染失败",
+      not_loaded: "尚未加载",
+      metadata: "仅元数据",
+    }[status] ?? status
   );
 }
 
@@ -1335,12 +2229,19 @@ function GermplasmCollectionPortrait({ stats }: { stats: GermplasmStats }) {
         <div className="eco-germplasm-sample-core">
           <small>种质样本</small>
           <strong>{formatCompactNumber(stats.sampleTotal)}</strong>
-          <span>{stats.locationStat ? `${stats.locationStat.uniqueCount} 个采集地点` : "采集地点待统计"}</span>
+          <span>
+            {stats.locationStat
+              ? `${stats.locationStat.uniqueCount} 个采集地点`
+              : "采集地点待统计"}
+          </span>
         </div>
       </div>
       <div className="eco-germplasm-trait-stack">
         {stats.fingerprintMetrics.map((metric) => (
-          <span className={`eco-germplasm-trait eco-tone-${metric.tone}`} key={metric.label}>
+          <span
+            className={`eco-germplasm-trait eco-tone-${metric.tone}`}
+            key={metric.label}
+          >
             <b>{metric.label}</b>
             <i>
               <em style={{ width: `${Math.round(metric.value * 100)}%` }} />
@@ -1377,7 +2278,10 @@ function GermplasmSexMirror({ stats }: { stats: GermplasmStats }) {
     <div className="eco-sex-mirror">
       <div className="eco-sex-track-list">
         {tracks.map((track) => (
-          <div className={`eco-sex-track eco-sex-track-${track.key}`} key={track.key}>
+          <div
+            className={`eco-sex-track eco-sex-track-${track.key}`}
+            key={track.key}
+          >
             <span>
               <b>{track.label}</b>
               <small>{formatPercent(track.ratio)}</small>
@@ -1433,12 +2337,27 @@ function GermplasmAltitudeGradient({ stat }: { stat: NumericStat | null }) {
   const range = stat.max - stat.min;
   const q1 = percentPosition(stat.q1 ?? stat.min, stat.min, range);
   const q3 = percentPosition(stat.q3 ?? stat.max, stat.min, range);
-  const median = percentPosition(stat.median ?? stat.mean ?? stat.min, stat.min, range);
+  const median = percentPosition(
+    stat.median ?? stat.mean ?? stat.min,
+    stat.min,
+    range,
+  );
   return (
     <div className="eco-altitude-gradient">
-      <svg className="eco-altitude-ridge" viewBox="0 0 120 86" preserveAspectRatio="none" aria-hidden="true">
+      <svg
+        className="eco-altitude-ridge"
+        viewBox="0 0 120 86"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
         <defs>
-          <linearGradient id="ecoAltitudeFill" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient
+            id="ecoAltitudeFill"
+            x1="0%"
+            y1="0%"
+            x2="100%"
+            y2="100%"
+          >
             <stop offset="0%" stopColor="#38cfff" stopOpacity="0.2" />
             <stop offset="48%" stopColor="#20d6b0" stopOpacity="0.42" />
             <stop offset="100%" stopColor="#f5b84b" stopOpacity="0.4" />
@@ -1448,7 +2367,10 @@ function GermplasmAltitudeGradient({ stat }: { stat: NumericStat | null }) {
         <polyline points={ridgePoints} />
       </svg>
       <div className="eco-altitude-band">
-        <i className="eco-altitude-iqr" style={{ left: `${q1}%`, width: `${Math.max(2, q3 - q1)}%` }} />
+        <i
+          className="eco-altitude-iqr"
+          style={{ left: `${q1}%`, width: `${Math.max(2, q3 - q1)}%` }}
+        />
         <i className="eco-altitude-median" style={{ left: `${median}%` }} />
       </div>
       <div className="eco-altitude-values">
@@ -1559,14 +2481,22 @@ function IndividualFactorPanel({
   );
 }
 
-function IndividualClassificationPortrait({ stats }: { stats: IndividualStats }) {
+function IndividualClassificationPortrait({
+  stats,
+}: {
+  stats: IndividualStats;
+}) {
   return (
     <div className="eco-individual-portrait">
       <div className="eco-individual-taxonomy-card">
         <div className="eco-individual-taxonomy-core">
           <small>个体记录</small>
           <strong>{formatCompactNumber(stats.recordTotal)}</strong>
-          <span>{stats.speciesStat ? `${stats.speciesStat.uniqueCount} 个物种` : "物种字段待统计"}</span>
+          <span>
+            {stats.speciesStat
+              ? `${stats.speciesStat.uniqueCount} 个物种`
+              : "物种字段待统计"}
+          </span>
         </div>
         <div className="eco-individual-taxonomy-rings" aria-hidden="true">
           {stats.taxonomyMetrics.map((metric, index) => (
@@ -1585,7 +2515,10 @@ function IndividualClassificationPortrait({ stats }: { stats: IndividualStats })
       </div>
       <div className="eco-individual-taxonomy-stack">
         {stats.taxonomyMetrics.map((metric) => (
-          <span className={`eco-individual-taxonomy-metric eco-tone-${metric.tone}`} key={metric.label}>
+          <span
+            className={`eco-individual-taxonomy-metric eco-tone-${metric.tone}`}
+            key={metric.label}
+          >
             <b>{metric.label}</b>
             <strong>{metric.display}</strong>
             <i>
@@ -1608,7 +2541,10 @@ function IndividualOrderRanking({ stats }: { stats: IndividualStats }) {
   return (
     <div className="eco-individual-rank-list">
       {items.map((item, index) => (
-        <div className="eco-individual-rank-row" key={`${stat.field}-${item.label}`}>
+        <div
+          className="eco-individual-rank-row"
+          key={`${stat.field}-${item.label}`}
+        >
           <span>
             <b>{item.label || "未填写"}</b>
             <small>{formatPercent(item.ratio)}</small>
@@ -1643,19 +2579,29 @@ function IndividualOrderSequence({ stats }: { stats: IndividualStats }) {
   const items = category ? categoryDisplayItems(category).slice(0, 8) : [];
   const q1 = numeric ? percentPosition(numeric.q1 ?? min, min, range) : 0;
   const q3 = numeric ? percentPosition(numeric.q3 ?? max, min, range) : 100;
-  const median = numeric ? percentPosition(numeric.median ?? min, min, range) : 50;
+  const median = numeric
+    ? percentPosition(numeric.median ?? min, min, range)
+    : 50;
   return (
     <div className="eco-individual-order-sequence">
       <div className="eco-individual-order-track">
-        <i className="eco-individual-order-iqr" style={{ left: `${q1}%`, width: `${Math.max(2, q3 - q1)}%` }} />
-        <i className="eco-individual-order-median" style={{ left: `${median}%` }} />
+        <i
+          className="eco-individual-order-iqr"
+          style={{ left: `${q1}%`, width: `${Math.max(2, q3 - q1)}%` }}
+        />
+        <i
+          className="eco-individual-order-median"
+          style={{ left: `${median}%` }}
+        />
         {items.map((item, index) => {
           const value = toFiniteNumber(item.label);
           if (value === null) return null;
           return (
             <span
               key={`${item.label}-${index}`}
-              style={{ left: `${clamp(percentPosition(value, min, range), 4, 96)}%` }}
+              style={{
+                left: `${clamp(percentPosition(value, min, range), 4, 96)}%`,
+              }}
               title={`${item.label}: ${formatCompactNumber(item.count)}`}
             />
           );
@@ -1786,15 +2732,25 @@ function CommunityDiversityPortrait({ stats }: { stats: CommunityStats }) {
         <div className="eco-community-gradient-core">
           <small>群落样方</small>
           <strong>{formatCompactNumber(stats.plotTotal)}</strong>
-          <span>{stats.groupStat ? `${stats.groupStat.uniqueCount} 个分组` : "分组待统计"}</span>
+          <span>
+            {stats.groupStat
+              ? `${stats.groupStat.uniqueCount} 个分组`
+              : "分组待统计"}
+          </span>
         </div>
-        <svg viewBox="0 0 240 118" preserveAspectRatio="none" aria-hidden="true">
+        <svg
+          viewBox="0 0 240 118"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
           {stats.portraitMetrics.map((metric, index) => {
             const y = 24 + index * 22;
             const width = 182 * clamp(metric.value, 0.04, 1);
             return (
               <g className={`eco-tone-${metric.tone}`} key={metric.label}>
-                <path d={`M18 ${y} C 62 ${y - 20}, 92 ${y + 20}, 126 ${y} S 190 ${y - 8}, 222 ${y}`} />
+                <path
+                  d={`M18 ${y} C 62 ${y - 20}, 92 ${y + 20}, 126 ${y} S 190 ${y - 8}, 222 ${y}`}
+                />
                 <rect x="28" y={y - 3} width={width} height="6" rx="3" />
               </g>
             );
@@ -1803,7 +2759,10 @@ function CommunityDiversityPortrait({ stats }: { stats: CommunityStats }) {
       </div>
       <div className="eco-community-metric-grid">
         {stats.portraitMetrics.map((metric) => (
-          <span className={`eco-community-metric eco-tone-${metric.tone}`} key={metric.label}>
+          <span
+            className={`eco-community-metric eco-tone-${metric.tone}`}
+            key={metric.label}
+          >
             <b>{metric.label}</b>
             <strong>{metric.display}</strong>
             <i>
@@ -1826,7 +2785,10 @@ function CommunityGroupBalance({ stats }: { stats: CommunityStats }) {
   return (
     <div className="eco-community-group-list">
       {items.map((item, index) => (
-        <div className="eco-community-group-row" key={`${stat.field}-${item.label}`}>
+        <div
+          className="eco-community-group-row"
+          key={`${stat.field}-${item.label}`}
+        >
           <span>
             <b>{item.label || "未填写"}</b>
             <small>{formatPercent(item.ratio)}</small>
@@ -1848,13 +2810,22 @@ function CommunityGroupBalance({ stats }: { stats: CommunityStats }) {
 
 function CommunityDiversityGradient({ stats }: { stats: CommunityStats }) {
   const primary = stats.shannonStat ?? stats.richnessStat ?? stats.raoStat;
-  if (!primary || primary.min === null || primary.max === null || primary.min === primary.max) {
+  if (
+    !primary ||
+    primary.min === null ||
+    primary.max === null ||
+    primary.min === primary.max
+  ) {
     return <ChartEmpty text="暂无可用多样性指数范围" />;
   }
   const range = primary.max - primary.min;
   const q1 = percentPosition(primary.q1 ?? primary.min, primary.min, range);
   const q3 = percentPosition(primary.q3 ?? primary.max, primary.min, range);
-  const median = percentPosition(primary.median ?? primary.mean ?? primary.min, primary.min, range);
+  const median = percentPosition(
+    primary.median ?? primary.mean ?? primary.min,
+    primary.min,
+    range,
+  );
   return (
     <div className="eco-community-diversity-gradient">
       <div className="eco-community-ridge">
@@ -1864,8 +2835,14 @@ function CommunityDiversityGradient({ stats }: { stats: CommunityStats }) {
         </svg>
       </div>
       <div className="eco-community-gradient-band">
-        <i className="eco-community-gradient-iqr" style={{ left: `${q1}%`, width: `${Math.max(2, q3 - q1)}%` }} />
-        <i className="eco-community-gradient-median" style={{ left: `${median}%` }} />
+        <i
+          className="eco-community-gradient-iqr"
+          style={{ left: `${q1}%`, width: `${Math.max(2, q3 - q1)}%` }}
+        />
+        <i
+          className="eco-community-gradient-median"
+          style={{ left: `${median}%` }}
+        />
       </div>
       <div className="eco-community-gradient-values">
         <span>
@@ -1940,7 +2917,11 @@ function PopulationSurveyFactorPanel({
             {isFieldSurvey ? "调查样方与物种记录" : "种群样方与优势度画像"}
           </Typography.Text>
           <Typography.Text type="secondary">
-            {loading ? "刷新中" : isFieldSurvey ? "野外记录画像" : "种群结构画像"}
+            {loading
+              ? "刷新中"
+              : isFieldSurvey
+                ? "野外记录画像"
+                : "种群结构画像"}
           </Typography.Text>
         </div>
         <PopulationSurveyStructurePortrait stats={stats} />
@@ -1980,20 +2961,30 @@ function PopulationSurveyFactorPanel({
   );
 }
 
-function PopulationSurveyStructurePortrait({ stats }: { stats: PopulationSurveyStats }) {
+function PopulationSurveyStructurePortrait({
+  stats,
+}: {
+  stats: PopulationSurveyStats;
+}) {
   const isFieldSurvey = stats.domainType === "field_survey";
   const plotLabel = stats.plotStat
     ? `${formatCompactNumber(stats.plotStat.uniqueCount)} 个样方`
     : "样方待统计";
   const lineCount = clamp(
-    Math.round(stats.transectStat?.uniqueCount ?? stats.plotStat?.uniqueCount ?? 4),
+    Math.round(
+      stats.transectStat?.uniqueCount ?? stats.plotStat?.uniqueCount ?? 4,
+    ),
     3,
     6,
   );
   return (
     <div className="eco-pop-survey-portrait">
       <div className="eco-pop-survey-quadrat">
-        <svg viewBox="0 0 260 150" preserveAspectRatio="none" aria-hidden="true">
+        <svg
+          viewBox="0 0 260 150"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
           {Array.from({ length: lineCount }).map((_, index) => {
             const y = 26 + index * (96 / Math.max(lineCount - 1, 1));
             return (
@@ -2023,7 +3014,10 @@ function PopulationSurveyStructurePortrait({ stats }: { stats: PopulationSurveyS
       </div>
       <div className="eco-pop-survey-metric-grid">
         {stats.portraitMetrics.map((metric) => (
-          <span className={`eco-pop-survey-metric eco-tone-${metric.tone}`} key={metric.label}>
+          <span
+            className={`eco-pop-survey-metric eco-tone-${metric.tone}`}
+            key={metric.label}
+          >
             <b>{metric.label}</b>
             <strong>{metric.display}</strong>
             <i>
@@ -2036,7 +3030,11 @@ function PopulationSurveyStructurePortrait({ stats }: { stats: PopulationSurveyS
   );
 }
 
-function PopulationSurveySpeciesDominance({ stats }: { stats: PopulationSurveyStats }) {
+function PopulationSurveySpeciesDominance({
+  stats,
+}: {
+  stats: PopulationSurveyStats;
+}) {
   const stat = stats.speciesStat ?? stats.plotStat ?? stats.habitatStat;
   if (!stat) {
     return <ChartEmpty text="暂无物种、样方或栖息地分类统计" />;
@@ -2046,7 +3044,10 @@ function PopulationSurveySpeciesDominance({ stats }: { stats: PopulationSurveySt
   return (
     <div className="eco-pop-survey-dominance-list">
       {items.map((item, index) => (
-        <div className="eco-pop-survey-dominance-row" key={`${stat.field}-${item.label}`}>
+        <div
+          className="eco-pop-survey-dominance-row"
+          key={`${stat.field}-${item.label}`}
+        >
           <span className="eco-pop-survey-rank">{index + 1}</span>
           <span className="eco-pop-survey-name">
             <b>{item.label || "未填写"}</b>
@@ -2070,9 +3071,8 @@ function PopulationSurveyGradient({ stats }: { stats: PopulationSurveyStats }) {
   const lanes = [
     { label: "密度", stat: stats.densityStat, tone: "cyan" as Tone },
     { label: "重要值", stat: stats.importanceStat, tone: "amber" as Tone },
-  ].filter(
-    (lane): lane is { label: string; stat: NumericStat; tone: Tone } =>
-      Boolean(lane.stat),
+  ].filter((lane): lane is { label: string; stat: NumericStat; tone: Tone } =>
+    Boolean(lane.stat),
   );
   if (!lanes.length) {
     return <ChartEmpty text="暂无密度或重要值字段统计" />;
@@ -2089,7 +3089,12 @@ function PopulationSurveyGradient({ stats }: { stats: PopulationSurveyStats }) {
       ))}
       <div className="eco-pop-survey-gradient-summary">
         <span>
-          <b>{formatNumber(stats.plantCountStat?.median ?? stats.actualPlantCountStat?.median)}</b>
+          <b>
+            {formatNumber(
+              stats.plantCountStat?.median ??
+                stats.actualPlantCountStat?.median,
+            )}
+          </b>
           株数中位
         </span>
         <span>
@@ -2118,7 +3123,9 @@ function PopulationSurveyMetricLane({
   stat: NumericStat;
   tone: Tone;
 }) {
-  const bins = stat.histogram.length ? stat.histogram : syntheticHistogram(stat);
+  const bins = stat.histogram.length
+    ? stat.histogram
+    : syntheticHistogram(stat);
   const maxCount = Math.max(...bins.map((bin) => bin.count), 1);
   return (
     <div className={`eco-pop-survey-lane eco-tone-${tone}`}>
@@ -2164,7 +3171,11 @@ function PopulationSurveyMetricLane({
   );
 }
 
-function PopulationSurveyFieldMatrix({ stats }: { stats: PopulationSurveyStats }) {
+function PopulationSurveyFieldMatrix({
+  stats,
+}: {
+  stats: PopulationSurveyStats;
+}) {
   return (
     <div className="eco-pop-survey-field-matrix">
       {stats.fieldRows.map((row) => (
@@ -2219,14 +3230,21 @@ function createInsightStats(
   const localNumerics = buildLocalNumericStats(layer);
   const localProfile = buildLocalProfile(layer, profile, resource);
   const localSpatialSummary = buildLocalSpatialSummary(layer, localProfile);
-  const categoryStats =
-    summary?.categoryStats.length ? summary.categoryStats : localCategories;
-  const numericStats =
-    summary?.numericStats.length ? summary.numericStats : localNumerics;
-  const baseQualityIssues =
-    summary?.qualityIssues.length
-      ? summary.qualityIssues
-      : buildLocalQualityIssues(layer, profile, resource, categoryStats, numericStats);
+  const categoryStats = summary?.categoryStats.length
+    ? summary.categoryStats
+    : localCategories;
+  const numericStats = summary?.numericStats.length
+    ? summary.numericStats
+    : localNumerics;
+  const baseQualityIssues = summary?.qualityIssues.length
+    ? summary.qualityIssues
+    : buildLocalQualityIssues(
+        layer,
+        profile,
+        resource,
+        categoryStats,
+        numericStats,
+      );
   const qualityIssues = withQualityNoteIssue(
     baseQualityIssues,
     summary?.resource ?? resource,
@@ -2239,8 +3257,12 @@ function createInsightStats(
   return {
     hasData: Boolean(summary || layer || profile || resource),
     domainType:
-      summary?.domainType ?? layer?.sourceResource.domainType ?? resource?.domainType ?? null,
-    source: summary?.source ?? (layer ? "frontend_loaded_layer" : "frontend_profile"),
+      summary?.domainType ??
+      layer?.sourceResource.domainType ??
+      resource?.domainType ??
+      null,
+    source:
+      summary?.source ?? (layer ? "frontend_loaded_layer" : "frontend_profile"),
     profile: summary?.profile ?? localProfile,
     spatialSummary: summary?.spatialSummary ?? localSpatialSummary,
     categoryStats,
@@ -2264,7 +3286,11 @@ function InsightState({
 }) {
   return (
     <div className="eco-tab-panel eco-empty-state">
-      {loading ? <Spin size="small" /> : <DatabaseOutlined style={{ fontSize: 22 }} />}
+      {loading ? (
+        <Spin size="small" />
+      ) : (
+        <DatabaseOutlined style={{ fontSize: 22 }} />
+      )}
       <Typography.Text type={error ? "warning" : "secondary"}>
         {error ?? text}
       </Typography.Text>
@@ -2272,9 +3298,19 @@ function InsightState({
   );
 }
 
-function ChartEmpty({ text, compact = false }: { text: string; compact?: boolean }) {
+function ChartEmpty({
+  text,
+  compact = false,
+}: {
+  text: string;
+  compact?: boolean;
+}) {
   return (
-    <div className={compact ? "eco-chart-empty eco-chart-empty-compact" : "eco-chart-empty"}>
+    <div
+      className={
+        compact ? "eco-chart-empty eco-chart-empty-compact" : "eco-chart-empty"
+      }
+    >
       <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={text} />
     </div>
   );
@@ -2316,16 +3352,19 @@ function DataAssetOverview({
   qualityScore: number;
 }) {
   const assetScale = assetScaleFor(insight);
-  const chartFieldCount = insight.categoryStats.length + insight.numericStats.length;
+  const chartFieldCount =
+    insight.categoryStats.length + insight.numericStats.length;
   const fieldTotal = Math.max(insight.profile.fieldCount, chartFieldCount);
   const fieldRatio = fieldTotal > 0 ? chartFieldCount / fieldTotal : 0;
   const coverageRatio = spatialCoverageRatio(insight);
   const issueCounts = issueCountsBySeverity(insight.qualityIssues);
   const blockingRisks = issueCounts.warning + issueCounts.error;
-  const scaleValues =
-    insight.categoryStats[0]?.items.map((item) => item.count) ??
-    insight.numericStats[0]?.histogram.map((bin) => bin.count) ??
-    [assetScale.raw];
+  const scaleValues = insight.categoryStats[0]?.items.map(
+    (item) => item.count,
+  ) ??
+    insight.numericStats[0]?.histogram.map((bin) => bin.count) ?? [
+      assetScale.raw,
+    ];
 
   return (
     <div className="eco-status-card eco-asset-card">
@@ -2399,9 +3438,19 @@ function AssetScaleDial({
 }) {
   return (
     <div className="eco-asset-dial">
-      <svg className="eco-asset-dial-svg" viewBox="0 0 148 126" aria-hidden="true">
+      <svg
+        className="eco-asset-dial-svg"
+        viewBox="0 0 148 126"
+        aria-hidden="true"
+      >
         <defs>
-          <linearGradient id="ecoAssetDialGradient" x1="20%" y1="0%" x2="90%" y2="100%">
+          <linearGradient
+            id="ecoAssetDialGradient"
+            x1="20%"
+            y1="0%"
+            x2="90%"
+            y2="100%"
+          >
             <stop offset="0%" stopColor="#38cfff" />
             <stop offset="55%" stopColor="#20d6b0" />
             <stop offset="100%" stopColor="#a9fff1" />
@@ -2418,9 +3467,17 @@ function AssetScaleDial({
           pathLength={100}
           style={{ strokeDasharray: `${qualityScore} 100` }}
         />
-        <path className="eco-asset-dial-glow" d="M 42 96 A 35 35 0 1 1 106 96" />
+        <path
+          className="eco-asset-dial-glow"
+          d="M 42 96 A 35 35 0 1 1 106 96"
+        />
         <circle className="eco-asset-dial-dot" cx="29" cy="91" r="3.2" />
-        <circle className="eco-asset-dial-dot eco-asset-dial-dot-end" cx="119" cy="91" r="3.2" />
+        <circle
+          className="eco-asset-dial-dot eco-asset-dial-dot-end"
+          cx="119"
+          cy="91"
+          r="3.2"
+        />
       </svg>
       <div className="eco-asset-dial-core">
         <small>数据规模</small>
@@ -2510,7 +3567,9 @@ function HistogramChart({ stat }: { stat: NumericStat }) {
   }
   const maxCount = Math.max(...stat.histogram.map((bin) => bin.count), 1);
   const densityPoints = densityPointsFromHistogram(stat.histogram, maxCount);
-  const densityPointsAttr = densityPoints.map((point) => `${point.x},${point.y}`).join(" ");
+  const densityPointsAttr = densityPoints
+    .map((point) => `${point.x},${point.y}`)
+    .join(" ");
   const densityAreaPath = densityPoints.length
     ? `M 0 96 L ${densityPoints.map((point) => `${point.x} ${point.y}`).join(" L ")} L 100 96 Z`
     : "";
@@ -2524,7 +3583,10 @@ function HistogramChart({ stat }: { stat: NumericStat }) {
       <div className="eco-histogram-stage">
         <div className="eco-histogram-bars">
           {stat.histogram.map((bin, index) => (
-            <span key={`${bin.label}-${index}`} title={`${bin.label}: ${bin.count}`}>
+            <span
+              key={`${bin.label}-${index}`}
+              title={`${bin.label}: ${bin.count}`}
+            >
               <i
                 style={{
                   height: `${Math.max(8, (bin.count / maxCount) * 100)}%`,
@@ -2569,7 +3631,11 @@ function NumericDotDistribution({ stat }: { stat: NumericStat }) {
       key: `${bin.label}-${dotIndex}`,
       x:
         stat.min !== null && stat.max !== null && stat.max !== stat.min
-          ? percentPosition((bin.min + bin.max) / 2, stat.min, stat.max - stat.min)
+          ? percentPosition(
+              (bin.min + bin.max) / 2,
+              stat.min,
+              stat.max - stat.min,
+            )
           : 50,
       y: 18 + ((dotIndex * 19 + binIndex * 17) % 64),
     })),
@@ -2618,8 +3684,16 @@ function QuantileStrip({ stat }: { stat: NumericStat }) {
   const range = stat.max - stat.min;
   const q1 = percentPosition(stat.q1 ?? stat.min, stat.min, range);
   const q3 = percentPosition(stat.q3 ?? stat.max, stat.min, range);
-  const median = percentPosition(stat.median ?? stat.mean ?? stat.min, stat.min, range);
-  const mean = percentPosition(stat.mean ?? stat.median ?? stat.min, stat.min, range);
+  const median = percentPosition(
+    stat.median ?? stat.mean ?? stat.min,
+    stat.min,
+    range,
+  );
+  const mean = percentPosition(
+    stat.mean ?? stat.median ?? stat.min,
+    stat.min,
+    range,
+  );
   return (
     <div className="eco-quantile-strip">
       <div className="eco-quantile-track">
@@ -2628,7 +3702,11 @@ function QuantileStrip({ stat }: { stat: NumericStat }) {
           style={{ left: `${q1}%`, width: `${Math.max(2, q3 - q1)}%` }}
         />
         <i className="eco-quantile-median" style={{ left: `${median}%` }} />
-        <i className="eco-quantile-mean" style={{ left: `${mean}%` }} title="均值" />
+        <i
+          className="eco-quantile-mean"
+          style={{ left: `${mean}%` }}
+          title="均值"
+        />
       </div>
       <div className="eco-quantile-labels">
         <span>{formatNumber(stat.min)}</span>
@@ -2639,7 +3717,14 @@ function QuantileStrip({ stat }: { stat: NumericStat }) {
 }
 
 function DonutDistribution({ stat }: { stat: CategoryStat }) {
-  const colors = ["#20d6b0", "#38cfff", "#f5b84b", "#ff6b6b", "#8fffee", "#8ab4ff"];
+  const colors = [
+    "#20d6b0",
+    "#38cfff",
+    "#f5b84b",
+    "#ff6b6b",
+    "#8fffee",
+    "#8ab4ff",
+  ];
   const displayItems = categoryDisplayItems(stat);
   const maxCount = Math.max(...displayItems.map((item) => item.count), 1);
   let cursor = 0;
@@ -2717,12 +3802,23 @@ function BoxRangeChart({ stat }: { stat: NumericStat }) {
   const range = stat.max - stat.min;
   const q1 = percentPosition(stat.q1 ?? stat.min, stat.min, range);
   const q3 = percentPosition(stat.q3 ?? stat.max, stat.min, range);
-  const median = percentPosition(stat.median ?? stat.mean ?? stat.min, stat.min, range);
-  const mean = percentPosition(stat.mean ?? stat.median ?? stat.min, stat.min, range);
+  const median = percentPosition(
+    stat.median ?? stat.mean ?? stat.min,
+    stat.min,
+    range,
+  );
+  const mean = percentPosition(
+    stat.mean ?? stat.median ?? stat.min,
+    stat.min,
+    range,
+  );
   return (
     <div className="eco-boxplot">
       <div className="eco-boxplot-track">
-        <i className="eco-boxplot-box" style={{ left: `${q1}%`, width: `${Math.max(2, q3 - q1)}%` }} />
+        <i
+          className="eco-boxplot-box"
+          style={{ left: `${q1}%`, width: `${Math.max(2, q3 - q1)}%` }}
+        />
         <i className="eco-boxplot-median" style={{ left: `${median}%` }} />
         <i className="eco-boxplot-mean" style={{ left: `${mean}%` }} />
       </div>
@@ -2744,7 +3840,13 @@ function BoxRangeChart({ stat }: { stat: NumericStat }) {
   );
 }
 
-function RadarProfile({ stats, title }: { stats: NumericStat[]; title: string }) {
+function RadarProfile({
+  stats,
+  title,
+}: {
+  stats: NumericStat[];
+  title: string;
+}) {
   const values = stats.slice(0, 6).map((stat) => ({
     label: shortLabel(stat.label),
     value: normalizedNumericStat(stat),
@@ -2839,7 +3941,10 @@ function FieldDensityMatrix({ insight }: { insight: InsightStats }) {
     return <ChartEmpty text="暂无字段统计可生成热力矩阵" />;
   }
   return (
-    <div className="eco-risk-matrix eco-field-matrix" aria-label="字段可视化热力矩阵">
+    <div
+      className="eco-risk-matrix eco-field-matrix"
+      aria-label="字段可视化热力矩阵"
+    >
       <span className="eco-field-matrix-head" />
       {["覆盖", "结构", "主导", "图表"].map((label) => (
         <span className="eco-field-matrix-head" key={label}>
@@ -2847,12 +3952,16 @@ function FieldDensityMatrix({ insight }: { insight: InsightStats }) {
         </span>
       ))}
       {rows.flatMap((row) => [
-        <span className="eco-field-matrix-label" key={`${row.label}-label`} title={row.label}>
+        <span
+          className="eco-field-matrix-label"
+          key={`${row.key}-label`}
+          title={row.label}
+        >
           {row.label}
         </span>,
         ...row.values.map((value, index) => (
           <i
-            key={`${row.label}-${index}`}
+            key={`${row.key}-${index}`}
             style={{ opacity: 0.18 + clamp(value, 0, 1) * 0.82 }}
             title={`${row.label} ${Math.round(value * 100)}%`}
           />
@@ -2889,7 +3998,13 @@ function RasterMetadataPanel({
           像素尺寸
         </span>
         <span>
-          <b>{String(metadata?.coordinateSystem ?? layer.sourceResource.coordinateSystem ?? "-")}</b>
+          <b>
+            {String(
+              metadata?.coordinateSystem ??
+                layer.sourceResource.coordinateSystem ??
+                "-",
+            )}
+          </b>
           坐标系统
         </span>
       </div>
@@ -2910,11 +4025,16 @@ function FieldProfileList({ insight }: { insight: InsightStats }) {
     <>
       <div className="right-panel-heading">
         <Typography.Text strong>字段 profile</Typography.Text>
-        <Typography.Text type="secondary">{fields.length} 项预览</Typography.Text>
+        <Typography.Text type="secondary">
+          {fields.length} 项预览
+        </Typography.Text>
       </div>
       <div className="eco-field-chip-grid">
         {fields.map((field) => (
-          <span className={chartFields.has(field) ? "is-chart-ready" : ""} key={field}>
+          <span
+            className={chartFields.has(field) ? "is-chart-ready" : ""}
+            key={field}
+          >
             {field}
           </span>
         ))}
@@ -2934,11 +4054,13 @@ function SpatialQualityStrip({
   const profile = insight.profile;
   const geometryItems = spatial.geometryTypes.length
     ? spatial.geometryTypes
-    : insight.categoryStats.find((stat) => stat.field === "geometryTypes")?.items;
+    : insight.categoryStats.find((stat) => stat.field === "geometryTypes")
+        ?.items;
   const coverage = spatialCoverageRatio(insight);
   const issueCounts = issueCountsBySeverity(insight.qualityIssues);
   const topIssues = insight.qualityIssues.slice(0, 3);
-  const spatialBounds = spatial.bounds.length === 4 ? spatial.bounds : profile.bounds;
+  const spatialBounds =
+    spatial.bounds.length === 4 ? spatial.bounds : profile.bounds;
   return (
     <div className="eco-spatial-quality">
       <div className="eco-spatial-status">
@@ -2979,7 +4101,9 @@ function SpatialQualityStrip({
         </div>
       </div>
       <div className="eco-spatial-bounds">
-        <span title={formatBounds(spatialBounds)}>{formatBounds(spatialBounds)}</span>
+        <span title={formatBounds(spatialBounds)}>
+          {formatBounds(spatialBounds)}
+        </span>
         <em>{formatCentroid(spatial.centroid)}</em>
       </div>
       <div className="eco-validation-summary">
@@ -3039,7 +4163,10 @@ function QualityList({ issues }: { issues: QualityIssue[] }) {
   return (
     <div className="eco-quality-list">
       {issues.slice(0, 6).map((issue) => (
-        <span className={`eco-quality-${issue.severity}`} key={`${issue.code}-${issue.field ?? ""}`}>
+        <span
+          className={`eco-quality-${issue.severity}`}
+          key={`${issue.code}-${issue.field ?? ""}`}
+        >
           {issue.severity === "error" ? (
             <ExclamationCircleOutlined style={{ fontSize: 14 }} />
           ) : (
@@ -3160,7 +4287,10 @@ function buildLocalNumericStats(layer: LoadedLayer | null): NumericStat[] {
     const values = rawValues
       .map((value) => toFiniteNumber(value))
       .filter((value): value is number => value !== null);
-    if (!values.length || values.length / Math.max(1, rawValues.length) < 0.85) {
+    if (
+      !values.length ||
+      values.length / Math.max(1, rawValues.length) < 0.85
+    ) {
       continue;
     }
     const sorted = [...values].sort((a, b) => a - b);
@@ -3171,7 +4301,9 @@ function buildLocalNumericStats(layer: LoadedLayer | null): NumericStat[] {
       nullCount: features.length - values.length,
       min: roundNumber(sorted[0]),
       max: roundNumber(sorted[sorted.length - 1]),
-      mean: roundNumber(values.reduce((sum, value) => sum + value, 0) / values.length),
+      mean: roundNumber(
+        values.reduce((sum, value) => sum + value, 0) / values.length,
+      ),
       median: roundNumber(quantile(sorted, 0.5)),
       q1: roundNumber(quantile(sorted, 0.25)),
       q3: roundNumber(quantile(sorted, 0.75)),
@@ -3265,7 +4397,10 @@ function withQualityNoteIssue(
   resource: ResourceListItem | null,
 ): QualityIssue[] {
   const qualityNote = resource?.qualityNote?.trim();
-  if (!qualityNote || issues.some((issue) => issue.code === "resource_quality_note")) {
+  if (
+    !qualityNote ||
+    issues.some((issue) => issue.code === "resource_quality_note")
+  ) {
     return issues;
   }
   return [
@@ -3295,7 +4430,9 @@ function buildLocalQualityIssues(
   }
   if (layer?.layerType === "vector") {
     const total = layer.geojson.features.length;
-    const nullGeometry = layer.geojson.features.filter((feature) => !feature.geometry).length;
+    const nullGeometry = layer.geojson.features.filter(
+      (feature) => !feature.geometry,
+    ).length;
     if (nullGeometry > 0) {
       issues.push({
         code: "local_null_geometry",
@@ -3361,7 +4498,11 @@ function featurePlanFor(domainType: DataDomainType | null) {
 }
 
 function bestCategoryStat(stats: CategoryStat[], hints: string[]) {
-  return [...stats].sort((a, b) => hintScore(a.label, hints) - hintScore(b.label, hints))[0] ?? null;
+  return (
+    [...stats].sort(
+      (a, b) => hintScore(a.label, hints) - hintScore(b.label, hints),
+    )[0] ?? null
+  );
 }
 
 function bestNumericStats(stats: NumericStat[], hints: string[]) {
@@ -3372,7 +4513,9 @@ function bestNumericStats(stats: NumericStat[], hints: string[]) {
 
 function hintScore(label: string, hints: string[]) {
   const normalized = label.toLowerCase();
-  const index = hints.findIndex((hint) => normalized.includes(hint.toLowerCase()));
+  const index = hints.findIndex((hint) =>
+    normalized.includes(hint.toLowerCase()),
+  );
   return index === -1 ? 1000 : index;
 }
 
@@ -3418,7 +4561,9 @@ interface PopulationSurveyStats {
   }>;
 }
 
-function populationSurveyStatsFor(insight: InsightStats): PopulationSurveyStats {
+function populationSurveyStatsFor(
+  insight: InsightStats,
+): PopulationSurveyStats {
   const regionStat = findPreferredCategoryStat(insight.categoryStats, [
     "地区",
     "地州",
@@ -3600,13 +4745,17 @@ function populationSurveyStatsFor(insight: InsightStats): PopulationSurveyStats 
       {
         label: "物种记录",
         value: speciesRichness,
-        display: speciesStat ? `${formatCompactNumber(speciesStat.uniqueCount)} 种` : "-",
+        display: speciesStat
+          ? `${formatCompactNumber(speciesStat.uniqueCount)} 种`
+          : "-",
         tone: "green",
       },
       {
         label: "样方覆盖",
         value: plotCoverage,
-        display: plotStat ? `${formatCompactNumber(plotStat.uniqueCount)} 样方` : formatPercent(coordinateCoverage),
+        display: plotStat
+          ? `${formatCompactNumber(plotStat.uniqueCount)} 样方`
+          : formatPercent(coordinateCoverage),
         tone: "cyan",
       },
       {
@@ -3673,9 +4822,13 @@ function populationSurveyFieldRows({
   townshipStat: CategoryStat | null;
   transectStat: CategoryStat | null;
 }): PopulationSurveyStats["fieldRows"] {
-  const spatialCategories = [regionStat, countyStat, townshipStat, plotStat, transectStat].filter(
-    (stat): stat is CategoryStat => Boolean(stat),
-  );
+  const spatialCategories = [
+    regionStat,
+    countyStat,
+    townshipStat,
+    plotStat,
+    transectStat,
+  ].filter((stat): stat is CategoryStat => Boolean(stat));
   const speciesCategories = [speciesStat, habitatStat, distributionStat].filter(
     (stat): stat is CategoryStat => Boolean(stat),
   );
@@ -3702,24 +4855,44 @@ function populationSurveyFieldRows({
     coordinateCoverage,
     averageScore(spatialCategories.map((stat) => categoryCompleteness(stat))),
   );
-  const spatialRichness = averageScore(spatialCategories.map((stat) => categoryRichness(stat, 12)));
-  const spatialBalance = averageScore(spatialCategories.map((stat) => categoryBalance(stat)));
-  const speciesCompleteness = averageScore(speciesCategories.map((stat) => categoryCompleteness(stat)));
+  const spatialRichness = averageScore(
+    spatialCategories.map((stat) => categoryRichness(stat, 12)),
+  );
+  const spatialBalance = averageScore(
+    spatialCategories.map((stat) => categoryBalance(stat)),
+  );
+  const speciesCompleteness = averageScore(
+    speciesCategories.map((stat) => categoryCompleteness(stat)),
+  );
   const speciesRichness = averageScore([
     categoryRichness(speciesStat, 40),
     categoryRichness(habitatStat, 8),
     categoryRichness(distributionStat, 8),
   ]);
-  const speciesBalance = averageScore(speciesCategories.map((stat) => categoryBalance(stat)));
+  const speciesBalance = averageScore(
+    speciesCategories.map((stat) => categoryBalance(stat)),
+  );
   return [
     {
       label: "空间样方",
       hint: plotStat ? `${plotStat.uniqueCount} 个样方` : "地区层级与坐标",
       cells: [
-        populationSurveyCell("完整度", spatialCompleteness, spatialCompleteness > 0.75 ? "green" : "amber"),
+        populationSurveyCell(
+          "完整度",
+          spatialCompleteness,
+          spatialCompleteness > 0.75 ? "green" : "amber",
+        ),
         populationSurveyCell("层级性", spatialRichness, "cyan"),
-        populationSurveyCell("均衡度", spatialBalance, spatialBalance > 0.45 ? "cyan" : "amber"),
-        populationSurveyCell("可视化", coordinateCoverage > 0 ? 0.95 : 0.58, coordinateCoverage > 0 ? "green" : "amber"),
+        populationSurveyCell(
+          "均衡度",
+          spatialBalance,
+          spatialBalance > 0.45 ? "cyan" : "amber",
+        ),
+        populationSurveyCell(
+          "可视化",
+          coordinateCoverage > 0 ? 0.95 : 0.58,
+          coordinateCoverage > 0 ? "green" : "amber",
+        ),
       ],
     },
     {
@@ -3728,38 +4901,96 @@ function populationSurveyFieldRows({
       cells: [
         populationSurveyCell("完整度", speciesCompleteness, "green"),
         populationSurveyCell("丰富度", speciesRichness, "cyan"),
-        populationSurveyCell("均衡度", speciesBalance, speciesBalance > 0.45 ? "cyan" : "amber"),
-        populationSurveyCell("可视化", speciesStat || habitatStat ? 0.96 : 0, speciesStat || habitatStat ? "green" : "red"),
+        populationSurveyCell(
+          "均衡度",
+          speciesBalance,
+          speciesBalance > 0.45 ? "cyan" : "amber",
+        ),
+        populationSurveyCell(
+          "可视化",
+          speciesStat || habitatStat ? 0.96 : 0,
+          speciesStat || habitatStat ? "green" : "red",
+        ),
       ],
     },
     {
       label: "数量密度",
       hint: `${abundanceStats.length} 项数量字段`,
       cells: [
-        populationSurveyCell("完整度", numericGroupCompleteness(abundanceStats), "green"),
-        populationSurveyCell("梯度性", numericGroupRange(abundanceStats), "cyan"),
-        populationSurveyCell("变异度", numericGroupVariation(abundanceStats), "amber"),
-        populationSurveyCell("可视化", abundanceStats.length ? 0.94 : 0, abundanceStats.length ? "green" : "red"),
+        populationSurveyCell(
+          "完整度",
+          numericGroupCompleteness(abundanceStats),
+          "green",
+        ),
+        populationSurveyCell(
+          "梯度性",
+          numericGroupRange(abundanceStats),
+          "cyan",
+        ),
+        populationSurveyCell(
+          "变异度",
+          numericGroupVariation(abundanceStats),
+          "amber",
+        ),
+        populationSurveyCell(
+          "可视化",
+          abundanceStats.length ? 0.94 : 0,
+          abundanceStats.length ? "green" : "red",
+        ),
       ],
     },
     {
       label: "盖度频度",
       hint: `${coverFrequencyStats.length} 项盖度频度`,
       cells: [
-        populationSurveyCell("完整度", numericGroupCompleteness(coverFrequencyStats), "green"),
-        populationSurveyCell("梯度性", numericGroupRange(coverFrequencyStats), "cyan"),
-        populationSurveyCell("变异度", numericGroupVariation(coverFrequencyStats), "amber"),
-        populationSurveyCell("可视化", coverFrequencyStats.length ? 0.92 : 0, coverFrequencyStats.length ? "green" : "red"),
+        populationSurveyCell(
+          "完整度",
+          numericGroupCompleteness(coverFrequencyStats),
+          "green",
+        ),
+        populationSurveyCell(
+          "梯度性",
+          numericGroupRange(coverFrequencyStats),
+          "cyan",
+        ),
+        populationSurveyCell(
+          "变异度",
+          numericGroupVariation(coverFrequencyStats),
+          "amber",
+        ),
+        populationSurveyCell(
+          "可视化",
+          coverFrequencyStats.length ? 0.92 : 0,
+          coverFrequencyStats.length ? "green" : "red",
+        ),
       ],
     },
     {
       label: "重要值气候",
-      hint: importanceStat ? `${bioStats.length} 项气候字段` : "重要值与bio字段",
+      hint: importanceStat
+        ? `${bioStats.length} 项气候字段`
+        : "重要值与bio字段",
       cells: [
-        populationSurveyCell("完整度", numericGroupCompleteness(climateImportanceStats), "green"),
-        populationSurveyCell("梯度性", numericGroupRange(climateImportanceStats), "cyan"),
-        populationSurveyCell("变异度", numericGroupVariation(climateImportanceStats), "amber"),
-        populationSurveyCell("可视化", importanceStat || bioStats.length ? 0.9 : 0, importanceStat || bioStats.length ? "green" : "red"),
+        populationSurveyCell(
+          "完整度",
+          numericGroupCompleteness(climateImportanceStats),
+          "green",
+        ),
+        populationSurveyCell(
+          "梯度性",
+          numericGroupRange(climateImportanceStats),
+          "cyan",
+        ),
+        populationSurveyCell(
+          "变异度",
+          numericGroupVariation(climateImportanceStats),
+          "amber",
+        ),
+        populationSurveyCell(
+          "可视化",
+          importanceStat || bioStats.length ? 0.9 : 0,
+          importanceStat || bioStats.length ? "green" : "red",
+        ),
       ],
     },
   ];
@@ -3819,9 +5050,7 @@ function communityStatsFor(insight: InsightStats): CommunityStats {
     "Shannon",
     "香农",
   ]);
-  const simpsonStat = findNumericStat(insight.numericStats, [
-    "Simpson",
-  ]);
+  const simpsonStat = findNumericStat(insight.numericStats, ["Simpson"]);
   const pielouStat = findNumericStat(insight.numericStats, [
     "Pielou",
     "均匀度指数",
@@ -3836,10 +5065,7 @@ function communityStatsFor(insight: InsightStats): CommunityStats {
     "系统发育",
     "phylo",
   ]);
-  const raoStat = findNumericStat(insight.numericStats, [
-    "Rao",
-    "二次熵",
-  ]);
+  const raoStat = findNumericStat(insight.numericStats, ["Rao", "二次熵"]);
   const functionalStats = statsByHints(insight.numericStats, [
     "功能丰富度",
     "功能均匀度",
@@ -3886,12 +5112,26 @@ function communityStatsFor(insight: InsightStats): CommunityStats {
     normalizedStatScore(pielouStat),
     normalizedStatScore(richnessStat),
   ]);
-  const functionalStrength = averageScore([
-    ...functionalStats.slice(0, 5).map((stat) => normalizedStatScore(stat)),
-  ]);
+  const functionalStrength = averageScore(
+    functionalStats.slice(0, 5).map((stat) => normalizedStatScore(stat)),
+  );
   const environmentGradient = averageScore([
-    ...soilStats.slice(0, 4).map((stat) => numericRangeScore(stat, Math.max(1, Math.abs((stat.max ?? 0) - (stat.min ?? 0))))),
-    ...climateStats.slice(0, 4).map((stat) => numericRangeScore(stat, Math.max(1, Math.abs((stat.max ?? 0) - (stat.min ?? 0))))),
+    ...soilStats
+      .slice(0, 4)
+      .map((stat) =>
+        numericRangeScore(
+          stat,
+          Math.max(1, Math.abs((stat.max ?? 0) - (stat.min ?? 0))),
+        ),
+      ),
+    ...climateStats
+      .slice(0, 4)
+      .map((stat) =>
+        numericRangeScore(
+          stat,
+          Math.max(1, Math.abs((stat.max ?? 0) - (stat.min ?? 0))),
+        ),
+      ),
   ]);
   const fieldRows = communityFieldRows({
     climateStats,
@@ -3980,28 +5220,48 @@ function communityFieldRows({
   soilStats: NumericStat[];
   traitStats: NumericStat[];
 }): CommunityStats["fieldRows"] {
-  const diversityStats = [shannonStat, simpsonStat, richnessStat, phyloStat, raoStat].filter(
-    (stat): stat is NumericStat => Boolean(stat),
-  );
+  const diversityStats = [
+    shannonStat,
+    simpsonStat,
+    richnessStat,
+    phyloStat,
+    raoStat,
+  ].filter((stat): stat is NumericStat => Boolean(stat));
   return [
     {
       label: "多样性指数",
       hint: `${diversityStats.length} 项指数`,
       cells: [
-        communityCell("完整度", numericGroupCompleteness(diversityStats), "green"),
+        communityCell(
+          "完整度",
+          numericGroupCompleteness(diversityStats),
+          "green",
+        ),
         communityCell("梯度性", numericGroupRange(diversityStats), "cyan"),
         communityCell("变异度", numericGroupVariation(diversityStats), "amber"),
-        communityCell("可视化", diversityStats.length ? 0.96 : 0, diversityStats.length ? "green" : "red"),
+        communityCell(
+          "可视化",
+          diversityStats.length ? 0.96 : 0,
+          diversityStats.length ? "green" : "red",
+        ),
       ],
     },
     {
       label: "功能性状",
       hint: `${functionalStats.length + traitStats.length} 项字段`,
       cells: [
-        communityCell("完整度", numericGroupCompleteness([...functionalStats, ...traitStats]), "green"),
+        communityCell(
+          "完整度",
+          numericGroupCompleteness([...functionalStats, ...traitStats]),
+          "green",
+        ),
         communityCell("梯度性", numericGroupRange(functionalStats), "cyan"),
         communityCell("变异度", numericGroupVariation(traitStats), "amber"),
-        communityCell("可视化", functionalStats.length || traitStats.length ? 0.92 : 0, functionalStats.length || traitStats.length ? "green" : "red"),
+        communityCell(
+          "可视化",
+          functionalStats.length || traitStats.length ? 0.92 : 0,
+          functionalStats.length || traitStats.length ? "green" : "red",
+        ),
       ],
     },
     {
@@ -4011,27 +5271,51 @@ function communityFieldRows({
         communityCell("完整度", numericGroupCompleteness(soilStats), "green"),
         communityCell("梯度性", numericGroupRange(soilStats), "cyan"),
         communityCell("变异度", numericGroupVariation(soilStats), "amber"),
-        communityCell("可视化", soilStats.length ? 0.9 : 0, soilStats.length ? "green" : "red"),
+        communityCell(
+          "可视化",
+          soilStats.length ? 0.9 : 0,
+          soilStats.length ? "green" : "red",
+        ),
       ],
     },
     {
       label: "气候水分",
       hint: `${climateStats.length} 项气候因子`,
       cells: [
-        communityCell("完整度", numericGroupCompleteness(climateStats), "green"),
+        communityCell(
+          "完整度",
+          numericGroupCompleteness(climateStats),
+          "green",
+        ),
         communityCell("梯度性", numericGroupRange(climateStats), "cyan"),
         communityCell("变异度", numericGroupVariation(climateStats), "amber"),
-        communityCell("可视化", climateStats.length ? 0.9 : 0, climateStats.length ? "green" : "red"),
+        communityCell(
+          "可视化",
+          climateStats.length ? 0.9 : 0,
+          climateStats.length ? "green" : "red",
+        ),
       ],
     },
     {
       label: "样方与生产",
       hint: groupStat ? `${groupStat.uniqueCount} 个分组` : "空间样方",
       cells: [
-        communityCell("完整度", Math.max(categoryCompleteness(groupStat), coordinateCoverage), "green"),
-        communityCell("均衡度", categoryBalance(groupStat), categoryBalance(groupStat) > 0.55 ? "cyan" : "amber"),
+        communityCell(
+          "完整度",
+          Math.max(categoryCompleteness(groupStat), coordinateCoverage),
+          "green",
+        ),
+        communityCell(
+          "均衡度",
+          categoryBalance(groupStat),
+          categoryBalance(groupStat) > 0.55 ? "cyan" : "amber",
+        ),
         communityCell("生产力", numericGroupRange(coverStats), "cyan"),
-        communityCell("可视化", groupStat || coverStats.length ? 0.92 : 0, groupStat || coverStats.length ? "green" : "red"),
+        communityCell(
+          "可视化",
+          groupStat || coverStats.length ? 0.92 : 0,
+          groupStat || coverStats.length ? "green" : "red",
+        ),
       ],
     },
   ];
@@ -4080,7 +5364,10 @@ function numericGroupRange(stats: NumericStat[]) {
       if (stat.min === null || stat.max === null || stat.max === stat.min) {
         return 0;
       }
-      const center = Math.max(Math.abs(stat.mean ?? stat.median ?? stat.max), 1);
+      const center = Math.max(
+        Math.abs(stat.mean ?? stat.median ?? stat.max),
+        1,
+      );
       return clamp(Math.abs(stat.max - stat.min) / center, 0, 1);
     }),
   );
@@ -4092,7 +5379,12 @@ function numericGroupVariation(stats: NumericStat[]) {
   }
   return averageScore(
     stats.map((stat) => {
-      if (stat.q1 === null || stat.q3 === null || stat.q1 === undefined || stat.q3 === undefined) {
+      if (
+        stat.q1 === null ||
+        stat.q3 === null ||
+        stat.q1 === undefined ||
+        stat.q3 === undefined
+      ) {
         return 0;
       }
       const center = Math.max(Math.abs(stat.median ?? stat.mean ?? stat.q3), 1);
@@ -4102,7 +5394,9 @@ function numericGroupVariation(stats: NumericStat[]) {
 }
 
 function communityRidgePolyline(stat: NumericStat) {
-  const bins = stat.histogram.length ? stat.histogram : syntheticHistogram(stat);
+  const bins = stat.histogram.length
+    ? stat.histogram
+    : syntheticHistogram(stat);
   const maxCount = Math.max(...bins.map((bin) => bin.count), 1);
   return bins
     .map((bin, index) => {
@@ -4123,10 +5417,18 @@ function syntheticHistogram(stat: NumericStat) {
   const median = stat.median ?? stat.mean ?? q1;
   const q3 = stat.q3 ?? stat.max ?? median;
   return [
-    { min: stat.min ?? q1, max: q1, count: Math.max(1, Math.round(stat.count * 0.18)) },
+    {
+      min: stat.min ?? q1,
+      max: q1,
+      count: Math.max(1, Math.round(stat.count * 0.18)),
+    },
     { min: q1, max: median, count: Math.max(1, Math.round(stat.count * 0.32)) },
     { min: median, max: q3, count: Math.max(1, Math.round(stat.count * 0.3)) },
-    { min: q3, max: stat.max ?? q3, count: Math.max(1, Math.round(stat.count * 0.2)) },
+    {
+      min: q3,
+      max: stat.max ?? q3,
+      count: Math.max(1, Math.round(stat.count * 0.2)),
+    },
   ];
 }
 
@@ -4257,19 +5559,25 @@ function individualStatsFor(insight: InsightStats): IndividualStats {
       {
         label: "科类覆盖",
         value: familyRichness,
-        display: familyStat ? `${formatCompactNumber(familyStat.uniqueCount)} 科` : "-",
+        display: familyStat
+          ? `${formatCompactNumber(familyStat.uniqueCount)} 科`
+          : "-",
         tone: "green",
       },
       {
         label: "属级覆盖",
         value: genusRichness,
-        display: genusStat ? `${formatCompactNumber(genusStat.uniqueCount)} 属` : "-",
+        display: genusStat
+          ? `${formatCompactNumber(genusStat.uniqueCount)} 属`
+          : "-",
         tone: "cyan",
       },
       {
         label: "物种覆盖",
         value: speciesRichness,
-        display: speciesStat ? `${formatCompactNumber(speciesStat.uniqueCount)} 种` : "-",
+        display: speciesStat
+          ? `${formatCompactNumber(speciesStat.uniqueCount)} 种`
+          : "-",
         tone: "amber",
       },
       {
@@ -4357,18 +5665,38 @@ function individualFieldRows({
       cells: [
         individualCell("完整度", categoryCompleteness(collectorStat), "green"),
         individualCell("多样度", categoryRichness(collectorStat, 8), "cyan"),
-        individualCell("均衡度", categoryBalance(collectorStat), categoryBalance(collectorStat) > 0.45 ? "cyan" : "amber"),
-        individualCell("可视化", collectorStat ? 0.86 : 0, collectorStat ? "green" : "red"),
+        individualCell(
+          "均衡度",
+          categoryBalance(collectorStat),
+          categoryBalance(collectorStat) > 0.45 ? "cyan" : "amber",
+        ),
+        individualCell(
+          "可视化",
+          collectorStat ? 0.86 : 0,
+          collectorStat ? "green" : "red",
+        ),
       ],
     },
     {
       label: "空间位置",
       hint: siteStat ? `${siteStat.uniqueCount} 个地点` : "经纬度采集",
       cells: [
-        individualCell("完整度", Math.max(regionCompleteness, coordinateCoverage), "green"),
+        individualCell(
+          "完整度",
+          Math.max(regionCompleteness, coordinateCoverage),
+          "green",
+        ),
         individualCell("多样度", regionRichness, "cyan"),
-        individualCell("均衡度", regionBalance, regionBalance > 0.45 ? "cyan" : "amber"),
-        individualCell("可视化", coordinateCoverage > 0 ? 0.94 : 0.42, coordinateCoverage > 0 ? "green" : "amber"),
+        individualCell(
+          "均衡度",
+          regionBalance,
+          regionBalance > 0.45 ? "cyan" : "amber",
+        ),
+        individualCell(
+          "可视化",
+          coordinateCoverage > 0 ? 0.94 : 0.42,
+          coordinateCoverage > 0 ? "green" : "amber",
+        ),
       ],
     },
     {
@@ -4377,28 +5705,72 @@ function individualFieldRows({
       cells: [
         individualCell("完整度", taxonomyCompleteness, "green"),
         individualCell("多样度", taxonomyRichness, "cyan"),
-        individualCell("均衡度", taxonomyBalance, taxonomyBalance > 0.45 ? "cyan" : "amber"),
-        individualCell("可视化", speciesStat || familyStat ? 0.96 : 0, speciesStat || familyStat ? "green" : "red"),
+        individualCell(
+          "均衡度",
+          taxonomyBalance,
+          taxonomyBalance > 0.45 ? "cyan" : "amber",
+        ),
+        individualCell(
+          "可视化",
+          speciesStat || familyStat ? 0.96 : 0,
+          speciesStat || familyStat ? "green" : "red",
+        ),
       ],
     },
     {
       label: "科排序",
-      hint: orderCategoryStat ? `${orderCategoryStat.uniqueCount} 类编码` : "序列字段",
+      hint: orderCategoryStat
+        ? `${orderCategoryStat.uniqueCount} 类编码`
+        : "序列字段",
       cells: [
         individualCell("完整度", orderCompleteness, "green"),
         individualCell("跨度", orderSpread, "cyan"),
-        individualCell("均衡度", categoryBalance(orderCategoryStat), categoryBalance(orderCategoryStat) > 0.45 ? "cyan" : "amber"),
-        individualCell("可视化", orderCategoryStat || orderNumericStat ? 0.92 : 0, orderCategoryStat || orderNumericStat ? "green" : "red"),
+        individualCell(
+          "均衡度",
+          categoryBalance(orderCategoryStat),
+          categoryBalance(orderCategoryStat) > 0.45 ? "cyan" : "amber",
+        ),
+        individualCell(
+          "可视化",
+          orderCategoryStat || orderNumericStat ? 0.92 : 0,
+          orderCategoryStat || orderNumericStat ? "green" : "red",
+        ),
       ],
     },
     {
       label: "海拔记录",
-      hint: altitudeStat ? `${formatCompactNumber(altitudeStat.nullCount)} 条缺失` : "待统计",
+      hint: altitudeStat
+        ? `${formatCompactNumber(altitudeStat.nullCount)} 条缺失`
+        : "待统计",
       cells: [
-        individualCell("完整度", altitudeCompleteness, altitudeCompleteness > 0.8 ? "green" : "amber"),
-        individualCell("梯度性", altitudeSpread, altitudeSpread > 0.45 ? "cyan" : "amber"),
-        individualCell("稳定性", clamp(1 - ratio(altitudeStat?.nullCount ?? 0, (altitudeStat?.count ?? 0) + (altitudeStat?.nullCount ?? 0)), 0, 1), altitudeCompleteness > 0.8 ? "green" : "amber"),
-        individualCell("可视化", altitudeStat ? 0.88 : 0, altitudeStat ? "green" : "red"),
+        individualCell(
+          "完整度",
+          altitudeCompleteness,
+          altitudeCompleteness > 0.8 ? "green" : "amber",
+        ),
+        individualCell(
+          "梯度性",
+          altitudeSpread,
+          altitudeSpread > 0.45 ? "cyan" : "amber",
+        ),
+        individualCell(
+          "稳定性",
+          clamp(
+            1 -
+              ratio(
+                altitudeStat?.nullCount ?? 0,
+                (altitudeStat?.count ?? 0) + (altitudeStat?.nullCount ?? 0),
+              ),
+            0,
+            1,
+          ),
+          altitudeCompleteness > 0.8 ? "green" : "amber",
+        ),
+        individualCell(
+          "可视化",
+          altitudeStat ? 0.88 : 0,
+          altitudeStat ? "green" : "red",
+        ),
       ],
     },
   ];
@@ -4420,7 +5792,11 @@ function categoryRichness(stat: CategoryStat | null, reference = 10) {
   if (!stat) {
     return 0;
   }
-  return clamp(stat.uniqueCount / Math.max(1, Math.min(stat.total, reference)), 0, 1);
+  return clamp(
+    stat.uniqueCount / Math.max(1, Math.min(stat.total, reference)),
+    0,
+    1,
+  );
 }
 
 function categoryBalance(stat: CategoryStat | null) {
@@ -4431,7 +5807,12 @@ function categoryBalance(stat: CategoryStat | null) {
 }
 
 function numericRangeScore(stat: NumericStat | null, referenceRange: number) {
-  if (!stat || stat.min === null || stat.max === null || stat.max === stat.min) {
+  if (
+    !stat ||
+    stat.min === null ||
+    stat.max === null ||
+    stat.max === stat.min
+  ) {
     return 0;
   }
   return clamp((stat.max - stat.min) / Math.max(1, referenceRange), 0, 1);
@@ -4507,7 +5888,12 @@ function germplasmStatsFor(insight: InsightStats): GermplasmStats {
     "location",
     "site",
   ]);
-  const sexStat = findCategoryStat(insight.categoryStats, ["性别", "雌", "雄", "sex"]);
+  const sexStat = findCategoryStat(insight.categoryStats, [
+    "性别",
+    "雌",
+    "雄",
+    "sex",
+  ]);
   const altitudeStat = findNumericStat(insight.numericStats, [
     "海拔",
     "altitude",
@@ -4522,9 +5908,12 @@ function germplasmStatsFor(insight: InsightStats): GermplasmStats {
   const sex = germplasmSexFor(sexStat);
   const coordinateCoverage = spatialCoverageRatio(insight);
   const altitudeCompleteness = numericCompleteness(altitudeStat);
-  const duplicateIssue = insight.qualityIssues.find((issue) =>
-    `${issue.code} ${issue.title} ${issue.message}`.toLowerCase().includes("duplicate") ||
-    `${issue.title} ${issue.message}`.includes("重复"),
+  const duplicateIssue = insight.qualityIssues.find(
+    (issue) =>
+      `${issue.code} ${issue.title} ${issue.message}`
+        .toLowerCase()
+        .includes("duplicate") ||
+      `${issue.title} ${issue.message}`.includes("重复"),
   );
   const sampleIdentityScore = duplicateIssue?.ratio
     ? clamp(1 - duplicateIssue.ratio, 0, 1)
@@ -4532,7 +5921,11 @@ function germplasmStatsFor(insight: InsightStats): GermplasmStats {
       ? 1
       : 0;
   const locationRichness = locationStat
-    ? clamp(locationStat.uniqueCount / Math.min(Math.max(sampleTotal, 1), 60), 0, 1)
+    ? clamp(
+        locationStat.uniqueCount / Math.min(Math.max(sampleTotal, 1), 60),
+        0,
+        1,
+      )
     : 0;
   const locationConcentration = locationStat?.items[0]?.ratio ?? 0;
   const healthRows = germplasmHealthRows({
@@ -4564,7 +5957,9 @@ function germplasmStatsFor(insight: InsightStats): GermplasmStats {
       {
         label: "采集地点",
         value: locationRichness,
-        display: locationStat ? `${formatCompactNumber(locationStat.uniqueCount)} 地` : "-",
+        display: locationStat
+          ? `${formatCompactNumber(locationStat.uniqueCount)} 地`
+          : "-",
         tone: "cyan",
       },
       {
@@ -4588,7 +5983,9 @@ function findCategoryStat(stats: CategoryStat[], hints: string[]) {
   return (
     stats.find((stat) =>
       hints.some((hint) =>
-        `${stat.field} ${stat.label}`.toLowerCase().includes(hint.toLowerCase()),
+        `${stat.field} ${stat.label}`
+          .toLowerCase()
+          .includes(hint.toLowerCase()),
       ),
     ) ?? null
   );
@@ -4598,7 +5995,9 @@ function findNumericStat(stats: NumericStat[], hints: string[]) {
   return (
     stats.find((stat) =>
       hints.some((hint) =>
-        `${stat.field} ${stat.label}`.toLowerCase().includes(hint.toLowerCase()),
+        `${stat.field} ${stat.label}`
+          .toLowerCase()
+          .includes(hint.toLowerCase()),
       ),
     ) ?? null
   );
@@ -4623,7 +6022,9 @@ function findPreferredStat<T extends { field: string; label: string }>(
   }));
   const normalizedHints = hints.map((hint) => normalizeStatLabel(hint));
   for (const hint of normalizedHints) {
-    const exact = normalized.find((item) => item.field === hint || item.label === hint);
+    const exact = normalized.find(
+      (item) => item.field === hint || item.label === hint,
+    );
     if (exact) {
       return exact.stat;
     }
@@ -4740,7 +6141,11 @@ function germplasmHealthRows({
       hint: duplicateIssue ? "有重复风险" : "索引稳定",
       cells: [
         healthCell("完整度", sampleCompleteness, "green"),
-        healthCell("标准化", sampleIdentityScore, duplicateIssue ? "amber" : "green"),
+        healthCell(
+          "标准化",
+          sampleIdentityScore,
+          duplicateIssue ? "amber" : "green",
+        ),
         healthCell("区分度", 0.48, "cyan"),
         healthCell("可视化", 0.62, "amber"),
       ],
@@ -4750,7 +6155,11 @@ function germplasmHealthRows({
       hint: locationStat ? `${locationStat.uniqueCount} 类地点` : "待统计",
       cells: [
         healthCell("完整度", locationCompleteness, "green"),
-        healthCell("均衡性", locationStructure, locationStructure > 0.5 ? "cyan" : "amber"),
+        healthCell(
+          "均衡性",
+          locationStructure,
+          locationStructure > 0.5 ? "cyan" : "amber",
+        ),
         healthCell("丰富度", locationRichness, "cyan"),
         healthCell("可视化", 0.92, "green"),
       ],
@@ -4760,8 +6169,16 @@ function germplasmHealthRows({
       hint: sex.pending > 0 ? `${sex.pending} 条待清洗` : "标签清晰",
       cells: [
         healthCell("完整度", sexCompleteness, "green"),
-        healthCell("标准化", sex.validRatio, sex.pending > 0 ? "amber" : "green"),
-        healthCell("均衡性", sex.balance, sex.balance > 0.65 ? "cyan" : "amber"),
+        healthCell(
+          "标准化",
+          sex.validRatio,
+          sex.pending > 0 ? "amber" : "green",
+        ),
+        healthCell(
+          "均衡性",
+          sex.balance,
+          sex.balance > 0.65 ? "cyan" : "amber",
+        ),
         healthCell("可视化", 0.9, "green"),
       ],
     },
@@ -4770,7 +6187,11 @@ function germplasmHealthRows({
       hint: "空间采集",
       cells: [
         healthCell("完整度", coordinateCoverage, "green"),
-        healthCell("标准化", coordinateCoverage, coordinateCoverage > 0.95 ? "green" : "amber"),
+        healthCell(
+          "标准化",
+          coordinateCoverage,
+          coordinateCoverage > 0.95 ? "green" : "amber",
+        ),
         healthCell("空间度", 0.86, "cyan"),
         healthCell("可视化", 0.94, "green"),
       ],
@@ -4779,10 +6200,26 @@ function germplasmHealthRows({
       label: "海拔",
       hint: altitudeStat ? "梯度连续" : "待统计",
       cells: [
-        healthCell("完整度", altitudeCompleteness, altitudeCompleteness > 0.95 ? "green" : "amber"),
-        healthCell("标准化", altitudeCompleteness, altitudeCompleteness > 0.95 ? "green" : "amber"),
-        healthCell("梯度性", altitudeSpread, altitudeSpread > 0 ? "cyan" : "amber"),
-        healthCell("可视化", altitudeStat ? 0.9 : 0, altitudeStat ? "green" : "red"),
+        healthCell(
+          "完整度",
+          altitudeCompleteness,
+          altitudeCompleteness > 0.95 ? "green" : "amber",
+        ),
+        healthCell(
+          "标准化",
+          altitudeCompleteness,
+          altitudeCompleteness > 0.95 ? "green" : "amber",
+        ),
+        healthCell(
+          "梯度性",
+          altitudeSpread,
+          altitudeSpread > 0 ? "cyan" : "amber",
+        ),
+        healthCell(
+          "可视化",
+          altitudeStat ? 0.9 : 0,
+          altitudeStat ? "green" : "red",
+        ),
       ],
     },
   ];
@@ -4813,10 +6250,13 @@ function assetScaleFor(insight: InsightStats) {
     return {
       raw: featureCount,
       value: formatCompactNumber(featureCount),
-      label: insight.profile.geometryType === "Raster" ? "像元估算" : "要素记录",
+      label:
+        insight.profile.geometryType === "Raster" ? "像元估算" : "要素记录",
     };
   }
-  const numericCount = insight.numericStats.find((stat) => stat.count > 0)?.count;
+  const numericCount = insight.numericStats.find(
+    (stat) => stat.count > 0,
+  )?.count;
   if (numericCount) {
     return {
       raw: numericCount,
@@ -4824,7 +6264,9 @@ function assetScaleFor(insight: InsightStats) {
       label: "像元估算",
     };
   }
-  const categoryTotal = insight.categoryStats.find((stat) => stat.total > 0)?.total;
+  const categoryTotal = insight.categoryStats.find(
+    (stat) => stat.total > 0,
+  )?.total;
   if (categoryTotal) {
     return {
       raw: categoryTotal,
@@ -4841,7 +6283,11 @@ function assetScaleFor(insight: InsightStats) {
 
 function spatialCoverageRatio(insight: InsightStats) {
   const coverage = insight.spatialSummary.coordinateCoverageRatio;
-  if (coverage !== null && coverage !== undefined && Number.isFinite(coverage)) {
+  if (
+    coverage !== null &&
+    coverage !== undefined &&
+    Number.isFinite(coverage)
+  ) {
     return clamp(coverage, 0, 1);
   }
   const featureCount = insight.spatialSummary.featureCount;
@@ -4854,7 +6300,10 @@ function spatialCoverageRatio(insight: InsightStats) {
   ) {
     return ratio(validGeometryCount, featureCount);
   }
-  return insight.spatialSummary.bounds.length === 4 || insight.profile.bounds.length === 4 ? 1 : 0;
+  return insight.spatialSummary.bounds.length === 4 ||
+    insight.profile.bounds.length === 4
+    ? 1
+    : 0;
 }
 
 function fieldStructureSegments(
@@ -4865,8 +6314,16 @@ function fieldStructureSegments(
   const chartFieldCount = categoryCount + numericCount;
   const denominator = Math.max(fieldTotal, chartFieldCount, 1);
   return [
-    { label: "分类字段", tone: "green" as Tone, value: categoryCount / denominator },
-    { label: "数值字段", tone: "cyan" as Tone, value: numericCount / denominator },
+    {
+      label: "分类字段",
+      tone: "green" as Tone,
+      value: categoryCount / denominator,
+    },
+    {
+      label: "数值字段",
+      tone: "cyan" as Tone,
+      value: numericCount / denominator,
+    },
     {
       label: "其他字段",
       tone: "amber" as Tone,
@@ -4891,7 +6348,12 @@ function categoryDisplayItems(stat: CategoryStat) {
   const visibleItems = stat.items.slice(0, 5);
   const visibleCount = visibleItems.reduce((sum, item) => sum + item.count, 0);
   const restCount = Math.max(0, stat.total - visibleCount);
-  if (restCount > 0 && (stat.truncated || stat.nullCount > 0 || stat.items.length > visibleItems.length)) {
+  if (
+    restCount > 0 &&
+    (stat.truncated ||
+      stat.nullCount > 0 ||
+      stat.items.length > visibleItems.length)
+  ) {
     return [
       ...visibleItems,
       {
@@ -4920,7 +6382,10 @@ function qualityReadinessScore(issues: QualityIssue[], insight: InsightStats) {
     if (issue.severity === "warning") return total + 12;
     return total + 3;
   }, 0);
-  const fieldBonus = Math.min(18, (insight.categoryStats.length + insight.numericStats.length) * 3);
+  const fieldBonus = Math.min(
+    18,
+    (insight.categoryStats.length + insight.numericStats.length) * 3,
+  );
   return clamp(Math.round(76 + fieldBonus - penalty), 12, 99);
 }
 
@@ -4934,6 +6399,7 @@ function issueCountsBySeverity(issues: QualityIssue[]) {
 
 function fieldMatrixRow(stat: CategoryStat) {
   return {
+    key: `category-${stat.field}`,
     label: shortLabel(stat.label),
     values: [
       ratio(stat.total - stat.nullCount, stat.total),
@@ -4947,6 +6413,7 @@ function fieldMatrixRow(stat: CategoryStat) {
 function numericMatrixRow(stat: NumericStat) {
   const total = stat.count + stat.nullCount;
   return {
+    key: `numeric-${stat.field}`,
     label: shortLabel(stat.label),
     values: [
       ratio(stat.count, total),
@@ -4962,7 +6429,11 @@ function normalizedNumericStat(stat: NumericStat) {
     return 50;
   }
   return clamp(
-    Math.round((((stat.mean ?? stat.median ?? stat.min) - stat.min) / (stat.max - stat.min)) * 100),
+    Math.round(
+      (((stat.mean ?? stat.median ?? stat.min) - stat.min) /
+        (stat.max - stat.min)) *
+        100,
+    ),
     8,
     96,
   );
@@ -4987,7 +6458,8 @@ function fieldLabel(layer: LoadedLayer, field: string) {
 }
 
 function toFiniteNumber(value: unknown) {
-  const number = typeof value === "number" ? value : Number(String(value).trim());
+  const number =
+    typeof value === "number" ? value : Number(String(value).trim());
   return Number.isFinite(number) ? number : null;
 }
 
@@ -4996,14 +6468,23 @@ function histogramBins(values: number[], bins: number) {
   const min = Math.min(...values);
   const max = Math.max(...values);
   if (min === max) {
-    return [{ min: roundNumber(min) ?? min, max: roundNumber(max) ?? max, count: values.length, label: formatNumber(min) }];
+    return [
+      {
+        min: roundNumber(min) ?? min,
+        max: roundNumber(max) ?? max,
+        count: values.length,
+        label: formatNumber(min),
+      },
+    ];
   }
   const step = (max - min) / bins;
   return Array.from({ length: bins }, (_, index) => {
     const low = min + step * index;
     const high = index === bins - 1 ? max : low + step;
     const count = values.filter((value) =>
-      index === bins - 1 ? value >= low && value <= high : value >= low && value < high,
+      index === bins - 1
+        ? value >= low && value <= high
+        : value >= low && value < high,
     ).length;
     return {
       min: roundNumber(low) ?? low,
@@ -5067,7 +6548,10 @@ function boundsCentroid(bounds: number[]): [number, number] | null {
   ) {
     return null;
   }
-  return [roundNumber((minLng + maxLng) / 2) ?? 0, roundNumber((minLat + maxLat) / 2) ?? 0];
+  return [
+    roundNumber((minLng + maxLng) / 2) ?? 0,
+    roundNumber((minLat + maxLat) / 2) ?? 0,
+  ];
 }
 
 function sparkValuesFromCounts(values: number[]) {

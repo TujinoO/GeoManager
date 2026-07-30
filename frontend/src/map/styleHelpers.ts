@@ -14,7 +14,7 @@ export function stateColor(baseColor: string | ExpressionSpecification) {
     "#e4582b",
     ["boolean", ["feature-state", "highlight"], false],
     "#f2c36d",
-    baseColor,
+    normalizeMapboxColorValue(baseColor),
   ] as unknown as ExpressionSpecification;
 }
 
@@ -39,16 +39,17 @@ export function hasMapStyle(map: MapboxMap) {
 
 export function upsertLayer(map: MapboxMap, layer: AnyLayer) {
   if (!hasMapStyle(map)) return;
-  const existing = map.getLayer(layer.id);
-  if (existing && existing.type !== layer.type) {
-    removeStyleLayer(map, layer.id);
+  const normalizedLayer = normalizeLayerPaintColors(layer);
+  const existing = map.getLayer(normalizedLayer.id);
+  if (existing && existing.type !== normalizedLayer.type) {
+    removeStyleLayer(map, normalizedLayer.id);
   }
-  if (!map.getLayer(layer.id)) {
-    map.addLayer(layer);
+  if (!map.getLayer(normalizedLayer.id)) {
+    map.addLayer(normalizedLayer);
     return;
   }
-  if ("filter" in layer) {
-    map.setFilter(layer.id, layer.filter);
+  if ("filter" in normalizedLayer) {
+    map.setFilter(normalizedLayer.id, normalizedLayer.filter);
   }
   const writableMap = map as unknown as {
     setLayoutProperty: (
@@ -62,12 +63,55 @@ export function upsertLayer(map: MapboxMap, layer: AnyLayer) {
       value: unknown,
     ) => void;
   };
-  for (const [property, value] of Object.entries(layer.layout ?? {})) {
-    writableMap.setLayoutProperty(layer.id, property, value);
+  for (const [property, value] of Object.entries(normalizedLayer.layout ?? {})) {
+    writableMap.setLayoutProperty(normalizedLayer.id, property, value);
   }
-  for (const [property, value] of Object.entries(layer.paint ?? {})) {
-    writableMap.setPaintProperty(layer.id, property, value);
+  for (const [property, value] of Object.entries(normalizedLayer.paint ?? {})) {
+    writableMap.setPaintProperty(normalizedLayer.id, property, value);
   }
+}
+
+export function normalizeMapboxColorValue<T>(value: T): T {
+  if (typeof value === "string") {
+    return normalizeHexAlphaColor(value) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeMapboxColorValue(item)) as T;
+  }
+  return value;
+}
+
+function normalizeLayerPaintColors(layer: AnyLayer): AnyLayer {
+  if (!("paint" in layer) || !layer.paint) return layer;
+  return {
+    ...layer,
+    paint: Object.fromEntries(
+      Object.entries(layer.paint).map(([property, value]) => [
+        property,
+        property.endsWith("-color")
+          ? normalizeMapboxColorValue(value)
+          : value,
+      ]),
+    ),
+  } as AnyLayer;
+}
+
+function normalizeHexAlphaColor(value: string): string {
+  const long = value.match(/^#([0-9a-f]{6})([0-9a-f]{2})$/i);
+  const short = value.match(/^#([0-9a-f]{3})([0-9a-f])$/i);
+  if (!long && !short) return value;
+  const rgb = long
+    ? long[1]!
+    : short![1]!
+        .split("")
+        .map((part) => `${part}${part}`)
+        .join("");
+  const alphaHex = long ? long[2]! : `${short![2]!}${short![2]!}`;
+  const red = Number.parseInt(rgb.slice(0, 2), 16);
+  const green = Number.parseInt(rgb.slice(2, 4), 16);
+  const blue = Number.parseInt(rgb.slice(4, 6), 16);
+  const alpha = Number((Number.parseInt(alphaHex, 16) / 255).toFixed(4));
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
 export function removeStyleLayer(map: MapboxMap, layerId: string) {

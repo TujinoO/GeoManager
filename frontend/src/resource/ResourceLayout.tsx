@@ -8,7 +8,13 @@ import {
 import type { MenuDataItem } from "@ant-design/pro-components";
 import { PageContainer, ProLayout } from "@ant-design/pro-components";
 import { useMemo } from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+  Link,
+  Navigate,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import WorkspaceHeader from "../components/WorkspaceHeader";
 import { useAppContext } from "../contexts/AppContext";
 import type { User } from "../types";
@@ -110,6 +116,10 @@ export default function ResourceLayout() {
   const navigate = useNavigate();
   const meta = pageMeta[location.pathname] ?? defaultPageMeta;
   const resourceRoute = useMemo(() => resourceRouteFor(user), [user]);
+
+  if (user?.username === "guest") {
+    return <Navigate to="/data" replace />;
+  }
 
   return (
     <div className="admin-workspace-shell resource-workspace-shell">

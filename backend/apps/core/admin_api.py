@@ -69,6 +69,7 @@ from apps.core.initialization import (
     is_guest_user,
     is_initial_superadmin_user,
     is_platform_admin_group,
+    is_platform_admin_user,
     is_superadmin_group,
     is_superadmin_user,
     protected_group_permissions,
@@ -80,6 +81,7 @@ from apps.core.backup_config import (
     update_backup_settings,
 )
 from apps.core.backup_service import (
+    BackupRunConflictError,
     BackupServiceError,
     backup_scope_summaries,
     local_backup_download_path,
@@ -114,6 +116,8 @@ from apps.core.role_applications import (
     review_role_application,
     serialize_role_application,
 )
+from apps.core.platform_brand import canonicalize_platform_name
+from apps.core.runtime_config import runtime_system_name
 from apps.core.storage import (
     StoragePathError,
     app_path,
@@ -135,6 +139,10 @@ def admin_profile(request):
 @require_http_methods(["POST"])
 @api_login_required
 def update_admin_profile(request):
+    guest_denied = _guest_self_service_write_denied(request.user)
+    if guest_denied is not None:
+        return guest_denied
+
     payload = _json_payload(request)
     if isinstance(payload, JsonResponse):
         return payload
@@ -195,6 +203,10 @@ def update_admin_profile(request):
 @api_login_required
 def upload_avatar(request):
     """上传用户头像"""
+    guest_denied = _guest_self_service_write_denied(request.user)
+    if guest_denied is not None:
+        return guest_denied
+
     if "avatar" not in request.FILES:
         return JsonResponse({"detail": "请选择头像文件"}, status=400)
 
@@ -292,6 +304,10 @@ def get_avatar(request, user_id: int):
 @require_http_methods(["POST"])
 @api_login_required
 def update_admin_profile_permissions(request):
+    guest_denied = _guest_self_service_write_denied(request.user)
+    if guest_denied is not None:
+        return guest_denied
+
     payload = _json_payload(request)
     if isinstance(payload, JsonResponse):
         return payload
@@ -331,6 +347,10 @@ def update_admin_profile_permissions(request):
 @require_http_methods(["POST"])
 @api_login_required
 def update_admin_profile_password(request):
+    guest_denied = _guest_self_service_write_denied(request.user)
+    if guest_denied is not None:
+        return guest_denied
+
     payload = _json_payload(request)
     if isinstance(payload, JsonResponse):
         return payload
@@ -475,6 +495,12 @@ def group_detail(request, group_id: int):
             )
         group.name = name
     if "permissions" in payload:
+        if not has_feature_perm(
+            request.user, "core.manage_feature_permissions"
+        ):
+            return JsonResponse(
+                {"detail": "当前用户无权限配置角色"}, status=403
+            )
         permissions = _permission_names(payload.get("permissions"))
         if isinstance(permissions, JsonResponse):
             return permissions
@@ -617,6 +643,9 @@ def user_detail(request, user_id: int):
         return JsonResponse({"detail": "用户不存在"}, status=404)
     if not user_is_visible_to(request.user, user):
         return JsonResponse({"detail": "用户不存在"}, status=404)
+    platform_admin_denied = _platform_admin_target_denied(request.user, user)
+    if platform_admin_denied is not None:
+        return platform_admin_denied
 
     payload = _json_payload(request)
     if isinstance(payload, JsonResponse):
@@ -679,6 +708,9 @@ def reset_user_password(request, user_id: int):
         return JsonResponse({"detail": "用户不存在"}, status=404)
     if not user_is_visible_to(request.user, user):
         return JsonResponse({"detail": "用户不存在"}, status=404)
+    platform_admin_denied = _platform_admin_target_denied(request.user, user)
+    if platform_admin_denied is not None:
+        return platform_admin_denied
     if user.pk == request.user.pk:
         return JsonResponse({"detail": "不能重置当前登录用户密码"}, status=400)
     if is_guest_user(user):
@@ -719,6 +751,9 @@ def update_user_groups(request, user_id: int):
         return JsonResponse({"detail": "用户不存在"}, status=404)
     if not user_is_visible_to(request.user, user):
         return JsonResponse({"detail": "用户不存在"}, status=404)
+    platform_admin_denied = _platform_admin_target_denied(request.user, user)
+    if platform_admin_denied is not None:
+        return platform_admin_denied
     if user.pk == request.user.pk:
         return JsonResponse({"detail": "不能修改当前登录用户的角色"}, status=400)
     if is_superadmin_user(user):
@@ -756,6 +791,11 @@ def update_user_groups(request, user_id: int):
             {
                 "detail": f"不能将{DEFAULT_USER_GROUP_NAME}加入{SUPERADMIN_GROUP_NAME}角色"
             },
+            status=400,
+        )
+    if any(is_guest_group(group) for group in groups):
+        return JsonResponse(
+            {"detail": f"{GUEST_GROUP_NAME}角色只能分配给{GUEST_GROUP_NAME}账号"},
             status=400,
         )
     if not is_superadmin_user(request.user) and any(
@@ -812,6 +852,9 @@ def update_user_permissions(request, user_id: int):
         return JsonResponse(
             {"detail": f"{GUEST_GROUP_NAME}账号不能设置直授权限"}, status=400
         )
+    platform_admin_denied = _platform_admin_target_denied(request.user, user)
+    if platform_admin_denied is not None:
+        return platform_admin_denied
 
     _set_user_feature_permissions(user, permissions)
     _set_disabled_permissions(user, disabled_permissions)
@@ -842,7 +885,9 @@ def admin_settings(request):
         system_name = _required_string(payload["systemName"], "systemName")
         if isinstance(system_name, JsonResponse):
             return system_name
-        patch.setdefault("system", {})["name"] = system_name
+        patch.setdefault("system", {})["name"] = canonicalize_platform_name(
+            system_name
+        )
     if "allowRegistration" in payload:
         allow_registration = _boolean_value(
             payload["allowRegistration"], "allowRegistration"
@@ -885,7 +930,7 @@ def _reload_runtime_project_config() -> None:
         program_root=settings.PROGRAM_ROOT,
     )
     settings.PROJECT_CONFIG = config
-    settings.DATA_UPLOAD_MAX_MEMORY_SIZE = None
+    settings.DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 
 @require_GET
@@ -1026,6 +1071,23 @@ def admin_backup_runs(request):
             user=request.user,
             include_logs=payload.get("includeLogs"),
             run_async=True,
+        )
+    except BackupRunConflictError as exc:
+        log_operation(
+            request.user,
+            "数据备份",
+            "发起备份任务",
+            "failed",
+            str(exc),
+            request,
+        )
+        return JsonResponse(
+            {
+                "detail": str(exc),
+                "code": exc.code,
+                "activeRun": serialize_backup_run(exc.active_run),
+            },
+            status=409,
         )
     except BackupServiceError as exc:
         log_operation(
@@ -1264,6 +1326,13 @@ def admin_data_resource_detail(request, resource_id: int):
     changed_access = False
     changed_inventory_group = False
     changed_classification = False
+    if action == "update" and "name" in payload:
+        name = _clean_data_resource_name(payload.get("name"))
+        if isinstance(name, JsonResponse):
+            return name
+        resource.name = name
+        update_fields.append("name")
+
     if action in {"update", "setStatus"} and "status" in payload:
         status = str(payload.get("status", "")).strip()
         if status not in DataResource.Status.values:
@@ -1395,6 +1464,11 @@ def admin_data_resources_export(request):
 @require_GET
 @api_login_required
 def admin_operation_logs(request):
+    if is_guest_user(request.user):
+        return JsonResponse(
+            {"detail": f"{GUEST_GROUP_NAME}账号不能访问操作日志"}, status=403
+        )
+
     logs = OperationLog.objects.select_related("user").order_by("-created_at")
     logs = _scope_operation_logs(logs, request.user)
     logs = _filter_operation_logs(logs, request.GET)
@@ -2230,6 +2304,15 @@ def _clean_resource_group_name(value: Any) -> str | JsonResponse:
     return name
 
 
+def _clean_data_resource_name(value: Any) -> str | JsonResponse:
+    name = str(value or "").strip()
+    if not name:
+        return JsonResponse({"detail": "数据资源名称不能为空"}, status=400)
+    if len(name) > 160:
+        return JsonResponse({"detail": "数据资源名称不能超过 160 个字符"}, status=400)
+    return name
+
+
 def _serialize_access_group(group: Group) -> dict[str, Any]:
     return {
         "id": group.id,
@@ -2482,6 +2565,8 @@ def _admin_resource_action_label(action: str, payload: dict[str, Any]) -> str:
     if action == "updateClassification":
         return "调整数据业务分类"
     changed = []
+    if "name" in payload:
+        changed.append("名称")
     if "status" in payload:
         changed.append("状态")
     if "visualization" in payload:
@@ -3020,7 +3105,7 @@ def _serialize_application_settings(user) -> dict[str, Any]:
     raw = load_runtime_config_document(settings.PROJECT_CONFIG)
     application = raw["application"]
     return {
-        "systemName": application["system"]["name"],
+        "systemName": runtime_system_name(),
         "allowRegistration": application["system"]["allow_registration"],
         "map": {
             "defaultCenter": application["map"]["default_center"],
@@ -3317,6 +3402,11 @@ def _create_admin_user(User, payload: dict[str, Any], request_user=None):
             },
             status=400,
         )
+    if any(is_guest_group(group) for group in groups):
+        return JsonResponse(
+            {"detail": f"{GUEST_GROUP_NAME}角色只能分配给{GUEST_GROUP_NAME}账号"},
+            status=400,
+        )
     if (
         request_user is not None
         and not is_superadmin_user(request_user)
@@ -3361,6 +3451,22 @@ def _ensure_profile(user):
         return user.profile
     except ObjectDoesNotExist:
         return UserProfile.objects.create(user=user)
+
+
+def _guest_self_service_write_denied(user) -> JsonResponse | None:
+    if not is_guest_user(user):
+        return None
+    return JsonResponse(
+        {"detail": f"{GUEST_GROUP_NAME}账号不能修改共享个人设置"}, status=403
+    )
+
+
+def _platform_admin_target_denied(request_user, target_user) -> JsonResponse | None:
+    if not is_platform_admin_user(target_user) or is_superadmin_user(request_user):
+        return None
+    return JsonResponse(
+        {"detail": "只有超级管理员可以管理平台管理员账号"}, status=403
+    )
 
 
 def _backup_superadmin_denied(request) -> JsonResponse | None:

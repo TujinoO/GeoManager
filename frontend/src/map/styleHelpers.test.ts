@@ -1,7 +1,11 @@
 import type { Map as MapboxMap } from "mapbox-gl";
 import { describe, expect, it, vi } from "vitest";
 import type { VectorSymbolization } from "../symbolization";
-import { buildVectorPaintProperties, removeStyleLayer } from "./styleHelpers";
+import {
+  buildVectorPaintProperties,
+  normalizeMapboxColorValue,
+  removeStyleLayer,
+} from "./styleHelpers";
 import { removeLayerGroup } from "./vectorLayerSync";
 
 function makeStyle(
@@ -119,6 +123,22 @@ function makeStyle(
     ...overrides,
   };
 }
+
+describe("normalizeMapboxColorValue", () => {
+  it("converts alpha hex colors recursively into Mapbox-compatible rgba colors", () => {
+    expect(normalizeMapboxColorValue("#ffffff2e")).toBe(
+      "rgba(255, 255, 255, 0.1804)",
+    );
+    expect(
+      normalizeMapboxColorValue(["match", ["get", "kind"], "forest", "#0f08"]),
+    ).toEqual([
+      "match",
+      ["get", "kind"],
+      "forest",
+      "rgba(0, 255, 0, 0.5333)",
+    ]);
+  });
+});
 
 describe("buildVectorPaintProperties", () => {
   it("calculates circle opacity with layer opacity", () => {

@@ -1,6 +1,7 @@
 import json
 import tempfile
 from dataclasses import replace
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,8 +10,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
+from PIL import Image
 
 from apps.catalog.models import DictionaryItem, ResultArtifact
+from apps.core.initialization import GUEST_GROUP_NAME, ensure_guest_user
 
 
 class ResultArtifactApiTests(TestCase):
@@ -59,7 +62,7 @@ class ResultArtifactApiTests(TestCase):
         grant(outsider, ("catalog", "view_resultartifact"))
         with self.result_storage():
             response = self.create_result(
-                file=uploaded("report.pdf", b"%PDF-1.4 result", "application/pdf"),
+                file=uploaded("report.pdf", valid_pdf(), "application/pdf"),
                 result_type="report",
             )
 
@@ -88,6 +91,91 @@ class ResultArtifactApiTests(TestCase):
             hidden = self.client.get("/api/catalog/results/")
             self.assertEqual(hidden.status_code, 200)
             self.assertEqual(hidden.json()["items"], [])
+
+    def test_guest_shared_result_is_public_and_previewable(self):
+        guest = ensure_guest_user()
+        self.audience = Group.objects.get(name=GUEST_GROUP_NAME)
+        registered_user = get_user_model().objects.create_user(
+            username="public-result-reader", password="pass12345"
+        )
+        grant(
+            registered_user,
+            ("catalog", "view_resultartifact"),
+            ("catalog", "download_resultartifact"),
+        )
+
+        with self.result_storage():
+            response = self.create_result(
+                file=uploaded("public.png", valid_png(), "image/png"),
+                result_type="image",
+            )
+            self.assertEqual(response.status_code, 201)
+            payload = response.json()
+
+            for viewer in (guest, registered_user):
+                with self.subTest(username=viewer.username):
+                    self.client.force_login(viewer)
+                    visible = self.client.get("/api/catalog/results/")
+                    self.assertEqual(visible.status_code, 200)
+                    self.assertEqual(
+                        [item["id"] for item in visible.json()["items"]],
+                        [payload["id"]],
+                    )
+
+                    preview = self.client.get(payload["previewUrl"])
+                    self.assertEqual(preview.status_code, 200)
+                    self.assertEqual(b"".join(preview.streaming_content), valid_png())
+                    self.assertEqual(preview["Content-Type"], "image/png")
+                    self.assertEqual(preview["X-Content-Type-Options"], "nosniff")
+                    self.assertIn("sandbox", preview["Content-Security-Policy"])
+                    preview.close()
+
+    def test_rejects_disguised_or_corrupt_preview_files(self):
+        with self.result_storage():
+            disguised_pdf = self.create_result(
+                file=uploaded(
+                    "evil.pdf",
+                    b"<html><script>parent.document.body.innerHTML='owned'</script></html>",
+                    "text/html",
+                ),
+                result_type="report",
+            )
+            corrupt_image = self.create_result(
+                file=uploaded("broken.png", b"not-an-image", "image/png"),
+                result_type="image",
+            )
+            mismatched_image = self.create_result(
+                file=uploaded("wrong.jpg", valid_png(), "image/png"),
+                result_type="image",
+            )
+
+        self.assertEqual(disguised_pdf.status_code, 400)
+        self.assertEqual(corrupt_image.status_code, 400)
+        self.assertEqual(mismatched_image.status_code, 400)
+        self.assertFalse(ResultArtifact.objects.exists())
+
+    def test_uses_server_verified_mime_instead_of_client_content_type(self):
+        with self.result_storage():
+            response = self.create_result(
+                file=uploaded("report.pdf", valid_pdf(), "text/html"),
+                result_type="report",
+            )
+            self.assertEqual(response.status_code, 201)
+            artifact = ResultArtifact.objects.get(pk=response.json()["id"])
+            self.assertEqual(artifact.mime_type, "application/pdf")
+
+            preview = self.client.get(response.json()["previewUrl"])
+            self.assertEqual(preview.status_code, 200)
+            self.assertEqual(preview["Content-Type"], "application/pdf")
+            self.assertEqual(preview["X-Content-Type-Options"], "nosniff")
+            self.assertEqual(preview["X-Frame-Options"], "SAMEORIGIN")
+            self.assertIn("sandbox", preview["Content-Security-Policy"])
+            preview.close()
+
+            download = self.client.get(response.json()["downloadUrl"])
+            self.assertEqual(download.status_code, 200)
+            self.assertEqual(download["X-Frame-Options"], "DENY")
+            download.close()
 
     def test_direct_publish_requires_publish_permission(self):
         uploader = get_user_model().objects.create_user(
@@ -275,6 +363,16 @@ class ResultArtifactApiTests(TestCase):
 
 def uploaded(name: str, content: bytes, content_type: str) -> SimpleUploadedFile:
     return SimpleUploadedFile(name, content, content_type)
+
+
+def valid_png() -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", (1, 1), color=(20, 120, 80)).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def valid_pdf() -> bytes:
+    return b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"
 
 
 def grant(user, *specs: tuple[str, str]) -> None:

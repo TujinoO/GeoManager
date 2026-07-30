@@ -210,15 +210,23 @@ export default function AdminAuthPage() {
     () => new Map(groups.map((group) => [group.id, group.name])),
     [groups],
   );
+  const guestRoleId = useMemo(
+    () => groups.find(isGuestRole)?.id ?? null,
+    [groups],
+  );
   const groupOptions = useMemo(
     () =>
-      groups.map((group) => ({
-        label: group.name,
-        value: group.id,
-        disabled:
-          isGroupMembershipLocked(group) ||
-          (group.name === "平台管理员" && !isSuperadmin),
-      })),
+      groups.map((group) => {
+        const guestRole = isGuestRole(group);
+        return {
+          label: guestRole ? `${group.name}（系统专用）` : group.name,
+          value: group.id,
+          disabled:
+            guestRole ||
+            isGroupMembershipLocked(group) ||
+            (group.name === "平台管理员" && !isSuperadmin),
+        };
+      }),
     [groups, isSuperadmin],
   );
   const sortedUsers = useMemo(() => {
@@ -583,6 +591,10 @@ export default function AdminAuthPage() {
     if (!canCreateUser) return;
     try {
       const values = await createUserForm.validateFields();
+      if (guestRoleId && values.groupIds?.includes(guestRoleId)) {
+        message.error("游客角色仅供系统 guest 账号使用，不能分配给其他账号");
+        return;
+      }
       const result = await api.createAdminUser({
         username: values.username,
         displayName: values.displayName ?? "",
@@ -919,6 +931,10 @@ export default function AdminAuthPage() {
     ) {
       return;
     }
+    if (guestRoleId && selectedGroupIds.includes(guestRoleId)) {
+      message.error("游客角色仅供系统 guest 账号使用，不能分配给其他账号");
+      return;
+    }
     const updated = await api.updateAdminUserGroups(groupUser.id, {
       groupIds: selectedGroupIds as [number, ...number[]],
     });
@@ -1225,6 +1241,9 @@ export default function AdminAuthPage() {
               onChange={setSelectedGroupIds}
               style={{ width: "100%" }}
             />
+            <Typography.Text type="secondary">
+              游客角色仅供系统 guest 账号使用，不能分配给其他账号。
+            </Typography.Text>
           </div>
         ) : null}
       </Drawer>
@@ -1394,6 +1413,7 @@ export default function AdminAuthPage() {
           <Form.Item
             name="groupIds"
             label="角色"
+            extra="游客角色仅供系统 guest 账号使用，不能分配给其他账号。"
             rules={[{ required: true, message: "请选择角色" }]}
           >
             <Select mode="multiple" options={groupOptions} />
@@ -1525,6 +1545,10 @@ function hasLockedGroupMembership(user: User, groups: Group[]) {
 
 function isGuestAccount(user: User) {
   return user.username === "guest";
+}
+
+function isGuestRole(group: Group) {
+  return group.name === "游客";
 }
 
 function UserIdentity({

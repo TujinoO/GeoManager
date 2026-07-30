@@ -18,7 +18,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 
 | ID | Status | Endpoint | Change Type | OpenAPI | Mock | Backend | Tests | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| API-20260618-001 | Blocked | Non-geographic analytics workspace | endpoint design paused | Removed | Demo only | N/A | Pending | Non-geographic backend contract is not finalized; `/nongeo` remains frontend demo only |
+| API-20260618-001 | Superseded | Non-geographic analytics workspace | endpoint design paused | Superseded | Demo only | N/A | N/A | Replaced by finalized real-data contract API-20260730-003 |
 | API-20260623-001 | Verified | `POST /api/raster/import/`, bootstrap/settings limits | validation/config behavior | Updated | N/A | Implemented | Passed | Raster uploads now enforce configured size and configured pixel side limits |
 | API-20260623-002 | Verified | `POST /api/raster/import/` | documentation clarification | Updated | N/A | Implemented | Passed | Raster upload storage names are unique identifiers without original filenames |
 | API-20260628-001 | Verified | `GET /api/data-schema/summary/`, `GET /api/germplasm/accessions/` | new endpoint | Updated | Added | Implemented | Passed | Adds 甲方数据分类数据库架子 and seed query surface |
@@ -48,6 +48,16 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260723-001 | Verified | `GET /api/admin/dashboard/` | response fields / aggregate semantics | Updated | Updated | Implemented | Passed | Separates physical format statistics from the four-major/fifteen-minor authoritative business taxonomy distribution |
 | API-20260723-002 | Verified | `/api/catalog/results/*`, authenticated user permissions | permission/schema/management endpoint | Updated | Added | Implemented | Passed | Adds dedicated result permissions, direct-publication imports and unified result management |
 | API-20260724-001 | Verified | `GET /api/login/overview/` | response value semantics / mock data | Updated | Updated | Implemented | Passed | Aligns the English name, abbreviation and edition with the current global platform identity |
+| API-20260729-001 | Verified | guest login and permission-scoped catalog reads | permission behavior / documentation clarification | Updated | N/A | Implemented | Focused passed | Treats the guest audience as public so every authenticated role inherits publicly shared objects |
+| API-20260729-002 | Verified | authenticated user permissions and login overview | permission/value semantics | Updated | Updated | Implemented | Passed | Hides operations admin from data-only roles and replaces hard-coded login statistics/service nodes with live platform values |
+| API-20260730-001 | Verified | `POST /api/admin/data/resources/{resourceId}/` | request field / rename behavior | Updated | N/A | Implemented | Passed | Adds display-name-only data resource rename without changing stable identifiers, storage or default layer names |
+| API-20260730-002 | Verified | `GET /api/bootstrap/`, `GET/POST /api/admin/settings/`, `GET /api/login/overview/` | response/request value normalization | Updated | N/A | Implemented | Passed | Normalizes known legacy Central Asia platform names to the confirmed global brand while preserving custom deployment names |
+| API-20260730-003 | Verified | `GET /api/catalog/resources/{id}/nongeo-analysis/`, `POST /api/catalog/resources/{id}/nongeo-query/` | new endpoint / response and request schemas | Updated | N/A | Implemented | Passed | Replaces non-geographic demo statistics with permission-scoped real table/gene analysis and paginated querying |
+| API-20260730-004 | Verified | `POST /api/catalog/scan/`, `POST /api/raster/scan/` | permission and concurrency behavior | Updated | N/A | Implemented | Passed | Documents maintenance-only scan permissions, catalog 409 conflicts and raster active-job reuse |
+| API-20260730-005 | Verified | `POST /api/catalog/results/`, `GET /api/catalog/results/{resultId}/file/` | validation / permission / response headers | Updated | N/A | Implemented | Passed | Verifies real file formats, emits trusted MIME and hardens preview/download responses |
+| API-20260730-006 | Verified | `/api/groups/*`, `/api/users/*` | permission and protected-principal behavior | Updated | N/A | Implemented | Passed | Enforces feature-permission second authorization plus guest and platform-admin protections |
+| API-20260730-007 | Verified | generated browser SDK operations | client transport metadata / CSP compatibility | Updated | N/A | N/A | Passed | Defaults generated clients to the same-origin platform entry instead of hard-coded localhost |
+| API-20260730-008 | Verified | vector query and catalog export endpoints | 413/503 status and resource-bound behavior | Updated | N/A | Implemented | Passed | Adds bounded query concurrency/body sizes and disk-streamed exports for OOM prevention |
 
 ## Entry Template
 
@@ -65,6 +75,45 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Verification: commands or response checks required before marking implemented
 - Result: current backend/frontend verification result
 ```
+
+## API-20260730-001 - Data resource display-name rename
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `POST /api/admin/data/resources/{resourceId}/`
+- Change type: request field | rename behavior
+- OpenAPI change: Adds optional `name` to `AdminDataResourceUpdateRequest` for `action=update`, with a trimmed length of 1–160 characters.
+- Mock examples: N/A; response schemas and Prism examples are unchanged.
+- Frontend reason: The inventory configuration drawer previously exposed only the default map-layer name, so operators could not rename the data resource shown in inventory, catalog and search views.
+- Backend implementation notes: Update only `DataResource.name`; preserve `code`, `storage_path`, physical files/tables, `MapLayer.name` and the default visualization layer name. Continue requiring `catalog.change_dataresource` and record the rename in the operation log.
+- Verification: regenerate/check OpenAPI types, run API lint/change tracking, focused Django rename and validation tests, the focused Chromium inventory rename flow, TypeScript checks and production build.
+- Result: Verified with the focused backend/frontend tests and API/build checks listed above.
+
+## API-20260730-002 - Canonical global platform brand
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET /api/bootstrap/`, `GET/POST /api/admin/settings/`, `GET /api/login/overview/`
+- Change type: request/response value normalization | frontend metadata
+- OpenAPI change: Documents that known legacy “Central Asia Populus euphratica” platform names are upgraded to `全球胡杨林生态系统保护数据共享平台`; unrelated custom deployment names remain supported.
+- Mock examples: Existing bootstrap and login-overview examples already use the canonical global brand.
+- Frontend reason: A legacy runtime TOML value could overwrite the correct static HTML title after bootstrap, causing browser tabs and a few runtime-driven labels to regress to the old name.
+- Backend implementation notes: Centralize canonical Chinese/English names, abbreviation and edition; normalize known legacy names in bootstrap, login overview, admin settings and backup manifests; persist the canonical value when a legacy name is submitted through system settings.
+- Verification: run the brand drift guard, backend bootstrap/settings tests, frontend normalization and Chromium tab-title tests, OpenAPI checks, TypeScript checks and production build.
+- Result: Verified with the focused backend/frontend tests and consistency/build checks listed above.
+
+## API-20260729-002 - Permission-scoped admin entry and live login overview
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET /api/auth/me/`, `GET /api/login/overview/`
+- Change type: permission behavior | response value semantics | mock data
+- OpenAPI change: Clarifies that `canAccessAdmin` is true only when the current account has at least one operations-admin capability; the login overview continues using the existing schema but now drives the real login UI.
+- Mock examples: `mock/prism/examples/05-login-overview.json`
+- Frontend reason: Ordinary/research users must not enter an empty or sensitive operations dashboard, and public login statistics must not be hard-coded demo values.
+- Backend implementation notes: Compute admin access from existing fine-grained permissions; keep the personal profile route available; count service-status nodes from the actual service list.
+- Verification: Run focused auth/login overview tests, frontend typecheck, login/browser route checks and OpenAPI generation checks.
+- Result: Verified with 481 backend tests, 197 frontend unit tests, 96 Chromium browser tests, frontend TypeScript checks, a production build, OpenAPI generation/consistency checks, API change tracking, Prism mock injection, and real local guest-route regression.
 
 ## API-20260722-001 - Four-Category Data Taxonomy V1
 
@@ -250,16 +299,16 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 
 ## API-20260618-001 - Non-Geographic Table Analytics
 
-- Status: Blocked
+- Status: Superseded
 - Owner: Frontend
-- Endpoints: none currently declared
+- Endpoints: historical proposal only; replaced by API-20260730-003
 - Change type: endpoint design paused
-- OpenAPI change: Removes the previously proposed `/api/catalog/resources/{id}/nongeo-analytics/` and `/api/catalog/resources/{id}/table-query/` paths from the canonical contract while retaining frontend-side demo types for local UI exploration.
+- OpenAPI change: The former `/nongeo-analytics/` and `/table-query/` proposal was removed; the finalized contract now uses `/nongeo-analysis/` and `/nongeo-query/` under API-20260730-003.
 - Mock examples: Frontend demo only; no backend mock contract.
-- Frontend reason: Non-geographic analysis design is not finalized, so backend implementation would lock in premature field profiling, statistics, filtering, and pagination semantics.
-- Backend implementation notes: Do not implement non-geographic analytics/query endpoints until the product contract is reintroduced through `docs/openapi.yaml` and a new backend handoff.
+- Frontend reason: This entry recorded the earlier decision to defer field profiling, statistics and pagination until product semantics were confirmed.
+- Backend implementation notes: No implementation is attached to the historical paths; use the permission-scoped real-data endpoints documented by API-20260730-003.
 - Verification: run `cd frontend && pnpm run generate:api && pnpm run check:api && pnpm run api:changes:check`.
-- Result: Deferred by product/design decision; `/nongeo` remains a front-end demo.
+- Result: Superseded by the implemented and verified API-20260730-003 contract.
 
 ## API-20260623-001 - Raster Upload Size And Pixel Limits
 
@@ -455,3 +504,94 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Return `Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform`, `GPEDSP` and `GPEDSP · WebGIS Research Edition` from the public login overview without changing authentication, response fields or caching behavior.
 - Verification: regenerate/check OpenAPI types, rebuild Prism examples, run API lint and change-request validation, run the focused backend login-overview test, frontend typecheck/browser test and production build.
 - Result: Verified with OpenAPI lint and generated clients, Prism bundle/example injection, API change-request validation, the focused Django login-overview test, the focused frontend browser test, TypeScript checks, production build, responsive browser inspection at 1280 px and 1024 px, and a 14-page PDF render review.
+
+## API-20260729-001 - Public Guest Audience Inheritance
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: guest login; catalog resources, layers, workspaces, map compositions and result artifacts read endpoints
+- Change type: permission behavior | documentation clarification
+- OpenAPI change: Clarifies that selecting the built-in `游客` access role marks an object as public: it remains available through a guest session and is also inherited by every authenticated role.
+- Mock examples: N/A; response schemas and example payloads are unchanged.
+- Frontend reason: Logging in as a normal or research user must not hide content that is already visible to a guest.
+- Backend implementation notes: Resolve the guest group as an additional effective audience for authenticated users across the shared access-filter helpers and the workspace/result/composition querysets. Keep owner and administrator bypass rules unchanged.
+- Verification: run OpenAPI lint/type generation and API change-request validation; run focused concurrent guest-session and public-resource inheritance integration tests; verify resource loading through real browser sessions for guest, ordinary, research, platform-admin and superadmin roles.
+- Result: Verified with focused backend and frontend browser tests plus real local role-based UI regression.
+
+## API-20260730-003 - Real Non-Geographic Analysis And Query
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET /api/catalog/resources/{id}/nongeo-analysis/`, `POST /api/catalog/resources/{id}/nongeo-query/`
+- Change type: new endpoint | request body | response fields | permission behavior
+- OpenAPI change: Adds typed field profiles, real row summaries, categorical/numeric distributions, correlation matrices, table previews and paginated/sorted table-query schemas; documents 10,000-row analysis sampling, 1–500 query limits and standard 400/401/403/404 responses.
+- Mock examples: N/A; the non-geographic workspace consumes authenticated live resources and has explicit loading/error/empty states.
+- Frontend reason: Selecting different table or gene resources must show each resource's own records and statistics instead of shared demo values, with stable pagination and safe sorting for the table view.
+- Backend implementation notes: Read SQLite platform tables or supported CSV/TSV/Excel/FASTA/FASTQ/VCF/GFF/GenBank files; require `core.query_data` plus object access; cap direct-file analysis at the smaller of the runtime upload limit and 64 MB; validate SQLite sort fields against the real column allowlist.
+- Verification: run OpenAPI lint/type generation and API change tracking; run focused non-geographic integration tests for resource-specific statistics, pagination/sort injection rejection, access permissions and FASTA parsing; run the role-based non-geographic browser flow.
+- Result: Verified against the implemented real-data endpoints and focused backend/frontend role-flow tests.
+
+## API-20260730-004 - Maintenance Scan Permission Boundaries
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `POST /api/catalog/scan/`, `POST /api/raster/scan/`
+- Change type: permission behavior | status code | concurrency semantics
+- OpenAPI change: Documents `catalog.add_dataresource` for catalog scans, `raster.manage_raster_dataset OR catalog.change_dataresource` for raster scans, catalog 409 conflicts and raster active-job reuse; explicitly excludes ordinary browsing users and guests.
+- Mock examples: N/A; maintenance scans are authenticated live operations and do not need deterministic Prism payloads.
+- Frontend reason: Scan controls must follow the actual import/inventory operator roles and must not be exposed as ordinary resource refresh actions to users who cannot maintain storage.
+- Backend implementation notes: Keep catalog scans single-flight with a 409 conflict; reuse an existing queued/running raster scan job in the same process; enforce permissions before scheduling any filesystem discovery.
+- Verification: run OpenAPI checks and focused catalog/raster permission and concurrent-scan tests; verify scan actions stay hidden or disabled in guest and ordinary-user browser sessions.
+- Result: Verified against the implemented permission guards and concurrency behavior.
+
+## API-20260730-005 - Result File Authenticity And Safe Delivery
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `POST /api/catalog/results/`, `GET /api/catalog/results/{resultId}/file/`
+- Change type: validation | permission behavior | binary response headers
+- OpenAPI change: Adds the required view permission to direct-publication imports; documents true-content validation for PNG/JPG/JPEG/PDF/CSV/XLSX, trusted server MIME assignment, `nosniff` on all successful file responses and preview-only sandbox CSP/referrer protection.
+- Mock examples: N/A; multipart file authenticity and binary security headers are covered by backend integration tests rather than JSON mocks.
+- Frontend reason: Renaming an arbitrary file to an allowed extension must not create a published artifact, and browser previews must not execute or leak content under attacker-controlled MIME metadata.
+- Backend implementation notes: Decode image content with Pillow, verify PDF boundaries, restrict CSV encodings/NUL content, validate XLSX ZIP structure and expansion limits, then derive MIME server-side; allow previews only for PNG/JPG/JPEG/PDF and require `catalog.download_resultartifact` for artifacts.
+- Verification: run OpenAPI generation/checks and focused result-artifact tests for disguised files, corrupt PDF/XLSX/CSV, trusted MIME, nosniff, CSP/referrer headers and preview/download permission separation.
+- Result: Verified against the hardened upload and file-delivery implementation and integration coverage.
+
+## API-20260730-006 - Role Second Authorization And Protected Principals
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET/POST /api/groups/`, `POST /api/groups/{groupId}/`, `POST /api/users/`, `POST /api/users/{userId}/*`
+- Change type: permission behavior | validation | protected-account semantics
+- OpenAPI change: Documents that creating roles and any role update containing `permissions` require `core.manage_feature_permissions` in addition to `core.manage_auth`; records immutable built-in names, locked/hidden superadmin behavior, guest-only role ownership and platform-admin target protection.
+- Mock examples: N/A; response shapes are unchanged and the restrictions depend on the authenticated principal.
+- Frontend reason: Authentication administrators who can maintain membership must not automatically gain authority to broaden feature permissions, and protected system/management accounts must not expose actions that the backend will reject.
+- Backend implementation notes: Reject `permissions` writes without the second authorization; keep all five built-in roles non-deletable/non-renamable; reserve the guest role and account; restrict platform-admin assignment and all mutations of platform-admin targets to superadmins.
+- Verification: run OpenAPI and API-change checks, focused core authorization tests, and real browser role flows for superadmin, platform admin, research user, ordinary user and guest.
+- Result: Verified against focused backend authorization coverage and the completed 49-case role-based browser regression.
+
+## API-20260730-007 - Same-Origin Default SDK Endpoint
+
+- Status: Verified
+- Owner: Frontend implementer
+- Endpoints: all generated browser SDK operations
+- Change type: client transport metadata | CSP compatibility | deployment safety
+- OpenAPI change: Makes `/` the first server entry so generated clients default to the platform origin; keeps the direct local backend and external API server entries as explicit override targets.
+- Mock examples: N/A; request and response payloads are unchanged.
+- Frontend reason: Regenerating the SDK previously restored `http://localhost:8000` as its default base URL. During browser hot reload, requests could then bypass the platform proxy and be blocked by `connect-src 'self'`, breaking resource, workspace and composition loading.
+- Backend implementation notes: No endpoint behavior changes. Browser calls continue through the same-origin `/api` reverse proxy; standalone clients may explicitly select another documented server URL.
+- Verification: regenerate and compare the SDK, run API change validation and frontend type checks, then load catalog/workspace requests in a fresh browser session and confirm no CSP violations.
+- Result: Verified with a generated client that has no hard-coded localhost base URL and a fresh same-origin browser regression.
+
+## API-20260730-008 - Memory-Safe Query And Export Boundaries
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `POST /api/catalog/resources/{id}/query/`, `POST /api/catalog/export/`, `POST /api/catalog/export/async/`
+- Change type: status code | request-size validation | concurrency behavior | binary delivery behavior
+- OpenAPI change: Documents 413 for oversized query/export JSON, 503 plus `Retry-After` when the per-process vector-query slot is unavailable, and the 10 MiB export request limit. Successful response schemas remain unchanged.
+- Mock examples: N/A; saturation, bounded stream reads and file-response cleanup require backend tests rather than deterministic mock payloads.
+- Frontend reason: A stalled 30,000-feature query or large embedded export request previously created several simultaneous GeoDataFrame/JSON/ZIP copies and could exhaust a 4 GB server; clients need explicit backoff and size-limit semantics.
+- Backend implementation notes: Limit the production query result count to 5,000; read spatial candidates in fixed chunks; validate geometry in one pass; serialize exports to a temporary path; stream ZIP responses; bound request reads even without `Content-Length`; preserve the existing in-memory export helper only as a compatibility wrapper outside production endpoints.
+- Verification: run OpenAPI lint/generation/change checks, focused catalog query/export/body-limit tests, the complete backend suite, frontend typecheck/tests/build and Docker entrypoint/image checks.
+- Result: OpenAPI lint/generation/change checks, focused query/export/request-limit tests, complete raster regression, complete frontend tests/typecheck/build and Django system check passed. The complete backend run exposed only three compatibility-message assertions; the original message was restored and the affected parameterized endpoints passed on rerun.
