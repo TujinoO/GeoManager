@@ -25,7 +25,7 @@ mapbox_access_token = ""
 [application.limits]
 upload_max_mb = 64
 query_result_limit = 5000
-max_raster_side_pixels = 6000
+max_raster_side_pixels = 12000
 
 [application.raster]
 symbolizer_timeout_seconds = 120

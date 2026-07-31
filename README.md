@@ -52,7 +52,7 @@ pnpm dev
 
 ## Docker 部署
 
-镜像构建使用 `backend/pixi.lock` 安装后端运行环境，不需要配置文件；运行容器时把 TOML 配置挂载到 `/config/app.toml`。镜像内由 Waitress + Django 同时提供 API 和前端构建产物；业务数据和科研数据统一保存在 Docker 数据卷 `huyang-data` 中。
+镜像构建使用 `backend/pixi.lock` 安装后端运行环境，不需要配置文件；运行容器时把包含 `app.toml` 的宿主机配置目录挂载到 `/config`。目录必须可写，后台设置才能通过“临时文件 + 原子替换”安全持久化；不要把单个文件 bind mount 到 `/config/app.toml`。镜像内由 Waitress + Django 同时提供 API 和前端构建产物；业务数据和科研数据统一保存在 Docker 数据卷 `huyang-data` 中。
 
 ```bash
 docker build -t data-platform-django:latest .
@@ -61,12 +61,12 @@ docker volume create huyang-data
 
 docker run -d --name data-platform \
   -p 127.0.0.1:8000:8000 \
-  -v /absolute/path/app.docker.toml:/config/app.toml \
+  -v /absolute/path/config:/config \
   -v huyang-data:/data \
   data-platform-django:latest
 ```
 
-配置文件可从 [`config/app.docker.toml`](config/app.docker.toml) 复制修改，其中数据路径保持：
+先把 [`config/app.docker.toml`](config/app.docker.toml) 复制为宿主机 `/absolute/path/config/app.toml`，再按上例挂载目录。配置中的数据路径保持：
 
 ```toml
 [application.storage]

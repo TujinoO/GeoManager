@@ -236,6 +236,24 @@ export type SystemLimits = {
     maxRasterSidePixels: number;
 };
 
+/**
+ * 后台允许局部更新的安全限制；前端限制不替代后端范围校验。
+ */
+export type AdminSystemLimitsUpdate = {
+    /**
+     * 单次上传文件大小上限，单位 MB；为预留 multipart 开销，不得超过 Waitress 的 128 MB 请求体硬限制
+     */
+    uploadMaxMb?: number;
+    /**
+     * 单次查询返回结果上限
+     */
+    queryResultLimit?: number;
+    /**
+     * 栅格上传和导入允许的最大单边像素长度
+     */
+    maxRasterSidePixels?: number;
+};
+
 export type HealthResponse = {
     /**
      * 服务健康状态
@@ -1570,6 +1588,13 @@ export type AdminRasterSettings = {
     symbolizerTimeoutSeconds: number;
 };
 
+export type AdminRasterSettingsUpdate = {
+    /**
+     * 栅格符号化后端任务超时时间，单位秒
+     */
+    symbolizerTimeoutSeconds?: number;
+};
+
 export type AdminSettingsResponse = {
     /**
      * 系统显示名称；已知历史平台名称会以当前确认的全球平台名称返回
@@ -1598,8 +1623,8 @@ export type AdminSettingsUpdateRequest = {
      */
     allowRegistration?: boolean;
     map?: MapConfig;
-    limits?: SystemLimits;
-    raster?: AdminRasterSettings;
+    limits?: AdminSystemLimitsUpdate;
+    raster?: AdminRasterSettingsUpdate;
 };
 
 /**
@@ -6578,6 +6603,10 @@ export type UpdateAdminSettingsErrors = {
      * 权限不足或 CSRF 校验失败
      */
     403: ErrorResponse;
+    /**
+     * 源 TOML 配置目录不可写或部署方式不支持原子替换
+     */
+    500: ErrorResponse;
 };
 
 export type UpdateAdminSettingsError = UpdateAdminSettingsErrors[keyof UpdateAdminSettingsErrors];
