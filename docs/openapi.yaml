@@ -944,7 +944,10 @@ paths:
     post:
       tags: [管理后台]
       summary: 更新用户可配置设置
-      description: 将后台设置直接写入 appdata 下的运行 TOML 配置副本。需要 `core.manage_system_settings`。
+      description: |
+        将后台设置原子写入启动时传入的源 TOML 配置文件，并立即刷新运行时配置。需要
+        `core.manage_system_settings`。部署时必须把包含 `app.toml` 的宿主机目录挂载到
+        `/config`；只 bind mount `/config/app.toml` 会阻止原子替换，写入失败时返回 JSON 500。
       operationId: updateAdminSettings
       security:
         - sessionAuth: []
@@ -967,6 +970,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          description: 源 TOML 配置目录不可写或部署方式不支持原子替换
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /api/admin/role-applications/:
     get:
@@ -3903,15 +3912,38 @@ components:
         uploadMaxMb:
           type: integer
           description: 单次上传文件大小上限，单位 MB
-          example: 500
+          example: 64
         queryResultLimit:
           type: integer
           description: 单次查询返回结果上限
-          example: 30000
+          example: 5000
         maxRasterSidePixels:
           type: integer
           description: 栅格上传和导入允许的最大单边像素长度
-          example: 10000
+          example: 12000
+
+    AdminSystemLimitsUpdate:
+      type: object
+      description: 后台允许局部更新的安全限制；前端限制不替代后端范围校验。
+      properties:
+        uploadMaxMb:
+          type: integer
+          minimum: 1
+          maximum: 120
+          description: 单次上传文件大小上限，单位 MB；为预留 multipart 开销，不得超过 Waitress 的 128 MB 请求体硬限制
+          example: 64
+        queryResultLimit:
+          type: integer
+          minimum: 100
+          maximum: 10000
+          description: 单次查询返回结果上限
+          example: 5000
+        maxRasterSidePixels:
+          type: integer
+          minimum: 1
+          maximum: 12000
+          description: 栅格上传和导入允许的最大单边像素长度
+          example: 12000
 
     HealthResponse:
       type: object
@@ -5366,6 +5398,15 @@ components:
           type: integer
           description: 栅格符号化后端任务超时时间，单位秒
 
+    AdminRasterSettingsUpdate:
+      type: object
+      properties:
+        symbolizerTimeoutSeconds:
+          type: integer
+          minimum: 10
+          maximum: 600
+          description: 栅格符号化后端任务超时时间，单位秒
+
     AdminSettingsResponse:
       type: object
       required: [systemName, allowRegistration, map, limits, raster, editable]
@@ -5398,9 +5439,9 @@ components:
         map:
           $ref: '#/components/schemas/MapConfig'
         limits:
-          $ref: '#/components/schemas/SystemLimits'
+          $ref: '#/components/schemas/AdminSystemLimitsUpdate'
         raster:
-          $ref: '#/components/schemas/AdminRasterSettings'
+          $ref: '#/components/schemas/AdminRasterSettingsUpdate'
 
     BackupPlanType:
       type: string

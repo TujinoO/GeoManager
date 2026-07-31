@@ -17,7 +17,12 @@ import {
   RequireManageSystemSettings,
 } from "../router";
 import { appTheme } from "../theme";
-import type { AdminDataResourceList, Bootstrap, User } from "../types";
+import type {
+  AdminDataResourceList,
+  AdminSettings,
+  Bootstrap,
+  User,
+} from "../types";
 
 import AdminAuthPage from "./AdminAuthPage";
 import AdminDataBackupPage from "./AdminDataBackupPage";
@@ -27,7 +32,10 @@ import AdminDataInventoryPage from "./AdminDataInventoryPage";
 import AdminLayout from "./AdminLayout";
 import AdminOperationLogsPage from "./AdminOperationLogsPage";
 import AdminProfilePage from "./AdminProfilePage";
-import AdminSystemSettingsPage from "./AdminSystemSettingsPage";
+import AdminSystemSettingsPage, {
+  ADMIN_SETTING_RANGES,
+  mergeSettingValues,
+} from "./AdminSystemSettingsPage";
 import AdminTopicCompositionManagementPage from "./AdminTopicCompositionManagementPage";
 import AdminWorkspaceManagementPage from "./AdminWorkspaceManagementPage";
 import ResourceLayout from "../resource/ResourceLayout";
@@ -105,9 +113,9 @@ const bootstrap: Bootstrap = {
     mapboxAccessToken: "",
   },
   limits: {
-    uploadMaxMb: 512,
-    queryResultLimit: 30000,
-    maxRasterSidePixels: 10000,
+    uploadMaxMb: 64,
+    queryResultLimit: 5000,
+    maxRasterSidePixels: 12000,
   },
 };
 
@@ -376,7 +384,7 @@ const adminApiUser = {
   operationLogGroupIds: [],
 };
 
-const adminSettings = {
+const adminSettings: AdminSettings = {
   systemName: bootstrap.systemName,
   allowRegistration: bootstrap.allowRegistration,
   map: bootstrap.map,
@@ -1510,6 +1518,55 @@ describe("admin routes", () => {
 
     expect(await screen.findAllByText("基础配置")).not.toHaveLength(0);
     expect(screen.getAllByText(bootstrap.systemName).length).toBeGreaterThan(0);
+  });
+
+  it("keeps safe system-setting ranges and merges a one-field edit", () => {
+    expect(ADMIN_SETTING_RANGES).toEqual({
+      uploadMaxMb: { min: 1, max: 120 },
+      queryResultLimit: { min: 100, max: 10_000 },
+      maxRasterSidePixels: { min: 1, max: 12_000 },
+      symbolizerTimeoutSeconds: { min: 10, max: 600 },
+    });
+
+    expect(mergeSettingValues(adminSettings, { uploadMaxMb: 80 })).toEqual({
+      systemName: adminSettings.systemName,
+      allowRegistration: adminSettings.allowRegistration,
+      defaultCenterLon: adminSettings.map.defaultCenter[0],
+      defaultCenterLat: adminSettings.map.defaultCenter[1],
+      defaultZoom: adminSettings.map.defaultZoom,
+      defaultBasemap: adminSettings.map.defaultBasemap,
+      mapboxAccessToken: adminSettings.map.mapboxAccessToken,
+      uploadMaxMb: 80,
+      queryResultLimit: adminSettings.limits.queryResultLimit,
+      maxRasterSidePixels: adminSettings.limits.maxRasterSidePixels,
+      symbolizerTimeoutSeconds: adminSettings.raster.symbolizerTimeoutSeconds,
+    });
+  });
+
+  it("saves a one-field system limit edit with the complete current settings", async () => {
+    renderWithProviders(<AdminSystemSettingsPage />);
+
+    const label = await screen.findByText("上传上限 MB");
+    const item = label.closest(".ant-descriptions-item");
+    expect(item).not.toBeNull();
+
+    fireEvent.click(within(item!).getByLabelText("edit"));
+    const input = within(item!).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "80" } });
+    fireEvent.click(within(item!).getByLabelText("check"));
+
+    await waitFor(() => {
+      expect(mockApi.updateAdminSettings).toHaveBeenCalledWith({
+        systemName: adminSettings.systemName,
+        allowRegistration: adminSettings.allowRegistration,
+        map: adminSettings.map,
+        limits: {
+          ...adminSettings.limits,
+          uploadMaxMb: 80,
+        },
+        raster: adminSettings.raster,
+      });
+    });
   });
 
   it("keeps operation log UI scoped and hides system logs without permission", async () => {

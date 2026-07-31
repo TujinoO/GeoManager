@@ -389,7 +389,7 @@ class AdminSettingsApiTests(TestCase):
             config_path = root / "app.toml"
             config_path.write_text(
                 _minimal_config_text(root / "app", root / "research").replace(
-                    "upload_max_mb = 512", "upload_max_mb = 300"
+                    "upload_max_mb = 512", "upload_max_mb = 64"
                 ),
                 encoding="utf-8",
             )
@@ -398,19 +398,102 @@ class AdminSettingsApiTests(TestCase):
             with override_settings(
                 PROJECT_CONFIG=config,
                 PROGRAM_ROOT=Path("/opt/app"),
-                DATA_UPLOAD_MAX_MEMORY_SIZE=300 * 1024 * 1024,
+                DATA_UPLOAD_MAX_MEMORY_SIZE=64 * 1024 * 1024,
             ):
                 response = self.client.post(
                     "/api/admin/settings/",
-                    data=json.dumps({"limits": {"uploadMaxMb": 1000}}),
+                    data=json.dumps({"limits": {"uploadMaxMb": 120}}),
                     content_type="application/json",
                 )
 
                 self.assertEqual(response.status_code, 200)
-                self.assertEqual(settings.PROJECT_CONFIG.limits.upload_max_mb, 1000)
+                self.assertEqual(settings.PROJECT_CONFIG.limits.upload_max_mb, 120)
                 self.assertEqual(
                     settings.DATA_UPLOAD_MAX_MEMORY_SIZE, 10 * 1024 * 1024
                 )
+
+    def test_rejects_unsafe_admin_limits_without_writing_config(self):
+        user = get_user_model().objects.create_user(
+            username="settings-limits-admin", password="pass12345"
+        )
+        grant(user, ("core", "manage_system_settings"))
+        self.client.force_login(user)
+
+        rejected_values = (
+            (
+                {"limits": {"uploadMaxMb": 121}},
+                "uploadMaxMb 必须是 1 到 120 之间的整数",
+            ),
+            (
+                {"limits": {"queryResultLimit": 10_001}},
+                "queryResultLimit 必须是 100 到 10000 之间的整数",
+            ),
+            (
+                {"limits": {"maxRasterSidePixels": 12_001}},
+                "maxRasterSidePixels 必须是 1 到 12000 之间的整数",
+            ),
+            (
+                {"raster": {"symbolizerTimeoutSeconds": 601}},
+                "symbolizerTimeoutSeconds 必须是 10 到 600 之间的整数",
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+            before = config_path.read_text(encoding="utf-8")
+
+            with override_settings(PROJECT_CONFIG=config):
+                for payload, detail in rejected_values:
+                    with self.subTest(payload=payload):
+                        response = self.client.post(
+                            "/api/admin/settings/",
+                            data=json.dumps(payload),
+                            content_type="application/json",
+                        )
+                        self.assertEqual(response.status_code, 400)
+                        self.assertEqual(response.json()["detail"], detail)
+                        self.assertEqual(
+                            config_path.read_text(encoding="utf-8"), before
+                        )
+
+    @patch(
+        "apps.core.admin_api.update_runtime_application_config",
+        side_effect=OSError("Device or resource busy"),
+    )
+    def test_config_write_failure_returns_json_error(self, _update_config):
+        user = get_user_model().objects.create_user(
+            username="settings-write-admin", password="pass12345"
+        )
+        grant(user, ("core", "manage_system_settings"))
+        self.client.force_login(user)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+
+            with override_settings(PROJECT_CONFIG=config):
+                response = self.client.post(
+                    "/api/admin/settings/",
+                    data=json.dumps({"limits": {"uploadMaxMb": 64}}),
+                    content_type="application/json",
+                )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(
+            response.json()["detail"],
+            "系统配置写入失败，请检查配置目录是否可写，并将宿主机配置目录挂载到 /config",
+        )
 
     def test_rejects_invalid_map_numbers_without_writing_config(self):
         user = get_user_model().objects.create_user(

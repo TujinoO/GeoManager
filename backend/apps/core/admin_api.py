@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import math
 import os
 import platform
@@ -54,6 +55,7 @@ from apps.core.api import (
 from apps.core.auth_views import serialize_user
 from apps.core.emails import AccountEmailError, validate_account_email
 from apps.core.config import (
+    ConfigValidationError,
     load_project_config,
     load_runtime_config_document,
     update_runtime_application_config,
@@ -128,6 +130,13 @@ from apps.core.storage import (
     vector_original_path,
 )
 from apps.raster.models import RasterDataset
+
+logger = logging.getLogger(__name__)
+
+UPLOAD_MAX_MB_RANGE = (1, 120)
+QUERY_RESULT_LIMIT_RANGE = (100, 10_000)
+MAX_RASTER_SIDE_PIXELS_RANGE = (1, 12_000)
+SYMBOLIZER_TIMEOUT_SECONDS_RANGE = (10, 600)
 
 
 @require_GET
@@ -912,8 +921,20 @@ def admin_settings(request):
         patch["raster"] = raster_patch
 
     if patch:
-        update_runtime_application_config(settings.PROJECT_CONFIG, patch)
-        _reload_runtime_project_config()
+        try:
+            update_runtime_application_config(settings.PROJECT_CONFIG, patch)
+            _reload_runtime_project_config()
+        except (ConfigValidationError, OSError):
+            logger.exception("系统设置写入运行配置失败")
+            return JsonResponse(
+                {
+                    "detail": (
+                        "系统配置写入失败，请检查配置目录是否可写，"
+                        "并将宿主机配置目录挂载到 /config"
+                    )
+                },
+                status=500,
+            )
         if "system" in patch and "allow_registration" in patch["system"]:
             SystemSetting.objects.update_or_create(
                 pk=1,
@@ -3582,22 +3603,28 @@ def _limits_patch(value: Any) -> dict[str, Any] | JsonResponse:
         return JsonResponse({"detail": "limits 必须是对象"}, status=400)
     patch: dict[str, Any] = {}
     if "uploadMaxMb" in value:
-        upload_max_mb = _positive_int(value["uploadMaxMb"], "uploadMaxMb")
+        upload_max_mb = _bounded_int(
+            value["uploadMaxMb"],
+            "uploadMaxMb",
+            *UPLOAD_MAX_MB_RANGE,
+        )
         if isinstance(upload_max_mb, JsonResponse):
             return upload_max_mb
         patch["upload_max_mb"] = upload_max_mb
     if "queryResultLimit" in value:
-        query_result_limit = _positive_int(
+        query_result_limit = _bounded_int(
             value["queryResultLimit"],
             "queryResultLimit",
+            *QUERY_RESULT_LIMIT_RANGE,
         )
         if isinstance(query_result_limit, JsonResponse):
             return query_result_limit
         patch["query_result_limit"] = query_result_limit
     if "maxRasterSidePixels" in value:
-        max_raster_side_pixels = _positive_int(
+        max_raster_side_pixels = _bounded_int(
             value["maxRasterSidePixels"],
             "maxRasterSidePixels",
+            *MAX_RASTER_SIDE_PIXELS_RANGE,
         )
         if isinstance(max_raster_side_pixels, JsonResponse):
             return max_raster_side_pixels
@@ -3610,9 +3637,10 @@ def _raster_patch(value: Any) -> dict[str, Any] | JsonResponse:
         return JsonResponse({"detail": "raster 必须是对象"}, status=400)
     patch: dict[str, Any] = {}
     if "symbolizerTimeoutSeconds" in value:
-        symbolizer_timeout_seconds = _positive_int(
+        symbolizer_timeout_seconds = _bounded_int(
             value["symbolizerTimeoutSeconds"],
             "symbolizerTimeoutSeconds",
+            *SYMBOLIZER_TIMEOUT_SECONDS_RANGE,
         )
         if isinstance(symbolizer_timeout_seconds, JsonResponse):
             return symbolizer_timeout_seconds
@@ -3620,9 +3648,22 @@ def _raster_patch(value: Any) -> dict[str, Any] | JsonResponse:
     return patch
 
 
-def _positive_int(value: Any, key: str) -> int | JsonResponse:
-    if not isinstance(value, int) or value <= 0:
-        return JsonResponse({"detail": f"{key} 必须是正整数"}, status=400)
+def _bounded_int(
+    value: Any,
+    key: str,
+    minimum: int,
+    maximum: int,
+) -> int | JsonResponse:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return JsonResponse(
+            {"detail": f"{key} 必须是 {minimum} 到 {maximum} 之间的整数"},
+            status=400,
+        )
+    if value < minimum or value > maximum:
+        return JsonResponse(
+            {"detail": f"{key} 必须是 {minimum} 到 {maximum} 之间的整数"},
+            status=400,
+        )
     return value
 
 

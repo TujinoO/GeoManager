@@ -24,6 +24,22 @@ interface BasicSettingValues {
 
 type BasicSettingDescriptionItem = BasicSettingValues;
 
+export const ADMIN_SETTING_RANGES = {
+  uploadMaxMb: { min: 1, max: 120 },
+  queryResultLimit: { min: 100, max: 10_000 },
+  maxRasterSidePixels: { min: 1, max: 12_000 },
+  symbolizerTimeoutSeconds: { min: 10, max: 600 },
+} as const;
+
+function integerRangeRule(min: number, max: number, label: string) {
+  return {
+    type: "number" as const,
+    min,
+    max,
+    message: `${label}必须是 ${min} 到 ${max} 之间的整数`,
+  };
+}
+
 const basemapValueEnum = {
   osm: { text: "OpenStreetMap" },
   satellite: { text: "卫星影像" },
@@ -95,9 +111,13 @@ const settingDescriptionColumns: ProDescriptionsItemProps<BasicSettingDescriptio
       valueType: "digit",
       span: 2,
       fieldProps: {
-        min: 1,
-        max: 2048,
+        ...ADMIN_SETTING_RANGES.uploadMaxMb,
+        precision: 0,
       },
+      formItemProps: {
+        rules: [integerRangeRule(1, 120, "上传上限")],
+      },
+      tooltip: "受应用服务器 128 MB 请求体上限保护，后台最多可设置为 120 MB",
     },
     {
       title: "查询结果上限",
@@ -105,8 +125,11 @@ const settingDescriptionColumns: ProDescriptionsItemProps<BasicSettingDescriptio
       valueType: "digit",
       span: 2,
       fieldProps: {
-        min: 100,
-        max: 30000,
+        ...ADMIN_SETTING_RANGES.queryResultLimit,
+        precision: 0,
+      },
+      formItemProps: {
+        rules: [integerRangeRule(100, 10_000, "查询结果上限")],
       },
     },
     {
@@ -115,8 +138,11 @@ const settingDescriptionColumns: ProDescriptionsItemProps<BasicSettingDescriptio
       valueType: "digit",
       span: 2,
       fieldProps: {
-        min: 1,
-        max: 100000,
+        ...ADMIN_SETTING_RANGES.maxRasterSidePixels,
+        precision: 0,
+      },
+      formItemProps: {
+        rules: [integerRangeRule(1, 12_000, "栅格单边像素上限")],
       },
     },
     {
@@ -125,8 +151,11 @@ const settingDescriptionColumns: ProDescriptionsItemProps<BasicSettingDescriptio
       valueType: "digit",
       span: 2,
       fieldProps: {
-        min: 10,
-        max: 600,
+        ...ADMIN_SETTING_RANGES.symbolizerTimeoutSeconds,
+        precision: 0,
+      },
+      formItemProps: {
+        rules: [integerRangeRule(10, 600, "栅格超时秒数")],
       },
     },
   ];
@@ -160,44 +189,52 @@ export default function AdminSystemSettingsPage() {
     };
   }, [message]);
 
-  async function handleSave(values: BasicSettingValues) {
-    const payload: AdminSettingsUpdate = {
-      systemName: values.systemName,
-      allowRegistration: values.allowRegistration,
-      map: {
-        defaultCenter: [values.defaultCenterLon, values.defaultCenterLat],
-        defaultZoom: values.defaultZoom,
-        defaultBasemap: values.defaultBasemap,
-        mapboxAccessToken: values.mapboxAccessToken,
-      },
-      limits: {
-        uploadMaxMb: values.uploadMaxMb,
-        queryResultLimit: values.queryResultLimit,
-        maxRasterSidePixels: values.maxRasterSidePixels,
-      },
-      raster: {
-        symbolizerTimeoutSeconds: values.symbolizerTimeoutSeconds,
-      },
-    };
-    const updated = await api.updateAdminSettings(payload);
-    setSettings(updated);
-    setBootstrap({
-      ...bootstrap,
-      systemName: updated.systemName,
-      allowRegistration: updated.allowRegistration,
-      map: updated.map,
-      limits: updated.limits,
-    });
-    applyPlatformDocumentTitle(updated.systemName);
-    message.success("系统设置已写入运行配置");
-    return true;
+  async function handleSave(values: BasicSettingValues): Promise<boolean> {
+    try {
+      const payload: AdminSettingsUpdate = {
+        systemName: values.systemName,
+        allowRegistration: values.allowRegistration,
+        map: {
+          defaultCenter: [values.defaultCenterLon, values.defaultCenterLat],
+          defaultZoom: values.defaultZoom,
+          defaultBasemap: values.defaultBasemap,
+          mapboxAccessToken: values.mapboxAccessToken,
+        },
+        limits: {
+          uploadMaxMb: values.uploadMaxMb,
+          queryResultLimit: values.queryResultLimit,
+          maxRasterSidePixels: values.maxRasterSidePixels,
+        },
+        raster: {
+          symbolizerTimeoutSeconds: values.symbolizerTimeoutSeconds,
+        },
+      };
+      const updated = await api.updateAdminSettings(payload);
+      setSettings(updated);
+      setBootstrap({
+        ...bootstrap,
+        systemName: updated.systemName,
+        allowRegistration: updated.allowRegistration,
+        map: updated.map,
+        limits: updated.limits,
+      });
+      applyPlatformDocumentTitle(updated.systemName);
+      message.success("系统设置已写入运行配置");
+      return true;
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : "系统设置保存失败",
+      );
+      return false;
+    }
   }
 
   async function handleDescriptionSave(
     _key: Key | Key[],
     values: BasicSettingDescriptionItem,
   ) {
-    await handleSave(values);
+    if (!settings) return false;
+    return handleSave(mergeSettingValues(settings, values));
   }
 
   if (loading) {
@@ -231,6 +268,19 @@ export default function AdminSystemSettingsPage() {
       </ProCard>
     </div>
   );
+}
+
+export function mergeSettingValues(
+  settings: AdminSettings,
+  changedValues: Partial<BasicSettingDescriptionItem>,
+): BasicSettingValues {
+  const definedValues = Object.fromEntries(
+    Object.entries(changedValues).filter(([, value]) => value !== undefined),
+  ) as Partial<BasicSettingValues>;
+  return {
+    ...valuesFromSettings(settings),
+    ...definedValues,
+  };
 }
 
 function valuesFromSettings(settings: AdminSettings): BasicSettingValues {

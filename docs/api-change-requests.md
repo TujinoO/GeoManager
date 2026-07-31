@@ -58,6 +58,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260730-006 | Verified | `/api/groups/*`, `/api/users/*` | permission and protected-principal behavior | Updated | N/A | Implemented | Passed | Enforces feature-permission second authorization plus guest and platform-admin protections |
 | API-20260730-007 | Verified | generated browser SDK operations | client transport metadata / CSP compatibility | Updated | N/A | N/A | Passed | Defaults generated clients to the same-origin platform entry instead of hard-coded localhost |
 | API-20260730-008 | Verified | vector query and catalog export endpoints | 413/503 status and resource-bound behavior | Updated | N/A | Implemented | Passed | Adds bounded query concurrency/body sizes and disk-streamed exports for OOM prevention |
+| API-20260731-001 | BackendReady | `POST /api/admin/settings/` | validation / persistence / error response | Updated | N/A | Implemented | Focused passed | Bounds editable runtime limits and requires writable `/config` directory mounting for atomic saves |
 
 ## Entry Template
 
@@ -595,3 +596,16 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Limit the production query result count to 5,000; read spatial candidates in fixed chunks; validate geometry in one pass; serialize exports to a temporary path; stream ZIP responses; bound request reads even without `Content-Length`; preserve the existing in-memory export helper only as a compatibility wrapper outside production endpoints.
 - Verification: run OpenAPI lint/generation/change checks, focused catalog query/export/body-limit tests, the complete backend suite, frontend typecheck/tests/build and Docker entrypoint/image checks.
 - Result: OpenAPI lint/generation/change checks, focused query/export/request-limit tests, complete raster regression, complete frontend tests/typecheck/build and Django system check passed. The complete backend run exposed only three compatibility-message assertions; the original message was restored and the affected parameterized endpoints passed on rerun.
+
+## API-20260731-001 - Bounded And Persistable Admin Runtime Limits
+
+- Status: BackendReady
+- Owner: Frontend/backend implementer
+- Endpoints: `POST /api/admin/settings/`
+- Change type: request validation | error response | deployment safety
+- OpenAPI change: Adds partial update schemas and server-enforced ranges for upload size, query results, raster side length and raster task timeout; documents JSON 500 when the source TOML cannot be atomically replaced.
+- Mock examples: N/A; validation boundaries and filesystem replacement failures are covered by focused backend and frontend tests.
+- Frontend reason: Editable descriptions submit only the active field, so the page must merge it with current settings before saving and must not advertise values that the server or small-memory deployment cannot safely support.
+- Backend implementation notes: Enforce 1–120 MB, 100–10,000 results, 1–12,000 pixels and 10–600 seconds before touching the TOML; keep atomic replacement and require a writable directory mounted at `/config` instead of a single-file bind mount.
+- Verification: Run OpenAPI generation/lint/change checks, focused core admin-settings tests, frontend settings tests, typecheck and build.
+- Result: Pending final verification.

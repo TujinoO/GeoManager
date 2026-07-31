@@ -469,7 +469,10 @@ export const getAdminSettings = <ThrowOnError extends boolean = false>(options?:
 /**
  * 更新用户可配置设置
  *
- * 将后台设置直接写入 appdata 下的运行 TOML 配置副本。需要 `core.manage_system_settings`。
+ * 将后台设置原子写入启动时传入的源 TOML 配置文件，并立即刷新运行时配置。需要
+ * `core.manage_system_settings`。部署时必须把包含 `app.toml` 的宿主机目录挂载到
+ * `/config`；只 bind mount `/config/app.toml` 会阻止原子替换，写入失败时返回 JSON 500。
+ *
  */
 export const updateAdminSettings = <ThrowOnError extends boolean = false>(options: Options<UpdateAdminSettingsData, ThrowOnError>): RequestResult<UpdateAdminSettingsResponses, UpdateAdminSettingsErrors, ThrowOnError> => (options.client ?? client).post<UpdateAdminSettingsResponses, UpdateAdminSettingsErrors, ThrowOnError>({
     security: [{

@@ -1,5 +1,5 @@
 # Docker 容器内运行配置示例。
-# 适用于手动 docker run 时挂载到 /config/app.toml。
+# 适用于复制为宿主机配置目录中的 app.toml，再将整个目录挂载到 /config。
 # 业务数据和科研数据通过 Docker 数据卷统一挂载到 /data 下。
 
 [runtime]
@@ -29,7 +29,7 @@ mapbox_access_token = ""
 [application.limits]
 upload_max_mb = 64
 query_result_limit = 5000
-max_raster_side_pixels = 6000
+max_raster_side_pixels = 12000
 
 [application.raster]
 symbolizer_timeout_seconds = 120

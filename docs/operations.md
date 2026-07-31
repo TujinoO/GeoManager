@@ -123,7 +123,7 @@ pnpm run build:verify
 
 ## Docker 部署
 
-Linux 部署使用单个 Docker 镜像和 TOML 配置。镜像构建使用 `backend/pixi.lock` 创建后端运行环境，不需要配置文件；配置只在容器运行时通过 `/config/app.toml` 挂载提供。镜像内由 Waitress 运行 Django WSGI 应用，Django 同时提供 `/api/` 接口和前端 Vite 构建产物；对公网关、HTTPS 和域名由宿主机上的反向代理自行配置。业务数据和科研数据保存在同一个 Docker 数据卷 `huyang-data` 中，并挂载到容器内 `/data`。
+Linux 部署使用单个 Docker 镜像和 TOML 配置。镜像构建使用 `backend/pixi.lock` 创建后端运行环境，不需要配置文件；容器运行时把包含 `app.toml` 的宿主机配置目录挂载到 `/config`。镜像内由 Waitress 运行 Django WSGI 应用，Django 同时提供 `/api/` 接口和前端 Vite 构建产物；对公网关、HTTPS 和域名由宿主机上的反向代理自行配置。业务数据和科研数据保存在同一个 Docker 数据卷 `huyang-data` 中，并挂载到容器内 `/data`。
 
 容器内固定路径：
 
@@ -137,7 +137,7 @@ Linux 部署使用单个 Docker 镜像和 TOML 配置。镜像构建使用 `back
 
 Docker 容器内配置示例见 `config/app.docker.toml`。其中容器内路径、Waitress 监听地址和默认运行参数已经固化；通常只需要按部署环境调整 `allowed_hosts`、`csrf_trusted_origins`、`waitress_port`、`waitress_threads` 和 `mapbox_access_token`。
 
-手动 `docker run` 时，挂载到 `/config/app.toml` 的配置应使用容器内数据路径 `/data/app` 和 `/data/research`。业务数据和科研数据使用同一个 Docker named volume，不需要映射宿主机目录。
+手动 `docker run` 时，先把 `config/app.docker.toml` 复制为宿主机配置目录中的 `app.toml`，再把整个目录挂载到 `/config`。配置应使用容器内数据路径 `/data/app` 和 `/data/research`。业务数据和科研数据使用同一个 Docker named volume，不需要映射宿主机目录。
 
 构建和启动：
 
@@ -148,7 +148,7 @@ docker volume create huyang-data
 
 docker run -d --name data-platform \
   -p 80:8000 \
-  -v /srv/data-platform/app.toml:/config/app.toml \
+  -v /srv/data-platform/config:/config \
   -v huyang-data:/data \
   --memory=2300m \
   --memory-reservation=1800m \
@@ -166,9 +166,9 @@ Docker 配置中的数据目录应直接使用容器内路径 `/data/app` 和 `/
 
 ### 4 GB 主机的内存安全基线
 
-`config/app.docker.toml` 默认面向小内存单机：Waitress 使用 2 个请求线程，查询单次最多返回 5,000 条，上传限制为 64 MB，栅格单边限制为 6,000 像素，并关闭目录与栅格启动扫描。需要扫描时应在平台稳定后由有维护权限的用户手动触发；栅格导入、扫描、渲染和导出共用单并发、有界等待队列，不能通过提高 Waitress 线程数绕开该限制。
+`config/app.docker.toml` 默认面向小内存单机：Waitress 使用 2 个请求线程，查询单次最多返回 5,000 条，上传限制为 64 MB，栅格单边限制为 12,000 像素，并关闭目录与栅格启动扫描。后台允许设置的硬范围为上传 1–120 MB、查询 100–10,000 条、栅格单边 1–12,000 像素和栅格任务超时 10–600 秒；上传最大值为 Waitress 的 128 MB 请求体限制预留了 multipart 开销。需要扫描时应在平台稳定后由有维护权限的用户手动触发；栅格导入、扫描、渲染和导出共用单并发、有界等待队列，不能通过提高 Waitress 线程数绕开该限制。
 
-这些文件是新部署样例，不会覆盖现有服务器 bind mount 的 `/config/app.toml`。升级已有容器前必须先修改宿主机实际挂载的 TOML，再显式重建容器以应用 memory、CPU、pids、restart 和日志参数；单独执行 Watchtower 不会改变挂载配置或现有 HostConfig。本文示例容器名为 `data-platform`；现网容器名如果是 `geomanager`，所有检查、重建和 Watchtower 目标必须统一使用 `geomanager`，不能混用。
+这些文件是新部署样例，不会覆盖现有服务器的 `/config/app.toml`。升级已有容器前必须备份宿主机 TOML，把它迁移到专用配置目录并改为目录挂载，然后显式重建容器以应用挂载、memory、CPU、pids、restart 和日志参数；单独执行 Watchtower 不会改变挂载配置或现有 HostConfig。单文件 bind mount 会使后台保存时的原子 `os.replace()` 返回 `Device or resource busy`，因此不能继续用于可在线维护的配置。本文示例容器名为 `data-platform`；现网容器名如果是 `geomanager`，所有检查、重建和 Watchtower 目标必须统一使用 `geomanager`，不能混用。
 
 容器的 `2300m` 硬限制用于给 4 GB 宿主机、Docker daemon 和反向代理保留约 1.5 GB。容器可能在超限时单独重启，但不得再次拖垮宿主机。`--memory-swap` 与 `--memory` 设为相同值表示不允许容器额外消耗 swap；若宿主机有其他业务，应继续下调，而不是取消限制。镜像内置 `/api/health/` 健康检查，并从挂载的 `/config/app.toml` 自动读取容器内 Waitress 端口；宿主机端口映射仍需与实际端口保持一致。
 
@@ -227,14 +227,14 @@ manifest-src 'self';
 docker volume create data-platform-data
 docker run -d --name data-platform \
   -p 80:8000 \
-  -v /srv/data-platform/app.toml:/config/app.toml \
+  -v /srv/data-platform/config:/config \
   -v data-platform-data:/data \
   data-platform-django:latest serve /config/app.toml
 ```
 
 重建容器不会删除数据卷。如需备份、迁移或删除数据，请直接操作对应 Docker volume。
 
-系统以挂载的源配置文件 `/config/app.toml` 作为运行配置和后台设置写入目标。`django_secret_key` 自动生成并持久化到业务数据目录的 `database/.secret_key`，由后端专用文件管理。
+系统以挂载目录中的源配置文件 `/config/app.toml` 作为运行配置和后台设置写入目标。后台保存会在 `/config` 内写入临时文件、校验 TOML 后再原子替换 `app.toml`，因此该目录必须可写。`django_secret_key` 自动生成并持久化到业务数据目录的 `database/.secret_key`，由后端专用文件管理。
 
 ## 数据目录
 
