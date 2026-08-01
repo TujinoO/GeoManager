@@ -189,6 +189,12 @@ describe("classifyBasemapStatus", () => {
     expect(activeBasemapScopeKey(activeBasemap)).not.toBe(
       activeBasemapScopeKey({ ...activeBasemap, generation: 4 }),
     );
+    expect(activeBasemapScopeKey(activeBasemap)).not.toBe(
+      activeBasemapScopeKey({
+        ...activeBasemap,
+        requireAllSourceIds: true,
+      }),
+    );
     expect(activeBasemapScopeKey(undefined)).toBe("legacy");
     expect(activeBasemapScopeKey(null)).toBe("none");
   });

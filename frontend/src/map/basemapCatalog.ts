@@ -39,6 +39,7 @@ export interface BasemapDefinition {
   selectable: boolean;
   style: string | StyleSpecification;
   sourceIds: readonly string[];
+  requireAllSourceIds?: boolean;
   errorMarkers: readonly string[];
   attribution: string;
   credentials: BasemapCredentialState;
@@ -149,6 +150,7 @@ export function createBasemapCatalog(
       selectable: true,
       style: createTiandituVectorStyle(credentials.tiandituKey),
       sourceIds: tiandituSourceIds,
+      requireAllSourceIds: true,
       errorMarkers: [
         "tianditu.gov.cn",
         tiandituVectorSourceId,

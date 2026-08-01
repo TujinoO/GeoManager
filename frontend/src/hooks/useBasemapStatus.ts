@@ -13,6 +13,7 @@ import {
 
 const healthCheckIntervalMs = 30_000;
 const healthCheckTimeoutMs = 5_000;
+const strictBasemapReadinessTimeoutMs = 15_000;
 const maxTrackedTileRequests = 512;
 
 type NetworkInformationLike = EventTarget & {
@@ -49,6 +50,57 @@ export type BasemapRetryProbe = (
 export interface UseBasemapStatusOptions {
   activeBasemap?: ActiveBasemapDescriptor | null;
   retryBasemap?: BasemapRetryProbe;
+}
+
+export interface StrictBasemapReadinessTimer {
+  enterLoading: () => void;
+  restartLoading: () => void;
+  settle: () => void;
+}
+
+interface StrictBasemapReadinessTimerOptions {
+  isCurrentScope: () => boolean;
+  sourcesReady: () => boolean;
+  onReady: () => void;
+  onFailed: () => void;
+  timeoutMs?: number;
+}
+
+export function createStrictBasemapReadinessTimer({
+  isCurrentScope,
+  sourcesReady,
+  onReady,
+  onFailed,
+  timeoutMs = strictBasemapReadinessTimeoutMs,
+}: StrictBasemapReadinessTimerOptions): StrictBasemapReadinessTimer {
+  let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
+
+  const settle = () => {
+    if (timeoutId === null) return;
+    globalThis.clearTimeout(timeoutId);
+    timeoutId = null;
+  };
+  const start = (restart: boolean) => {
+    if (timeoutId !== null) {
+      if (!restart) return;
+      settle();
+    }
+    timeoutId = globalThis.setTimeout(() => {
+      timeoutId = null;
+      if (!isCurrentScope()) return;
+      if (sourcesReady()) {
+        onReady();
+      } else {
+        onFailed();
+      }
+    }, timeoutMs);
+  };
+
+  return {
+    enterLoading: () => start(false),
+    restartLoading: () => start(true),
+    settle,
+  };
 }
 
 export type PlatformHealthProbeResult =
@@ -233,6 +285,9 @@ export function useBasemapStatus(
   const committedScopeKeyRef = useRef(scopeKey);
   const pendingScopeKeyRef = useRef<string | null>(null);
   const loadCycleRef = useRef<BasemapSourceLoadCycle | null>(null);
+  const strictReadinessTimerRef = useRef<StrictBasemapReadinessTimer | null>(
+    null,
+  );
   const retryBasemapRef = useRef(options.retryBasemap);
   activeBasemapRef.current = options.activeBasemap;
   activeScopeKeyRef.current = scopeKey;
@@ -244,6 +299,8 @@ export function useBasemapStatus(
       mountedRef.current = false;
       healthAbortRef.current?.abort();
       retryAbortRef.current?.abort();
+      strictReadinessTimerRef.current?.settle();
+      strictReadinessTimerRef.current = null;
     };
   }, []);
 
@@ -346,10 +403,11 @@ export function useBasemapStatus(
     const attachedAt = performance.now();
     const tileStarts = new BasemapTileRequestTimings();
     const loadCycle = new BasemapSourceLoadCycle(
-      currentBasemapSourceIds(map, scopedBasemap),
+      expectedBasemapSourceIds(map, scopedBasemap),
     );
     loadCycleRef.current = loadCycle;
     let observedScopedActivity = false;
+    let strictReadinessTimer: StrictBasemapReadinessTimer | null = null;
     const updateDiagnostics = (
       updater: (current: BasemapDiagnostics) => BasemapDiagnostics,
     ) => {
@@ -357,19 +415,51 @@ export function useBasemapStatus(
         activeScopeKeyRef.current === scopedKey ? updater(current) : current,
       );
     };
-    const reportReady = (latencyMs: number | null) => {
+    const reportReady = (latencyMs: number | null | undefined) => {
+      strictReadinessTimer?.settle();
       if (pendingScopeKeyRef.current === scopedKey) {
         pendingScopeKeyRef.current = null;
       }
-      updateDiagnostics((current) =>
-        readyBasemapDiagnostics(current, latencyMs),
-      );
+      updateDiagnostics((current) => {
+        const resolvedLatencyMs =
+          latencyMs === undefined
+            ? current.basemapLoadingSince === null
+              ? null
+              : Date.now() - current.basemapLoadingSince
+            : latencyMs;
+        return readyBasemapDiagnostics(current, resolvedLatencyMs);
+      });
     };
+    const reportFailed = () => {
+      strictReadinessTimer?.settle();
+      loadCycle.fail(expectedBasemapSourceIds(map, scopedBasemap));
+      updateDiagnostics(failedBasemapDiagnostics);
+      void checkPlatform();
+    };
+    strictReadinessTimer = scopedBasemap?.requireAllSourceIds
+      ? createStrictBasemapReadinessTimer({
+          isCurrentScope: () => activeScopeKeyRef.current === scopedKey,
+          sourcesReady: () =>
+            areRequiredBasemapSourcesLoaded(map, scopedBasemap),
+          onReady: () => {
+            const activeSourceIds = expectedBasemapSourceIds(
+              map,
+              scopedBasemap,
+            );
+            loadCycle.reset(activeSourceIds);
+            loadCycle.completeFromMapLifecycle(activeSourceIds);
+            reportReady(null);
+          },
+          onFailed: reportFailed,
+        })
+      : null;
+    strictReadinessTimerRef.current = strictReadinessTimer;
     const handleSourceLoading = (event: MapSourceDataEvent) => {
       const sourceId = event.sourceId;
       if (!sourceId || !isBasemapSourceId(sourceId, scopedBasemap)) return;
       observedScopedActivity = true;
-      loadCycle.loading(sourceId, currentBasemapSourceIds(map, scopedBasemap));
+      strictReadinessTimer?.enterLoading();
+      loadCycle.loading(sourceId, expectedBasemapSourceIds(map, scopedBasemap));
       const key = tileRequestKey(event);
       if (key !== undefined) {
         tileStarts.start(key, performance.now());
@@ -384,13 +474,11 @@ export function useBasemapStatus(
       const sourceId = event.sourceId;
       if (!sourceId || !isBasemapSourceId(sourceId, scopedBasemap)) return;
       observedScopedActivity = true;
-      const activeSourceIds = currentBasemapSourceIds(map, scopedBasemap);
+      const activeSourceIds = expectedBasemapSourceIds(map, scopedBasemap);
       const key = tileRequestKey(event);
       const startedAt = tileStarts.finish(key);
       if (event.sourceDataType === "error") {
-        loadCycle.fail(activeSourceIds);
-        updateDiagnostics(failedBasemapDiagnostics);
-        void checkPlatform();
+        reportFailed();
         return;
       }
 
@@ -416,8 +504,9 @@ export function useBasemapStatus(
         return;
       }
       if (
+        areRequiredBasemapSourcesLoaded(map, scopedBasemap) &&
         loadCycle.completeFromMapLifecycle(
-          currentBasemapSourceIds(map, scopedBasemap),
+          expectedBasemapSourceIds(map, scopedBasemap),
         )
       ) {
         reportReady(Math.max(1, Math.round(performance.now() - attachedAt)));
@@ -433,28 +522,14 @@ export function useBasemapStatus(
         return;
       }
       if (
+        !areRequiredBasemapSourcesLoaded(map, scopedBasemap) ||
         !loadCycle.completeFromMapLifecycle(
-          currentBasemapSourceIds(map, scopedBasemap),
+          expectedBasemapSourceIds(map, scopedBasemap),
         )
       ) {
         return;
       }
-      updateDiagnostics((current) => {
-        const latencyMs =
-          current.basemapLoadingSince === null
-            ? null
-            : Date.now() - current.basemapLoadingSince;
-        return {
-          ...current,
-          basemap: "ready",
-          basemapLatencyMs:
-            latencyMs === null
-              ? current.basemapLatencyMs
-              : smoothLatency(current.basemapLatencyMs, latencyMs),
-          basemapLoadingSince: null,
-          recentBasemapFailures: 0,
-        };
-      });
+      reportReady(undefined);
     };
     const handleMapError = (event: MapResourceErrorEvent) => {
       const clearlyBusinessResource =
@@ -468,9 +543,7 @@ export function useBasemapStatus(
         return;
       }
       tileStarts.clear();
-      loadCycle.fail(currentBasemapSourceIds(map, scopedBasemap));
-      updateDiagnostics(failedBasemapDiagnostics);
-      void checkPlatform();
+      reportFailed();
     };
 
     map.on("sourcedataloading", handleSourceLoading);
@@ -478,11 +551,13 @@ export function useBasemapStatus(
     map.on("load", handleMapLoad);
     map.on("idle", handleIdle);
     map.on("error", handleMapError);
+    strictReadinessTimer?.enterLoading();
     if (
       map.loaded() &&
+      areRequiredBasemapSourcesLoaded(map, scopedBasemap) &&
       pendingScopeKeyRef.current !== scopedKey &&
       loadCycle.completeFromMapLifecycle(
-        currentBasemapSourceIds(map, scopedBasemap),
+        expectedBasemapSourceIds(map, scopedBasemap),
       )
     ) {
       reportReady(null);
@@ -495,6 +570,10 @@ export function useBasemapStatus(
       map.off("idle", handleIdle);
       map.off("error", handleMapError);
       tileStarts.clear();
+      strictReadinessTimer?.settle();
+      if (strictReadinessTimerRef.current === strictReadinessTimer) {
+        strictReadinessTimerRef.current = null;
+      }
       if (loadCycleRef.current === loadCycle) {
         loadCycleRef.current = null;
       }
@@ -508,9 +587,19 @@ export function useBasemapStatus(
     const currentBasemap = activeBasemapRef.current;
     const loadCycle = loadCycleRef.current;
     const activeSourceIds = map
-      ? currentBasemapSourceIds(map, currentBasemap)
+      ? expectedBasemapSourceIds(map, currentBasemap)
       : [];
+    const mapReady = Boolean(
+      map?.loaded() && areRequiredBasemapSourcesLoaded(map, currentBasemap),
+    );
     loadCycle?.reset(activeSourceIds);
+    if (currentBasemap?.requireAllSourceIds) {
+      if (retryBasemap || !mapReady) {
+        strictReadinessTimerRef.current?.restartLoading();
+      } else {
+        strictReadinessTimerRef.current?.settle();
+      }
+    }
     const updateDiagnostics = (
       updater: (current: BasemapDiagnostics) => BasemapDiagnostics,
     ) => {
@@ -527,14 +616,12 @@ export function useBasemapStatus(
         : {
             ...current,
             network,
-            basemap: map?.loaded() ? "ready" : "loading",
-            basemapLoadingSince: map?.loaded() ? null : Date.now(),
-            recentBasemapFailures: map?.loaded()
-              ? 0
-              : current.recentBasemapFailures,
+            basemap: mapReady ? "ready" : "loading",
+            basemapLoadingSince: mapReady ? null : Date.now(),
+            recentBasemapFailures: mapReady ? 0 : current.recentBasemapFailures,
           },
     );
-    if (!retryBasemap && map?.loaded()) {
+    if (!retryBasemap && mapReady) {
       loadCycle?.completeFromMapLifecycle(activeSourceIds);
     }
     void checkPlatform(true);
@@ -558,7 +645,11 @@ export function useBasemapStatus(
         ) {
           return;
         }
-        if (result.ok) {
+        strictReadinessTimerRef.current?.settle();
+        const retrySourcesReady = Boolean(
+          map && areRequiredBasemapSourcesLoaded(map, activeBasemapRef.current),
+        );
+        if (result.ok && retrySourcesReady) {
           if (pendingScopeKeyRef.current === scopedKey) {
             pendingScopeKeyRef.current = null;
           }
@@ -582,6 +673,7 @@ export function useBasemapStatus(
           !controller.signal.aborted &&
           activeScopeKeyRef.current === scopedKey
         ) {
+          strictReadinessTimerRef.current?.settle();
           if (pendingScopeKeyRef.current === scopedKey) {
             pendingScopeKeyRef.current = null;
           }
@@ -639,10 +731,13 @@ function tileRequestKey(event: MapSourceDataEvent) {
     : undefined;
 }
 
-function currentBasemapSourceIds(
+export function expectedBasemapSourceIds(
   map: MapboxMap,
   activeBasemap: ActiveBasemapDescriptor | null | undefined,
 ) {
+  if (activeBasemap?.requireAllSourceIds) {
+    return [...activeBasemap.sourceIds];
+  }
   try {
     return Object.keys(map.getStyle().sources ?? {}).filter((sourceId) =>
       isBasemapSourceId(sourceId, activeBasemap),
@@ -650,6 +745,21 @@ function currentBasemapSourceIds(
   } catch {
     return [];
   }
+}
+
+export function areRequiredBasemapSourcesLoaded(
+  map: Pick<MapboxMap, "getSource" | "isSourceLoaded">,
+  activeBasemap: ActiveBasemapDescriptor | null | undefined,
+) {
+  if (!activeBasemap?.requireAllSourceIds) return true;
+  if (activeBasemap.sourceIds.length === 0) return false;
+  return activeBasemap.sourceIds.every((sourceId) => {
+    try {
+      return Boolean(map.getSource(sourceId)) && map.isSourceLoaded(sourceId);
+    } catch {
+      return false;
+    }
+  });
 }
 
 function normalizedSourceIds(sourceIds: Iterable<string>) {

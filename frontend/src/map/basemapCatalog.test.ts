@@ -76,6 +76,7 @@ describe("basemapCatalog", () => {
     const catalog = createBasemapCatalog({ tiandituKey: rawKey });
     const tianditu = resolveBasemapDefinition(catalog, "tianditu-vector");
     expect(tianditu).toBeDefined();
+    expect(tianditu?.requireAllSourceIds).toBe(true);
     expect(typeof tianditu?.style).toBe("object");
     if (!tianditu || typeof tianditu.style === "string") {
       throw new Error("天地图应使用内联样式");
