@@ -11,9 +11,6 @@ permissions:
   contents: read
   packages: write
 
-env:
-  IMAGE_NAME: ghcr.io/tujinoo/geomanager
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -22,8 +19,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Set short SHA
-        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+      - name: Set image metadata
+        shell: bash
+        run: |
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/geomanager" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.1.0
