@@ -104,6 +104,11 @@ export function createRasterLayerGroup(
   const symbolization = raster.defaultRules
     ? rasterSymbolizationFromRules(raster.defaultRules)
     : cloneDefaultRasterSymbolization();
+  if (raster.rasterKind === "categorical") {
+    // A partially transparent thematic layer makes the basemap look like
+    // extra boundary colors even when every class pixel is exact.
+    symbolization.opacity = 100;
+  }
   const summary = `${raster.bandCount} 波段 · ${raster.metadata.size.join(" x ") || "栅格"}`;
   const metadata = {
     数据名称: resource.name,
@@ -131,6 +136,8 @@ export function createRasterLayerGroup(
         rasterDatasetId: raster.id,
         rasterLayerId: raster.mapLayerId,
         rasterKind: raster.rasterKind,
+        tileSampling:
+          raster.rasterKind === "categorical" ? "nearest" : undefined,
         rasterMetadata: raster.metadata,
         imageCoordinates: raster.imageCoordinates,
         geometryType: "Raster",

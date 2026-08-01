@@ -375,10 +375,14 @@ export function sourceIdFor(layerId: string): string {
 
 export function rasterSourceKey(layer: {
   tileUrl?: string;
+  tileMinZoom?: number;
+  tileMaxZoom?: number;
   imageCoordinates?: number[][];
 }): string {
   return JSON.stringify({
     tileUrl: layer.tileUrl,
+    tileMinZoom: layer.tileMinZoom,
+    tileMaxZoom: layer.tileMaxZoom,
     imageCoordinates: layer.imageCoordinates ?? [],
   });
 }

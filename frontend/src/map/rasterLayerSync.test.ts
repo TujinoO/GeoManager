@@ -23,6 +23,21 @@ describe("addRasterLayer", () => {
       tiles: [
         `/api/raster/tiles/1/hash/{z}/{x}/{y}.png?rv=${rasterTileRendererVersion}`,
       ],
+      minzoom: 0,
+      maxzoom: 16,
+    });
+  });
+
+  it("honors explicit backend nearest sampling before raster metadata is available", () => {
+    const { map, addedLayers } = makeMap();
+    const layer = makeRasterLayer(undefined, "gray");
+    layer.tileSampling = "nearest";
+
+    addRasterLayer(map, "restored-lucc", layer);
+
+    expect(addedLayers[0]?.paint).toMatchObject({
+      "raster-resampling": "nearest",
+      "raster-fade-duration": 0,
     });
   });
 
@@ -73,6 +88,9 @@ function makeRasterLayer(
     layerType: "raster",
     sourceResource: {} as LoadedRasterLayer["sourceResource"],
     tileUrl: "/api/raster/tiles/1/hash/{z}/{x}/{y}.png",
+    tileMinZoom: rasterKind === "categorical" ? 0 : undefined,
+    tileMaxZoom: rasterKind === "categorical" ? 16 : undefined,
+    tileSampling: rasterKind === "categorical" ? "nearest" : undefined,
     rasterKind,
     geometryType: "Raster",
     visible: true,

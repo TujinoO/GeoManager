@@ -9,6 +9,9 @@ overrides:
   lodash@<=4.17.23: ^4.17.24
   uuid@<11.1.1: ^11.1.1
 
+patchedDependencies:
+  mapbox-gl@3.25.0: 5942ed89d4d2bf34e2db3155bb021f3f08248ecc9a97391e3e70c7d665154bea
+
 importers:
 
   .:
@@ -30,7 +33,7 @@ importers:
         version: 3.0.5
       mapbox-gl:
         specifier: ^3.25.0
-        version: 3.25.0
+        version: 3.25.0(patch_hash=5942ed89d4d2bf34e2db3155bb021f3f08248ecc9a97391e3e70c7d665154bea)
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -4841,7 +4844,7 @@ snapshots:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  mapbox-gl@3.25.0: {}
+  mapbox-gl@3.25.0(patch_hash=5942ed89d4d2bf34e2db3155bb021f3f08248ecc9a97391e3e70c7d665154bea): {}
 
   math-intrinsics@1.1.0: {}
 

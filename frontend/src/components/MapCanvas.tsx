@@ -30,10 +30,26 @@ import {
   writeBasemapPreference,
 } from "../map/basemapPreference";
 import {
+  canRunRateLimitRecovery,
+  rateLimitRecoveryCooldownMs,
+  rateLimitRecoverySwitchOptions,
+  shouldBlockRateLimitedBasemapSelection,
+  shouldSuppressRecoveredBasemapRateLimitError,
+  type BasemapRateLimitRecoveryState,
+} from "../map/basemapRateLimitRecovery";
+import {
+  createBasemapRequestConcurrencyCoordinator,
+  type BasemapRequestConcurrencyLease,
+} from "../map/basemapRequestConcurrency";
+import {
+  areBasemapSourcesReady,
   basemapErrorMessage,
   createStableReadinessGate,
+  isBasemapRateLimitError,
   isHardBasemapStyleError,
   readBasemapCamera,
+  resolveBasemapRateLimitFallback,
+  resolveBasemapTechnicalFallback,
   restoreBasemapCamera,
   restoreSelectedFeatureState,
   type BasemapCameraSnapshot,
@@ -127,9 +143,12 @@ interface BasemapSwitchOptions {
   force?: boolean;
   persist?: boolean;
   announce?: boolean;
+  rollbackOnFailure?: boolean;
 }
 
 const basemapSwitchTimeoutMs = 15_000;
+const basemapRequestConcurrency =
+  createBasemapRequestConcurrencyCoordinator(mapboxgl);
 
 export default function MapCanvas({
   bootstrap,
@@ -164,6 +183,16 @@ export default function MapCanvas({
   const mountedRef = useRef(true);
   const basemapSwitchingRef = useRef(false);
   const basemapOperationSequenceRef = useRef(0);
+  const basemapRequestConcurrencyLeaseRef =
+    useRef<BasemapRequestConcurrencyLease | null>(null);
+  const rateLimitRecoveryRef = useRef<BasemapRateLimitRecoveryState>({
+    descriptor: null,
+    inFlight: false,
+    suppressUntil: 0,
+  });
+  const recoverRateLimitedBasemapRef = useRef<
+    (definition: BasemapDefinition, descriptor: ActiveBasemapDescriptor) => void
+  >(() => undefined);
   const cancelBasemapStyleLoadRef = useRef<((reason?: unknown) => void) | null>(
     null,
   );
@@ -207,6 +236,7 @@ export default function MapCanvas({
       id: activeBasemap.id,
       generation: activeBasemapState.generation,
       sourceIds: activeBasemap.sourceIds,
+      requireAllSourceIds: activeBasemap.requireAllSourceIds,
       resourceMarkers: activeBasemap.errorMarkers,
     }),
     [activeBasemap, activeBasemapState.generation],
@@ -296,17 +326,7 @@ export default function MapCanvas({
 
         const basemapSourcesReady = () => {
           if (!styleLoaded || !isCurrentOperation()) return false;
-          const existingSourceIds = definition.sourceIds.filter((sourceId) =>
-            Boolean(map.getSource(sourceId)),
-          );
-          if (existingSourceIds.length === 0) return false;
-          return existingSourceIds.every((sourceId) => {
-            try {
-              return map.isSourceLoaded(sourceId);
-            } catch {
-              return false;
-            }
-          });
+          return areBasemapSourcesReady(map, definition);
         };
         const readinessGate = createStableReadinessGate(
           basemapSourcesReady,
@@ -374,6 +394,7 @@ export default function MapCanvas({
             id: definition.id,
             generation: sequence,
             sourceIds: definition.sourceIds,
+            requireAllSourceIds: definition.requireAllSourceIds,
             resourceMarkers: definition.errorMarkers,
           };
           if (!isBasemapResourceError(event, descriptor)) return;
@@ -393,6 +414,9 @@ export default function MapCanvas({
           basemapSwitchTimeoutMs,
         );
         try {
+          basemapRequestConcurrencyLeaseRef.current?.update(
+            definition.provider,
+          );
           map.setStyle(definition.style, {
             diff: false,
             localFontFamily: null,
@@ -425,7 +449,18 @@ export default function MapCanvas({
     if (mapboxToken) {
       mapOptions.accessToken = mapboxToken;
     }
-    const map = new mapboxgl.Map(mapOptions);
+    const concurrencyLease = basemapRequestConcurrency.acquire(
+      activeBasemapRef.current.provider,
+    );
+    basemapRequestConcurrencyLeaseRef.current = concurrencyLease;
+    let map: MapboxMap;
+    try {
+      map = new mapboxgl.Map(mapOptions);
+    } catch (error) {
+      basemapRequestConcurrencyLeaseRef.current = null;
+      concurrencyLease.release();
+      throw error;
+    }
     const unbindPlatformSymbolImageFallback =
       bindPlatformSymbolImageFallback(map);
     const handleStyleLoad = () => {
@@ -445,12 +480,40 @@ export default function MapCanvas({
         id: definition.id,
         generation: basemapGenerationRef.current,
         sourceIds: definition.sourceIds,
+        requireAllSourceIds: definition.requireAllSourceIds,
         resourceMarkers: definition.errorMarkers,
       };
+      const isActiveBasemapError = isBasemapResourceError(event, descriptor);
+      const recovery = rateLimitRecoveryRef.current;
+      const now = Date.now();
       if (
-        basemapSwitchingRef.current &&
-        isBasemapResourceError(event, descriptor)
+        shouldSuppressRecoveredBasemapRateLimitError({
+          recovery,
+          now,
+          isRateLimitError: isBasemapRateLimitError(event),
+          matchesRecoveryDescriptor: Boolean(
+            recovery.descriptor &&
+            isBasemapResourceError(event, recovery.descriptor),
+          ),
+        })
       ) {
+        return;
+      }
+      if (basemapSwitchingRef.current && isActiveBasemapError) {
+        return;
+      }
+      if (
+        isActiveBasemapError &&
+        definition.provider === "tianditu" &&
+        isBasemapRateLimitError(event)
+      ) {
+        rateLimitRecoveryRef.current = {
+          descriptor,
+          inFlight: true,
+          suppressUntil: now + rateLimitRecoveryCooldownMs,
+        };
+        onMapError?.(basemapErrorMessage(event));
+        recoverRateLimitedBasemapRef.current(definition, descriptor);
         return;
       }
       onMapError?.(basemapErrorMessage(event));
@@ -539,6 +602,10 @@ export default function MapCanvas({
       mapRef.current = null;
       setMapObject(null);
       map.remove();
+      if (basemapRequestConcurrencyLeaseRef.current === concurrencyLease) {
+        basemapRequestConcurrencyLeaseRef.current = null;
+      }
+      concurrencyLease.release();
     };
   }, [
     mapConfig,
@@ -612,6 +679,19 @@ export default function MapCanvas({
         }
         return false;
       }
+      const rateLimitRecovery = rateLimitRecoveryRef.current;
+      if (
+        shouldBlockRateLimitedBasemapSelection(
+          rateLimitRecovery,
+          target.id,
+          Date.now(),
+        )
+      ) {
+        if (options.announce !== false) {
+          message.warning("天地图服务正在限流冷却，请稍后再试");
+        }
+        return false;
+      }
 
       const previous = activeBasemapRef.current;
       if (previous.id === target.id && !options.force) return true;
@@ -658,10 +738,23 @@ export default function MapCanvas({
         }
 
         const failureMessage = basemapErrorMessage(result.error);
-        const technicalFallback = resolveBasemapDefinition(
+        const technicalFallback = resolveBasemapTechnicalFallback(
           basemapCatalog,
-          "osm",
+          target.id,
         );
+        if (options.rollbackOnFailure === false) {
+          if (technicalFallback && technicalFallback.id !== target.id) {
+            publishActiveBasemap(technicalFallback);
+            const fallbackResult = await loadBasemapStyle(
+              map,
+              technicalFallback,
+              snapshot,
+            );
+            if (!mountedRef.current || mapRef.current !== map) return false;
+            if (fallbackResult.ok) return true;
+          }
+          return false;
+        }
         if (previous.id === target.id) {
           if (technicalFallback && technicalFallback.id !== target.id) {
             publishActiveBasemap(technicalFallback);
@@ -723,6 +816,69 @@ export default function MapCanvas({
       message,
     ],
   );
+
+  const recoverRateLimitedBasemap = useCallback(
+    (
+      failedDefinition: BasemapDefinition,
+      failedDescriptor: ActiveBasemapDescriptor,
+    ) => {
+      const recovery = rateLimitRecoveryRef.current;
+      if (
+        !canRunRateLimitRecovery({
+          recovery,
+          failedDescriptor,
+          failedBasemapId: failedDefinition.id,
+          activeBasemapId: activeBasemapRef.current.id,
+          activeGeneration: basemapGenerationRef.current,
+          basemapSwitching: basemapSwitchingRef.current,
+          drawModeActive: Boolean(drawMode),
+          basemapSwitchDisabled,
+        })
+      ) {
+        recovery.inFlight = false;
+        return;
+      }
+      const fallback = resolveBasemapRateLimitFallback(
+        basemapCatalog,
+        failedDefinition.id,
+      );
+      if (!fallback) {
+        recovery.inFlight = false;
+        return;
+      }
+
+      void (async () => {
+        try {
+          const recovered = await switchBasemap(
+            fallback.id,
+            rateLimitRecoverySwitchOptions,
+          );
+          if (!mountedRef.current) return;
+          if (recovered) {
+            const recoveredDefinition = activeBasemapRef.current;
+            message.warning(
+              `${failedDefinition.label}请求受限，已自动切换到${recoveredDefinition.label}`,
+            );
+          } else {
+            message.error(
+              `${failedDefinition.label}请求受限，自动恢复底图失败，请稍后重新检测`,
+            );
+          }
+        } finally {
+          const currentRecovery = rateLimitRecoveryRef.current;
+          if (
+            currentRecovery.descriptor?.id === failedDescriptor.id &&
+            currentRecovery.descriptor.generation ===
+              failedDescriptor.generation
+          ) {
+            currentRecovery.inFlight = false;
+          }
+        }
+      })();
+    },
+    [basemapCatalog, basemapSwitchDisabled, drawMode, message, switchBasemap],
+  );
+  recoverRateLimitedBasemapRef.current = recoverRateLimitedBasemap;
 
   const retryActiveBasemap = useCallback<BasemapRetryProbe>(
     async ({ signal }) => {

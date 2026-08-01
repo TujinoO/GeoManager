@@ -9,7 +9,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 
 from apps.audit.models import OperationLog
-from apps.catalog.models import DataResource
+from apps.catalog.models import DataResource, MapLayer
 from apps.core.config import load_project_config
 from apps.raster.models import RasterDataset
 from apps.raster.services import (
@@ -64,6 +64,69 @@ class RasterPermissionApiTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertIn("当前角色“未分配角色”无权限", response.json()["detail"])
+
+    def test_sync_categorical_render_builds_complete_pyramid_before_response(self):
+        grant(self.user, ("core", "load_raster_layer"))
+        resource = DataResource.objects.create(
+            name="LUCC",
+            code="sync-lucc-resource",
+            data_type=DataResource.DataType.RASTER,
+            status=DataResource.Status.ACTIVE,
+            maintainer=self.user,
+        )
+        layer = MapLayer.objects.create(
+            name="LUCC",
+            code="sync-lucc-layer",
+            layer_type=MapLayer.LayerType.RASTER,
+            data_resource=resource,
+            is_active=True,
+            raster_rules={"mode": "unique", "bands": [1]},
+        )
+        dataset = RasterDataset.objects.create(
+            name="LUCC",
+            code="sync-lucc-dataset",
+            source_relative_path="sync-lucc.tif",
+            processed_relative_path="sync-lucc.cog.tif",
+            data_resource=resource,
+            map_layer=layer,
+            raster_kind=RasterDataset.RasterKind.CATEGORICAL,
+            resampling="nearest",
+            processed_gdalinfo={
+                "bands": [{"band": 1, "type": "Byte", "min": 1, "max": 8}]
+            },
+            default_rules={"mode": "unique", "bands": [1]},
+            band_count=1,
+            status=RasterDataset.Status.READY,
+        )
+        render_result = {
+            "delivery": "xyz",
+            "datasetId": dataset.id,
+            "layerId": layer.id,
+            "styleHash": "complete-lucc-style",
+            "tileUrl": "/api/raster/tiles/1/complete-lucc-style/{z}/{x}/{y}.png",
+            "minZoom": 0,
+            "maxZoom": 16,
+            "tileSampling": "nearest",
+            "status": "ready",
+            "bounds3857": [],
+            "bounds4326": [],
+            "imageCoordinates": [],
+            "rules": dataset.default_rules,
+        }
+
+        with (
+            patch("apps.raster.views.register_tile_style", return_value=render_result),
+            patch("apps.raster.views.build_static_xyz_tile_pyramid") as build_pyramid,
+        ):
+            response = self.client.post(
+                "/api/raster/render/",
+                data={"layerId": layer.id, "rulesMode": "default"},
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["styleHash"], "complete-lucc-style")
+        build_pyramid.assert_called_once_with(dataset, "complete-lucc-style")
 
     def test_render_async_denies_group_restricted_dataset_resource(self):
         grant(self.user, ("core", "load_raster_layer"))
@@ -327,6 +390,8 @@ class RasterPermissionApiTests(TestCase):
                 validate_raster_pixel_size({"size": [1500, 1000]})
 
     def test_tile_endpoint_cache_identity_includes_renderer_version(self):
+        from apps.raster.services.renderer import RASTER_RENDERER_VERSION
+
         grant(self.user, ("core", "load_raster_layer"))
         resource = DataResource.objects.create(
             name="tile-cache-resource",
@@ -339,11 +404,15 @@ class RasterPermissionApiTests(TestCase):
 
         with patch("apps.raster.views.render_xyz_tile", return_value=b"png"):
             response = self.client.get(
-                f"/api/raster/tiles/{dataset.id}/style-hash/7/96/47.png?rv=3"
+                f"/api/raster/tiles/{dataset.id}/style-hash/7/96/47.png"
+                f"?rv={RASTER_RENDERER_VERSION}"
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["ETag"], '"style-hash-rv3-7-96-47"')
+        self.assertEqual(
+            response["ETag"],
+            f'"style-hash-rv{RASTER_RENDERER_VERSION}-7-96-47"',
+        )
 
     def test_tile_endpoint_returns_no_content_for_tiles_outside_extent(self):
         grant(self.user, ("core", "load_raster_layer"))

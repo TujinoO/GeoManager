@@ -1043,37 +1043,20 @@ describe("application critical flows", () => {
     ).not.toBeInTheDocument();
   }, 30000);
 
-  it("shows the workspace tour once for a first-time signed-in user", async () => {
+  it("keeps first-time navigation unblocked and offers workspace guidance on demand", async () => {
     mockApi.me.mockResolvedValue({ authenticated: true, user: normalUser });
 
-    const { unmount } = renderApp("/map");
-
-    expect(
-      await screen.findByText("🎉 欢迎 🎉", {}, { timeout: 10000 }),
-    ).toBeInTheDocument();
-
-    const closeButton =
-      document.querySelector<HTMLButtonElement>(".ant-tour-close");
-    expect(closeButton).not.toBeNull();
-    fireEvent.click(closeButton!);
-
-    await waitFor(() => {
-      expect(screen.queryByText("🎉 欢迎 🎉")).not.toBeInTheDocument();
-    });
-    expect(
-      window.localStorage.getItem(
-        `huyang-system.workspace-tour.v1.${normalUser.id}.${normalUser.username}`,
-      ),
-    ).toBe("completed");
-
-    unmount();
     renderApp("/map");
 
-    await screen.findByRole(
-      "button",
-      { name: /^数据资源$/ },
-      { timeout: 10000 },
-    );
+    expect(
+      await screen.findByRole(
+        "button",
+        { name: /^数据资源$/ },
+        { timeout: 10000 },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^地理工作台$/ })).toBeEnabled();
+    expect(screen.queryByText("🎉 欢迎 🎉")).not.toBeInTheDocument();
     expect(screen.queryByText("全局搜索")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "用户信息" }));

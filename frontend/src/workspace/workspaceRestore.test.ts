@@ -16,6 +16,9 @@ const { mockApi } = vi.hoisted(() => ({
   mockApi: {
     resourceProfile: vi.fn(),
     queryResource: vi.fn(),
+    renderRaster: vi.fn(),
+    renderRasterAsync: vi.fn(),
+    rasterJob: vi.fn(),
   },
 }));
 
@@ -114,6 +117,9 @@ describe("restoreWorkspaceGroups", () => {
   beforeEach(() => {
     mockApi.resourceProfile.mockReset();
     mockApi.queryResource.mockReset();
+    mockApi.renderRaster.mockReset();
+    mockApi.renderRasterAsync.mockReset();
+    mockApi.rasterJob.mockReset();
   });
 
   it("reports skipped vector layers when query metadata is missing", async () => {
@@ -158,11 +164,18 @@ describe("restoreWorkspaceGroups", () => {
     ]);
   });
 
-  it("keeps raster snapshot references but reports unavailable original raster data", async () => {
+  it("does not expose legacy categorical tiles when original raster validation fails", async () => {
     mockApi.resourceProfile.mockRejectedValue(new Error("栅格资源已停用"));
 
     const result = await restoreWorkspaceGroups({
-      savedGroups: [makeGroup([makeSavedRasterLayer()])],
+      savedGroups: [
+        makeGroup([
+          makeSavedRasterLayer({
+            rasterKind: "categorical",
+            tileUrl: "/api/raster/tiles/7/v3-style/{z}/{x}/{y}.png?rv=3",
+          }),
+        ]),
+      ],
       canQueryData: true,
       canLoadVectorLayer: true,
       canLoadRasterLayer: true,
@@ -172,6 +185,12 @@ describe("restoreWorkspaceGroups", () => {
 
     expect(result.groups).toHaveLength(1);
     expect(result.groups[0].children).toHaveLength(1);
+    expect(result.groups[0].children[0]).toMatchObject({
+      layerType: "raster",
+      tileUrl: undefined,
+      renderStatus: "failed",
+      renderProgress: 0,
+    });
     expect(result.issues).toEqual([
       expect.objectContaining({
         layerName: "栅格图层",
@@ -179,6 +198,84 @@ describe("restoreWorkspaceGroups", () => {
         action: "restored-with-warning",
       }),
     ]);
+  });
+
+  it("re-renders a legacy v3 categorical snapshot before exposing v4 tiles", async () => {
+    const symbolization = cloneDefaultRasterSymbolization();
+    symbolization.mode = "unique";
+    symbolization.opacity = 72;
+    symbolization.uniqueValues = [
+      { value: 1, color: "#112233", label: "类别一" },
+    ];
+    mockApi.resourceProfile.mockResolvedValue({
+      raster: {
+        id: 7,
+        mapLayerId: 9,
+        rasterKind: "categorical",
+        metadata: { size: [1024, 1024] },
+      },
+    });
+    mockApi.renderRasterAsync.mockResolvedValue({
+      status: "ready",
+      result: {
+        delivery: "xyz",
+        datasetId: 7,
+        layerId: 9,
+        styleHash: "v4-style",
+        tileUrl: "/api/raster/tiles/7/v4-style/{z}/{x}/{y}.png?rv=4",
+        minZoom: 0,
+        maxZoom: 16,
+        tileSampling: "nearest",
+        status: "ready",
+        imageCoordinates: [
+          [100, 40],
+          [101, 40],
+          [101, 39],
+          [100, 39],
+        ],
+        rules: symbolization,
+      },
+    });
+
+    const result = await restoreWorkspaceGroups({
+      savedGroups: [
+        makeGroup([
+          makeSavedRasterLayer({
+            rasterKind: "categorical",
+            symbolization,
+            tileUrl: "/api/raster/tiles/7/v3-style/{z}/{x}/{y}.png?rv=3",
+          }),
+        ]),
+      ],
+      canQueryData: true,
+      canLoadVectorLayer: true,
+      canLoadRasterLayer: true,
+      queryResultLimit: 30000,
+      notification,
+    });
+
+    expect(mockApi.renderRasterAsync).toHaveBeenCalledWith({
+      datasetId: 7,
+      layerId: 9,
+      rules: symbolization,
+      rulesMode: "custom",
+    });
+    const restoredLayer = result.groups[0]?.children[0];
+    expect(restoredLayer).toMatchObject({
+      layerType: "raster",
+      tileUrl: "/api/raster/tiles/7/v4-style/{z}/{x}/{y}.png?rv=4",
+      tileMinZoom: 0,
+      tileMaxZoom: 16,
+      tileSampling: "nearest",
+      renderStatus: "ready",
+      renderProgress: 100,
+      symbolization: {
+        opacity: 72,
+        mode: "unique",
+        uniqueValues: [{ value: 1, color: "#112233", label: "类别一" }],
+      },
+    });
+    expect(result.issues).toEqual([]);
   });
 
   it("skips raster snapshot references when the current account cannot load rasters", async () => {

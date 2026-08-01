@@ -1,4 +1,5 @@
 import type { Map as MapboxMap } from "mapbox-gl";
+import type { BasemapDefinition, BasemapId } from "./basemapCatalog";
 import type { FeatureStateTarget } from "./mapState";
 import { getMapState } from "./mapState";
 
@@ -12,6 +13,70 @@ export interface BasemapCameraSnapshot {
 export interface StableReadinessGate {
   check: () => void;
   cancel: () => void;
+}
+
+type BasemapSourceReadinessMap = Pick<
+  MapboxMap,
+  "getSource" | "isSourceLoaded"
+>;
+
+const rateLimitFallbackOrder: readonly BasemapId[] = [
+  "mapbox-satellite",
+  "osm",
+];
+
+export function areBasemapSourcesReady(
+  map: BasemapSourceReadinessMap,
+  definition: BasemapDefinition,
+) {
+  const existingSourceIds = definition.sourceIds.filter((sourceId) => {
+    try {
+      return Boolean(map.getSource(sourceId));
+    } catch {
+      return false;
+    }
+  });
+  if (
+    definition.requireAllSourceIds &&
+    existingSourceIds.length !== definition.sourceIds.length
+  ) {
+    return false;
+  }
+  if (existingSourceIds.length === 0) return false;
+  return existingSourceIds.every((sourceId) => {
+    try {
+      return map.isSourceLoaded(sourceId);
+    } catch {
+      return false;
+    }
+  });
+}
+
+export function resolveBasemapRateLimitFallback(
+  catalog: readonly BasemapDefinition[],
+  failedId: BasemapId,
+) {
+  for (const id of rateLimitFallbackOrder) {
+    const candidate = catalog.find((definition) => definition.id === id);
+    if (
+      candidate &&
+      candidate.id !== failedId &&
+      candidate.credentials.available
+    ) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
+export function resolveBasemapTechnicalFallback(
+  catalog: readonly BasemapDefinition[],
+  failedId: BasemapId,
+) {
+  const fallback = catalog.find((definition) => definition.id === "osm");
+  return fallback?.id !== failedId && fallback?.credentials.available
+    ? fallback
+    : undefined;
 }
 
 export function createStableReadinessGate(
@@ -79,11 +144,15 @@ export function restoreSelectedFeatureState(
 }
 
 export function basemapErrorMessage(error: unknown) {
+  if (isBasemapRateLimitError(error)) {
+    return "底图服务请求过于频繁（HTTP 429），请稍后重试";
+  }
   const message = nestedErrorMessage(error).trim() || "地图资源加载失败";
   return redactBasemapCredentials(message);
 }
 
 export function isHardBasemapStyleError(error: unknown) {
+  if (isBasemapRateLimitError(error)) return true;
   const message = nestedErrorMessage(error).toLowerCase();
   return (
     /(?:^|\D)(?:401|403)(?:\D|$)/.test(message) ||
@@ -91,6 +160,18 @@ export function isHardBasemapStyleError(error: unknown) {
     message.includes("forbidden") ||
     message.includes("invalid token") ||
     message.includes("style is not done loading")
+  );
+}
+
+export function isBasemapRateLimitError(error: unknown) {
+  if (hasNestedHttpStatus(error, 429)) return true;
+  const message = nestedErrorMessage(error)
+    .replace(/https?:\/\/[^\s]+/gi, " ")
+    .toLowerCase();
+  if (/\bnot\s+rate[\s-]?limited\b/.test(message)) return false;
+  return (
+    message.includes("too many requests") ||
+    /\brate[\s-]?limit(?:ed|ing)?\b/.test(message)
   );
 }
 
@@ -110,4 +191,32 @@ function nestedErrorMessage(value: unknown, depth = 0): string {
     .map((key) => nestedErrorMessage(record[key], depth + 1))
     .filter(Boolean)
     .join(" ");
+}
+
+function hasNestedHttpStatus(
+  value: unknown,
+  expectedStatus: number,
+  depth = 0,
+): boolean {
+  if (value == null || depth > 3 || typeof value !== "object") {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of ["status", "statusCode"] as const) {
+    const status = record[key];
+    if (typeof status === "number" && status === expectedStatus) return true;
+    if (
+      typeof status === "string" &&
+      /^\d{3}$/.test(status) &&
+      Number(status) === expectedStatus
+    ) {
+      return true;
+    }
+  }
+  for (const key of ["error", "response", "cause"] as const) {
+    if (hasNestedHttpStatus(record[key], expectedStatus, depth + 1)) {
+      return true;
+    }
+  }
+  return false;
 }

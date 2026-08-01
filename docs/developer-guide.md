@@ -1620,7 +1620,7 @@ A: 检查图层关联的数据资源的 `isQueryable` 字段。
    ↓
 等待预处理完成
    ↓
-注册渲染样式
+注册渲染样式；分类栅格等待完整静态金字塔发布
    ↓
 加载瓦片到地图
 ```
@@ -1709,7 +1709,7 @@ job = response.json()
 
 #### Step 3: 注册渲染样式
 
-为栅格图层注册瓦片样式，获取 XYZ 瓦片 URL。
+为栅格图层注册瓦片样式，获取 XYZ 瓦片 URL、原生缩放范围和客户端采样规则。分类栅格会在导入时为默认样式预生成完整的最近邻 MBTiles 金字塔；更改唯一值颜色后，异步渲染任务也必须等新样式的全部层级完成并原子发布后才返回 `ready`。连续栅格和普通影像仍按请求动态渲染。
 
 ```javascript
 // JavaScript - 使用默认样式
@@ -1751,19 +1751,26 @@ map.addSource("raster-tiles", {
   tiles: [`${baseUrl}${renderResult.tileUrl}`],
   tileSize: 256,
   bounds: renderResult.bounds4326,
+  minzoom: renderResult.minZoom,
+  maxzoom: renderResult.maxZoom,
 });
 
+const categorical = renderResult.tileSampling === "nearest";
 map.addLayer({
   id: "raster-layer",
   type: "raster",
   source: "raster-tiles",
   paint: {
-    "raster-opacity": 0.8,
+    "raster-opacity": categorical ? 1 : 0.8,
+    "raster-resampling": renderResult.tileSampling,
+    "raster-fade-duration": categorical ? 0 : 300,
   },
 });
 ```
 
-前端加载 XYZ 栅格源时必须传入 `renderResult.bounds4326` 作为 Mapbox source 的 `bounds`，避免在影像范围外反复请求瓦片。后端也会对不在栅格空间范围内的瓦片请求返回 `204 No Content`；样式哈希过期或不存在仍返回 `404`。
+前端加载 XYZ 栅格源时必须同时传入 `bounds4326`、`minZoom` 和 `maxZoom`。这样既避免在影像范围外反复请求，也避免 Mapbox 按默认 z22 请求并长时间使用父瓦片兜底。`tileSampling=nearest` 必须在第一次 `addLayer` 时就设置，同时关闭分类栅格淡入；不得等 profile 或符号化面板异步完成后再切换。项目补丁还会让 nearest 路径跳过 GPU mipmap，并把当前、父级、回退和极区纹理的各向异性过滤固定为 1。后端对不在栅格空间范围内的瓦片请求返回 `204 No Content`；对超过分类栅格原生最大级别、过期样式或尚未完整发布的分类静态金字塔返回 `404`，不会动态补画分类瓦片。
+
+分类栅格 COG 的重投影和内部概览统一使用最近邻，显式传播 NoData。启动扫描会识别缺少当前预处理版本标记的既有分类 COG，并保留名称、权限、业务分类和当前唯一值规则后重新处理；仅升级前端包或更换瓦片 URL 不能修复历史双线性概览中已经生成的非法类别值。
 
 ### 自定义符号化
 
@@ -1800,7 +1807,7 @@ const { items } = await uniqueValuesRes.json();
 
 - **异步处理**：栅格导入和渲染建议使用异步模式，避免请求超时。
 - **COG 格式**：系统会自动转换为 COG 格式，优化瓦片加载性能。
-- **样式缓存**：相同样式规则会生成相同的 `styleHash`，可以复用瓦片 URL。
+- **样式缓存**：相同 COG 指纹和样式规则会生成相同的 `styleHash`；分类样式复用完整的内容寻址 MBTiles，连续影像复用瓦片 URL 与进程内缓存。
 - **进度监控**：异步任务可以通过轮询接口获取进度信息，及时反馈给用户。
 
 ### FAQ

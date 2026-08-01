@@ -1,14 +1,21 @@
 import type { Map as MapboxMap } from "mapbox-gl";
 import { describe, expect, it, vi } from "vitest";
+import {
+  createBasemapCatalog,
+  resolveBasemapDefinition,
+} from "./basemapCatalog";
 import { getMapState } from "./mapState";
 import {
+  areBasemapSourcesReady,
   basemapErrorMessage,
   createStableReadinessGate,
+  isBasemapRateLimitError,
   isHardBasemapStyleError,
   readBasemapCamera,
   redactBasemapCredentials,
   restoreBasemapCamera,
   restoreSelectedFeatureState,
+  resolveBasemapRateLimitFallback,
 } from "./basemapSwitch";
 
 describe("basemapSwitch", () => {
@@ -70,6 +77,75 @@ describe("basemapSwitch", () => {
     expect(isHardBasemapStyleError(new Error("tile request timed out"))).toBe(
       false,
     );
+  });
+
+  it("recognizes rate limiting as a hard error without mistaking tile coordinates", () => {
+    expect(isBasemapRateLimitError({ status: 429 })).toBe(true);
+    expect(
+      isBasemapRateLimitError(new Error("HTTP 429 Too Many Requests")),
+    ).toBe(true);
+    expect(isHardBasemapStyleError({ statusCode: "429" })).toBe(true);
+    expect(basemapErrorMessage({ response: { status: 429 } })).toContain(
+      "请求过于频繁",
+    );
+    expect(
+      isBasemapRateLimitError(
+        "https://t0.tianditu.gov.cn/vec_w/wmts?TILECOL=429",
+      ),
+    ).toBe(false);
+    expect(
+      isBasemapRateLimitError({
+        status: 0,
+        error: {
+          status: 429,
+          url: "https://t0.tianditu.gov.cn/vec_w/wmts?TILECOL=1",
+        },
+      }),
+    ).toBe(true);
+    expect(
+      isBasemapRateLimitError("https://example.test/rate-limit/tiles"),
+    ).toBe(false);
+    expect(
+      isBasemapRateLimitError(new Error("request was not rate limited")),
+    ).toBe(false);
+  });
+
+  it("requires both Tianditu raster sources before reporting readiness", () => {
+    const catalog = createBasemapCatalog({
+      mapboxAccessToken: "mapbox-test-token",
+      tiandituKey: "tianditu-test-key",
+    });
+    const definition = resolveBasemapDefinition(catalog, "tianditu-vector")!;
+    const present = new Set([definition.sourceIds[0]]);
+    const loaded = new Set(definition.sourceIds);
+    const map = {
+      getSource: (sourceId: string) =>
+        present.has(sourceId) ? { id: sourceId } : undefined,
+      isSourceLoaded: (sourceId: string) => loaded.has(sourceId),
+    } as unknown as MapboxMap;
+
+    expect(areBasemapSourcesReady(map, definition)).toBe(false);
+    present.add(definition.sourceIds[1]);
+    expect(areBasemapSourcesReady(map, definition)).toBe(true);
+    loaded.delete(definition.sourceIds[1]);
+    expect(areBasemapSourcesReady(map, definition)).toBe(false);
+  });
+
+  it("selects a stable rate-limit fallback without reselecting Tianditu", () => {
+    const allAvailable = createBasemapCatalog({
+      mapboxAccessToken: "mapbox-test-token",
+      tiandituKey: "tianditu-test-key",
+    });
+    expect(
+      resolveBasemapRateLimitFallback(allAvailable, "tianditu-vector")?.id,
+    ).toBe("mapbox-satellite");
+
+    const noMapbox = createBasemapCatalog({
+      tiandituKey: "tianditu-test-key",
+    });
+    expect(
+      resolveBasemapRateLimitFallback(noMapbox, "tianditu-vector")?.id,
+    ).toBe("osm");
   });
 
   it("rechecks readiness after the stability window before committing", () => {

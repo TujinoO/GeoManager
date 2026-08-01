@@ -102,6 +102,9 @@ describe("workspaceSnapshot", () => {
       layerType: "raster",
       sourceResource: makeResource({ dataType: "raster" }),
       tileUrl: "/api/raster/tiles/7/hash/{z}/{x}/{y}.png",
+      tileMinZoom: 0,
+      tileMaxZoom: 16,
+      tileSampling: "nearest",
       imageCoordinates: [
         [80, 45],
         [85, 45],
@@ -127,6 +130,8 @@ describe("workspaceSnapshot", () => {
 
     expect(savedLayer.layerType).toBe("raster");
     expect(savedLayer.tileUrl).toBe(rasterLayer.tileUrl);
+    expect(savedLayer.tileMaxZoom).toBe(16);
+    expect(savedLayer.tileSampling).toBe("nearest");
     expect(savedLayer.rasterDatasetId).toBe(7);
     expect(savedLayer.renderStatus).toBe("ready");
     expect(savedLayer).not.toHaveProperty("renderJobId");

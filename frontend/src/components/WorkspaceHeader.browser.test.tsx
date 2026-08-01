@@ -190,11 +190,6 @@ function renderHeader(
   setUser: (user: User | null) => void = vi.fn(),
   initialPath = "/",
 ) {
-  window.localStorage.setItem(
-    `huyang-system.workspace-tour.v1.${contextUser.id}.${contextUser.username}`,
-    "completed",
-  );
-
   return render(
     <ConfigProvider locale={zhCN} theme={appTheme}>
       <AntApp>
@@ -477,6 +472,22 @@ describe("WorkspaceHeader", () => {
     fireEvent.click(screen.getByRole("button", { name: "智能预警" }));
 
     expect(screen.getByTestId("location-path")).toHaveTextContent("/warning");
+  });
+
+  it("keeps first-entry map navigation available and opens guidance on demand", async () => {
+    window.localStorage.clear();
+    renderHeader();
+
+    expect(screen.queryByText("🎉 欢迎 🎉")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "地理工作台" }));
+
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/map");
+
+    fireEvent.click(screen.getByRole("button", { name: "用户信息" }));
+    fireEvent.click(await screen.findByRole("button", { name: /显示引导/ }));
+
+    expect(await screen.findByText("🎉 欢迎 🎉")).toBeInTheDocument();
   });
 
   it("clears cached layer state when the user logs out", async () => {

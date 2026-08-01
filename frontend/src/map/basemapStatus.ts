@@ -6,6 +6,7 @@ export interface ActiveBasemapDescriptor {
   id: string;
   generation: BasemapGeneration;
   sourceIds: readonly string[];
+  requireAllSourceIds?: boolean;
   resourceMarkers: readonly string[];
 }
 
@@ -94,6 +95,7 @@ export function activeBasemapScopeKey(
     activeBasemap.id,
     typeof activeBasemap.generation,
     activeBasemap.generation,
+    Boolean(activeBasemap.requireAllSourceIds),
   ]);
 }
 

@@ -3475,7 +3475,7 @@ paths:
     get:
       tags: [栅格数据]
       summary: 获取 XYZ 瓦片
-      description: 获取渲染后的栅格 PNG 瓦片，供 Mapbox GL JS 消费
+      description: 获取渲染后的栅格 PNG 瓦片，供 Mapbox GL JS 消费。连续栅格可按请求动态渲染；分类栅格只读取已经完整、原子发布的最近邻 MBTiles，不允许逐瓦片动态回退
       operationId: getTile
       security:
         - sessionAuth: []
@@ -9652,7 +9652,7 @@ components:
     RasterRenderResult:
       type: object
       required:
-        [delivery, datasetId, layerId, styleHash, tileUrl, status, bounds3857, bounds4326, imageCoordinates, rules]
+        [delivery, datasetId, layerId, styleHash, tileUrl, minZoom, maxZoom, tileSampling, status, bounds3857, bounds4326, imageCoordinates, rules]
       properties:
         delivery:
           type: string
@@ -9670,6 +9670,20 @@ components:
         tileUrl:
           type: string
           description: XYZ 瓦片 URL 模板
+        minZoom:
+          type: integer
+          minimum: 0
+          maximum: 22
+          description: XYZ 瓦片源可用的最小级别；当前统一为 0
+        maxZoom:
+          type: integer
+          minimum: 0
+          maximum: 22
+          description: 数据原生分辨率对应的最大瓦片级别；客户端超过该级别时只放大该级瓦片，不继续请求更高层级
+        tileSampling:
+          type: string
+          enum: [nearest, linear]
+          description: 客户端纹理采样方式；分类栅格固定为 nearest，连续栅格与影像为 linear
         status:
           type: string
           enum: [ready]

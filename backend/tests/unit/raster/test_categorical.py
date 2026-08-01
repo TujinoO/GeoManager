@@ -15,12 +15,17 @@ class CategoricalMetadataTests(SimpleTestCase):
             source_path=Path("source.tif"),
             processed_path=Path("processed.tif"),
             resampling="nearest",
+            nodata=255,
         )
 
         self.assertIn("nearest", command)
         self.assertIn("OVERVIEWS=IGNORE_EXISTING", command)
         self.assertIn("WARP_RESAMPLING=NEAREST", command)
         self.assertIn("OVERVIEW_RESAMPLING=NEAREST", command)
+        self.assertIn("UNIFIED_SRC_NODATA=YES", command)
+        self.assertIn("INIT_DEST=NO_DATA", command)
+        self.assertEqual(command[command.index("-srcnodata") + 1], "255")
+        self.assertEqual(command[command.index("-dstnodata") + 1], "255")
 
     def test_reads_thematic_rat_labels_and_transparent_colors(self):
         metadata = {

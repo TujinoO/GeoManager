@@ -1619,7 +1619,7 @@ export const getJobStatus = <ThrowOnError extends boolean = false>(options: Opti
 /**
  * 获取 XYZ 瓦片
  *
- * 获取渲染后的栅格 PNG 瓦片，供 Mapbox GL JS 消费
+ * 获取渲染后的栅格 PNG 瓦片，供 Mapbox GL JS 消费。连续栅格可按请求动态渲染；分类栅格只读取已经完整、原子发布的最近邻 MBTiles，不允许逐瓦片动态回退
  */
 export const getTile = <ThrowOnError extends boolean = false>(options: Options<GetTileData, ThrowOnError>): RequestResult<GetTileResponses, GetTileErrors, ThrowOnError> => (options.client ?? client).get<GetTileResponses, GetTileErrors, ThrowOnError>({
     security: [{

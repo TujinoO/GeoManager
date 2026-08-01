@@ -1,10 +1,13 @@
 import { api } from "../api/client";
+import { rasterTileRendererVersion } from "../map/rasterLayerSync";
+import { rasterSymbolizationFromRules } from "../symbolization";
 import type {
   DataResource,
   LoadedLayer,
   LoadedLayerGroup,
   LoadedRasterLayer,
   LoadedVectorLayer,
+  RasterRenderResult,
   WorkspaceSceneSnapshot,
 } from "../types";
 import { createVectorLayerGroup } from "../utils/layerFactory";
@@ -155,8 +158,12 @@ export async function restoreWorkspaceGroups({
         continue;
       }
       let rasterKind = savedLayer.rasterKind;
+      let currentRaster:
+        | Awaited<ReturnType<typeof api.resourceProfile>>["raster"]
+        | undefined;
       try {
         const profile = await api.resourceProfile(savedLayer.sourceResource);
+        currentRaster = profile.raster ?? undefined;
         rasterKind = profile.raster?.rasterKind ?? rasterKind;
         if (!profile.raster) {
           issues.push({
@@ -196,26 +203,98 @@ export async function restoreWorkspaceGroups({
           action: "restored-with-warning",
         });
       }
+      const refreshLegacyCategoricalTiles =
+        rasterKind === "categorical" &&
+        !usesCurrentRasterRenderer(savedLayer.tileUrl);
+      let refreshedRender: RasterRenderResult | undefined;
+      let refreshError =
+        refreshLegacyCategoricalTiles && !currentRaster
+          ? "无法校验原始分类栅格，已停止加载旧版瓦片"
+          : undefined;
+      if (refreshLegacyCategoricalTiles && currentRaster) {
+        updateRestoreProgress(`正在升级分类栅格瓦片：${savedLayer.name}`);
+        try {
+          refreshedRender = await renderCategoricalSnapshot(
+            currentRaster.id,
+            currentRaster.mapLayerId,
+            savedLayer.symbolization as LoadedRasterLayer["symbolization"],
+          );
+          if (!usesCurrentRasterRenderer(refreshedRender.tileUrl)) {
+            throw new Error("分类栅格服务返回了旧版瓦片地址");
+          }
+        } catch (error) {
+          refreshError =
+            error instanceof Error ? error.message : "分类栅格瓦片升级失败";
+          issues.push({
+            layerName: savedLayer.name,
+            resourceName: savedLayer.sourceResource.name,
+            reason: refreshError,
+            action: "restored-with-warning",
+          });
+        }
+      }
+      const savedSymbolization =
+        savedLayer.symbolization as LoadedRasterLayer["symbolization"];
+      const restoredSymbolization = refreshedRender
+        ? {
+            ...rasterSymbolizationFromRules(refreshedRender.rules),
+            opacity: savedSymbolization.opacity,
+          }
+        : savedSymbolization;
       restoredChildren.push({
         id: savedLayer.id,
         name: savedLayer.name,
         layerType: "raster",
         sourceResource: savedLayer.sourceResource as DataResource,
-        tileUrl: savedLayer.tileUrl,
-        imageCoordinates: savedLayer.imageCoordinates,
-        rasterDatasetId: savedLayer.rasterDatasetId,
-        rasterLayerId: savedLayer.rasterLayerId,
+        tileUrl: refreshLegacyCategoricalTiles
+          ? refreshedRender?.tileUrl
+          : savedLayer.tileUrl,
+        tileMinZoom: refreshedRender?.minZoom ?? savedLayer.tileMinZoom,
+        tileMaxZoom: refreshedRender?.maxZoom ?? savedLayer.tileMaxZoom,
+        tileSampling:
+          refreshedRender?.tileSampling ??
+          savedLayer.tileSampling ??
+          (rasterKind === "categorical" ? "nearest" : undefined),
+        imageCoordinates:
+          refreshedRender?.imageCoordinates ?? savedLayer.imageCoordinates,
+        rasterDatasetId: refreshLegacyCategoricalTiles
+          ? currentRaster?.id
+          : savedLayer.rasterDatasetId,
+        rasterLayerId: refreshLegacyCategoricalTiles
+          ? currentRaster?.mapLayerId
+          : savedLayer.rasterLayerId,
         rasterKind,
-        rasterMetadata: savedLayer.rasterMetadata,
-        renderStatus: savedLayer.renderStatus,
-        renderProgress: savedLayer.renderProgress,
-        renderMessages: savedLayer.renderMessages,
+        rasterMetadata: currentRaster?.metadata ?? savedLayer.rasterMetadata,
+        renderStatus: refreshedRender
+          ? "ready"
+          : refreshError
+            ? "failed"
+            : savedLayer.renderStatus,
+        renderProgress: refreshedRender
+          ? 100
+          : refreshError
+            ? 0
+            : savedLayer.renderProgress,
+        renderMessages: refreshedRender
+          ? ["分类栅格静态瓦片已升级并就绪"]
+          : refreshError
+            ? [refreshError]
+            : savedLayer.renderMessages,
         geometryType: savedLayer.geometryType,
         visible: savedLayer.visible,
-        summary: savedLayer.summary,
-        metadata: savedLayer.metadata,
-        symbolization:
-          savedLayer.symbolization as LoadedRasterLayer["symbolization"],
+        summary: refreshedRender
+          ? "XYZ 瓦片已就绪"
+          : refreshError
+            ? "分类栅格瓦片升级失败"
+            : savedLayer.summary,
+        metadata: refreshedRender
+          ? {
+              ...savedLayer.metadata,
+              加载方式: "XYZ 瓦片",
+              样式哈希: refreshedRender.styleHash,
+            }
+          : savedLayer.metadata,
+        symbolization: restoredSymbolization,
         fields: savedLayer.fields,
       });
       processedLayers += 1;
@@ -226,6 +305,46 @@ export async function restoreWorkspaceGroups({
     }
   }
   return { groups: restored, issues };
+}
+
+async function renderCategoricalSnapshot(
+  datasetId: number,
+  layerId: number | null,
+  symbolization: LoadedRasterLayer["symbolization"],
+): Promise<RasterRenderResult> {
+  const rules = symbolization as unknown as Record<string, unknown>;
+  let job = await api.renderRasterAsync({
+    datasetId,
+    layerId,
+    rules,
+    rulesMode: "custom",
+  });
+  const deadline = Date.now() + 120_000;
+  while (job.status === "queued" || job.status === "running") {
+    if (Date.now() >= deadline) {
+      throw new Error("分类栅格瓦片升级等待超时");
+    }
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 900));
+    job = await api.rasterJob(job.id);
+  }
+  if (
+    job.status === "ready" &&
+    job.result &&
+    typeof job.result === "object" &&
+    "tileUrl" in job.result
+  ) {
+    return job.result as RasterRenderResult;
+  }
+  throw new Error(job.error || "分类栅格瓦片升级失败");
+}
+
+function usesCurrentRasterRenderer(tileUrl: string | undefined) {
+  if (!tileUrl) {
+    return false;
+  }
+  return new RegExp(`(?:[?&])rv=${rasterTileRendererVersion}(?:[&#]|$)`).test(
+    tileUrl,
+  );
 }
 
 function isForbiddenError(error: unknown) {
