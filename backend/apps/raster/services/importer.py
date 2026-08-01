@@ -46,10 +46,50 @@ def normalize_import_resampling(raster_kind: str, resampling: str) -> str:
     """Categorical rasters must never interpolate class identifiers."""
 
     return (
-        "nearest"
-        if raster_kind == RasterDataset.RasterKind.CATEGORICAL
-        else resampling
+        "nearest" if raster_kind == RasterDataset.RasterKind.CATEGORICAL else resampling
     )
+
+
+def gdalwarp_cog_command(
+    source_path: Path, processed_path: Path, resampling: str
+) -> list[str]:
+    """Build a COG command whose warp and every overview use one resampler."""
+
+    overview_resampling = resampling.upper()
+    return [
+        "gdalwarp",
+        "--config",
+        "GDAL_CACHEMAX",
+        "128",
+        "-t_srs",
+        "EPSG:3857",
+        "-r",
+        resampling,
+        "-wo",
+        "NUM_THREADS=1",
+        "-wm",
+        "128",
+        "-co",
+        "COMPRESS=DEFLATE",
+        "-co",
+        "BLOCKSIZE=512",
+        "-co",
+        "BIGTIFF=IF_SAFER",
+        "-co",
+        "NUM_THREADS=1",
+        # A source GeoTIFF may already contain overviews created with bilinear
+        # interpolation. Never copy those into a categorical COG.
+        "-co",
+        "OVERVIEWS=IGNORE_EXISTING",
+        "-co",
+        f"WARP_RESAMPLING={overview_resampling}",
+        "-co",
+        f"OVERVIEW_RESAMPLING={overview_resampling}",
+        "-of",
+        "COG",
+        str(source_path),
+        str(processed_path),
+    ]
 
 
 def validate_raster_upload_size(uploaded_file) -> None:
@@ -325,34 +365,7 @@ def import_raster_file(
                 "-co COMPRESS=DEFLATE -of COG"
             )
         run_gdal_command(
-            [
-                "gdalwarp",
-                "--config",
-                "GDAL_CACHEMAX",
-                "128",
-                "-t_srs",
-                "EPSG:3857",
-                "-r",
-                resampling,
-                "-wo",
-                "NUM_THREADS=1",
-                "-wm",
-                "128",
-                "-co",
-                "COMPRESS=DEFLATE",
-                "-co",
-                "BLOCKSIZE=512",
-                "-co",
-                "BIGTIFF=IF_SAFER",
-                "-co",
-                "NUM_THREADS=1",
-                "-co",
-                f"OVERVIEW_RESAMPLING={resampling.upper()}",
-                "-of",
-                "COG",
-                str(source_path),
-                str(processed_path),
-            ],
+            gdalwarp_cog_command(source_path, processed_path, resampling),
             progress=lambda text: handle_import_progress(text, progress),
         )
         if progress:

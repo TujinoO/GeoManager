@@ -32,13 +32,11 @@ class _TileStyleCacheEntry:
     last_accessed_at: float
 
 
-_TILE_STYLES: OrderedDict[
-    tuple[int, str], _TileStyleCacheEntry
-] = OrderedDict()
+_TILE_STYLES: OrderedDict[tuple[int, str], _TileStyleCacheEntry] = OrderedDict()
 _TILE_STYLES_LOCK = threading.RLock()
 TILE_STYLE_CACHE_MAX_ENTRIES = 256
 TILE_STYLE_CACHE_TTL_SECONDS = 60 * 60
-RASTER_RENDERER_VERSION = 2
+RASTER_RENDERER_VERSION = 3
 
 
 def _prune_tile_styles_locked(*, now: float) -> None:
@@ -114,7 +112,10 @@ def register_tile_style(
         "datasetId": dataset.id,
         "layerId": dataset.map_layer_id,
         "styleHash": sh,
-        "tileUrl": f"/api/raster/tiles/{dataset.id}/{sh}/{{z}}/{{x}}/{{y}}.png",
+        "tileUrl": (
+            f"/api/raster/tiles/{dataset.id}/{sh}/{{z}}/{{x}}/{{y}}.png"
+            f"?rv={RASTER_RENDERER_VERSION}"
+        ),
         "bounds3857": dataset.bounds_3857,
         "bounds4326": dataset.bounds_4326,
         "imageCoordinates": dataset.image_coordinates,

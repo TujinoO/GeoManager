@@ -578,6 +578,7 @@ function isExternalBasemapSource(sourceId: string, source: unknown) {
     normalizedId === "composite" ||
     normalizedId === "satellite" ||
     normalizedId === "osm-raster" ||
+    normalizedId.startsWith("basemap-tianditu-") ||
     normalizedId.startsWith("mapbox")
   ) {
     return true;
@@ -587,7 +588,8 @@ function isExternalBasemapSource(sourceId: string, source: unknown) {
   if (
     typeof candidate.url === "string" &&
     (candidate.url.startsWith("mapbox://") ||
-      candidate.url.includes("openfreemap.org"))
+      candidate.url.includes("openfreemap.org") ||
+      candidate.url.includes("tianditu.gov.cn"))
   ) {
     return true;
   }
@@ -599,7 +601,8 @@ function isExternalBasemapSource(sourceId: string, source: unknown) {
       typeof tile === "string" &&
       (tile.includes("api.mapbox.com") ||
         tile.includes("tile.openstreetmap.org") ||
-        tile.includes("openfreemap.org")),
+        tile.includes("openfreemap.org") ||
+        tile.includes("tianditu.gov.cn")),
   );
 }
 

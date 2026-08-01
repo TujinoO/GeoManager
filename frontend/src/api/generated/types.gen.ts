@@ -212,13 +212,17 @@ export type MapConfig = {
      */
     defaultZoom: number;
     /**
-     * 默认 Mapbox 底图样式
+     * 默认正式底图标识；支持 satellite、mapbox-streets 或 tianditu-vector，历史 osm 配置在下次管理员保存时迁移为 satellite
      */
     defaultBasemap: string;
     /**
-     * 前端加载 Mapbox 服务所需 token
+     * 前端加载 Mapbox 服务所需的 pk.* 浏览器公开 Token；为空字符串表示未配置，sk.* 私密 Token 会被拒绝
      */
     mapboxAccessToken: string;
+    /**
+     * 前端加载天地图球面墨卡托 WMTS 服务所需的 32 位浏览器公开 Key，对应请求参数 tk；为空字符串表示未配置。该字段会经公共 Bootstrap 接口下发，不得保存服务端私密凭证
+     */
+    tiandituAccessToken: string;
 };
 
 export type SystemLimits = {

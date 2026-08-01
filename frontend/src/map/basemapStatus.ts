@@ -1,5 +1,13 @@
 export type PlatformReachability = "checking" | "reachable" | "unreachable";
 export type BasemapLoadState = "unknown" | "loading" | "ready" | "failed";
+export type BasemapGeneration = string | number;
+
+export interface ActiveBasemapDescriptor {
+  id: string;
+  generation: BasemapGeneration;
+  sourceIds: readonly string[];
+  resourceMarkers: readonly string[];
+}
 
 export interface BrowserNetworkSnapshot {
   online: boolean;
@@ -38,6 +46,16 @@ export interface BasemapStatusPresentation {
 
 export const basemapSlowThresholdMs = 3_000;
 
+export const defaultBasemapResourceMarkers = [
+  "mapbox://",
+  "api.mapbox.com",
+  "tiles.mapbox.com",
+  "openfreemap.org",
+  "tile.openstreetmap.org",
+  "sprite",
+  "glyph",
+] as const;
+
 export function initialBasemapDiagnostics(
   network: BrowserNetworkSnapshot,
 ): BasemapDiagnostics {
@@ -52,6 +70,31 @@ export function initialBasemapDiagnostics(
     recentBasemapFailures: 0,
     checkedAt: null,
   };
+}
+
+export function resetBasemapDiagnosticsForSwitch(
+  diagnostics: BasemapDiagnostics,
+  now = Date.now(),
+): BasemapDiagnostics {
+  return {
+    ...diagnostics,
+    basemap: "loading",
+    basemapLatencyMs: null,
+    basemapLoadingSince: now,
+    recentBasemapFailures: 0,
+  };
+}
+
+export function activeBasemapScopeKey(
+  activeBasemap: ActiveBasemapDescriptor | null | undefined,
+) {
+  if (activeBasemap === undefined) return "legacy";
+  if (activeBasemap === null) return "none";
+  return JSON.stringify([
+    activeBasemap.id,
+    typeof activeBasemap.generation,
+    activeBasemap.generation,
+  ]);
 }
 
 export function classifyBasemapStatus(
@@ -168,7 +211,14 @@ export function isBrowserConnectionSlow(network: BrowserNetworkSnapshot) {
   );
 }
 
-export function isBasemapSourceId(sourceId: string | undefined) {
+export function isBasemapSourceId(
+  sourceId: string | undefined,
+  activeBasemap?: ActiveBasemapDescriptor | null,
+) {
+  if (activeBasemap === null) return false;
+  if (activeBasemap !== undefined) {
+    return Boolean(sourceId && activeBasemap.sourceIds.includes(sourceId));
+  }
   return Boolean(
     sourceId &&
     !sourceId.startsWith("loaded-") &&
@@ -177,24 +227,26 @@ export function isBasemapSourceId(sourceId: string | undefined) {
   );
 }
 
-export function isBasemapResourceError(value: unknown) {
+export function isBasemapResourceError(
+  value: unknown,
+  activeBasemap?: ActiveBasemapDescriptor | null,
+) {
   const record = asRecord(value);
   const sourceId =
     typeof record?.sourceId === "string" ? record.sourceId : null;
-  if (sourceId && isBasemapSourceId(sourceId)) {
-    return true;
+  if (sourceId) {
+    return isBasemapSourceId(sourceId, activeBasemap);
   }
 
   const text = nestedErrorText(value).toLowerCase();
-  return [
-    "mapbox://",
-    "api.mapbox.com",
-    "tiles.mapbox.com",
-    "openfreemap.org",
-    "tile.openstreetmap.org",
-    "sprite",
-    "glyph",
-  ].some((marker) => text.includes(marker));
+  const resourceMarkers =
+    activeBasemap === undefined
+      ? defaultBasemapResourceMarkers
+      : (activeBasemap?.resourceMarkers ?? []);
+  return resourceMarkers.some((marker) => {
+    const normalizedMarker = marker.trim().toLowerCase();
+    return normalizedMarker.length > 0 && text.includes(normalizedMarker);
+  });
 }
 
 function nestedErrorText(value: unknown, depth = 0): string {

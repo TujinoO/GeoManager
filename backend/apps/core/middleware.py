@@ -16,10 +16,11 @@ CONTENT_SECURITY_POLICY = "; ".join(
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob: https://api.mapbox.com "
         "https://tiles.openfreemap.org https://*.tile.openstreetmap.org "
-        "https://images.unsplash.com",
+        "https://*.tianditu.gov.cn https://images.unsplash.com",
         "font-src 'self' data:",
         "connect-src 'self' https://api.mapbox.com "
-        "https://tiles.openfreemap.org https://*.tile.openstreetmap.org",
+        "https://tiles.openfreemap.org https://*.tile.openstreetmap.org "
+        "https://*.tianditu.gov.cn",
         "worker-src 'self' blob:",
         "frame-src 'self' blob:",
         "media-src 'none'",

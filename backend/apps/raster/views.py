@@ -35,6 +35,7 @@ from apps.raster.services.package import (
     preview_uploaded_raster_package,
     store_uploaded_raster_package,
 )
+from apps.raster.services.renderer import RASTER_RENDERER_VERSION
 
 
 @require_POST
@@ -452,5 +453,5 @@ def tile(request, dataset_id: int, style_hash: str, z: int, x: int, y: int):
         return JsonResponse({"detail": str(exc)}, status=404)
     response = HttpResponse(content, content_type="image/png")
     response["Cache-Control"] = "private, max-age=86400"
-    response["ETag"] = f'"{style_hash}-{z}-{x}-{y}"'
+    response["ETag"] = f'"{style_hash}-rv{RASTER_RENDERER_VERSION}-{z}-{x}-{y}"'
     return response

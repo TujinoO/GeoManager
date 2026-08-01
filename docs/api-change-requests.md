@@ -59,6 +59,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260730-007 | Verified | generated browser SDK operations | client transport metadata / CSP compatibility | Updated | N/A | N/A | Passed | Defaults generated clients to the same-origin platform entry instead of hard-coded localhost |
 | API-20260730-008 | Verified | vector query and catalog export endpoints | 413/503 status and resource-bound behavior | Updated | N/A | Implemented | Passed | Adds bounded query concurrency/body sizes and disk-streamed exports for OOM prevention |
 | API-20260731-001 | BackendReady | `POST /api/admin/settings/` | validation / persistence / error response | Updated | N/A | Implemented | Focused passed | Bounds editable runtime limits and requires writable `/config` directory mounting for atomic saves |
+| API-20260801-001 | Verified | `GET /api/bootstrap/`, `GET/POST /api/admin/settings/` | response/request field | Updated | Updated | Implemented | Passed | Adds an optional browser-safe Tianditu Key while keeping legacy TOML files valid |
 
 ## Entry Template
 
@@ -76,6 +77,20 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Verification: commands or response checks required before marking implemented
 - Result: current backend/frontend verification result
 ```
+
+## API-20260801-001 - Optional Tianditu browser access token
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET /api/bootstrap/`, `GET/POST /api/admin/settings/`
+- Change type: response field | request field | runtime configuration
+- OpenAPI change: Adds optional string field `map.tiandituAccessToken` to `MapConfig`; the backend returns an empty string when the optional `application.map.tianditu_access_token` TOML key is absent. Keeping the contract field optional avoids forcing legacy generated clients to provide it immediately. The existing admin settings POST accepts the same field for partial map-setting updates.
+- Mock examples: `mock/prism/examples/00-public-auth.json`, `mock/prism/examples/10-admin-auth.json`
+- Frontend reason: The basemap selector needs a browser-safe Tianditu Key without replacing or weakening the existing Mapbox default path.
+- Backend implementation notes: Load the optional TOML value with an empty-string default, expose it through Bootstrap and admin settings, persist trimmed administrator updates, and never seed a real Key in repository configuration or examples.
+- Validation notes: Administrator writes accept only Mapbox `pk.*` public tokens and 32-character alphanumeric Tianditu browser keys. Formal default basemaps are `satellite`, `mapbox-streets`, and `tianditu-vector`; historical `osm` input is normalized to `satellite` on save.
+- Verification: Focused Bootstrap/config/admin-setting Django tests; regenerated API types; `check:api`; `api:changes:check`; `api:lint`; `api:docs`; `mock:build`; frontend `typecheck`.
+- Result: Passed. The focused backend run completed with 10 passed tests (101 deselected), followed by all 111 tests in `backend/tests/integration/core/test_api.py`; generated API files match the OpenAPI contract; change tracking, OpenAPI validation, documentation generation, Prism bundle generation, and TypeScript checks all passed. OpenAPI lint retains only the six pre-existing unused-component warnings.
 
 ## API-20260730-001 - Data resource display-name rename
 

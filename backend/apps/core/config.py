@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import math
 import os
 from pathlib import Path
+import re
 import tempfile
 import threading
 from typing import Any
@@ -65,6 +66,7 @@ class MapConfig:
     default_zoom: float
     default_basemap: str
     mapbox_access_token: str
+    tianditu_access_token: str
 
 
 @dataclass(frozen=True)
@@ -191,9 +193,13 @@ def load_project_config(config_path: Path, program_root: Path) -> ProjectConfig:
                 map_config.get("default_basemap"),
                 "application.map.default_basemap",
             ),
-            mapbox_access_token=_optional_string(
+            mapbox_access_token=validate_mapbox_browser_token(
                 map_config.get("mapbox_access_token", ""),
                 "application.map.mapbox_access_token",
+            ),
+            tianditu_access_token=validate_tianditu_browser_key(
+                map_config.get("tianditu_access_token", ""),
+                "application.map.tianditu_access_token",
             ),
         ),
         limits=LimitConfig(
@@ -353,6 +359,46 @@ def _optional_string(value: Any, key: str) -> str:
     if not isinstance(value, str):
         raise ConfigValidationError(f"配置项 {key} 必须是字符串")
     return value.strip()
+
+
+def validate_mapbox_browser_token(value: Any, key: str) -> str:
+    token = _optional_string(value, key)
+    if token and not token.startswith("pk."):
+        raise ConfigValidationError(
+            f"配置项 {key} 只允许 Mapbox pk.* 浏览器公开 Token，"
+            "不得填写 sk.* 私密 Token"
+        )
+    return token
+
+
+def validate_tianditu_browser_key(value: Any, key: str) -> str:
+    token = _optional_string(value, key)
+    if token and not re.fullmatch(r"[A-Za-z0-9]{32}", token):
+        raise ConfigValidationError(
+            f"配置项 {key} 必须是天地图控制台签发的 32 位浏览器 Key"
+        )
+    return token
+
+
+def sanitized_public_map_credentials(map_config: dict[str, Any]) -> tuple[str, str]:
+    """Return only browser credentials that are safe for public serialization."""
+    try:
+        mapbox_token = validate_mapbox_browser_token(
+            map_config.get("mapbox_access_token", ""),
+            "application.map.mapbox_access_token",
+        )
+    except ConfigValidationError:
+        mapbox_token = ""
+
+    try:
+        tianditu_key = validate_tianditu_browser_key(
+            map_config.get("tianditu_access_token", ""),
+            "application.map.tianditu_access_token",
+        )
+    except ConfigValidationError:
+        tianditu_key = ""
+
+    return mapbox_token, tianditu_key
 
 
 def _string_tuple(value: Any, key: str) -> tuple[str, ...]:

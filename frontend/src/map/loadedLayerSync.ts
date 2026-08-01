@@ -34,6 +34,7 @@ export function syncLoadedLayers(
   map: MapboxMap,
   layers: LoadedLayer[],
   onFeatureSelect?: (feature: FeatureInfo | null) => void,
+  options: { fitNewLayers?: boolean } = {},
 ) {
   registerPlatformSymbolImages(map);
   const renderableVectorLayers = layers.filter(
@@ -104,7 +105,7 @@ export function syncLoadedLayers(
   }
 
   const allNewBounds = [...newVectorBounds, ...newRasterBounds];
-  if (allNewBounds.length > 0) {
+  if (allNewBounds.length > 0 && options.fitNewLayers !== false) {
     const firstBound = allNewBounds[0];
     if (!firstBound) return;
     const combined = allNewBounds.reduce(
