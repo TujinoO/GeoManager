@@ -1,6 +1,12 @@
 import { App as AntApp, ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { defaultCompositionLayout } from "../../map-composition/layout";
 import type { MapComposition } from "../../types";
@@ -71,9 +77,9 @@ describe("MapCompositionEditor", () => {
   it("keeps unsaved layout edits when the live map bounds change", async () => {
     const view = render(editor([80, 35, 90, 45]));
     const gridLabel = await screen.findByText("格网");
-    const gridToggle = within(gridLabel.closest("label") as HTMLElement).getByRole(
-      "switch",
-    );
+    const gridToggle = within(
+      gridLabel.closest("label") as HTMLElement,
+    ).getByRole("switch");
 
     expect(gridToggle).toHaveAttribute("aria-checked", "false");
     fireEvent.click(gridToggle);
@@ -86,5 +92,23 @@ describe("MapCompositionEditor", () => {
     await waitFor(() =>
       expect(gridToggle).toHaveAttribute("aria-checked", "true"),
     );
+  });
+
+  it("lets the user reuse and adjust the live workspace map range", async () => {
+    render(editor([81, 36, 91, 46]));
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "使用当前工作台范围" }),
+    );
+    const westInput = screen.getAllByLabelText("西")[0] as HTMLInputElement;
+    const eastInput = screen.getAllByLabelText("东")[0] as HTMLInputElement;
+    await waitFor(() => expect(Number(westInput.value)).toBe(81));
+    expect(Number(eastInput.value)).toBe(91);
+
+    fireEvent.click(screen.getByRole("button", { name: "地图范围向右平移" }));
+    await waitFor(() => expect(Number(westInput.value)).toBe(82.2));
+
+    fireEvent.click(screen.getByRole("button", { name: "放大地图范围" }));
+    await waitFor(() => expect(Number(westInput.value)).toBeGreaterThan(82.2));
   });
 });

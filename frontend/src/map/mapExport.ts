@@ -39,6 +39,8 @@ export interface MapImageExportOptions {
   dpi: number;
   tileZoom: number;
   format: MapImageExportFormat;
+  /** Keep the whole requested range visible inside this output aspect ratio. */
+  targetAspect?: number;
   accessToken?: string;
   signal?: AbortSignal;
 }
@@ -137,16 +139,34 @@ async function exportMapRangeImageAttempt(
 
 export function createMapRangeExportPlan(
   geometry: GeoJsonGeometry,
-  options: Pick<MapImageExportOptions, "dpi" | "tileZoom">,
+  options: Pick<MapImageExportOptions, "dpi" | "tileZoom" | "targetAspect">,
 ): MapRangeExportPlan {
   const dpi = normalizeDpi(options.dpi);
   const tileZoom = normalizeTileZoom(options.tileZoom);
   const bounds = geometryBounds(geometry);
   const projected = projectBounds(bounds, tileZoom);
-  const contentWidth = Math.max(1, projected.maxX - projected.minX);
-  const contentHeight = Math.max(1, projected.maxY - projected.minY);
-  const cssWidth = Math.ceil(Math.max(minExportCssDimension, contentWidth));
-  const cssHeight = Math.ceil(Math.max(minExportCssDimension, contentHeight));
+  let contentWidth = Math.max(1, projected.maxX - projected.minX);
+  let contentHeight = Math.max(1, projected.maxY - projected.minY);
+  const targetAspect = normalizeTargetAspect(options.targetAspect);
+  let cssWidth: number;
+  let cssHeight: number;
+  if (targetAspect !== null) {
+    if (contentWidth / contentHeight < targetAspect) {
+      contentWidth = contentHeight * targetAspect;
+    } else {
+      contentHeight = contentWidth / targetAspect;
+    }
+    const minimumScale = Math.max(
+      1,
+      minExportCssDimension / contentWidth,
+      minExportCssDimension / contentHeight,
+    );
+    cssWidth = Math.ceil(contentWidth * minimumScale);
+    cssHeight = Math.ceil(contentHeight * minimumScale);
+  } else {
+    cssWidth = Math.ceil(Math.max(minExportCssDimension, contentWidth));
+    cssHeight = Math.ceil(Math.max(minExportCssDimension, contentHeight));
+  }
   const outputWidth = Math.round((cssWidth * dpi) / 96);
   const outputHeight = Math.round((cssHeight * dpi) / 96);
   validateOutputSize(outputWidth, outputHeight);
@@ -167,6 +187,13 @@ export function createMapRangeExportPlan(
     dpi,
     tileZoom,
   };
+}
+
+function normalizeTargetAspect(value: number | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return clamp(value, 0.05, 20);
 }
 
 export function inferBasemapTileZoomRange(

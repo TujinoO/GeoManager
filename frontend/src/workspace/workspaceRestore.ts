@@ -154,8 +154,10 @@ export async function restoreWorkspaceGroups({
         updateRestoreProgress(`已跳过图层：${savedLayer.name}`);
         continue;
       }
+      let rasterKind = savedLayer.rasterKind;
       try {
         const profile = await api.resourceProfile(savedLayer.sourceResource);
+        rasterKind = profile.raster?.rasterKind ?? rasterKind;
         if (!profile.raster) {
           issues.push({
             layerName: savedLayer.name,
@@ -203,6 +205,7 @@ export async function restoreWorkspaceGroups({
         imageCoordinates: savedLayer.imageCoordinates,
         rasterDatasetId: savedLayer.rasterDatasetId,
         rasterLayerId: savedLayer.rasterLayerId,
+        rasterKind,
         rasterMetadata: savedLayer.rasterMetadata,
         renderStatus: savedLayer.renderStatus,
         renderProgress: savedLayer.renderProgress,

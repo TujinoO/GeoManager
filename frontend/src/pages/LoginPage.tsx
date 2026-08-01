@@ -25,6 +25,12 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import capfedLogoWhite from "../assets/capfed-logo-white.svg";
+import loginBackground01 from "../assets/login-carousel-01.webp";
+import loginBackground02 from "../assets/login-carousel-02.webp";
+import loginBackground03 from "../assets/login-carousel-03.webp";
+import loginBackground04 from "../assets/login-carousel-04.webp";
+import loginBackground05 from "../assets/login-carousel-05.webp";
+import loginBackground06 from "../assets/login-carousel-06.webp";
 import { oceanBorderBeam } from "../components/oceanBorderBeam";
 import { platformBrand } from "../config/platformBrand";
 import { useAppContext } from "../contexts/AppContext";
@@ -40,6 +46,15 @@ const platformEnglishName = platformBrand.englishName;
 const platformShortName = platformBrand.shortName;
 const platformEdition = platformBrand.edition;
 const platformVersion = "v1.0.0";
+const loginBackgrounds = [
+  loginBackground01,
+  loginBackground02,
+  loginBackground03,
+  loginBackground04,
+  loginBackground05,
+  loginBackground06,
+] as const;
+const loginBackgroundIntervalMs = 9000;
 
 const fallbackCapabilityTags = [
   "遥感影像",
@@ -118,6 +133,7 @@ export default function LoginPage() {
   const [accountPurpose, setAccountPurpose] =
     useState<RegisterFormValues["accountPurpose"]>("standard");
   const [overview, setOverview] = useState<LoginOverviewResponse | null>(null);
+  const [activeBackgroundIndex, setActiveBackgroundIndex] = useState(0);
   const isSubmitting = submittingAction !== null;
 
   useEffect(() => {
@@ -133,6 +149,16 @@ export default function LoginPage() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setActiveBackgroundIndex(
+        (currentIndex) => (currentIndex + 1) % loginBackgrounds.length,
+      );
+    }, loginBackgroundIntervalMs);
+
+    return () => window.clearInterval(intervalId);
   }, []);
 
   const loginStats = useMemo(
@@ -200,6 +226,18 @@ export default function LoginPage() {
 
   return (
     <main className="login-shell">
+      <div className="login-background-carousel" aria-hidden="true">
+        {loginBackgrounds.map((background, index) => (
+          <div
+            className={`login-background-slide${
+              index === activeBackgroundIndex ? " is-active" : ""
+            }`}
+            data-active={index === activeBackgroundIndex}
+            key={background}
+            style={{ backgroundImage: `url("${background}")` }}
+          />
+        ))}
+      </div>
       <section className="login-hero-panel" aria-label="平台概览">
         <header className="login-brand-head">
           <span className="login-logo-frame">

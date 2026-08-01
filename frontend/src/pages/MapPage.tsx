@@ -998,6 +998,7 @@ export default function MapPage() {
       await loadVectorResource(resource, profile, [], {
         spatialFilter: null,
         errorMessage: "快速加载失败",
+        trackQuerying: false,
       });
     }
   }
@@ -1052,13 +1053,15 @@ export default function MapPage() {
     options: {
       spatialFilter: SpatialFilter | null;
       errorMessage: string;
+      trackQuerying?: boolean;
     },
   ) {
     if (!permissions.canQueryData || !permissions.canLoadVectorLayer) {
       message.warning(permissionDeniedMessage);
       return;
     }
-    setQuerying(true);
+    const trackQuerying = options.trackQuerying !== false;
+    if (trackQuerying) setQuerying(true);
     try {
       const result = await api.queryResource(resource, {
         attributeFilters,
@@ -1083,7 +1086,7 @@ export default function MapPage() {
         error instanceof Error ? error.message : options.errorMessage,
       );
     } finally {
-      setQuerying(false);
+      if (trackQuerying) setQuerying(false);
     }
   }
 

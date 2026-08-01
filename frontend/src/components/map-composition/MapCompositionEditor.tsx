@@ -259,7 +259,11 @@ export default function MapCompositionEditor({
     >
       <div className="map-composition-editor">
         <aside className="map-composition-settings-pane">
-          <CompositionSettings layout={layout} onChange={updateLayout} />
+          <CompositionSettings
+            layout={layout}
+            liveMapBounds={fallbackBounds}
+            onChange={updateLayout}
+          />
         </aside>
         <main className="map-composition-preview-pane">
           <div className="composition-preview-toolbar">

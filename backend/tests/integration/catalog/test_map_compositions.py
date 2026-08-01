@@ -15,6 +15,7 @@ from PIL import Image
 
 from apps.audit.models import OperationLog
 from apps.catalog.models import MapComposition, MapCompositionVersion, WorkspaceScene
+from apps.core.initialization import DEFAULT_USER_GROUP_NAME, GUEST_GROUP_NAME
 
 
 class MapCompositionApiTests(TestCase):
@@ -419,9 +420,7 @@ class MapCompositionApiTests(TestCase):
                 self.assertTrue(shared["canRestoreProject"])
                 self.assertEqual(len(shared["versions"]), 1)
                 self.assertEqual(shared["status"], "published")
-                self.assertEqual(
-                    shared["publishedVersion"]["versionNumber"], 1
-                )
+                self.assertEqual(shared["publishedVersion"]["versionNumber"], 1)
                 self.assertEqual(shared["publishedVersion"]["format"], "png")
 
                 results_list_response = self.client.get(
@@ -429,10 +428,7 @@ class MapCompositionApiTests(TestCase):
                 )
                 self.assertEqual(results_list_response.status_code, 200)
                 self.assertEqual(
-                    [
-                        item["name"]
-                        for item in results_list_response.json()["items"]
-                    ],
+                    [item["name"] for item in results_list_response.json()["items"]],
                     ["已发布专题"],
                 )
                 results_item = results_list_response.json()["items"][0]
@@ -447,9 +443,7 @@ class MapCompositionApiTests(TestCase):
                 self.assertEqual(
                     published_preview_response.headers["Content-Type"], "image/png"
                 )
-                preview_content = b"".join(
-                    published_preview_response.streaming_content
-                )
+                preview_content = b"".join(published_preview_response.streaming_content)
                 self.assertTrue(preview_content.startswith(b"\x89PNG\r\n\x1a\n"))
                 published_preview_response.close()
 
@@ -475,6 +469,51 @@ class MapCompositionApiTests(TestCase):
                 self.assertEqual(download_response.status_code, 200)
                 b"".join(download_response.streaming_content)
                 download_response.close()
+
+    def test_default_user_can_see_composition_published_to_guest_audience(self):
+        viewer = get_user_model().objects.create_user(
+            username="ordinary-public-topic-viewer", password="pass12345"
+        )
+        viewer.groups.add(Group.objects.get(name=DEFAULT_USER_GROUP_NAME))
+        guest_group = Group.objects.get(name=GUEST_GROUP_NAME)
+        composition = MapComposition.objects.create(
+            owner=self.user,
+            project=self.project,
+            name="游客开放专题图",
+            status=MapComposition.Status.PUBLISHED,
+            layout=self.layout,
+            source_workspace_snapshot=self.workspace_snapshot,
+        )
+        version = MapCompositionVersion.objects.create(
+            composition=composition,
+            version_number=1,
+            format=MapCompositionVersion.Format.PNG,
+            dpi=150,
+            width_px=160,
+            height_px=120,
+            preview_path="exports/map-compositions/public/v1/preview.png",
+            artifact_path="exports/map-compositions/public/v1/artifact.png",
+            layout_snapshot=self.layout,
+            workspace_snapshot=self.workspace_snapshot,
+            created_by=self.user,
+        )
+        composition.published_version = version
+        composition.save(update_fields=["published_version"])
+        composition.audience_groups.add(guest_group)
+
+        self.client.force_login(viewer)
+        response = self.client.get("/api/catalog/map-compositions/?status=published")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [item["name"] for item in response.json()["items"]],
+            ["游客开放专题图"],
+        )
+        self.assertEqual(
+            response.json()["items"][0]["publishedVersion"]["versionNumber"],
+            1,
+        )
+        self.assertFalse(response.json()["items"][0]["canEditLayout"])
 
     def test_platform_admin_can_manage_every_users_draft(self):
         platform_group = Group.objects.get(name="平台管理员")

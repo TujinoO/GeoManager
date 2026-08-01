@@ -8,6 +8,7 @@ from django.test import SimpleTestCase, override_settings
 from apps.core.config import load_project_config
 from apps.raster.services.exceptions import RasterImportError
 from apps.raster.services.package import (
+    infer_raster_kind,
     preview_uploaded_raster_package,
     store_uploaded_raster_package,
 )
@@ -85,6 +86,43 @@ class RasterPackageTests(SimpleTestCase):
             result["defaultRules"]["stretch"]["perBand"]["5"],
             {"min": 36.0, "max": 92.0},
         )
+
+    def test_lucc_class_codes_are_detected_and_used_as_default_legend(self):
+        info = self._gdalinfo(driver="GTiff", band_count=1)
+        info["metadata"] = {
+            "": {
+                "CLASS_CODES": "1=裸地/草地;2=耕地;4=林地;5=水体;6=建筑;8=道路",
+                "NODATA_VALUE": "255",
+            }
+        }
+        with (
+            override_settings(PROJECT_CONFIG=self._config()),
+            patch("apps.raster.services.package.gdalinfo_json", return_value=info),
+        ):
+            result = preview_uploaded_raster_package(
+                [SimpleUploadedFile("hjyt_tile_r1_c1.tif", b"tif")]
+            )
+
+        self.assertEqual(infer_raster_kind(info), "categorical")
+        self.assertEqual(result["rasterKind"], "categorical")
+        self.assertEqual(result["resampling"], "nearest")
+        self.assertEqual(result["defaultRules"]["mode"], "unique")
+        self.assertFalse(result["defaultRules"]["stretch"]["enabled"])
+        self.assertEqual(
+            [item["value"] for item in result["defaultRules"]["uniqueValues"]],
+            [1, 2, 4, 5, 6, 8],
+        )
+        self.assertEqual(
+            [item["label"] for item in result["defaultRules"]["uniqueValues"]],
+            ["裸地/草地", "耕地", "林地", "水体", "建筑", "道路"],
+        )
+        colors = {
+            item["label"]: item["color"]
+            for item in result["defaultRules"]["uniqueValues"]
+        }
+        self.assertEqual(colors["林地"], "#2f7d62")
+        self.assertEqual(colors["水体"], "#3b79b7")
+        self.assertEqual(colors["道路"], "#5b5b5b")
 
     def test_store_package_uses_uuid_directory_and_manifest(self):
         with tempfile.TemporaryDirectory() as tmpdir:

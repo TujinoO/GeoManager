@@ -3,8 +3,10 @@ import {
   defaultCompositionLayout,
   normalizeCompositionLayout,
   pagePixelSize,
+  panMapBounds,
   suggestedGeographicGridInterval,
   suggestedProjectedGridInterval,
+  zoomMapBounds,
 } from "./layout";
 import {
   applyPaperPreset,
@@ -101,6 +103,12 @@ describe("map composition layout", () => {
     );
 
     expect(layout.mapFrame.bounds).toEqual([70, 30, 100, 50]);
+  });
+
+  it("pans and zooms the map range while preserving valid bounds", () => {
+    expect(panMapBounds([80, 35, 90, 45], 0.1, -0.1)).toEqual([81, 34, 91, 44]);
+    expect(zoomMapBounds([80, 35, 90, 45], 0.8)).toEqual([81, 36, 89, 44]);
+    expect(panMapBounds([175, 80, 180, 85], 1, 1)[2]).toBe(180);
   });
 
   it("selects a larger tile zoom for higher target resolution", () => {

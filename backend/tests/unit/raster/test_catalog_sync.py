@@ -59,3 +59,24 @@ class RasterCatalogSyncTests(TestCase):
         )
 
         self.assertEqual(resource.category.code, "thematic_landscape_rs")
+
+    def test_categorical_raster_uses_full_default_opacity(self):
+        dataset = RasterDataset.objects.create(
+            name="LUCC 分类",
+            code="lucc-raster",
+            source_relative_path="lucc.tif",
+            processed_relative_path="processed/lucc.cog.tif",
+            raster_kind=RasterDataset.RasterKind.CATEGORICAL,
+            status=RasterDataset.Status.READY,
+        )
+
+        _resource, layer = upsert_catalog_records(
+            dataset=dataset,
+            source_info={},
+            processed_info={"stac": {"proj:epsg": 3857}},
+            default_rules={"mode": "unique", "bands": [1]},
+            bounds_4326=[106.7, 37.0, 107.0, 37.2],
+            category_code="base_geo_lucc",
+        )
+
+        self.assertEqual(layer.default_opacity, 100)

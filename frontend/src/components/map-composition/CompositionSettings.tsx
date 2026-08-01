@@ -1,7 +1,10 @@
-import { Button, Collapse, InputNumber, Select, Switch } from "antd";
+import { Button, Collapse, InputNumber, Select, Space, Switch } from "antd";
 import {
+  panMapBounds,
   suggestedGeographicGridInterval,
   suggestedProjectedGridInterval,
+  zoomMapBounds,
+  type MapBounds,
   type MapCompositionLayout,
 } from "../../map-composition/layout";
 import {
@@ -18,10 +21,15 @@ import {
 
 interface Props {
   layout: MapCompositionLayout;
+  liveMapBounds: MapBounds;
   onChange: (layout: MapCompositionLayout) => void;
 }
 
-export default function CompositionSettings({ layout, onChange }: Props) {
+export default function CompositionSettings({
+  layout,
+  liveMapBounds,
+  onChange,
+}: Props) {
   function patchPage(values: Partial<MapCompositionLayout["page"]>) {
     onChange({ ...layout, page: { ...layout.page, ...values } });
   }
@@ -119,6 +127,85 @@ export default function CompositionSettings({ layout, onChange }: Props) {
                 value={layout.mapFrame.bounds}
                 onChange={(bounds) => patchElement("mapFrame", { bounds })}
               />
+              <div className="composition-map-range-actions">
+                <Button
+                  size="small"
+                  onClick={() =>
+                    patchElement("mapFrame", { bounds: [...liveMapBounds] })
+                  }
+                >
+                  使用当前工作台范围
+                </Button>
+                <Space.Compact block>
+                  <Button
+                    size="small"
+                    aria-label="地图范围向左平移"
+                    onClick={() =>
+                      patchElement("mapFrame", {
+                        bounds: panMapBounds(layout.mapFrame.bounds, -0.12, 0),
+                      })
+                    }
+                  >
+                    左移
+                  </Button>
+                  <Button
+                    size="small"
+                    aria-label="地图范围向右平移"
+                    onClick={() =>
+                      patchElement("mapFrame", {
+                        bounds: panMapBounds(layout.mapFrame.bounds, 0.12, 0),
+                      })
+                    }
+                  >
+                    右移
+                  </Button>
+                  <Button
+                    size="small"
+                    aria-label="地图范围向上平移"
+                    onClick={() =>
+                      patchElement("mapFrame", {
+                        bounds: panMapBounds(layout.mapFrame.bounds, 0, 0.12),
+                      })
+                    }
+                  >
+                    上移
+                  </Button>
+                  <Button
+                    size="small"
+                    aria-label="地图范围向下平移"
+                    onClick={() =>
+                      patchElement("mapFrame", {
+                        bounds: panMapBounds(layout.mapFrame.bounds, 0, -0.12),
+                      })
+                    }
+                  >
+                    下移
+                  </Button>
+                  <Button
+                    size="small"
+                    aria-label="放大地图范围"
+                    onClick={() =>
+                      patchElement("mapFrame", {
+                        bounds: zoomMapBounds(layout.mapFrame.bounds, 0.8),
+                      })
+                    }
+                  >
+                    放大
+                  </Button>
+                  <Button
+                    size="small"
+                    aria-label="缩小地图范围"
+                    onClick={() =>
+                      patchElement("mapFrame", {
+                        bounds: zoomMapBounds(layout.mapFrame.bounds, 1.25),
+                      })
+                    }
+                  >
+                    缩小
+                  </Button>
+                </Space.Compact>
+                <small>可平移或缩放地图内容；修改后预览会自动刷新。</small>
+              </div>
               <BoxEditor
                 value={layout.mapFrame}
                 onChange={(values) => patchElement("mapFrame", values)}

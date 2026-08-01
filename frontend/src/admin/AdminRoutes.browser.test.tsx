@@ -1650,10 +1650,13 @@ describe("admin routes", () => {
       screen.getByText("platform-backup-20260703030000.zip"),
     ).toBeInTheDocument();
     expect(mockApi.adminBackupOverview).toHaveBeenCalledOnce();
-    expect(mockApi.adminBackupRuns).toHaveBeenCalledWith({
-      current: 1,
-      pageSize: 20,
-    });
+    expect(mockApi.adminBackupRuns).toHaveBeenCalledWith(
+      {
+        current: 1,
+        pageSize: 20,
+      },
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   }, 30000);
 
   it("disables both manual backup actions while a backup is active", async () => {
@@ -1756,7 +1759,10 @@ describe("admin routes", () => {
 
     await waitFor(
       () => {
-        expect(mockApi.adminBackupRun).toHaveBeenCalledWith(9);
+        expect(mockApi.adminBackupRun).toHaveBeenCalledWith(
+          9,
+          expect.objectContaining({ signal: expect.any(AbortSignal) }),
+        );
         for (const button of screen.getAllByRole("button", {
           name: /立即备份/,
         })) {
@@ -1775,7 +1781,7 @@ describe("admin routes", () => {
     );
 
     expect(await screen.findByText("用户列表")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /admin/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /admin/ }));
 
     await waitFor(() => {
       expect(screen.getByText("用户详情")).toBeInTheDocument();
@@ -2158,7 +2164,10 @@ describe("admin routes", () => {
 
     await waitFor(
       () => {
-        expect(mockApi.rasterJob).toHaveBeenCalledWith("raster-job-1");
+        expect(mockApi.rasterJob).toHaveBeenCalledWith(
+          "raster-job-1",
+          expect.objectContaining({ signal: expect.any(AbortSignal) }),
+        );
         expect(screen.getByText("栅格预处理完成")).toBeInTheDocument();
       },
       { timeout: 5000 },

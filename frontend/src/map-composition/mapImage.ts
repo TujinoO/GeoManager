@@ -16,6 +16,7 @@ export async function renderBoundsImage(
     dpi: 96,
     tileZoom,
     format: "png",
+    targetAspect: targetWidth / Math.max(1, targetHeight),
     accessToken,
     signal,
   });
