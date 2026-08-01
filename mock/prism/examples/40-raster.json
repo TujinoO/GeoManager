@@ -354,6 +354,9 @@
       "layerId": 1,
       "styleHash": "mock-rgb-minmax-1-2-3",
       "tileUrl": "/api/raster/tiles/1/mock-rgb-minmax-1-2-3/{z}/{x}/{y}.png",
+      "minZoom": 0,
+      "maxZoom": 18,
+      "tileSampling": "linear",
       "status": "ready",
       "bounds3857": [
         9832676.279,

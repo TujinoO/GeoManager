@@ -9,7 +9,7 @@ import { getMapState } from "./mapState";
 import { upsertLayer } from "./styleHelpers";
 import { removeLoadedLayerGroup } from "./vectorLayerSync";
 
-export const rasterTileRendererVersion = 3;
+export const rasterTileRendererVersion = 4;
 
 export function versionedRasterTileUrl(tileUrl: string) {
   const fragmentIndex = tileUrl.indexOf("#");
@@ -47,6 +47,12 @@ export function addRasterLayer(
         type: "raster",
         tiles: [tileUrl],
         tileSize: 256,
+        ...(typeof layer.tileMinZoom === "number"
+          ? { minzoom: clamp(Math.floor(layer.tileMinZoom), 0, 22) }
+          : {}),
+        ...(typeof layer.tileMaxZoom === "number"
+          ? { maxzoom: clamp(Math.ceil(layer.tileMaxZoom), 0, 22) }
+          : {}),
         ...(bounds
           ? {
               bounds: [
@@ -63,7 +69,9 @@ export function addRasterLayer(
   }
   if (!map.getSource(sourceId)) return;
   const categorical =
-    layer.rasterKind === "categorical" || style.mode === "unique";
+    layer.tileSampling === "nearest" ||
+    layer.rasterKind === "categorical" ||
+    style.mode === "unique";
   upsertLayer(map, {
     id: layerId,
     type: "raster",

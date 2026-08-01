@@ -20,6 +20,7 @@ from apps.raster.services import (
     RasterJobError,
     RasterRenderError,
     RasterTileOutsideExtent,
+    build_static_xyz_tile_pyramid,
     classify_unique_values,
     get_job,
     import_raster_file,
@@ -85,7 +86,9 @@ def render(request):
                 {"detail": "该图层没有已预处理的栅格数据集"}, status=400
             )
         result = register_tile_style(dataset, rules or layer.raster_rules)
-    except (ValueError, RasterRenderError) as exc:
+        if dataset.raster_kind == RasterDataset.RasterKind.CATEGORICAL:
+            build_static_xyz_tile_pyramid(dataset, str(result["styleHash"]))
+    except (OSError, ValueError, RasterRenderError) as exc:
         log_operation(
             request.user,
             "栅格管理",
@@ -452,6 +455,8 @@ def tile(request, dataset_id: int, style_hash: str, z: int, x: int, y: int):
     except RasterRenderError as exc:
         return JsonResponse({"detail": str(exc)}, status=404)
     response = HttpResponse(content, content_type="image/png")
-    response["Cache-Control"] = "private, max-age=86400"
+    # The URL is content-addressed by COG fingerprint, rules and renderer
+    # version, so a completed static categorical pyramid is safe to retain.
+    response["Cache-Control"] = "private, max-age=31536000, immutable"
     response["ETag"] = f'"{style_hash}-rv{RASTER_RENDERER_VERSION}-{z}-{x}-{y}"'
     return response

@@ -82,9 +82,7 @@ class _HeavyTaskExecutor:
     """One worker with a hard cap on waiting memory-heavy tasks."""
 
     def __init__(self, *, queue_size: int) -> None:
-        self._queue: queue.Queue[Callable[[], None]] = queue.Queue(
-            maxsize=queue_size
-        )
+        self._queue: queue.Queue[Callable[[], None]] = queue.Queue(maxsize=queue_size)
         self._start_lock = threading.Lock()
         self._worker: threading.Thread | None = None
 
@@ -213,9 +211,7 @@ def _prune_job_caches_locked(*, now: float | None = None) -> None:
     overflow = max(0, remaining_count - JOB_CACHE_MAX_ENTRIES)
     if overflow:
         oldest_terminal_ids = [
-            job_id
-            for _, job_id in sorted(terminal_jobs)
-            if job_id not in expired_ids
+            job_id for _, job_id in sorted(terminal_jobs) if job_id not in expired_ids
         ]
         expired_ids.update(oldest_terminal_ids[:overflow])
 
@@ -224,18 +220,12 @@ def _prune_job_caches_locked(*, now: float | None = None) -> None:
         _LAST_PERSIST.pop(job_id, None)
 
     active_job_ids = {
-        job_id
-        for job_id, job in _JOBS.items()
-        if job.status in {"queued", "running"}
+        job_id for job_id, job in _JOBS.items() if job.status in {"queued", "running"}
     }
     for job_id, (last_persisted_at, _) in list(_LAST_PERSIST.items()):
-        if (
-            job_id not in _JOBS
-            or (
-                job_id not in active_job_ids
-                and current_time - last_persisted_at
-                >= COMPLETED_JOB_TTL_SECONDS
-            )
+        if job_id not in _JOBS or (
+            job_id not in active_job_ids
+            and current_time - last_persisted_at >= COMPLETED_JOB_TTL_SECONDS
         ):
             _LAST_PERSIST.pop(job_id, None)
 
@@ -342,10 +332,7 @@ def get_job(job_id: str) -> RasterJob:
             return cached
     persisted = _load_persisted_job(job_id)
     if persisted:
-        if (
-            not restart_reconciled
-            and persisted.status in {"queued", "running"}
-        ):
+        if not restart_reconciled and persisted.status in {"queued", "running"}:
             # Until restart reconciliation succeeds, an active database row
             # may belong to the previous process. Do not let it enter the
             # in-process single-flight/cache state permanently.
@@ -457,9 +444,11 @@ def start_import_job(
         job,
         runner,
         on_rejected=(
-            lambda: cleanup_uploaded_import_files(source)
-            if cleanup_upload_on_failure
-            else None
+            lambda: (
+                cleanup_uploaded_import_files(source)
+                if cleanup_upload_on_failure
+                else None
+            )
         ),
     )
     return job
@@ -519,7 +508,10 @@ def start_render_job(
     from apps.raster.models import RasterDataset
     from apps.raster.services.exceptions import RasterRenderError
     from apps.raster.services.importer import dataset_for_layer
-    from apps.raster.services.renderer import register_tile_style
+    from apps.raster.services.renderer import (
+        build_static_xyz_tile_pyramid,
+        register_tile_style,
+    )
 
     job = _create_job("render", created_by_id=created_by_id)
 
@@ -542,6 +534,35 @@ def start_render_job(
                 else dataset.default_rules
             )
             result = register_tile_style(dataset, render_rules)
+            if dataset.raster_kind == RasterDataset.RasterKind.CATEGORICAL:
+                _set_job_running(
+                    job.id,
+                    "生成 LUCC 最近邻静态瓦片金字塔",
+                    10,
+                    "tile-pyramid",
+                )
+
+                def report_pyramid_progress(done: int, total: int, zoom: int) -> None:
+                    percent = 10 + round(done * 85 / max(1, total))
+                    _set_job_running(
+                        job.id,
+                        f"LUCC 静态瓦片 z{zoom}：{done}/{total}",
+                        percent,
+                        "tile-pyramid",
+                    )
+
+                pyramid = build_static_xyz_tile_pyramid(
+                    dataset,
+                    str(result["styleHash"]),
+                    progress=report_pyramid_progress,
+                )
+                if pyramid and pyramid.reused:
+                    _set_job_running(
+                        job.id,
+                        "已复用完整 LUCC 静态瓦片金字塔",
+                        95,
+                        "tile-pyramid",
+                    )
             _finish_job(job.id, result, "ready")
         except Exception as exc:
             _fail_job(job.id, str(exc))

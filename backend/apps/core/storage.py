@@ -55,6 +55,20 @@ def raster_metadata_path(relative_path: str) -> Path:
     return research_path("raster", "metadata", relative_path)
 
 
+def raster_tile_pyramid_path(
+    dataset_id: int, style_hash: str, renderer_version: int
+) -> Path:
+    """Return the private, content-addressed MBTiles cache path for one style."""
+
+    return app_path(
+        "cache",
+        "raster-tiles",
+        f"v{int(renderer_version)}",
+        str(int(dataset_id)),
+        f"{style_hash}.mbtiles",
+    )
+
+
 def gene_data_path(relative_path: str = "") -> Path:
     return (
         research_path("gene", relative_path) if relative_path else research_path("gene")

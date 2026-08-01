@@ -5436,6 +5436,18 @@ export type RasterRenderResult = {
      */
     tileUrl: string;
     /**
+     * XYZ 瓦片源可用的最小级别；当前统一为 0
+     */
+    minZoom: number;
+    /**
+     * 数据原生分辨率对应的最大瓦片级别；客户端超过该级别时只放大该级瓦片，不继续请求更高层级
+     */
+    maxZoom: number;
+    /**
+     * 客户端纹理采样方式；分类栅格固定为 nearest，连续栅格与影像为 linear
+     */
+    tileSampling: 'nearest' | 'linear';
+    /**
      * 渲染结果状态
      */
     status: 'ready';

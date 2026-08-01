@@ -76,7 +76,6 @@ export type WorkspaceTab =
 const platformChineseName = platformBrand.chineseName;
 const hoverExpandDelayMs = 100;
 const searchOpenDelayMs = 400;
-const workspaceTourStoragePrefix = "huyang-system.workspace-tour.v1";
 
 interface WorkspaceHeaderProps {
   activeTab: WorkspaceTab;
@@ -169,25 +168,10 @@ export default function WorkspaceHeader({
       user.permissions.canImportResultArtifacts &&
       user.permissions.canPublishResultArtifacts),
   );
-  const tourStorageKey = user
-    ? `${workspaceTourStoragePrefix}.${user.id}.${user.username}`
-    : null;
 
   useEffect(() => {
     setSearchText(searchKeyword);
   }, [searchKeyword]);
-
-  useEffect(() => {
-    if (!user || !tourStorageKey) {
-      setTourOpen(false);
-      return;
-    }
-    try {
-      setTourOpen(window.localStorage.getItem(tourStorageKey) !== "completed");
-    } catch {
-      setTourOpen(true);
-    }
-  }, [tourStorageKey, user]);
 
   useEffect(() => {
     const shouldLoadResources = resources === undefined && canBrowseData;
@@ -800,15 +784,7 @@ export default function WorkspaceHeader({
 
   const finishTour = useCallback(() => {
     setTourOpen(false);
-    if (!tourStorageKey) {
-      return;
-    }
-    try {
-      window.localStorage.setItem(tourStorageKey, "completed");
-    } catch {
-      // 本地存储不可用时，仅在当前页面会话内关闭引导。
-    }
-  }, [tourStorageKey]);
+  }, []);
 
   const showWorkspaceTour = useCallback(() => {
     setUserPopoverOpen(false);

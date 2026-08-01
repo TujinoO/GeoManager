@@ -250,6 +250,56 @@ describe("createRasterLayerGroup", () => {
     expect(group?.children[0].metadata).not.toHaveProperty("源文件");
     expect(group?.children[0].metadata).not.toHaveProperty("预处理文件");
   });
+
+  it("loads categorical rasters as opaque nearest-neighbor layers", () => {
+    const rasterProfile = {
+      id: 8,
+      name: "LUCC",
+      code: "lucc",
+      status: "ready" as const,
+      sourcePath: "raster/lucc.tif",
+      processedPath: "raster/lucc.cog.tif",
+      sourceMetadataPath: "",
+      processedMetadataPath: "",
+      dataResourceId: 1,
+      mapLayerId: 1,
+      bandCount: 1,
+      bounds3857: [100, 40, 110, 50],
+      bounds4326: [80, 40, 85, 45],
+      imageCoordinates: [
+        [80, 45],
+        [85, 45],
+        [85, 40],
+        [80, 40],
+      ] as Array<[number, number]>,
+      defaultRules: { mode: "unique", uniqueValues: [] },
+      sourceFileSize: 1000,
+      processedFileSize: 800,
+      progressLog: "",
+      errorMessage: "",
+      importedAt: "2025-01-01",
+      processedAt: "2025-01-01",
+      rasterKind: "categorical" as const,
+      metadata: {
+        size: [100, 100],
+        driver: "GTiff",
+        coordinateSystem: 3857,
+        bands: [],
+      },
+    };
+
+    const group = createRasterLayerGroup(
+      makeResource({ dataType: "raster" }),
+      makeProfile({ raster: rasterProfile }),
+    );
+    const child = group?.children[0];
+
+    expect(child?.layerType).toBe("raster");
+    if (child?.layerType === "raster") {
+      expect(child.tileSampling).toBe("nearest");
+      expect(child.symbolization.opacity).toBe(100);
+    }
+  });
 });
 
 describe("createEmptyLayerGroup", () => {

@@ -175,6 +175,20 @@ describe("rasterSourceKey", () => {
     });
     expect(k1).not.toBe(k2);
   });
+
+  it("differs when the native tile zoom range changes", () => {
+    const k1 = rasterSourceKey({
+      tileUrl: "a/{z}/{x}/{y}.png",
+      tileMinZoom: 0,
+      tileMaxZoom: 15,
+    });
+    const k2 = rasterSourceKey({
+      tileUrl: "a/{z}/{x}/{y}.png",
+      tileMinZoom: 0,
+      tileMaxZoom: 16,
+    });
+    expect(k1).not.toBe(k2);
+  });
 });
 
 describe("delay", () => {

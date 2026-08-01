@@ -248,6 +248,9 @@ export type SavedWorkspaceLayer = {
     spatialFilter: SpatialFilter | null;
   };
   tileUrl?: string;
+  tileMinZoom?: number;
+  tileMaxZoom?: number;
+  tileSampling?: RasterRenderResult["tileSampling"];
   imageCoordinates?: RasterRenderResult["imageCoordinates"];
   rasterDatasetId?: number;
   rasterLayerId?: number | null;
@@ -455,6 +458,9 @@ export interface LoadedRasterLayer {
   layerType: "raster";
   sourceResource: DataResource;
   tileUrl?: string;
+  tileMinZoom?: number;
+  tileMaxZoom?: number;
+  tileSampling?: RasterRenderResult["tileSampling"];
   imageCoordinates?: RasterRenderResult["imageCoordinates"];
   rasterDatasetId?: number;
   rasterLayerId?: number | null;

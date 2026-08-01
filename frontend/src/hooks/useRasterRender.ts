@@ -48,6 +48,9 @@ export function useRasterRender(
         return {
           ...current,
           tileUrl: result.tileUrl,
+          tileMinZoom: result.minZoom,
+          tileMaxZoom: result.maxZoom,
+          tileSampling: result.tileSampling,
           imageCoordinates: result.imageCoordinates,
           summary: "XYZ 瓦片已就绪",
           renderStatus: "ready",

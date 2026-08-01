@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import uuid
 from pathlib import Path
@@ -34,6 +35,9 @@ from apps.raster.services.progress import normalize_progress_text
 from apps.raster.services.rules_engine import default_raster_rules, normalize_rules
 
 
+RASTER_PREPROCESSING_VERSION = 2
+
+
 def is_raster_file(path: Path) -> bool:
     return (
         path.is_file()
@@ -51,12 +55,16 @@ def normalize_import_resampling(raster_kind: str, resampling: str) -> str:
 
 
 def gdalwarp_cog_command(
-    source_path: Path, processed_path: Path, resampling: str
+    source_path: Path,
+    processed_path: Path,
+    resampling: str,
+    *,
+    nodata: int | float | None = None,
 ) -> list[str]:
     """Build a COG command whose warp and every overview use one resampler."""
 
     overview_resampling = resampling.upper()
-    return [
+    command = [
         "gdalwarp",
         "--config",
         "GDAL_CACHEMAX",
@@ -67,6 +75,10 @@ def gdalwarp_cog_command(
         resampling,
         "-wo",
         "NUM_THREADS=1",
+        "-wo",
+        "UNIFIED_SRC_NODATA=YES",
+        "-wo",
+        "INIT_DEST=NO_DATA",
         "-wm",
         "128",
         "-co",
@@ -87,9 +99,11 @@ def gdalwarp_cog_command(
         f"OVERVIEW_RESAMPLING={overview_resampling}",
         "-of",
         "COG",
-        str(source_path),
-        str(processed_path),
     ]
+    if nodata is not None:
+        command.extend(("-srcnodata", str(nodata), "-dstnodata", str(nodata)))
+    command.extend((str(source_path), str(processed_path)))
+    return command
 
 
 def validate_raster_upload_size(uploaded_file) -> None:
@@ -237,9 +251,12 @@ def scan_unprocessed_source_files(
         if not is_raster_file(source_path):
             continue
         source_relative = source_path.relative_to(source_root).as_posix()
-        dataset = RasterDataset.objects.filter(
-            source_relative_path=source_relative
-        ).first()
+        dataset = (
+            RasterDataset.objects.select_related("map_layer", "data_resource__category")
+            .prefetch_related("data_resource__access_groups")
+            .filter(source_relative_path=source_relative)
+            .first()
+        )
         processed_exists = bool(
             dataset
             and dataset.processed_relative_path
@@ -249,12 +266,41 @@ def scan_unprocessed_source_files(
             dataset
             and dataset.status == RasterDataset.Status.READY
             and processed_exists
+            and _preprocessing_is_current(dataset)
         ):
             continue
         if progress:
             progress(f"发现未处理源文件：{source_relative}")
         try:
-            imported.append(import_raster_file(source_path, progress=progress))
+            import_options: dict[str, Any] = {"progress": progress}
+            if dataset:
+                resource = dataset.data_resource
+                import_options.update(
+                    {
+                        "name": dataset.name,
+                        "source_manifest": dataset.source_manifest,
+                        "source_checksum_sha256": dataset.source_checksum_sha256,
+                        "raster_kind": dataset.raster_kind,
+                        "resampling": dataset.resampling,
+                        "requested_default_rules": (
+                            dataset.map_layer.raster_rules
+                            if dataset.map_layer_id and dataset.map_layer.raster_rules
+                            else dataset.default_rules
+                        ),
+                        "uploader_id": resource.maintainer_id if resource else None,
+                        "access_group_ids": (
+                            list(resource.access_groups.values_list("id", flat=True))
+                            if resource
+                            else None
+                        ),
+                        "category_code": (
+                            resource.category.code
+                            if resource and resource.category_id
+                            else ""
+                        ),
+                    }
+                )
+            imported.append(import_raster_file(source_path, **import_options))
         except Exception:
             logger.exception("扫描导入栅格文件失败：%s", source_relative)
             if progress:
@@ -356,24 +402,43 @@ def import_raster_file(
             dataset.resampling = resampling
 
         processed_path.parent.mkdir(parents=True, exist_ok=True)
-        if processed_path.exists():
-            processed_path.unlink()
+        temporary_processed_path = processed_path.with_name(
+            f".{processed_path.stem}.{uuid.uuid4().hex}.tmp.tif"
+        )
 
         if progress:
             progress(
                 f"gdalwarp -t_srs EPSG:3857 -r {resampling} "
                 "-co COMPRESS=DEFLATE -of COG"
             )
-        run_gdal_command(
-            gdalwarp_cog_command(source_path, processed_path, resampling),
-            progress=lambda text: handle_import_progress(text, progress),
-        )
+        try:
+            run_gdal_command(
+                gdalwarp_cog_command(
+                    source_path,
+                    temporary_processed_path,
+                    resampling,
+                    nodata=(
+                        _first_band_nodata(source_info)
+                        if raster_kind == RasterDataset.RasterKind.CATEGORICAL
+                        else None
+                    ),
+                ),
+                progress=lambda text: handle_import_progress(text, progress),
+            )
+            os.replace(temporary_processed_path, processed_path)
+        finally:
+            temporary_processed_path.unlink(missing_ok=True)
         if progress:
             progress("gdalwarp 预处理完成")
 
         if progress:
             progress("gdalinfo -json 预处理文件")
         processed_info = gdalinfo_json(processed_path, calculate_statistics=True)
+        processed_info["geoManager"] = {
+            "preprocessingVersion": RASTER_PREPROCESSING_VERSION,
+            "rasterKind": raster_kind,
+            "resampling": resampling,
+        }
         save_metadata(processed_metadata_relative, processed_info)
 
         default_rules = normalize_rules(
@@ -415,6 +480,32 @@ def import_raster_file(
             dataset.processed_at = timezone.now()
             dataset.save()
             _sync_band_records(dataset, processed_info)
+        if raster_kind == RasterDataset.RasterKind.CATEGORICAL:
+            from apps.raster.services.renderer import (
+                build_static_xyz_tile_pyramid,
+                register_tile_style,
+            )
+
+            if progress:
+                progress("生成 LUCC 最近邻静态瓦片金字塔")
+            render_result = register_tile_style(dataset, default_rules)
+
+            def report_pyramid_progress(done: int, total: int, zoom: int) -> None:
+                if progress:
+                    percent = round(done * 100 / max(1, total))
+                    progress(f"LUCC 静态瓦片 z{zoom}：{done}/{total}（{percent}%）")
+
+            pyramid = build_static_xyz_tile_pyramid(
+                dataset,
+                str(render_result["styleHash"]),
+                progress=report_pyramid_progress,
+            )
+            if progress and pyramid:
+                action = "复用" if pyramid.reused else "生成"
+                progress(
+                    f"LUCC 静态瓦片已{action}：z{pyramid.min_zoom}–"
+                    f"z{pyramid.max_zoom}，共 {pyramid.total_tiles} 张"
+                )
         if progress:
             progress("导入完成")
         return dataset
@@ -450,6 +541,28 @@ def _sync_band_records(dataset: RasterDataset, metadata: dict[str, Any]) -> None
             },
         )
     RasterBand.objects.filter(dataset=dataset).exclude(band_index__in=seen).delete()
+
+
+def _first_band_nodata(metadata: dict[str, Any]) -> int | float | None:
+    bands = metadata.get("bands") or []
+    value = bands[0].get("noDataValue") if bands else None
+    return value if isinstance(value, int | float) else None
+
+
+def _preprocessing_is_current(dataset: RasterDataset) -> bool:
+    if dataset.raster_kind != RasterDataset.RasterKind.CATEGORICAL:
+        return True
+    marker = (dataset.processed_gdalinfo or {}).get("geoManager") or {}
+    try:
+        version = int(marker.get("preprocessingVersion") or 0)
+    except (TypeError, ValueError):
+        version = 0
+    return (
+        version >= RASTER_PREPROCESSING_VERSION
+        and marker.get("rasterKind") == RasterDataset.RasterKind.CATEGORICAL
+        and marker.get("resampling") == "nearest"
+        and dataset.resampling == "nearest"
+    )
 
 
 def dataset_for_layer(layer: Any) -> RasterDataset:

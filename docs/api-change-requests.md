@@ -60,6 +60,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260730-008 | Verified | vector query and catalog export endpoints | 413/503 status and resource-bound behavior | Updated | N/A | Implemented | Passed | Adds bounded query concurrency/body sizes and disk-streamed exports for OOM prevention |
 | API-20260731-001 | BackendReady | `POST /api/admin/settings/` | validation / persistence / error response | Updated | N/A | Implemented | Focused passed | Bounds editable runtime limits and requires writable `/config` directory mounting for atomic saves |
 | API-20260801-001 | Verified | `GET /api/bootstrap/`, `GET/POST /api/admin/settings/` | response/request field | Updated | Updated | Implemented | Passed | Adds an optional browser-safe Tianditu Key while keeping legacy TOML files valid |
+| API-20260801-002 | Verified | `POST /api/raster/render/`, completed raster render jobs | response fields / tile delivery semantics | Updated | Updated | Implemented | Passed | Adds native zoom and sampling metadata; categorical styles become atomically published nearest-neighbor tile pyramids |
 
 ## Entry Template
 
@@ -91,6 +92,19 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Validation notes: Administrator writes accept only Mapbox `pk.*` public tokens and 32-character alphanumeric Tianditu browser keys. Formal default basemaps are `satellite`, `mapbox-streets`, and `tianditu-vector`; historical `osm` input is normalized to `satellite` on save.
 - Verification: Focused Bootstrap/config/admin-setting Django tests; regenerated API types; `check:api`; `api:changes:check`; `api:lint`; `api:docs`; `mock:build`; frontend `typecheck`.
 - Result: Passed. The focused backend run completed with 10 passed tests (101 deselected), followed by all 111 tests in `backend/tests/integration/core/test_api.py`; generated API files match the OpenAPI contract; change tracking, OpenAPI validation, documentation generation, Prism bundle generation, and TypeScript checks all passed. OpenAPI lint retains only the six pre-existing unused-component warnings.
+
+## API-20260801-002 - LUCC native zoom and nearest-neighbor tile delivery
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `POST /api/raster/render/`, `POST /api/raster/render/async/`, `GET /api/raster/jobs/{jobId}/`
+- Change type: response fields | tile delivery semantics | mock data
+- OpenAPI change: `RasterRenderResult` now requires `minZoom`, `maxZoom`, and `tileSampling`. `maxZoom` is derived from the processed Web Mercator pixel size, and `tileSampling` explicitly tells the client to use `nearest` for categorical rasters or `linear` for continuous imagery.
+- Mock examples: `mock/prism/examples/40-raster.json`
+- Frontend reason: Mapbox otherwise assumes tiles exist through z22 and can keep overscaled parent tiles visible while higher levels load. An explicit native maximum and first-frame sampling rule are required to prevent LUCC interpolation colors during zoom transitions.
+- Backend implementation notes: Build a complete content-addressed MBTiles pyramid for every categorical style, publish it atomically only after all levels are present, and keep render jobs non-ready until publication completes. Existing categorical COGs without the current nearest-neighbor preprocessing marker must be rebuilt during scan.
+- Verification: Regenerate/check OpenAPI clients and Prism examples; run focused frontend raster-source tests, the Mapbox nearest-raster patch verifier, all raster backend tests, TypeScript checks, and a production build. Validate a real LUCC pyramid at every zoom for palette-only opaque pixels plus fully transparent NoData.
+- Result: Backend raster tests pass (161 tests). A real `hjyt_tile_r1_c1` z0–16 pyramid built 2,575 tiles in 10.0 seconds (10.9 MiB); all levels contained zero partial-alpha pixels and zero colors outside the six-class palette plus transparent NoData. Focused frontend tests, TypeScript, the Mapbox nearest/mipmap/anisotropy verifier and production build all pass.
 
 ## API-20260730-001 - Data resource display-name rename
 

@@ -12,6 +12,7 @@
     "check:api": "pnpm run api:lint && openapi-ts -o .cache/api-check --silent && node scripts/compare-api-dirs.mjs src/api/generated .cache/api-check",
     "api:changes:check": "node scripts/check-api-change-requests.mjs",
     "brand:check": "node scripts/check-platform-brand.mjs",
+    "verify:mapbox-nearest": "node scripts/verify-mapbox-nearest-raster-patch.mjs",
     "mock:build": "node scripts/ensure-dir.mjs ../mock/prism && redocly bundle ../docs/openapi.yaml --config ./redocly.yaml -o ../mock/prism/openapi.prism.json --ext json && node scripts/inject-prism-examples.mjs",
     "mock:api": "pnpm run mock:build && prism mock ../mock/prism/openapi.prism.json --host 127.0.0.1 --port 4010",
     "dev:mock": "vite --host 127.0.0.1 --mode mock",

@@ -57,6 +57,7 @@ def style_hash_for(raster_path: Path, rules: dict[str, Any]) -> str:
     payload = {
         "raster_path": str(raster_path.resolve()),
         "raster_mtime": stat.st_mtime_ns,
+        "raster_size": stat.st_size,
         "rules": rules,
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))

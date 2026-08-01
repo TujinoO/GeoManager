@@ -56,6 +56,7 @@ from apps.raster.services.jobs import (
 )
 from apps.raster.services.profile import dataset_for_resource, get_raster_profile
 from apps.raster.services.renderer import (
+    build_static_xyz_tile_pyramid,
     register_tile_style,
     render_xyz_tile,
 )
@@ -118,6 +119,7 @@ __all__ = [
     "handle_import_progress",
     "upsert_catalog_records",
     # renderer
+    "build_static_xyz_tile_pyramid",
     "register_tile_style",
     "render_xyz_tile",
     # serializers
