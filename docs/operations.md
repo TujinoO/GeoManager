@@ -190,7 +190,7 @@ docker exec data-platform sh -c 'cat /sys/fs/cgroup/memory.current; cat /sys/fs/
 
 ### 镜像更新与回滚
 
-Watchtower 只会根据容器当前的 image tag 拉取容器镜像，不会在服务器上执行 `git pull`，也不会从 GitHub Fork 直接构建代码。上游工作流发布到 `ghcr.io/yiguanxianyu/geomanager`；推送源码后必须先确认 GitHub Actions 已成功发布镜像，并确保远端容器也使用该镜像地址。
+Watchtower 只会根据容器当前的 image tag 拉取容器镜像，不会在服务器上执行 `git pull`，也不会从 GitHub Fork 直接构建代码。上游工作流发布到当前仓库所有者的 `ghcr.io/tujinoo/geomanager`；推送源码后必须先确认 GitHub Actions 已成功发布镜像，并确保远端容器也使用该镜像地址。镜像命名空间必须与签发 `GITHUB_TOKEN` 的仓库所有者一致，否则构建完成后会在推送阶段因包写入权限不足而失败。
 
 生产更新应记录当前 image ID/digest，优先部署提交 SHA tag 或固定 digest，完成健康检查和关键页面冒烟验证后再清理旧镜像。首次故障恢复不要使用 Watchtower `--cleanup`，否则新镜像异常时可能失去便捷回滚目标。回滚时使用记录的旧 SHA tag/digest 重建同配置容器，数据卷保持不变。
 

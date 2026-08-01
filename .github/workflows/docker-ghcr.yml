@@ -12,7 +12,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: ghcr.io/yiguanxianyu/geomanager
+  IMAGE_NAME: ghcr.io/tujinoo/geomanager
 
 jobs:
   build-and-push:
