@@ -418,6 +418,8 @@ export default function MapPage() {
     null,
   );
   const [mapObject, setMapObject] = useState<MapboxMap | null>(null);
+  const [basemapSwitching, setBasemapSwitching] = useState(false);
+  const [mapExporting, setMapExporting] = useState(false);
   const [editingComposition, setEditingComposition] =
     useState<MapComposition | null>(null);
   const [exportTileZoomRange, setExportTileZoomRange] = useState<TileZoomRange>(
@@ -957,9 +959,16 @@ export default function MapPage() {
     [],
   );
 
-  const setQueryDrawMode = useCallback((mode: DrawMode | null) => {
-    setActiveDraw(mode ? { purpose: "query", mode } : null);
-  }, []);
+  const setQueryDrawMode = useCallback(
+    (mode: DrawMode | null) => {
+      if (mode && basemapSwitching) {
+        message.warning("底图正在切换，请等待完成后再绘制范围");
+        return;
+      }
+      setActiveDraw(mode ? { purpose: "query", mode } : null);
+    },
+    [basemapSwitching, message],
+  );
 
   async function handleQueryAndLoad(attributeFilters: AttributeFilter[]) {
     if (!permissions.canQueryData || !permissions.canLoadVectorLayer) {
@@ -1282,9 +1291,17 @@ export default function MapPage() {
         message.warning("地图尚未准备好");
         return;
       }
+      if (basemapSwitching) {
+        message.warning("底图正在切换，请等待完成后再导出");
+        return;
+      }
       try {
         map.getStyle();
       } catch {
+        message.warning("底图尚未加载完成，请稍后再导出");
+        return;
+      }
+      if (!map.isStyleLoaded()) {
         message.warning("底图尚未加载完成，请稍后再导出");
         return;
       }
@@ -1292,6 +1309,7 @@ export default function MapPage() {
         message.warning("请先使用范围工具划定导出范围");
         return;
       }
+      setMapExporting(true);
       try {
         const blob = await exportMapRangeImage(map, sharedSpatialGeometry, {
           ...options,
@@ -1310,9 +1328,12 @@ export default function MapPage() {
         message.error(
           error instanceof Error ? error.message : "地图图片导出失败",
         );
+      } finally {
+        setMapExporting(false);
       }
     },
     [
+      basemapSwitching,
       bootstrap.map.mapboxAccessToken,
       message,
       permissionDeniedMessage,
@@ -1953,6 +1974,8 @@ export default function MapPage() {
           >
             <MapCanvas
               bootstrap={bootstrap}
+              basemapPreferenceScope={`user:${user?.id ?? "anonymous"}`}
+              basemapSwitchDisabled={mapExporting}
               loadedLayers={mapLayers}
               drawMode={activeDraw?.mode ?? null}
               spatialFilter={spatialFilter}
@@ -1963,6 +1986,7 @@ export default function MapPage() {
               onMapDestroy={handleMapDestroy}
               onMapError={handleMapError}
               onViewStateChange={setCurrentMapView}
+              onBasemapSwitchingChange={setBasemapSwitching}
             />
           </Suspense>
         </main>

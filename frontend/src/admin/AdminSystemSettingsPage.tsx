@@ -16,6 +16,7 @@ interface BasicSettingValues {
   defaultZoom: number;
   defaultBasemap: string;
   mapboxAccessToken: string;
+  tiandituAccessToken: string;
   uploadMaxMb: number;
   queryResultLimit: number;
   maxRasterSidePixels: number;
@@ -41,8 +42,9 @@ function integerRangeRule(min: number, max: number, label: string) {
 }
 
 const basemapValueEnum = {
-  osm: { text: "OpenStreetMap" },
-  satellite: { text: "卫星影像" },
+  satellite: { text: "Mapbox 卫星实景图" },
+  "mapbox-streets": { text: "Mapbox 街道图" },
+  "tianditu-vector": { text: "天地图矢量注记图" },
 };
 
 const settingDescriptionColumns: ProDescriptionsItemProps<BasicSettingDescriptionItem>[] =
@@ -103,6 +105,15 @@ const settingDescriptionColumns: ProDescriptionsItemProps<BasicSettingDescriptio
       dataIndex: "mapboxAccessToken",
       span: 6,
       copyable: true,
+      render: (dom) => <span className="admin-token-text">{dom}</span>,
+    },
+    {
+      title: "天地图浏览器 Key",
+      dataIndex: "tiandituAccessToken",
+      span: 6,
+      copyable: true,
+      tooltip:
+        "仅填写天地图控制台签发的浏览器端 Key；控制台需同时放行本地 localhost/127.0.0.1 和生产域名，否则会返回 403 域名不匹配",
       render: (dom) => <span className="admin-token-text">{dom}</span>,
     },
     {
@@ -199,6 +210,7 @@ export default function AdminSystemSettingsPage() {
           defaultZoom: values.defaultZoom,
           defaultBasemap: values.defaultBasemap,
           mapboxAccessToken: values.mapboxAccessToken,
+          tiandituAccessToken: values.tiandituAccessToken,
         },
         limits: {
           uploadMaxMb: values.uploadMaxMb,
@@ -294,6 +306,7 @@ function valuesFromSettings(settings: AdminSettings): BasicSettingValues {
     defaultZoom: settings.map.defaultZoom,
     defaultBasemap: settings.map.defaultBasemap,
     mapboxAccessToken: settings.map.mapboxAccessToken,
+    tiandituAccessToken: settings.map.tiandituAccessToken ?? "",
     uploadMaxMb: settings.limits.uploadMaxMb,
     queryResultLimit: settings.limits.queryResultLimit,
     maxRasterSidePixels: settings.limits.maxRasterSidePixels,

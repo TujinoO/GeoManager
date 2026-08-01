@@ -10,7 +10,10 @@ from django.views.decorators.http import require_GET
 
 from apps.catalog.models import DataResource, DictionaryItem, MapLayer
 from apps.core.config import APP_SUBDIRS, RESEARCH_SUBDIRS
-from apps.core.config import load_runtime_config_document
+from apps.core.config import (
+    load_runtime_config_document,
+    sanitized_public_map_credentials,
+)
 from apps.core.map_thumbnail import thumbnail_tile
 from apps.core.models import SystemSetting
 from apps.core.platform_brand import (
@@ -35,6 +38,7 @@ def bootstrap(request):
     config = settings.PROJECT_CONFIG
     runtime_document = load_runtime_config_document(config)
     application = runtime_document["application"]
+    mapbox_token, tianditu_key = sanitized_public_map_credentials(application["map"])
     return JsonResponse(
         {
             "systemName": runtime_system_name(),
@@ -43,7 +47,8 @@ def bootstrap(request):
                 "defaultCenter": application["map"]["default_center"],
                 "defaultZoom": application["map"]["default_zoom"],
                 "defaultBasemap": application["map"]["default_basemap"],
-                "mapboxAccessToken": application["map"].get("mapbox_access_token", ""),
+                "mapboxAccessToken": mapbox_token,
+                "tiandituAccessToken": tianditu_key,
             },
             "limits": {
                 "uploadMaxMb": application["limits"]["upload_max_mb"],

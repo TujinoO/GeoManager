@@ -10,19 +10,34 @@ import {
 import { Button, Popover } from "antd";
 import type { Map as MapboxMap } from "mapbox-gl";
 import { useEffect, useState } from "react";
-import { useBasemapStatus } from "../hooks/useBasemapStatus";
+import {
+  useBasemapStatus,
+  type BasemapRetryProbe,
+} from "../hooks/useBasemapStatus";
 import {
   classifyBasemapStatus,
   isBrowserConnectionSlow,
+  type ActiveBasemapDescriptor,
   type BasemapStatusPresentation,
 } from "../map/basemapStatus";
 
-interface Props {
+export interface BasemapStatusIndicatorProps {
   map: MapboxMap | null;
+  activeBasemap?: ActiveBasemapDescriptor | null;
+  activeBasemapName?: string;
+  retryBasemap?: BasemapRetryProbe;
 }
 
-export default function BasemapStatusIndicator({ map }: Props) {
-  const { diagnostics, refresh } = useBasemapStatus(map);
+export default function BasemapStatusIndicator({
+  map,
+  activeBasemap,
+  activeBasemapName,
+  retryBasemap,
+}: BasemapStatusIndicatorProps) {
+  const { diagnostics, refresh } = useBasemapStatus(map, {
+    activeBasemap,
+    retryBasemap,
+  });
   const [, setClock] = useState(0);
 
   useEffect(() => {
@@ -61,7 +76,10 @@ export default function BasemapStatusIndicator({ map }: Props) {
         <StatusRow
           icon={<StatusIcon presentation={presentation} />}
           label="底图服务"
-          value={basemapDetail(diagnostics)}
+          value={formatBasemapServiceDetail(
+            activeBasemapName,
+            basemapDetail(diagnostics),
+          )}
         />
       </dl>
       <div className="basemap-status-actions">
@@ -94,6 +112,14 @@ export default function BasemapStatusIndicator({ map }: Props) {
       </button>
     </Popover>
   );
+}
+
+export function formatBasemapServiceDetail(
+  activeBasemapName: string | null | undefined,
+  detail: string,
+) {
+  const normalizedName = activeBasemapName?.trim();
+  return normalizedName ? `${normalizedName} · ${detail}` : detail;
 }
 
 function StatusRow({

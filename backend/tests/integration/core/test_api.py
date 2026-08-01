@@ -57,8 +57,21 @@ class FrontendSecurityHeadersTests(SimpleTestCase):
         response = self.client.get("/resources/data/import")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("media-src 'none'", response["Content-Security-Policy"])
-        self.assertIn("object-src 'none'", response["Content-Security-Policy"])
+        policy = response["Content-Security-Policy"]
+        self.assertIn("media-src 'none'", policy)
+        self.assertIn("object-src 'none'", policy)
+        self.assertIn(
+            "img-src 'self' data: blob: https://api.mapbox.com "
+            "https://tiles.openfreemap.org https://*.tile.openstreetmap.org "
+            "https://*.tianditu.gov.cn",
+            policy,
+        )
+        self.assertIn(
+            "connect-src 'self' https://api.mapbox.com "
+            "https://tiles.openfreemap.org https://*.tile.openstreetmap.org "
+            "https://*.tianditu.gov.cn",
+            policy,
+        )
         self.assertEqual(
             response["Permissions-Policy"],
             "autoplay=(), picture-in-picture=()",
@@ -85,6 +98,62 @@ class BootstrapApiTests(TestCase):
         self.assertIn("systemName", payload)
         self.assertFalse(payload["allowRegistration"])
         self.assertIn("map", payload)
+        self.assertIn("tiandituAccessToken", payload["map"])
+
+    def test_bootstrap_returns_configured_tianditu_browser_token(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research").replace(
+                    'mapbox_access_token = ""',
+                    'mapbox_access_token = ""\n'
+                    'tianditu_access_token = "0123456789abcdef0123456789abcdef"',
+                ),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+
+            with override_settings(PROJECT_CONFIG=config):
+                response = self.client.get("/api/bootstrap/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["map"]["tiandituAccessToken"],
+            "0123456789abcdef0123456789abcdef",
+        )
+
+    def test_bootstrap_hides_unsafe_credentials_from_hot_edited_toml(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research").replace(
+                    'mapbox_access_token = ""',
+                    'mapbox_access_token = "pk.test-public-token"\n'
+                    'tianditu_access_token = "0123456789abcdef0123456789abcdef"',
+                ),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'mapbox_access_token = "pk.test-public-token"',
+                    'mapbox_access_token = "sk.test-private-token"',
+                ),
+                encoding="utf-8",
+            )
+
+            with override_settings(PROJECT_CONFIG=config):
+                response = self.client.get("/api/bootstrap/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["map"]["mapboxAccessToken"], "")
+        self.assertEqual(
+            response.json()["map"]["tiandituAccessToken"],
+            "0123456789abcdef0123456789abcdef",
+        )
+        self.assertEqual(response.json()["map"]["defaultBasemap"], "osm")
 
     def test_bootstrap_registration_fallback_uses_latest_toml(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -337,6 +406,167 @@ class CsrfSettingsTests(SimpleTestCase):
 
 
 class AdminSettingsApiTests(TestCase):
+    def test_settings_get_hides_unsafe_credentials_from_hot_edited_toml(self):
+        user = get_user_model().objects.create_user(
+            username="settings-hot-edit-admin", password="pass12345"
+        )
+        grant(user, ("core", "manage_system_settings"))
+        self.client.force_login(user)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research").replace(
+                    'mapbox_access_token = ""',
+                    'mapbox_access_token = "pk.test-public-token"\n'
+                    'tianditu_access_token = "0123456789abcdef0123456789abcdef"',
+                ),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'tianditu_access_token = "0123456789abcdef0123456789abcdef"',
+                    'tianditu_access_token = "not-a-browser-key"',
+                ),
+                encoding="utf-8",
+            )
+
+            with override_settings(PROJECT_CONFIG=config):
+                response = self.client.get("/api/admin/settings/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["map"]["mapboxAccessToken"],
+            "pk.test-public-token",
+        )
+        self.assertEqual(response.json()["map"]["tiandituAccessToken"], "")
+        self.assertEqual(response.json()["map"]["defaultBasemap"], "osm")
+
+    def test_tianditu_browser_token_can_be_read_updated_and_cleared(self):
+        user = get_user_model().objects.create_user(
+            username="settings-tianditu-admin", password="pass12345"
+        )
+        grant(user, ("core", "manage_system_settings"))
+        self.client.force_login(user)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+
+            with override_settings(
+                PROJECT_CONFIG=config,
+                PROGRAM_ROOT=Path("/opt/app"),
+            ):
+                initial = self.client.get("/api/admin/settings/")
+                updated = self.client.post(
+                    "/api/admin/settings/",
+                    data=json.dumps(
+                        {
+                            "map": {
+                                "tiandituAccessToken": (
+                                    "  0123456789abcdef0123456789abcdef  "
+                                )
+                            }
+                        }
+                    ),
+                    content_type="application/json",
+                )
+                cleared = self.client.post(
+                    "/api/admin/settings/",
+                    data=json.dumps({"map": {"tiandituAccessToken": ""}}),
+                    content_type="application/json",
+                )
+
+            persisted = tomlkit.parse(config_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(initial.status_code, 200)
+        self.assertEqual(initial.json()["map"]["tiandituAccessToken"], "")
+        self.assertEqual(updated.status_code, 200)
+        self.assertEqual(
+            updated.json()["map"]["tiandituAccessToken"],
+            "0123456789abcdef0123456789abcdef",
+        )
+        self.assertEqual(cleared.status_code, 200)
+        self.assertEqual(cleared.json()["map"]["tiandituAccessToken"], "")
+        self.assertEqual(
+            persisted["application"]["map"]["tianditu_access_token"], ""
+        )
+
+    def test_map_settings_reject_private_or_malformed_browser_credentials(self):
+        user = get_user_model().objects.create_user(
+            username="settings-map-credential-admin", password="pass12345"
+        )
+        grant(user, ("core", "manage_system_settings"))
+        self.client.force_login(user)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+
+            with override_settings(PROJECT_CONFIG=config, PROGRAM_ROOT=Path("/opt/app")):
+                private_mapbox = self.client.post(
+                    "/api/admin/settings/",
+                    data=json.dumps(
+                        {"map": {"mapboxAccessToken": "sk.test-private-token"}}
+                    ),
+                    content_type="application/json",
+                )
+                malformed_tianditu = self.client.post(
+                    "/api/admin/settings/",
+                    data=json.dumps(
+                        {"map": {"tiandituAccessToken": "not-a-browser-key"}}
+                    ),
+                    content_type="application/json",
+                )
+
+        self.assertEqual(private_mapbox.status_code, 400)
+        self.assertIn("pk.*", private_mapbox.json()["detail"])
+        self.assertEqual(malformed_tianditu.status_code, 400)
+        self.assertIn("32 位浏览器 Key", malformed_tianditu.json()["detail"])
+
+    def test_map_settings_normalize_the_historical_osm_default(self):
+        user = get_user_model().objects.create_user(
+            username="settings-map-default-admin", password="pass12345"
+        )
+        grant(user, ("core", "manage_system_settings"))
+        self.client.force_login(user)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+
+            with override_settings(PROJECT_CONFIG=config, PROGRAM_ROOT=Path("/opt/app")):
+                response = self.client.post(
+                    "/api/admin/settings/",
+                    data=json.dumps({"map": {"defaultBasemap": "osm"}}),
+                    content_type="application/json",
+                )
+
+            persisted = tomlkit.parse(config_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["map"]["defaultBasemap"], "satellite")
+        self.assertEqual(
+            persisted["application"]["map"]["default_basemap"], "satellite"
+        )
+
     def test_update_upgrades_known_legacy_platform_name_before_persisting(self):
         user = get_user_model().objects.create_user(
             username="settings-brand-admin", password="pass12345"
@@ -3133,6 +3363,7 @@ class ConfigLoaderTests(TestCase):
                 metadata_database_path(config),
                 config.app_path("database", "meta.db"),
             )
+            self.assertEqual(config.map.tianditu_access_token, "")
             self.assertTrue(
                 metadata_database_path(config).is_relative_to(business_root.resolve())
             )
@@ -3191,6 +3422,36 @@ class ConfigLoaderTests(TestCase):
                 ConfigValidationError,
                 "application.map.default_zoom 必须是有效数字",
             ):
+                load_project_config(config_path, program_root=Path("/opt/app"))
+
+    def test_loader_rejects_credentials_that_would_be_exposed_by_bootstrap(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research").replace(
+                    'mapbox_access_token = ""',
+                    'mapbox_access_token = "sk.test-private-token"',
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ConfigValidationError, r"Mapbox pk\.\*"):
+                load_project_config(config_path, program_root=Path("/opt/app"))
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research").replace(
+                    'mapbox_access_token = ""',
+                    'mapbox_access_token = ""\n'
+                    'tianditu_access_token = "invalid"',
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ConfigValidationError, "32 位浏览器 Key"):
                 load_project_config(config_path, program_root=Path("/opt/app"))
 
     def test_loader_creates_fixed_data_subdirectories(self):

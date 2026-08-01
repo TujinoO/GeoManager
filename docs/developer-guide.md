@@ -189,6 +189,23 @@ const tileUrl = `/api/map/thumbnail-tiles/${z}/${x}/${y}.png`;
 
 该接口不暴露敏感业务数据；返回内容可能是 `image/png`、`image/jpeg`、`image/webp`、`image/avif` 或本地兜底 `image/svg+xml`，非法瓦片坐标返回标准 `ErrorResponse`。
 
+### 浏览器底图访问凭证
+
+Mapbox 与天地图的浏览器端访问凭证统一保存在运行 TOML 的 `[application.map]` 中：
+
+```toml
+[application.map]
+default_basemap = "satellite"
+mapbox_access_token = ""
+tianditu_access_token = ""
+```
+
+`tianditu_access_token` 是可选配置。旧配置文件没有该键时，后端按空字符串加载，`GET /api/bootstrap/` 和 `GET /api/admin/settings/` 仍会返回 `map.tiandituAccessToken: ""`，因此现有部署无需配置迁移即可启动。具备 `core.manage_system_settings` 权限的管理员可通过 `POST /api/admin/settings/` 的 `map.tiandituAccessToken` 更新或清空该值，修改会与其他 application 设置一样原子写回启动时指定的源 TOML。
+
+`default_basemap` 的正式选项为 `satellite`、`mapbox-streets` 和 `tianditu-vector`；历史 `osm` 值只作为兼容输入，并在管理员下次保存系统设置时迁移为 `satellite`。OSM 匿名公共瓦片只在三项正式底图均不可用时作为隐藏技术兜底。
+
+这两个字段都会通过公共 Bootstrap 接口下发给浏览器，只能保存供应商明确允许公开使用的浏览器端 Token/Key，不得保存 Mapbox `sk.*`、下载账户密码或其他服务端私密凭证。管理员接口只接受 Mapbox `pk.*` 公开 Token，并要求天地图 Key 为控制台签发的 32 位字母数字串；该格式校验不能替代供应商控制台中的“浏览器端”类型、生产域名白名单和配额检查。生产环境应为开发、测试和生产分别申请凭证，并在供应商控制台配置可用的域名来源限制和配额告警。天地图瓦片请求使用 `tk` 参数；平台接入球面墨卡托 WMTS 时应使用 `_w` 服务。服务端代理、长期缓存或 CDN 分发需要单独的服务端凭证及供应商书面许可，不使用本浏览器配置替代。
+
 **Python**
 
 ```python
@@ -2069,7 +2086,7 @@ A: 搜索结果按相关性排序，与关键词匹配度越高的结果越靠�
 | 用户设置 | 用户可维护用户名、头像、邮箱、部门等个人信息，查看已授予权限，并主动关闭或重新开启已授予权限 |
 | Dashboard | 后台通过 `/api/admin/dashboard/?period=day\|week\|month` 查询数据资源、图层、栅格、用户数量、指定周期活跃账号和成功登录次数；通过 `/api/admin/dashboard/server/` 查询 Windows、Linux、macOS 的 CPU、内存、硬盘监控快照。活跃账号按已认证 API 访问去重，跨日保持会话的账号在继续访问时计入当天活跃；成功登录次数仅统计新建会话，包含账号密码、游客和自助注册自动登录。只有具备至少一项运维权限的账号显示后台入口并可进入运行概览；普通用户、科研用户和游客仅保留个人设置入口。数据统计卡片由 `core.view_dashboard_*_card` 权限独立控制，服务器信息整段由 `core.view_dashboard_system_card` 控制；未授权内容不会出现在接口响应和页面中，前端每 5 秒刷新服务器信息 |
 | 日志管理 | 后台通过 `/api/admin/operation-logs/` 查询真实审计日志，支持筛选、分页和 CSV 导出；所有登录用户始终可查看自己的操作日志，更大日志范围由所有用户、指定角色日志范围权限控制；具备 `core.view_system_logs` 的用户可通过 `/api/admin/system-logs/` 查看业务数据根目录 `logs/` 下的后台运行日志文件尾部内容。操作日志只记录用户主动行为，目录扫描、启动扫描、后台数据发现和任务内部进度进入系统日志或任务日志 |
-| 系统设置 | 新版后台只展示用户可配置的 application 设置，并将修改直接写入启动时传入的源 TOML 配置文件；前后端共同限制上传为 1–120 MB、查询结果为 100–10,000 条、栅格单边为 1–12,000 像素、栅格任务超时为 10–600 秒。配置目录必须可写并整体挂载到容器 `/config`，单文件 bind mount 不支持原子保存 |
+| 系统设置 | 新版后台只展示用户可配置的 application 设置，并将修改直接写入启动时传入的源 TOML 配置文件；地图配置支持可公开下发到浏览器的 Mapbox Token 与可选天地图 Key，未配置天地图 Key 时返回空字符串；前后端共同限制上传为 1–120 MB、查询结果为 100–10,000 条、栅格单边为 1–12,000 像素、栅格任务超时为 10–600 秒。配置目录必须可写并整体挂载到容器 `/config`，单文件 bind mount 不支持原子保存 |
 | 数据备份 | 后台通过 `/api/admin/backups/*` 仅向内置 `超级管理员` 主体开放本地和云端对象存储备份配置、连接测试、手动备份、自动计划、任务进度和历史记录；普通用户、平台管理员、科研用户以及被误授予 `core.manage_data_backup` 的非超级管理员主体都不能执行备份 |
 | 认证授权 | 后台提供用户创建、启用停用、删除、重置密码、角色分配、角色增删和功能权限配置；非超级管理员主体不会在用户、角色、日志角色等认证授权接口中看到超级管理员账号或角色；管理员创建用户不受自助注册开关影响 |
 | 数据管理 / 存量数据 | 后台通过 `/api/admin/data/resources/` 分页查询当前用户可见或本人上传的已登记数据资源，支持数据资源重命名、快速检索、高级筛选、内容组别、启用/禁用、默认可视化方案保存、访问角色配置、删除确认以及 CSV/Excel 清单导出；超级管理员可查看和维护全部资源；可手动配置的访问角色列表不会返回超级管理员角色，后端仍强制保留该访问范围；上传者可进入并修改自己上传数据的可见范围 |

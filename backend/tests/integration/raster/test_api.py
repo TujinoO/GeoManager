@@ -326,6 +326,25 @@ class RasterPermissionApiTests(TestCase):
             with override_settings(PROJECT_CONFIG=config):
                 validate_raster_pixel_size({"size": [1500, 1000]})
 
+    def test_tile_endpoint_cache_identity_includes_renderer_version(self):
+        grant(self.user, ("core", "load_raster_layer"))
+        resource = DataResource.objects.create(
+            name="tile-cache-resource",
+            code="tile-cache-resource",
+            data_type=DataResource.DataType.RASTER,
+            status=DataResource.Status.ACTIVE,
+            maintainer=self.user,
+        )
+        dataset = self._dataset("tile-cache-dataset", resource)
+
+        with patch("apps.raster.views.render_xyz_tile", return_value=b"png"):
+            response = self.client.get(
+                f"/api/raster/tiles/{dataset.id}/style-hash/7/96/47.png?rv=3"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["ETag"], '"style-hash-rv3-7-96-47"')
+
     def test_tile_endpoint_returns_no_content_for_tiles_outside_extent(self):
         grant(self.user, ("core", "load_raster_layer"))
         resource = DataResource.objects.create(

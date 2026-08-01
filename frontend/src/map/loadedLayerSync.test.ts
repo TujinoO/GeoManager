@@ -188,6 +188,31 @@ describe("syncLoadedLayers", () => {
       sourceIdFor(raster.id),
     );
   });
+
+  it("does not change the camera while restoring layers after a style switch", () => {
+    const map = createMap();
+    const vector = {
+      ...makeVectorLayer("vector", true),
+      geojson: {
+        type: "FeatureCollection" as const,
+        features: [
+          {
+            type: "Feature" as const,
+            id: 1,
+            properties: {},
+            geometry: { type: "Point" as const, coordinates: [80, 41] },
+          },
+        ],
+      },
+    };
+
+    syncLoadedLayers(map.value, [vector], undefined, {
+      fitNewLayers: false,
+    });
+
+    expect(map.value.fitBounds).not.toHaveBeenCalled();
+    expect(map.addSource).toHaveBeenCalledTimes(1);
+  });
 });
 
 function createMap() {

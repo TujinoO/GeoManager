@@ -109,8 +109,9 @@ const bootstrap: Bootstrap = {
   map: {
     defaultCenter: [87.6, 41.7],
     defaultZoom: 6.5,
-    defaultBasemap: "osm",
+    defaultBasemap: "satellite",
     mapboxAccessToken: "",
+    tiandituAccessToken: "",
   },
   limits: {
     uploadMaxMb: 64,
@@ -1536,6 +1537,7 @@ describe("admin routes", () => {
       defaultZoom: adminSettings.map.defaultZoom,
       defaultBasemap: adminSettings.map.defaultBasemap,
       mapboxAccessToken: adminSettings.map.mapboxAccessToken,
+      tiandituAccessToken: adminSettings.map.tiandituAccessToken,
       uploadMaxMb: 80,
       queryResultLimit: adminSettings.limits.queryResultLimit,
       maxRasterSidePixels: adminSettings.limits.maxRasterSidePixels,

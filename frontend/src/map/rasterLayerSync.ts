@@ -9,6 +9,18 @@ import { getMapState } from "./mapState";
 import { upsertLayer } from "./styleHelpers";
 import { removeLoadedLayerGroup } from "./vectorLayerSync";
 
+export const rasterTileRendererVersion = 3;
+
+export function versionedRasterTileUrl(tileUrl: string) {
+  const fragmentIndex = tileUrl.indexOf("#");
+  const url = fragmentIndex >= 0 ? tileUrl.slice(0, fragmentIndex) : tileUrl;
+  const fragment = fragmentIndex >= 0 ? tileUrl.slice(fragmentIndex + 1) : null;
+  const versioned = /([?&])rv=[^&#]*/.test(url)
+    ? url.replace(/([?&])rv=[^&#]*/, `$1rv=${rasterTileRendererVersion}`)
+    : `${url}${url.includes("?") ? "&" : "?"}rv=${rasterTileRendererVersion}`;
+  return fragment === null ? versioned : `${versioned}#${fragment}`;
+}
+
 export function addRasterLayer(
   map: MapboxMap,
   sourceId: string,
@@ -16,18 +28,24 @@ export function addRasterLayer(
 ) {
   const style = layer.symbolization;
   const layerId = `${sourceId}-raster`;
-  const key = rasterSourceKey(layer);
+  const tileUrl = layer.tileUrl
+    ? versionedRasterTileUrl(layer.tileUrl)
+    : undefined;
+  const key = rasterSourceKey({ ...layer, tileUrl });
   const state = getMapState(map);
 
-  if (state.rasterSourceKeys.get(sourceId) !== key) {
+  if (
+    !map.getSource(sourceId) ||
+    state.rasterSourceKeys.get(sourceId) !== key
+  ) {
     removeLoadedLayerGroup(map, sourceId);
-    if (layer.tileUrl) {
+    if (tileUrl) {
       const bounds = layer.imageCoordinates
         ? boundsFromImageCoordinates(layer.imageCoordinates)
         : null;
       map.addSource(sourceId, {
         type: "raster",
-        tiles: [layer.tileUrl],
+        tiles: [tileUrl],
         tileSize: 256,
         ...(bounds
           ? {

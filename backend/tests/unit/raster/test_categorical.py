@@ -1,12 +1,27 @@
+from pathlib import Path
+
 from django.test import SimpleTestCase
 
 from apps.raster.services.categorical import (
     categorical_class_entries,
     is_categorical_metadata,
 )
+from apps.raster.services.importer import gdalwarp_cog_command
 
 
 class CategoricalMetadataTests(SimpleTestCase):
+    def test_categorical_cog_ignores_existing_overviews_and_uses_nearest(self):
+        command = gdalwarp_cog_command(
+            source_path=Path("source.tif"),
+            processed_path=Path("processed.tif"),
+            resampling="nearest",
+        )
+
+        self.assertIn("nearest", command)
+        self.assertIn("OVERVIEWS=IGNORE_EXISTING", command)
+        self.assertIn("WARP_RESAMPLING=NEAREST", command)
+        self.assertIn("OVERVIEW_RESAMPLING=NEAREST", command)
+
     def test_reads_thematic_rat_labels_and_transparent_colors(self):
         metadata = {
             "bands": [

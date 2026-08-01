@@ -58,7 +58,10 @@ from apps.core.config import (
     ConfigValidationError,
     load_project_config,
     load_runtime_config_document,
+    sanitized_public_map_credentials,
     update_runtime_application_config,
+    validate_mapbox_browser_token,
+    validate_tianditu_browser_key,
 )
 from apps.core.initialization import (
     GUEST_GROUP_NAME,
@@ -134,6 +137,18 @@ from apps.raster.models import RasterDataset
 logger = logging.getLogger(__name__)
 
 UPLOAD_MAX_MB_RANGE = (1, 120)
+DEFAULT_BASEMAP_ALIASES = {
+    "satellite": "satellite",
+    "mapbox-satellite": "satellite",
+    "mapbox://styles/mapbox/satellite-streets-v12": "satellite",
+    "streets": "mapbox-streets",
+    "mapbox-streets": "mapbox-streets",
+    "tianditu": "tianditu-vector",
+    "tianditu-vector": "tianditu-vector",
+    # Migrate the historical public-tile default to the supported production
+    # default whenever an administrator next saves system settings.
+    "osm": "satellite",
+}
 QUERY_RESULT_LIMIT_RANGE = (100, 10_000)
 MAX_RASTER_SIDE_PIXELS_RANGE = (1, 12_000)
 SYMBOLIZER_TIMEOUT_SECONDS_RANGE = (10, 600)
@@ -3125,6 +3140,7 @@ def _serialize_permission(permission) -> dict[str, str]:
 def _serialize_application_settings(user) -> dict[str, Any]:
     raw = load_runtime_config_document(settings.PROJECT_CONFIG)
     application = raw["application"]
+    mapbox_token, tianditu_key = sanitized_public_map_credentials(application["map"])
     return {
         "systemName": runtime_system_name(),
         "allowRegistration": application["system"]["allow_registration"],
@@ -3132,7 +3148,8 @@ def _serialize_application_settings(user) -> dict[str, Any]:
             "defaultCenter": application["map"]["default_center"],
             "defaultZoom": application["map"]["default_zoom"],
             "defaultBasemap": application["map"]["default_basemap"],
-            "mapboxAccessToken": application["map"].get("mapbox_access_token", ""),
+            "mapboxAccessToken": mapbox_token,
+            "tiandituAccessToken": tianditu_key,
         },
         "limits": {
             "uploadMaxMb": application["limits"]["upload_max_mb"],
@@ -3592,9 +3609,40 @@ def _map_patch(value: Any) -> dict[str, Any] | JsonResponse:
         default_basemap = _required_string(value["defaultBasemap"], "defaultBasemap")
         if isinstance(default_basemap, JsonResponse):
             return default_basemap
-        patch["default_basemap"] = default_basemap
+        normalized_basemap = DEFAULT_BASEMAP_ALIASES.get(default_basemap.lower())
+        if normalized_basemap is None:
+            return JsonResponse(
+                {
+                    "detail": (
+                        "defaultBasemap 仅支持 satellite、mapbox-streets "
+                        "或 tianditu-vector"
+                    )
+                },
+                status=400,
+            )
+        patch["default_basemap"] = normalized_basemap
     if "mapboxAccessToken" in value:
-        patch["mapbox_access_token"] = str(value["mapboxAccessToken"]).strip()
+        try:
+            mapbox_token = validate_mapbox_browser_token(
+                value["mapboxAccessToken"], "mapboxAccessToken"
+            )
+        except ConfigValidationError as exc:
+            return JsonResponse(
+                {"detail": str(exc)},
+                status=400,
+            )
+        patch["mapbox_access_token"] = mapbox_token
+    if "tiandituAccessToken" in value:
+        try:
+            tianditu_token = validate_tianditu_browser_key(
+                value["tiandituAccessToken"], "tiandituAccessToken"
+            )
+        except ConfigValidationError as exc:
+            return JsonResponse(
+                {"detail": str(exc)},
+                status=400,
+            )
+        patch["tianditu_access_token"] = tianditu_token
     return patch
 
 

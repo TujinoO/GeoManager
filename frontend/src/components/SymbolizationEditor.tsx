@@ -7,6 +7,7 @@ import {
   Divider,
   Input,
   InputNumber,
+  Modal,
   Popover,
   Segmented,
   Select,
@@ -58,6 +59,10 @@ import {
   refreshGraduatedCounts,
   refreshUniqueValueCounts,
 } from "../symbolizationTemplates";
+import {
+  parseRasterSymbolizationJson,
+  parseVectorSymbolizationJson,
+} from "../symbolizationImport";
 import type {
   RasterBandMetadata,
   ResourceField,
@@ -358,6 +363,7 @@ export function VectorSymbolizationEditor({
 }) {
   const { message } = App.useApp();
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [activeIconGroupLabel, setActiveIconGroupLabel] = useState<
     string | null
   >(null);
@@ -370,6 +376,24 @@ export function VectorSymbolizationEditor({
       message.error(error instanceof Error ? error.message : "复制失败");
     }
   }, [value, message]);
+
+  function importJson(text: string) {
+    const imported = parseVectorSymbolizationJson(text, fields);
+    let renderer = markRendererUpdated(imported.renderer);
+    if (isUniqueValueRenderer(renderer) && fieldValueCounts?.[renderer.field]) {
+      renderer = refreshUniqueValueCounts(
+        renderer,
+        countsForField(renderer.field),
+      );
+    }
+    if (isGraduatedRenderer(renderer) && fieldValueCounts?.[renderer.field]) {
+      const { values, nonNumericCount } = numericDataForField(renderer.field);
+      renderer = refreshGraduatedCounts(renderer, values, nonNumericCount);
+    }
+    onChange({ ...imported, renderer });
+    setImportOpen(false);
+    message.success("方案已导入编辑器，请点击“确定”正式应用");
+  }
   function updateRoot<Key extends keyof VectorSymbolization>(
     key: Key,
     nextValue: VectorSymbolization[Key],
@@ -959,6 +983,8 @@ export function VectorSymbolizationEditor({
         <SymbolizationTitle
           title="图层样式"
           onApply={readOnly ? undefined : onApply}
+          onCopy={copyJson}
+          onImport={readOnly ? undefined : () => setImportOpen(true)}
         />
       }
     >
@@ -2284,6 +2310,12 @@ export function VectorSymbolizationEditor({
           </>
         )}
       </Space>
+      <SymbolizationImportDialog
+        open={importOpen}
+        kind="矢量"
+        onCancel={() => setImportOpen(false)}
+        onImport={importJson}
+      />
     </Card>
   );
 }
@@ -2400,6 +2432,7 @@ export function RasterSymbolizationEditor({
 }) {
   const { message } = App.useApp();
   const [classifying, setClassifying] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const bandOptions = (
     bands.length > 0
       ? bands
@@ -2457,6 +2490,13 @@ export function RasterSymbolizationEditor({
       message.error(error instanceof Error ? error.message : "复制失败");
     }
   }, [value, message]);
+
+  function importJson(text: string) {
+    const imported = parseRasterSymbolizationJson(text, bands);
+    onChange(imported);
+    setImportOpen(false);
+    message.success("方案已导入编辑器，请点击“确定”正式应用");
+  }
 
   async function classifyUniqueValues() {
     if (!datasetId) {
@@ -2523,6 +2563,7 @@ export function RasterSymbolizationEditor({
           title="栅格符号化"
           onApply={onApply}
           onCopy={copyJson}
+          onImport={() => setImportOpen(true)}
         />
       }
     >
@@ -2738,6 +2779,12 @@ export function RasterSymbolizationEditor({
           },
         ]}
       />
+      <SymbolizationImportDialog
+        open={importOpen}
+        kind="栅格"
+        onCancel={() => setImportOpen(false)}
+        onImport={importJson}
+      />
     </Card>
   );
 }
@@ -2781,22 +2828,110 @@ function isIntegerRasterBand(band: RasterBandMetadata) {
   );
 }
 
+function SymbolizationImportDialog({
+  open,
+  kind,
+  onCancel,
+  onImport,
+}: {
+  open: boolean;
+  kind: "矢量" | "栅格";
+  onCancel: () => void;
+  onImport: (text: string) => void;
+}) {
+  const [jsonText, setJsonText] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  function resetAndCancel() {
+    setJsonText("");
+    setValidationError(null);
+    onCancel();
+  }
+
+  function submitImport() {
+    try {
+      onImport(jsonText);
+      setJsonText("");
+      setValidationError(null);
+    } catch (error) {
+      setValidationError(
+        error instanceof Error ? error.message : "符号化方案校验失败",
+      );
+    }
+  }
+
+  return (
+    <Modal
+      title={`导入${kind}符号化方案`}
+      open={open}
+      width="min(640px, calc(100vw - 32px))"
+      destroyOnHidden
+      mask={{ closable: false }}
+      onCancel={resetAndCancel}
+      footer={
+        <Space>
+          <Button onClick={resetAndCancel}>取消</Button>
+          <Button type="primary" onClick={submitImport}>
+            校验并导入
+          </Button>
+        </Space>
+      }
+    >
+      <Space orientation="vertical" className="full-width" size="middle">
+        <Alert
+          type="info"
+          showIcon
+          title="粘贴由“复制 JSON”生成的完整方案"
+          description="导入会先更新当前编辑器。确认预览无误后，请点击主窗口的“确定”正式应用。"
+        />
+        <Input.TextArea
+          autoFocus
+          aria-label="符号化方案 JSON"
+          value={jsonText}
+          rows={12}
+          placeholder="在此粘贴符号化方案 JSON（Ctrl+V）"
+          status={validationError ? "error" : undefined}
+          onChange={(event) => {
+            setJsonText(event.target.value);
+            if (validationError) setValidationError(null);
+          }}
+        />
+        {validationError && (
+          <Alert
+            type="error"
+            showIcon
+            title="方案无法导入"
+            description={validationError}
+          />
+        )}
+      </Space>
+    </Modal>
+  );
+}
+
 function SymbolizationTitle({
   title,
   onApply,
   onCopy,
+  onImport,
 }: {
   title: string;
   onApply?: () => void;
   onCopy?: () => void;
+  onImport?: () => void;
 }) {
   return (
     <div className="symbolization-title">
       <span>{title}</span>
-      <Space size={4}>
+      <Space size={4} wrap>
         {onCopy && (
           <Button size="small" autoInsertSpace={false} onClick={onCopy}>
             复制 JSON
+          </Button>
+        )}
+        {onImport && (
+          <Button size="small" autoInsertSpace={false} onClick={onImport}>
+            导入 JSON
           </Button>
         )}
         {onApply && (

@@ -135,7 +135,11 @@ Linux 部署使用单个 Docker 镜像和 TOML 配置。镜像构建使用 `back
 - 默认业务数据根目录：`/data/app`
 - 默认科研数据根目录：`/data/research`
 
-Docker 容器内配置示例见 `config/app.docker.toml`。其中容器内路径、Waitress 监听地址和默认运行参数已经固化；通常只需要按部署环境调整 `allowed_hosts`、`csrf_trusted_origins`、`waitress_port`、`waitress_threads` 和 `mapbox_access_token`。
+Docker 容器内配置示例见 `config/app.docker.toml`。其中容器内路径、Waitress 监听地址和默认运行参数已经固化；通常只需要按部署环境调整 `allowed_hosts`、`csrf_trusted_origins`、`waitress_port`、`waitress_threads`、`mapbox_access_token` 和 `tianditu_access_token`。
+
+`tianditu_access_token` 必须使用天地图服务中心控制台签发的 32 位“浏览器端”应用 Key，不能把真实 Key 写入镜像、仓库或示例配置。浏览器端 Key 还必须在天地图控制台“我的应用 → 设置”中配置允许访问的域名：本地联调至少覆盖实际使用的 `localhost` 和/或 `127.0.0.1`，生产环境覆盖平台实际 HTTPS 域名；如果用户还会通过服务器 IP 或其他域名访问，也要分别纳入。域名项按控制台要求填写，不附带 URL 路径。未配置或不匹配时，WMTS 请求会返回 HTTP 403，以及错误码 `301007`（域名不匹配），平台会回滚到上一个可用底图。
+
+服务器应把 Key 写入宿主机实际挂载目录的 `app.toml`，或以管理员身份在“后台管理 → 系统设置 → 天地图浏览器 Key”中保存。后台保存要求整个可写配置目录挂载到 `/config`；只挂载单个 `/config/app.toml` 会破坏原子替换。保存后用生产域名打开地理工作台并切换到天地图，确认 `vec_w` 与 `cva_w` 请求均返回 200、响应类型为图片、底图状态正常且业务图层仍在，才算完成生产验收。
 
 手动 `docker run` 时，先把 `config/app.docker.toml` 复制为宿主机配置目录中的 `app.toml`，再把整个目录挂载到 `/config`。配置应使用容器内数据路径 `/data/app` 和 `/data/research`。业务数据和科研数据使用同一个 Docker named volume，不需要映射宿主机目录。
 
@@ -209,9 +213,9 @@ form-action 'self';
 script-src 'self';
 style-src 'self' 'unsafe-inline';
 worker-src 'self' blob:;
-img-src 'self' data: blob: https://api.mapbox.com https://tiles.openfreemap.org https://*.tile.openstreetmap.org https://images.unsplash.com;
+img-src 'self' data: blob: https://api.mapbox.com https://tiles.openfreemap.org https://*.tile.openstreetmap.org https://*.tianditu.gov.cn https://images.unsplash.com;
 font-src 'self' data:;
-connect-src 'self' https://api.mapbox.com https://tiles.openfreemap.org https://*.tile.openstreetmap.org;
+connect-src 'self' https://api.mapbox.com https://tiles.openfreemap.org https://*.tile.openstreetmap.org https://*.tianditu.gov.cn;
 frame-src 'self' blob:;
 media-src 'none';
 manifest-src 'self';

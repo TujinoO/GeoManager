@@ -55,6 +55,7 @@ const loginBackgrounds = [
   loginBackground06,
 ] as const;
 const loginBackgroundIntervalMs = 9000;
+const loginBackgroundTransitionMs = 1600;
 
 const fallbackCapabilityTags = [
   "遥感影像",
@@ -134,6 +135,9 @@ export default function LoginPage() {
     useState<RegisterFormValues["accountPurpose"]>("standard");
   const [overview, setOverview] = useState<LoginOverviewResponse | null>(null);
   const [activeBackgroundIndex, setActiveBackgroundIndex] = useState(0);
+  const [outgoingBackgroundIndex, setOutgoingBackgroundIndex] = useState<
+    number | null
+  >(null);
   const isSubmitting = submittingAction !== null;
 
   useEffect(() => {
@@ -152,14 +156,25 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
-    const intervalId = window.setInterval(() => {
+    const rotationId = window.setTimeout(() => {
+      setOutgoingBackgroundIndex(activeBackgroundIndex);
       setActiveBackgroundIndex(
-        (currentIndex) => (currentIndex + 1) % loginBackgrounds.length,
+        (activeBackgroundIndex + 1) % loginBackgrounds.length,
       );
     }, loginBackgroundIntervalMs);
 
-    return () => window.clearInterval(intervalId);
-  }, []);
+    return () => window.clearTimeout(rotationId);
+  }, [activeBackgroundIndex]);
+
+  useEffect(() => {
+    if (outgoingBackgroundIndex === null) return;
+
+    const transitionId = window.setTimeout(() => {
+      setOutgoingBackgroundIndex(null);
+    }, loginBackgroundTransitionMs);
+
+    return () => window.clearTimeout(transitionId);
+  }, [outgoingBackgroundIndex]);
 
   const loginStats = useMemo(
     () =>
@@ -227,16 +242,25 @@ export default function LoginPage() {
   return (
     <main className="login-shell">
       <div className="login-background-carousel" aria-hidden="true">
-        {loginBackgrounds.map((background, index) => (
-          <div
-            className={`login-background-slide${
-              index === activeBackgroundIndex ? " is-active" : ""
-            }`}
-            data-active={index === activeBackgroundIndex}
-            key={background}
-            style={{ backgroundImage: `url("${background}")` }}
-          />
-        ))}
+        {loginBackgrounds.map((background, index) => {
+          const isActive = index === activeBackgroundIndex;
+          const isOutgoing = index === outgoingBackgroundIndex;
+          return (
+            <div
+              className={[
+                "login-background-slide",
+                isOutgoing ? "is-outgoing" : "",
+                isActive ? "is-active" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              data-active={isActive}
+              data-outgoing={isOutgoing}
+              key={background}
+              style={{ backgroundImage: `url("${background}")` }}
+            />
+          );
+        })}
       </div>
       <section className="login-hero-panel" aria-label="平台概览">
         <header className="login-brand-head">

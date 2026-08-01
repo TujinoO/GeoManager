@@ -9,8 +9,9 @@
           41.5
         ],
         "defaultZoom": 4.5,
-        "defaultBasemap": "osm",
-        "mapboxAccessToken": "pk.mock-mapbox-token"
+        "defaultBasemap": "satellite",
+        "mapboxAccessToken": "pk.mock-mapbox-token",
+        "tiandituAccessToken": "0123456789abcdef0123456789abcdef"
       },
       "limits": {
         "uploadMaxMb": 512,

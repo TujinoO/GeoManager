@@ -99,13 +99,21 @@ describe("LoginPage", () => {
 
     expect(slides).toHaveLength(6);
     expect(slides[0]).toHaveAttribute("data-active", "true");
+    expect(slides[0]).toHaveAttribute("data-outgoing", "false");
 
     act(() => {
       vi.advanceTimersByTime(9000);
     });
 
     expect(slides[0]).toHaveAttribute("data-active", "false");
+    expect(slides[0]).toHaveAttribute("data-outgoing", "true");
     expect(slides[1]).toHaveAttribute("data-active", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(1600);
+    });
+
+    expect(slides[0]).toHaveAttribute("data-outgoing", "false");
     unmount();
     vi.useRealTimers();
   });

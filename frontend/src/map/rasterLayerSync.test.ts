@@ -2,11 +2,15 @@ import type { AnyLayer, Map as MapboxMap } from "mapbox-gl";
 import { describe, expect, it, vi } from "vitest";
 import { cloneDefaultRasterSymbolization } from "../symbolization";
 import type { LoadedRasterLayer } from "../types";
-import { addRasterLayer } from "./rasterLayerSync";
+import {
+  addRasterLayer,
+  rasterTileRendererVersion,
+  versionedRasterTileUrl,
+} from "./rasterLayerSync";
 
 describe("addRasterLayer", () => {
   it("disables interpolation and zoom cross-fading for categorical rasters", () => {
-    const { map, addedLayers } = makeMap();
+    const { map, addedLayers, addedSources } = makeMap();
     const layer = makeRasterLayer("categorical", "unique");
 
     addRasterLayer(map, "lucc", layer);
@@ -15,6 +19,21 @@ describe("addRasterLayer", () => {
       "raster-resampling": "nearest",
       "raster-fade-duration": 0,
     });
+    expect(addedSources[0]?.source).toMatchObject({
+      tiles: [
+        `/api/raster/tiles/1/hash/{z}/{x}/{y}.png?rv=${rasterTileRendererVersion}`,
+      ],
+    });
+  });
+
+  it("replaces stale renderer versions without dropping existing queries", () => {
+    expect(
+      versionedRasterTileUrl(
+        "/api/raster/tiles/1/hash/{z}/{x}/{y}.png?token=a&rv=1",
+      ),
+    ).toBe(
+      `/api/raster/tiles/1/hash/{z}/{x}/{y}.png?token=a&rv=${rasterTileRendererVersion}`,
+    );
   });
 
   it("keeps smooth sampling for continuous rasters", () => {
@@ -27,6 +46,18 @@ describe("addRasterLayer", () => {
       "raster-resampling": "linear",
       "raster-fade-duration": 300,
     });
+  });
+
+  it("recreates an unchanged raster source after a full style replacement", () => {
+    const { map } = makeMap();
+    const layer = makeRasterLayer("continuous", "gray");
+
+    addRasterLayer(map, "dem", layer);
+    map.removeSource("dem");
+    addRasterLayer(map, "dem", layer);
+
+    expect(map.addSource).toHaveBeenCalledTimes(2);
+    expect(map.getSource("dem")).toBeDefined();
   });
 });
 
@@ -55,12 +86,16 @@ function makeRasterLayer(
 function makeMap() {
   const sources = new Set<string>();
   const addedLayers: AnyLayer[] = [];
+  const addedSources: Array<{ id: string; source: unknown }> = [];
   const map = {
     style: {},
     getStyle: vi.fn(() => ({})),
     getLayer: vi.fn(() => undefined),
     getSource: vi.fn((id: string) => (sources.has(id) ? {} : undefined)),
-    addSource: vi.fn((id: string) => sources.add(id)),
+    addSource: vi.fn((id: string, source: unknown) => {
+      sources.add(id);
+      addedSources.push({ id, source });
+    }),
     removeSource: vi.fn((id: string) => sources.delete(id)),
     addLayer: vi.fn((layer: AnyLayer) => addedLayers.push(layer)),
     removeLayer: vi.fn(),
@@ -68,5 +103,5 @@ function makeMap() {
     setLayoutProperty: vi.fn(),
     setPaintProperty: vi.fn(),
   } as unknown as MapboxMap;
-  return { map, addedLayers };
+  return { map, addedLayers, addedSources };
 }

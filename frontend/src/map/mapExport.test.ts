@@ -132,6 +132,54 @@ describe("mapExport", () => {
     ]);
   });
 
+  it("replaces Tianditu sources with the platform export basemap", () => {
+    const style = createExportStyle({
+      version: 8,
+      sources: {
+        "basemap-tianditu-vector": {
+          type: "raster",
+          tiles: [
+            "https://t0.tianditu.gov.cn/vec_w/wmts?TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=test-browser-key",
+          ],
+          tileSize: 256,
+          maxzoom: 18,
+        },
+        "basemap-tianditu-labels": {
+          type: "raster",
+          tiles: [
+            "https://t0.tianditu.gov.cn/cva_w/wmts?TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=test-browser-key",
+          ],
+          tileSize: 256,
+          maxzoom: 18,
+        },
+        "loaded-vector": { type: "geojson", data: emptyFeatures() },
+      },
+      layers: [
+        {
+          id: "basemap-tianditu-vector",
+          type: "raster",
+          source: "basemap-tianditu-vector",
+        },
+        {
+          id: "basemap-tianditu-labels",
+          type: "raster",
+          source: "basemap-tianditu-labels",
+        },
+        { id: "loaded-vector-fill", type: "fill", source: "loaded-vector" },
+      ],
+    });
+
+    expect(style.sources).not.toHaveProperty("basemap-tianditu-vector");
+    expect(style.sources).not.toHaveProperty("basemap-tianditu-labels");
+    expect(style.sources).toHaveProperty("map-export-platform-basemap");
+    expect(JSON.stringify(style)).not.toContain("test-browser-key");
+    expect(style.layers.map((layer) => layer.id)).toEqual([
+      "map-export-background",
+      "map-export-platform-basemap",
+      "loaded-vector-fill",
+    ]);
+  });
+
   it("infers tile zoom options from basemap layers and excludes loaded data", () => {
     const range = inferBasemapTileZoomRange(
       {

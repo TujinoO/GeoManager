@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  activeBasemapScopeKey,
   classifyBasemapStatus,
   initialBasemapDiagnostics,
   isBasemapResourceError,
   isBasemapSourceId,
+  resetBasemapDiagnosticsForSwitch,
+  type ActiveBasemapDescriptor,
   type BasemapDiagnostics,
   type BrowserNetworkSnapshot,
 } from "./basemapStatus";
@@ -13,6 +16,13 @@ const normalNetwork: BrowserNetworkSnapshot = {
   effectiveType: "4g",
   rttMs: 80,
   downlinkMbps: 10,
+};
+
+const activeBasemap: ActiveBasemapDescriptor = {
+  id: "tianditu-imagery",
+  generation: 3,
+  sourceIds: ["tianditu-image", "tianditu-labels"],
+  resourceMarkers: ["tianditu.gov.cn"],
 };
 
 function diagnostics(
@@ -128,5 +138,75 @@ describe("classifyBasemapStatus", () => {
         ),
       }),
     ).toBe(false);
+  });
+
+  it("matches only the explicitly active basemap sources", () => {
+    expect(isBasemapSourceId("tianditu-image", activeBasemap)).toBe(true);
+    expect(isBasemapSourceId("composite", activeBasemap)).toBe(false);
+    expect(isBasemapSourceId("loaded-raster-12", activeBasemap)).toBe(false);
+    expect(isBasemapSourceId("tianditu-image", null)).toBe(false);
+  });
+
+  it("uses active resource markers without attributing business source errors", () => {
+    expect(
+      isBasemapResourceError(
+        {
+          error: new Error(
+            "Failed to fetch https://t0.tianditu.gov.cn/img_w/wmts",
+          ),
+        },
+        activeBasemap,
+      ),
+    ).toBe(true);
+    expect(
+      isBasemapResourceError(
+        {
+          error: new Error("Failed to fetch https://api.mapbox.com/style"),
+        },
+        activeBasemap,
+      ),
+    ).toBe(false);
+    expect(
+      isBasemapResourceError(
+        {
+          sourceId: "loaded-raster-12",
+          error: new Error(
+            "Failed to fetch https://t0.tianditu.gov.cn/img_w/wmts",
+          ),
+        },
+        activeBasemap,
+      ),
+    ).toBe(false);
+    expect(
+      isBasemapResourceError(
+        { error: new Error("unrelated error") },
+        { ...activeBasemap, resourceMarkers: [" "] },
+      ),
+    ).toBe(false);
+  });
+
+  it("changes scope identity when the basemap generation changes", () => {
+    expect(activeBasemapScopeKey(activeBasemap)).not.toBe(
+      activeBasemapScopeKey({ ...activeBasemap, generation: 4 }),
+    );
+    expect(activeBasemapScopeKey(undefined)).toBe("legacy");
+    expect(activeBasemapScopeKey(null)).toBe("none");
+  });
+
+  it("resets basemap measurements without discarding platform diagnostics", () => {
+    const current = diagnostics({
+      basemap: "failed",
+      basemapLatencyMs: 4_200,
+      basemapLoadingSince: null,
+      recentBasemapFailures: 3,
+    });
+
+    expect(resetBasemapDiagnosticsForSwitch(current, 8_000)).toEqual({
+      ...current,
+      basemap: "loading",
+      basemapLatencyMs: null,
+      basemapLoadingSince: 8_000,
+      recentBasemapFailures: 0,
+    });
   });
 });

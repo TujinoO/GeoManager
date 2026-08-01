@@ -5,21 +5,45 @@ import {
   ZoomInOutlined,
   ZoomOutOutlined,
 } from "@ant-design/icons";
-import { Button, Tooltip } from "antd";
+import { App, Button, Tooltip } from "antd";
 import mapboxgl, { type Map as MapboxMap, type MapboxOptions } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BasemapStatusIndicator from "./BasemapStatusIndicator";
+import BasemapSwitcher from "./BasemapSwitcher";
+import type { BasemapRetryProbe } from "../hooks/useBasemapStatus";
 import {
   applyBasemapExpressionSafety,
   applyChineseBasemapLanguage,
   applySatelliteBasemapColorCorrection,
-  createBasemapStyle,
-  isOsmRasterTileError,
   mapLabelLanguage,
-  shouldUseMapboxBasemap,
 } from "../map/basemapStyle";
+import {
+  availableBasemapFallback,
+  createBasemapCatalog,
+  resolveBasemapDefinition,
+  type BasemapDefinition,
+  type BasemapId,
+} from "../map/basemapCatalog";
+import {
+  readBasemapPreference,
+  writeBasemapPreference,
+} from "../map/basemapPreference";
+import {
+  basemapErrorMessage,
+  createStableReadinessGate,
+  isHardBasemapStyleError,
+  readBasemapCamera,
+  restoreBasemapCamera,
+  restoreSelectedFeatureState,
+  type BasemapCameraSnapshot,
+} from "../map/basemapSwitch";
+import {
+  isBasemapResourceError,
+  type ActiveBasemapDescriptor,
+} from "../map/basemapStatus";
 import { syncLoadedLayers } from "../map/loadedLayerSync";
+import { getMapState, type FeatureStateTarget } from "../map/mapState";
 import {
   bindGeometryDraw,
   type DrawMode,
@@ -68,6 +92,8 @@ disableMapboxEventRequests();
 
 interface Props {
   bootstrap: Bootstrap;
+  basemapPreferenceScope: string;
+  basemapSwitchDisabled?: boolean;
   loadedLayers: LoadedLayer[];
   drawMode: DrawMode | null;
   spatialFilter: SpatialFilter | null;
@@ -78,10 +104,37 @@ interface Props {
   onMapDestroy?: () => void;
   onMapError?: (message: string) => void;
   onViewStateChange?: (view: MapViewState) => void;
+  onBasemapSwitchingChange?: (switching: boolean) => void;
 }
+
+interface ActiveBasemapState {
+  id: BasemapId;
+  generation: number;
+}
+
+interface BasemapStyleLoadResult {
+  ok: boolean;
+  latencyMs: number | null;
+  error?: unknown;
+}
+
+interface StyleRestoreSnapshot {
+  camera: BasemapCameraSnapshot;
+  selectedFeature: FeatureStateTarget | undefined;
+}
+
+interface BasemapSwitchOptions {
+  force?: boolean;
+  persist?: boolean;
+  announce?: boolean;
+}
+
+const basemapSwitchTimeoutMs = 15_000;
 
 export default function MapCanvas({
   bootstrap,
+  basemapPreferenceScope,
+  basemapSwitchDisabled = false,
   loadedLayers,
   drawMode,
   spatialFilter,
@@ -92,7 +145,9 @@ export default function MapCanvas({
   onMapDestroy,
   onMapError,
   onViewStateChange,
+  onBasemapSwitchingChange,
 }: Props) {
+  const { message } = App.useApp();
   const mapRef = useRef<MapboxMap | null>(null);
   const [mapObject, setMapObject] = useState<MapboxMap | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -102,18 +157,261 @@ export default function MapCanvas({
   const activeLayerExtentSourceIdsRef = useRef<Set<string>>(new Set());
   const styleInitializedRef = useRef(false);
   const latestLoadedLayersRef = useRef(loadedLayers);
+  const latestSpatialFilterRef = useRef(spatialFilter);
+  const latestLayerExtentOverlaysRef = useRef(layerExtentOverlays);
   const latestOnFeatureSelectRef = useRef(onFeatureSelect);
+  const latestOnBasemapSwitchingChangeRef = useRef(onBasemapSwitchingChange);
+  const mountedRef = useRef(true);
+  const basemapSwitchingRef = useRef(false);
+  const basemapOperationSequenceRef = useRef(0);
+  const cancelBasemapStyleLoadRef = useRef<((reason?: unknown) => void) | null>(
+    null,
+  );
   latestLoadedLayersRef.current = loadedLayers;
+  latestSpatialFilterRef.current = spatialFilter;
+  latestLayerExtentOverlaysRef.current = layerExtentOverlays;
   latestOnFeatureSelectRef.current = onFeatureSelect;
+  latestOnBasemapSwitchingChangeRef.current = onBasemapSwitchingChange;
   const mapConfig = bootstrap.map;
   const mapboxToken = mapConfig.mapboxAccessToken;
-  const shouldUseMapboxStyle = shouldUseMapboxBasemap(mapConfig);
+  const basemapCatalog = useMemo(
+    () =>
+      createBasemapCatalog({
+        mapboxAccessToken: mapboxToken,
+        tiandituKey: mapConfig.tiandituAccessToken ?? "",
+      }),
+    [mapConfig.tiandituAccessToken, mapboxToken],
+  );
+  const initialBasemapRef = useRef<BasemapDefinition | null>(null);
+  if (!initialBasemapRef.current) {
+    initialBasemapRef.current = availableBasemapFallback(basemapCatalog, {
+      userPreference: readBasemapPreference(basemapPreferenceScope),
+      systemDefault: mapConfig.defaultBasemap,
+    });
+  }
+  const [activeBasemapState, setActiveBasemapState] =
+    useState<ActiveBasemapState>(() => ({
+      id: initialBasemapRef.current!.id,
+      generation: 0,
+    }));
+  const [basemapSwitching, setBasemapSwitching] = useState(false);
+  const activeBasemap =
+    resolveBasemapDefinition(basemapCatalog, activeBasemapState.id) ??
+    availableBasemapFallback(basemapCatalog);
+  const activeBasemapRef = useRef(activeBasemap);
+  activeBasemapRef.current = activeBasemap;
+  const basemapGenerationRef = useRef(activeBasemapState.generation);
+  basemapGenerationRef.current = activeBasemapState.generation;
+  const activeBasemapDescriptor = useMemo<ActiveBasemapDescriptor>(
+    () => ({
+      id: activeBasemap.id,
+      generation: activeBasemapState.generation,
+      sourceIds: activeBasemap.sourceIds,
+      resourceMarkers: activeBasemap.errorMarkers,
+    }),
+    [activeBasemap, activeBasemapState.generation],
+  );
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      basemapOperationSequenceRef.current += 1;
+      cancelBasemapStyleLoadRef.current?.(new Error("地图已卸载"));
+      cancelBasemapStyleLoadRef.current = null;
+    };
+  }, []);
+
+  const restoreStyleContents = useCallback(
+    (
+      map: MapboxMap,
+      definition: BasemapDefinition,
+      options: {
+        fitNewLayers: boolean;
+        snapshot?: StyleRestoreSnapshot;
+      },
+    ) => {
+      const postProcess = definition.postProcess;
+      if (postProcess.applyExpressionSafety) {
+        applyBasemapExpressionSafety(map);
+      }
+      registerPlatformSymbolImages(map);
+      map.setFog({
+        color: "rgb(221, 232, 224)",
+        "high-color": "rgb(52, 96, 123)",
+        "horizon-blend": 0.08,
+        "space-color": "rgb(8, 20, 28)",
+        "star-intensity": 0.22,
+      });
+      if (postProcess.applySatelliteColorCorrection) {
+        applySatelliteBasemapColorCorrection(map);
+      }
+      if (postProcess.applyChineseLanguage) {
+        applyChineseBasemapLanguage(map);
+      }
+      if (postProcess.hideAdministrativeBoundaries) {
+        hideAdministrativeBoundaries(map);
+      }
+
+      syncLoadedLayers(
+        map,
+        latestLoadedLayersRef.current,
+        latestOnFeatureSelectRef.current,
+        { fitNewLayers: options.fitNewLayers },
+      );
+      syncSpatialFilterOverlay(map, latestSpatialFilterRef.current);
+      syncLayerExtentOverlays(
+        map,
+        latestLayerExtentOverlaysRef.current,
+        activeLayerExtentSourceIdsRef.current,
+      );
+      if (options.snapshot) {
+        restoreBasemapCamera(map, options.snapshot.camera);
+        restoreSelectedFeatureState(map, options.snapshot.selectedFeature);
+      }
+      styleInitializedRef.current = true;
+    },
+    [],
+  );
+
+  const loadBasemapStyle = useCallback(
+    (
+      map: MapboxMap,
+      definition: BasemapDefinition,
+      snapshot: StyleRestoreSnapshot,
+    ) => {
+      const sequence = basemapOperationSequenceRef.current + 1;
+      basemapOperationSequenceRef.current = sequence;
+      cancelBasemapStyleLoadRef.current?.(
+        new Error("新的底图切换已替代上一请求"),
+      );
+      styleInitializedRef.current = false;
+      const startedAt = performance.now();
+
+      return new Promise<BasemapStyleLoadResult>((resolve) => {
+        let settled = false;
+        let styleLoaded = false;
+        let lastBasemapError: unknown;
+        let timeoutId: number | null = null;
+
+        const basemapSourcesReady = () => {
+          if (!styleLoaded || !isCurrentOperation()) return false;
+          const existingSourceIds = definition.sourceIds.filter((sourceId) =>
+            Boolean(map.getSource(sourceId)),
+          );
+          if (existingSourceIds.length === 0) return false;
+          return existingSourceIds.every((sourceId) => {
+            try {
+              return map.isSourceLoaded(sourceId);
+            } catch {
+              return false;
+            }
+          });
+        };
+        const readinessGate = createStableReadinessGate(
+          basemapSourcesReady,
+          () => {
+            if (lastBasemapError !== undefined) {
+              settle(false, lastBasemapError);
+              return;
+            }
+            settle(true);
+          },
+          100,
+        );
+
+        const cleanup = () => {
+          map.off("style.load", handleStyleLoad);
+          map.off("sourcedata", handleSourceData);
+          map.off("idle", handleIdle);
+          map.off("error", handleError);
+          if (timeoutId !== null) {
+            window.clearTimeout(timeoutId);
+          }
+          readinessGate.cancel();
+          if (cancelBasemapStyleLoadRef.current === cancel) {
+            cancelBasemapStyleLoadRef.current = null;
+          }
+        };
+        const settle = (ok: boolean, error?: unknown) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          resolve({
+            ok,
+            latencyMs: ok
+              ? Math.max(1, Math.round(performance.now() - startedAt))
+              : null,
+            error,
+          });
+        };
+        const cancel = (reason?: unknown) =>
+          settle(false, reason ?? new Error("底图切换已取消"));
+        const isCurrentOperation = () =>
+          basemapOperationSequenceRef.current === sequence;
+        const checkBasemapReady = readinessGate.check;
+        const handleStyleLoad = () => {
+          if (!isCurrentOperation()) return;
+          try {
+            restoreStyleContents(map, definition, {
+              fitNewLayers: false,
+              snapshot,
+            });
+            styleLoaded = true;
+            checkBasemapReady();
+          } catch (error) {
+            settle(false, error);
+          }
+        };
+        const handleSourceData = (event: { sourceId?: string }) => {
+          if (event.sourceId && definition.sourceIds.includes(event.sourceId)) {
+            checkBasemapReady();
+          }
+        };
+        const handleIdle = () => checkBasemapReady();
+        const handleError = (event: { error?: unknown; sourceId?: string }) => {
+          const descriptor: ActiveBasemapDescriptor = {
+            id: definition.id,
+            generation: sequence,
+            sourceIds: definition.sourceIds,
+            resourceMarkers: definition.errorMarkers,
+          };
+          if (!isBasemapResourceError(event, descriptor)) return;
+          lastBasemapError = event;
+          if (isHardBasemapStyleError(event)) {
+            settle(false, event);
+          }
+        };
+
+        cancelBasemapStyleLoadRef.current = cancel;
+        map.on("style.load", handleStyleLoad);
+        map.on("sourcedata", handleSourceData);
+        map.on("idle", handleIdle);
+        map.on("error", handleError);
+        timeoutId = window.setTimeout(
+          () => settle(false, new Error(`${definition.label}加载超过 15 秒`)),
+          basemapSwitchTimeoutMs,
+        );
+        try {
+          map.setStyle(definition.style, {
+            diff: false,
+            localFontFamily: null,
+            localIdeographFontFamily:
+              '"Microsoft YaHei", "PingFang SC", sans-serif',
+          });
+        } catch (error) {
+          settle(false, error);
+        }
+      });
+    },
+    [restoreStyleContents],
+  );
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     const mapOptions: MapboxOptions = {
       container: containerRef.current,
-      style: createBasemapStyle(mapConfig),
+      style: activeBasemapRef.current.style,
       center: mapConfig.defaultCenter,
       zoom: mapConfig.defaultZoom,
       pitch: 0,
@@ -131,39 +429,40 @@ export default function MapCanvas({
     const unbindPlatformSymbolImageFallback =
       bindPlatformSymbolImageFallback(map);
     const handleStyleLoad = () => {
-      applyBasemapExpressionSafety(map);
-      registerPlatformSymbolImages(map);
-      map.setFog({
-        color: "rgb(221, 232, 224)",
-        "high-color": "rgb(52, 96, 123)",
-        "horizon-blend": 0.08,
-        "space-color": "rgb(8, 20, 28)",
-        "star-intensity": 0.22,
-      });
-      if (shouldUseMapboxStyle) {
-        applySatelliteBasemapColorCorrection(map);
-        applyChineseBasemapLanguage(map);
-        hideAdministrativeBoundaries(map);
-        map.once("idle", () => hideAdministrativeBoundaries(map));
+      if (basemapSwitchingRef.current) return;
+      try {
+        restoreStyleContents(map, activeBasemapRef.current, {
+          fitNewLayers: true,
+        });
+      } catch (error) {
+        onMapError?.(basemapErrorMessage(error));
       }
-      styleInitializedRef.current = true;
-      syncLoadedLayers(
-        map,
-        latestLoadedLayersRef.current,
-        latestOnFeatureSelectRef.current,
-      );
     };
     map.on("style.load", handleStyleLoad);
-    const handleMapError = (event: { error?: unknown }) => {
-      if (isOsmRasterTileError(event)) {
+    const handleMapError = (event: { error?: unknown; sourceId?: string }) => {
+      const definition = activeBasemapRef.current;
+      const descriptor: ActiveBasemapDescriptor = {
+        id: definition.id,
+        generation: basemapGenerationRef.current,
+        sourceIds: definition.sourceIds,
+        resourceMarkers: definition.errorMarkers,
+      };
+      if (
+        basemapSwitchingRef.current &&
+        isBasemapResourceError(event, descriptor)
+      ) {
         return;
       }
-      onMapError?.(mapboxErrorMessage(event.error));
+      onMapError?.(basemapErrorMessage(event));
     };
     map.on("error", handleMapError);
     map.addControl(
       new mapboxgl.ScaleControl({ unit: "metric" }),
       "bottom-left",
+    );
+    map.addControl(
+      new mapboxgl.AttributionControl({ compact: true }),
+      "bottom-right",
     );
     const updatePointerPanel = (lngLat: [number, number] | null) => {
       if (pointerUpdateFrameRef.current !== null) {
@@ -234,8 +533,12 @@ export default function MapCanvas({
       }
       onMapDestroy?.();
       styleInitializedRef.current = false;
-      map.remove();
+      basemapOperationSequenceRef.current += 1;
+      cancelBasemapStyleLoadRef.current?.(new Error("地图正在重新初始化"));
+      cancelBasemapStyleLoadRef.current = null;
       mapRef.current = null;
+      setMapObject(null);
+      map.remove();
     };
   }, [
     mapConfig,
@@ -244,7 +547,7 @@ export default function MapCanvas({
     onMapError,
     onMapReady,
     onViewStateChange,
-    shouldUseMapboxStyle,
+    restoreStyleContents,
   ]);
 
   useEffect(() => {
@@ -255,62 +558,190 @@ export default function MapCanvas({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    const sync = () => {
-      if (spatialFilter) {
-        upsertPolygonLayer(
-          map,
-          spatialFilterSourceId,
-          spatialFilterFillId,
-          spatialFilterLineId,
-          spatialFilter.geometry,
-          spatialRangeStyle,
-        );
-      } else {
-        removeLayerGroup(
-          map,
-          spatialFilterSourceId,
-          [spatialFilterFillId, spatialFilterLineId],
-          { cleanInteraction: false },
-        );
-      }
-    };
-    if (map.isStyleLoaded()) {
-      sync();
-      return;
-    }
-    map.once("load", sync);
-    return () => {
-      map.off("load", sync);
-    };
+    if (!map || !styleInitializedRef.current || !map.isStyleLoaded()) return;
+    syncSpatialFilterOverlay(map, spatialFilter);
   }, [spatialFilter]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    const sync = () =>
-      syncLayerExtentOverlays(
-        map,
-        layerExtentOverlays,
-        activeLayerExtentSourceIdsRef.current,
-      );
-    if (map.isStyleLoaded()) {
-      sync();
-      return;
-    }
-    map.once("load", sync);
-    return () => {
-      map.off("load", sync);
-    };
+    if (!map || !styleInitializedRef.current || !map.isStyleLoaded()) return;
+    syncLayerExtentOverlays(
+      map,
+      layerExtentOverlays,
+      activeLayerExtentSourceIdsRef.current,
+    );
   }, [layerExtentOverlays]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !drawMode) return;
+    if (
+      !map ||
+      !drawMode ||
+      basemapSwitching ||
+      !styleInitializedRef.current ||
+      !map.isStyleLoaded()
+    ) {
+      return;
+    }
     return bindGeometryDraw(map, drawMode, (geometry) =>
       onDrawComplete(drawMode, geometry),
     );
-  }, [drawMode, onDrawComplete]);
+  }, [basemapSwitching, drawMode, onDrawComplete]);
+
+  const switchBasemap = useCallback(
+    async (id: BasemapId, options: BasemapSwitchOptions = {}) => {
+      const map = mapRef.current;
+      const target = resolveBasemapDefinition(basemapCatalog, id);
+      if (drawMode || basemapSwitchDisabled) {
+        if (options.announce !== false) {
+          message.info(
+            drawMode ? "请先完成当前范围绘制" : "地图导出期间暂不能切换底图",
+          );
+        }
+        return false;
+      }
+      if (!map || !target) {
+        if (options.announce !== false) {
+          message.warning("地图尚未准备好，请稍后重试");
+        }
+        return false;
+      }
+      if (!target.credentials.available) {
+        if (options.announce !== false) {
+          message.warning(target.credentials.reason ?? "当前底图不可用");
+        }
+        return false;
+      }
+
+      const previous = activeBasemapRef.current;
+      if (previous.id === target.id && !options.force) return true;
+      if (basemapSwitchingRef.current) {
+        if (options.announce !== false) {
+          message.info("底图正在切换，请稍候");
+        }
+        return false;
+      }
+
+      const snapshot: StyleRestoreSnapshot = {
+        camera: readBasemapCamera(map),
+        selectedFeature: getMapState(map).selectedFeature,
+      };
+      const publishActiveBasemap = (definition: BasemapDefinition) => {
+        const generation = basemapGenerationRef.current + 1;
+        basemapGenerationRef.current = generation;
+        activeBasemapRef.current = definition;
+        if (mountedRef.current) {
+          setActiveBasemapState({ id: definition.id, generation });
+        }
+      };
+      const setSwitching = (switching: boolean) => {
+        basemapSwitchingRef.current = switching;
+        if (mountedRef.current) {
+          setBasemapSwitching(switching);
+          latestOnBasemapSwitchingChangeRef.current?.(switching);
+        }
+      };
+
+      setSwitching(true);
+      publishActiveBasemap(target);
+      try {
+        const result = await loadBasemapStyle(map, target, snapshot);
+        if (!mountedRef.current || mapRef.current !== map) return false;
+        if (result.ok) {
+          if (options.persist !== false) {
+            writeBasemapPreference(basemapPreferenceScope, target.id);
+          }
+          if (options.announce !== false) {
+            message.success(`已切换到${target.label}`);
+          }
+          return true;
+        }
+
+        const failureMessage = basemapErrorMessage(result.error);
+        const technicalFallback = resolveBasemapDefinition(
+          basemapCatalog,
+          "osm",
+        );
+        if (previous.id === target.id) {
+          if (technicalFallback && technicalFallback.id !== target.id) {
+            publishActiveBasemap(technicalFallback);
+            const fallbackResult = await loadBasemapStyle(
+              map,
+              technicalFallback,
+              snapshot,
+            );
+            if (!mountedRef.current || mapRef.current !== map) return false;
+            if (fallbackResult.ok) {
+              message.error(
+                `${target.label}重新加载失败，已启用技术兜底底图：${failureMessage}`,
+              );
+              return false;
+            }
+          }
+          message.error(`${target.label}重新加载失败：${failureMessage}`);
+          return false;
+        }
+
+        publishActiveBasemap(previous);
+        const rollback = await loadBasemapStyle(map, previous, snapshot);
+        if (!mountedRef.current || mapRef.current !== map) return false;
+        if (rollback.ok) {
+          message.error(
+            `${target.label}加载失败，已恢复${previous.label}：${failureMessage}`,
+          );
+          return false;
+        }
+
+        if (technicalFallback && technicalFallback.id !== previous.id) {
+          publishActiveBasemap(technicalFallback);
+          const fallbackResult = await loadBasemapStyle(
+            map,
+            technicalFallback,
+            snapshot,
+          );
+          if (!mountedRef.current || mapRef.current !== map) return false;
+          if (fallbackResult.ok) {
+            message.error(
+              `${target.label}与原底图均未能加载，已启用技术兜底底图`,
+            );
+            return false;
+          }
+        }
+
+        message.error("底图切换及恢复均失败，请检查网络后重新检测");
+        return false;
+      } finally {
+        setSwitching(false);
+      }
+    },
+    [
+      basemapCatalog,
+      basemapPreferenceScope,
+      basemapSwitchDisabled,
+      drawMode,
+      loadBasemapStyle,
+      message,
+    ],
+  );
+
+  const retryActiveBasemap = useCallback<BasemapRetryProbe>(
+    async ({ signal }) => {
+      const startedAt = performance.now();
+      const ok = await switchBasemap(activeBasemapRef.current.id, {
+        force: true,
+        persist: false,
+        announce: false,
+      });
+      if (signal.aborted) return;
+      return {
+        ok,
+        latencyMs: ok
+          ? Math.max(1, Math.round(performance.now() - startedAt))
+          : null,
+      };
+    },
+    [switchBasemap],
+  );
 
   function resetView() {
     const map = mapRef.current;
@@ -328,7 +759,30 @@ export default function MapCanvas({
     <div className="map-shell">
       <div ref={containerRef} className="map-container" />
       <div className="map-toolbar">
-        <BasemapStatusIndicator map={mapObject} />
+        <BasemapSwitcher
+          basemaps={basemapCatalog}
+          activeId={activeBasemap.id}
+          switching={basemapSwitching}
+          disabled={Boolean(drawMode) || basemapSwitchDisabled}
+          disabledReason={
+            drawMode
+              ? "请先完成当前范围绘制"
+              : basemapSwitchDisabled
+                ? "地图导出期间暂不能切换底图"
+                : undefined
+          }
+          onSelect={(id) => void switchBasemap(id)}
+        />
+        <BasemapStatusIndicator
+          map={mapObject}
+          activeBasemap={activeBasemapDescriptor}
+          activeBasemapName={activeBasemap.label}
+          retryBasemap={
+            basemapSwitching || drawMode || basemapSwitchDisabled
+              ? undefined
+              : retryActiveBasemap
+          }
+        />
         <div
           ref={coordinatePanelRef}
           className="map-coordinate-panel"
@@ -387,6 +841,29 @@ function disableMapboxEventRequests() {
 
 function layerExtentSourceIdFor(layerId: string) {
   return `layer-extent-${sourceIdFor(layerId)}`;
+}
+
+function syncSpatialFilterOverlay(
+  map: MapboxMap,
+  spatialFilter: SpatialFilter | null,
+) {
+  if (spatialFilter) {
+    upsertPolygonLayer(
+      map,
+      spatialFilterSourceId,
+      spatialFilterFillId,
+      spatialFilterLineId,
+      spatialFilter.geometry,
+      spatialRangeStyle,
+    );
+    return;
+  }
+  removeLayerGroup(
+    map,
+    spatialFilterSourceId,
+    [spatialFilterFillId, spatialFilterLineId],
+    { cleanInteraction: false },
+  );
 }
 
 function syncLayerExtentOverlays(
@@ -456,17 +933,4 @@ function hideAdministrativeBoundaries(map: MapboxMap) {
       map.setLayoutProperty(layer.id, "visibility", "none");
     }
   }
-}
-
-function mapboxErrorMessage(error: unknown) {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  if (typeof error === "object" && error !== null && "message" in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === "string" && message.trim()) {
-      return message;
-    }
-  }
-  return "地图资源加载失败";
 }
