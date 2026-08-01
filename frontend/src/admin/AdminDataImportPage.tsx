@@ -51,6 +51,7 @@ import type {
 } from "../types";
 import {
   normalizeImportValues,
+  suggestedRasterCategoryCode,
   type ImportAccessScopeId,
   type ImportFormValues,
 } from "./importValues";
@@ -823,6 +824,7 @@ export default function AdminDataImportPage() {
       setRasterKind(inspected.rasterKind);
       setRasterResampling(inspected.resampling);
       setRasterDefaultRules(inspected.defaultRules);
+      setRasterCategoryCode(suggestedRasterCategoryCode(inspected));
       message.success("栅格数据包预检完成，请确认导入与显示配置");
     } catch (error) {
       if (requestId !== rasterPreviewRequestRef.current) {
@@ -1780,7 +1782,13 @@ export default function AdminDataImportPage() {
                         { value: "cubic", label: "三次卷积（高质量影像）" },
                       ]}
                       onChange={setRasterResampling}
+                      disabled={rasterKind === "categorical"}
                     />
+                    {rasterKind === "categorical" ? (
+                      <Typography.Text type="secondary">
+                        分类栅格固定使用最近邻，避免缩放时产生不存在的类别值。
+                      </Typography.Text>
+                    ) : null}
                   </div>
                 </div>
 

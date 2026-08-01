@@ -116,8 +116,8 @@ export function suggestedGeographicGridInterval(bounds: MapBounds) {
   return preferredInterval(
     target,
     [
-      0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05,
-      0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 30,
+      0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2,
+      0.5, 1, 2, 5, 10, 20, 30,
     ],
   );
 }
@@ -131,8 +131,8 @@ export function suggestedProjectedGridInterval(bounds: MapBounds) {
   return preferredInterval(
     target,
     [
-      10, 20, 50, 100, 200, 500, 1_000, 2_000, 5_000, 10_000, 20_000,
-      50_000, 100_000, 200_000, 500_000, 1_000_000, 2_000_000,
+      10, 20, 50, 100, 200, 500, 1_000, 2_000, 5_000, 10_000, 20_000, 50_000,
+      100_000, 200_000, 500_000, 1_000_000, 2_000_000,
     ],
   );
 }
@@ -176,6 +176,51 @@ export function boundsFromUnknown(
   return normalizeBounds(value, fallback);
 }
 
+export function panMapBounds(
+  bounds: MapBounds,
+  longitudeRatio: number,
+  latitudeRatio: number,
+): MapBounds {
+  const longitudeOffset = (bounds[2] - bounds[0]) * longitudeRatio;
+  const latitudeOffset = (bounds[3] - bounds[1]) * latitudeRatio;
+  const [west, east] = fitCoordinateRange(
+    bounds[0] + longitudeOffset,
+    bounds[2] + longitudeOffset,
+    -180,
+    180,
+  );
+  const [south, north] = fitCoordinateRange(
+    bounds[1] + latitudeOffset,
+    bounds[3] + latitudeOffset,
+    -85.05112878,
+    85.05112878,
+  );
+  return [west, south, east, north];
+}
+
+export function zoomMapBounds(bounds: MapBounds, factor: number): MapBounds {
+  const safeFactor = Number.isFinite(factor)
+    ? Math.max(0.05, Math.min(20, factor))
+    : 1;
+  const longitudeCenter = (bounds[0] + bounds[2]) / 2;
+  const latitudeCenter = (bounds[1] + bounds[3]) / 2;
+  const longitudeRadius = ((bounds[2] - bounds[0]) * safeFactor) / 2;
+  const latitudeRadius = ((bounds[3] - bounds[1]) * safeFactor) / 2;
+  const [west, east] = fitCoordinateRange(
+    longitudeCenter - longitudeRadius,
+    longitudeCenter + longitudeRadius,
+    -180,
+    180,
+  );
+  const [south, north] = fitCoordinateRange(
+    latitudeCenter - latitudeRadius,
+    latitudeCenter + latitudeRadius,
+    -85.05112878,
+    85.05112878,
+  );
+  return [west, south, east, north];
+}
+
 function normalizeBounds(value: unknown, fallback: MapBounds): MapBounds {
   if (
     Array.isArray(value) &&
@@ -187,6 +232,26 @@ function normalizeBounds(value: unknown, fallback: MapBounds): MapBounds {
     return value as MapBounds;
   }
   return fallback;
+}
+
+function fitCoordinateRange(
+  start: number,
+  end: number,
+  minimum: number,
+  maximum: number,
+): [number, number] {
+  const span = Math.min(maximum - minimum, Math.max(1e-8, end - start));
+  let fittedStart = (start + end - span) / 2;
+  let fittedEnd = fittedStart + span;
+  if (fittedStart < minimum) {
+    fittedEnd += minimum - fittedStart;
+    fittedStart = minimum;
+  }
+  if (fittedEnd > maximum) {
+    fittedStart -= fittedEnd - maximum;
+    fittedEnd = maximum;
+  }
+  return [Math.max(minimum, fittedStart), Math.min(maximum, fittedEnd)];
 }
 
 function mergeKnown(target: unknown, source: unknown) {

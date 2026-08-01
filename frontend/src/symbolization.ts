@@ -676,13 +676,12 @@ export function rasterSymbolizationFromRules(
   rules: Partial<RasterSymbolization> | Record<string, unknown> | undefined,
 ): RasterSymbolization {
   const raw = (rules ?? {}) as Partial<RasterSymbolization>;
+  const defaultOpacity =
+    raw.mode === "unique" ? 100 : defaultRasterSymbolization.opacity;
   return {
     ...defaultRasterSymbolization,
     ...raw,
-    opacity:
-      typeof raw.opacity === "number"
-        ? raw.opacity
-        : defaultRasterSymbolization.opacity,
+    opacity: typeof raw.opacity === "number" ? raw.opacity : defaultOpacity,
     mode: raw.mode ?? defaultRasterSymbolization.mode,
     bands:
       Array.isArray(raw.bands) && raw.bands.length > 0

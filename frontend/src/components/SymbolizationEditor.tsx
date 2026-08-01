@@ -63,6 +63,7 @@ import type {
   ResourceField,
   ResourceVisualizationSummary,
 } from "../types";
+import { copyText } from "../utils/clipboard";
 
 const anchorOptions: Anchor[] = [
   "center",
@@ -363,7 +364,7 @@ export function VectorSymbolizationEditor({
 
   const copyJson = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
+      await copyText(JSON.stringify(value, null, 2));
       message.success("符号化方案 JSON 已复制");
     } catch (error) {
       message.error(error instanceof Error ? error.message : "复制失败");
@@ -2450,7 +2451,7 @@ export function RasterSymbolizationEditor({
 
   const copyJson = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
+      await copyText(JSON.stringify(value, null, 2));
       message.success("符号化方案 JSON 已复制");
     } catch (error) {
       message.error(error instanceof Error ? error.message : "复制失败");
@@ -2504,10 +2505,13 @@ export function RasterSymbolizationEditor({
   }
 
   function updateUniqueColor(index: number, color: string) {
-    const next = value.uniqueValues.map((item, itemIndex) =>
-      itemIndex === index ? { ...item, color } : item,
-    );
-    update({ uniqueValues: next });
+    update({
+      uniqueValues: replaceRasterUniqueValueColor(
+        value.uniqueValues,
+        index,
+        color,
+      ),
+    });
   }
 
   return (
@@ -2712,7 +2716,7 @@ export function RasterSymbolizationEditor({
                     选择整型波段后点击分类，即时计算唯一值。
                   </Typography.Text>
                 )}
-                {value.uniqueValues.map((item) => (
+                {value.uniqueValues.map((item, index) => (
                   <ControlRow
                     key={item.value}
                     label={item.label || String(item.value)}
@@ -2720,10 +2724,10 @@ export function RasterSymbolizationEditor({
                     <ColorPicker
                       value={item.color}
                       showText
-                      onChangeComplete={(color) =>
+                      onChange={(color) =>
                         updateUniqueColor(
-                          value.uniqueValues.indexOf(item),
-                          color.toHexString(),
+                          index,
+                          rasterColorToHex8(color.toRgb()),
                         )
                       }
                     />
@@ -2736,6 +2740,37 @@ export function RasterSymbolizationEditor({
       />
     </Card>
   );
+}
+
+export function replaceRasterUniqueValueColor(
+  items: RasterSymbolization["uniqueValues"],
+  index: number,
+  color: string,
+) {
+  return items.map((item, itemIndex) =>
+    itemIndex === index ? { ...item, color } : item,
+  );
+}
+
+export function rasterColorToHex8({
+  r,
+  g,
+  b,
+  a,
+}: {
+  r: number;
+  g: number;
+  b: number;
+  a?: number;
+}) {
+  const channels = [r, g, b, Math.round((a ?? 1) * 255)];
+  return `#${channels
+    .map((channel) =>
+      Math.max(0, Math.min(255, Math.round(channel)))
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")}`;
 }
 
 function isIntegerRasterBand(band: RasterBandMetadata) {

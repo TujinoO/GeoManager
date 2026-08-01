@@ -8,10 +8,24 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, override_settings
 
 from apps.core.config import load_project_config
-from apps.raster.services.importer import store_uploaded_source_file
+from apps.raster.services.importer import (
+    normalize_import_resampling,
+    store_uploaded_source_file,
+)
 
 
 class UploadedRasterStorageTests(SimpleTestCase):
+    def test_categorical_import_always_uses_nearest_neighbor(self):
+        self.assertEqual(
+            normalize_import_resampling("categorical", "bilinear"), "nearest"
+        )
+        self.assertEqual(
+            normalize_import_resampling("categorical", "cubic"), "nearest"
+        )
+        self.assertEqual(
+            normalize_import_resampling("continuous", "bilinear"), "bilinear"
+        )
+
     def test_store_uploaded_source_file_uses_identifier_without_original_filename(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config = self._config(Path(tmpdir))

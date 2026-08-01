@@ -508,6 +508,19 @@ describe("rasterSymbolizationFromRules", () => {
     expect(result.opacity).toBe(50);
   });
 
+  it("uses full opacity for unique-value raster defaults", () => {
+    const result = rasterSymbolizationFromRules({ mode: "unique" });
+    expect(result.opacity).toBe(100);
+  });
+
+  it("preserves an explicit opacity for unique-value rasters", () => {
+    const result = rasterSymbolizationFromRules({
+      mode: "unique",
+      opacity: 65,
+    });
+    expect(result.opacity).toBe(65);
+  });
+
   it("uses default opacity for non-number", () => {
     const result = rasterSymbolizationFromRules({
       opacity: "invalid" as unknown as number,

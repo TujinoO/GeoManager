@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { App as AntApp, ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -90,5 +90,23 @@ describe("LoginPage", () => {
 
     expect(screen.getByLabelText("账号")).toHaveValue("");
     expect(screen.getByLabelText("密码")).toHaveValue("");
+  });
+
+  it("automatically advances through the login backgrounds", () => {
+    vi.useFakeTimers();
+    const { container, unmount } = renderLoginPage();
+    const slides = container.querySelectorAll(".login-background-slide");
+
+    expect(slides).toHaveLength(6);
+    expect(slides[0]).toHaveAttribute("data-active", "true");
+
+    act(() => {
+      vi.advanceTimersByTime(9000);
+    });
+
+    expect(slides[0]).toHaveAttribute("data-active", "false");
+    expect(slides[1]).toHaveAttribute("data-active", "true");
+    unmount();
+    vi.useRealTimers();
   });
 });

@@ -130,6 +130,7 @@ export function createRasterLayerGroup(
         sourceResource: resource,
         rasterDatasetId: raster.id,
         rasterLayerId: raster.mapLayerId,
+        rasterKind: raster.rasterKind,
         rasterMetadata: raster.metadata,
         imageCoordinates: raster.imageCoordinates,
         geometryType: "Raster",

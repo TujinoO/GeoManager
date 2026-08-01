@@ -251,6 +251,7 @@ export type SavedWorkspaceLayer = {
   imageCoordinates?: RasterRenderResult["imageCoordinates"];
   rasterDatasetId?: number;
   rasterLayerId?: number | null;
+  rasterKind?: RasterDatasetProfile["rasterKind"];
   rasterMetadata?: RasterDatasetProfile["metadata"];
   renderStatus?: string;
   renderProgress?: number;
@@ -457,6 +458,7 @@ export interface LoadedRasterLayer {
   imageCoordinates?: RasterRenderResult["imageCoordinates"];
   rasterDatasetId?: number;
   rasterLayerId?: number | null;
+  rasterKind?: RasterDatasetProfile["rasterKind"];
   rasterMetadata?: RasterDatasetProfile["metadata"];
   renderJobId?: string;
   renderStatus?: string;

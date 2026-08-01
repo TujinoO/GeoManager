@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceScene } from "../types";
+import "../styles.css";
 import WorkspaceScenePanel from "./WorkspaceScenePanel";
 
 const { deleteWorkspaceMock, updateWorkspaceMock } = vi.hoisted(() => ({
@@ -161,5 +162,32 @@ describe("WorkspaceScenePanel", () => {
       }),
     );
     expect(onUpdate).toHaveBeenCalledWith(updatedScene);
+  });
+
+  it("keeps project details and actions readable in a narrow workbench panel", () => {
+    const longProject = scene(9, "塔里木河流域极长名称胡杨生态监测与保护工程", {
+      kind: "project",
+    });
+    const view = renderPanel({
+      kind: "project",
+      items: [longProject],
+      onCreateComposition: vi.fn(),
+    });
+    view.container.style.width = "390px";
+    const row = screen
+      .getByText(longProject.name)
+      .closest(".topic-scenario-row") as HTMLElement;
+    const main = row.querySelector(".topic-scenario-main") as HTMLElement;
+    const actions = within(row)
+      .getByRole("button", { name: /加\s*载/ })
+      .closest(".ant-space") as HTMLElement;
+
+    expect(row.scrollWidth).toBeLessThanOrEqual(row.clientWidth + 1);
+    expect(actions.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      main.getBoundingClientRect().bottom,
+    );
+    expect(
+      screen.getByText(longProject.name).getBoundingClientRect().width,
+    ).toBeGreaterThan(120);
   });
 });

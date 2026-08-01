@@ -15,6 +15,10 @@ from apps.core.runtime_config import (
 )
 from apps.core.storage import raster_source_path
 from apps.raster.services.constants import RASTER_EXTENSIONS
+from apps.raster.services.categorical import (
+    categorical_class_entries,
+    is_categorical_metadata,
+)
 from apps.raster.services.exceptions import RasterImportError
 from apps.raster.services.gdal_ops import gdalinfo_json
 from apps.raster.services.geo_utils import bounds_4326_from_gdalinfo
@@ -131,6 +135,8 @@ def infer_raster_kind(info: dict[str, Any]) -> str:
     bands = info.get("bands") or []
     if len(bands) > 1:
         return "imagery"
+    if is_categorical_metadata(info):
+        return "categorical"
     band = bands[0] if bands else {}
     data_type = str(band.get("type") or "").lower()
     if "float" in data_type:
@@ -146,6 +152,15 @@ def suggested_default_rules(
     info: dict[str, Any], primary_file_name: str = ""
 ) -> dict[str, Any]:
     rules = default_raster_rules(info)
+    classes = categorical_class_entries(info)
+    if infer_raster_kind(info) == "categorical" and classes:
+        rules = {
+            **rules,
+            "mode": "unique",
+            "bands": [1],
+            "stretch": {**rules["stretch"], "enabled": False},
+            "uniqueValues": classes,
+        }
     band_count = len(info.get("bands") or [])
     if band_count >= 8 and "worldview" in primary_file_name.lower():
         rules = {**rules, "mode": "rgb", "bands": [5, 3, 2]}

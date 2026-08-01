@@ -63,7 +63,11 @@ def upsert_catalog_records(
             "data_resource": data_resource,
             "source_path": dataset.processed_relative_path,
             "default_visible": False,
-            "default_opacity": 90,
+            "default_opacity": (
+                100
+                if dataset.raster_kind == RasterDataset.RasterKind.CATEGORICAL
+                else 90
+            ),
             "bounds": bounds_4326,
             "legend": "",
             "raster_rules": default_rules,

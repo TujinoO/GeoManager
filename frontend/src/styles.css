@@ -167,11 +167,41 @@ body:has(.login-shell),
       circle at 78% 74%,
       rgba(76, 186, 221, 0.14),
       transparent 30%
-    ),
-    url("./assets/login-golden-poplar-bg.png");
-  background-size: cover, cover, cover, cover;
-  background-position: center, center, center, center;
+    );
+  background-color: #173f38;
+  background-size: cover, cover, cover;
+  background-position: center, center, center;
   animation: loginBackgroundDrift 18s ease-in-out infinite alternate;
+}
+
+.login-background-carousel {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.login-background-slide {
+  position: absolute;
+  inset: -2%;
+  opacity: 0;
+  background-position: center;
+  background-size: cover;
+  transform: scale(1.025) translate3d(-0.5%, -0.35%, 0);
+  transition: opacity 1.6s ease-in-out;
+  animation: loginCarouselDrift 18s ease-in-out infinite alternate;
+  animation-play-state: paused;
+  will-change: opacity, transform;
+}
+
+.login-background-slide:nth-child(even) {
+  animation-direction: alternate-reverse;
+}
+
+.login-background-slide.is-active {
+  opacity: 1;
+  animation-play-state: running;
 }
 
 .login-shell::before {
@@ -987,7 +1017,6 @@ body:has(.login-shell),
     background-position:
       50% 50%,
       50% 50%,
-      50% 50%,
       50% 50%;
   }
 
@@ -995,8 +1024,17 @@ body:has(.login-shell),
     background-position:
       48% 49%,
       52% 51%,
-      49% 52%,
-      53% 50%;
+      49% 52%;
+  }
+}
+
+@keyframes loginCarouselDrift {
+  from {
+    transform: scale(1.025) translate3d(-0.5%, -0.35%, 0);
+  }
+
+  to {
+    transform: scale(1.075) translate3d(0.75%, 0.45%, 0);
   }
 }
 
@@ -11544,9 +11582,28 @@ body:has(.login-shell),
   }
 }
 
+@media (max-width: 900px) {
+  .about-page-graph-board {
+    grid-template-areas:
+      "hub"
+      "genome"
+      "leaf"
+      "stress"
+      "conservation";
+    grid-template-columns: 1fr;
+    min-height: 0;
+
+    &::before,
+    &::after {
+      display: none;
+    }
+  }
+}
+
 @media (max-width: 760px) {
   .workspace-body.workspace-body-about {
     grid-template-columns: 1fr;
+    grid-template-rows: max-content max-content;
     gap: 8px;
     overflow: auto;
   }
@@ -18797,6 +18854,19 @@ body:has(.login-shell),
   line-height: 1.45;
 }
 
+.composition-map-range-actions {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+  color: #607277;
+  line-height: 1.45;
+}
+
+.composition-map-range-actions .ant-space-compact {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .composition-field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -18881,9 +18951,9 @@ body:has(.login-shell),
 }
 
 .topic-scenario-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
   gap: 10px;
   width: 100%;
   min-width: 0;
@@ -18896,11 +18966,7 @@ body:has(.login-shell),
   cursor: default;
 
   & > .topic-scenario-main {
-    display: flex;
-    flex: 1;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    display: block;
     min-width: 0;
     padding: 0;
     color: inherit;
@@ -18908,6 +18974,7 @@ body:has(.login-shell),
     background: transparent;
     border: 0;
     cursor: default;
+    width: 100%;
     height: auto;
     line-height: normal;
 
@@ -18922,7 +18989,10 @@ body:has(.login-shell),
   }
 
   & strong {
+    min-width: 0;
     color: var(--c-workspace-text-strong);
+    line-height: 1.45;
+    overflow-wrap: anywhere;
   }
 
   & small {
@@ -18930,12 +19000,19 @@ body:has(.login-shell),
   }
 }
 
+.topic-scenario-row > .ant-space {
+  width: 100%;
+  justify-content: flex-end;
+}
+
 .topic-scenario-row .workspace-scene-owner,
 .topic-scenario-row .workspace-scene-access {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 5px !important;
+  gap: 5px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .workspace-scene-owner .ant-tag {

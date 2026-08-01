@@ -42,6 +42,16 @@ def is_raster_file(path: Path) -> bool:
     )
 
 
+def normalize_import_resampling(raster_kind: str, resampling: str) -> str:
+    """Categorical rasters must never interpolate class identifiers."""
+
+    return (
+        "nearest"
+        if raster_kind == RasterDataset.RasterKind.CATEGORICAL
+        else resampling
+    )
+
+
 def validate_raster_upload_size(uploaded_file) -> None:
     try:
         upload_max_mb = runtime_upload_max_mb()
@@ -264,6 +274,7 @@ def import_raster_file(
         raise RasterImportError(f"不支持的栅格数据语义：{raster_kind}")
     if resampling not in {"nearest", "bilinear", "cubic"}:
         raise RasterImportError(f"不支持的栅格重采样方式：{resampling}")
+    resampling = normalize_import_resampling(raster_kind, resampling)
 
     dataset, _ = RasterDataset.objects.update_or_create(
         source_relative_path=source_relative,
@@ -290,6 +301,19 @@ def import_raster_file(
         validate_raster_pixel_size(source_info)
         save_metadata(source_metadata_relative, source_info)
         dataset.source_format = str(source_info.get("driverShortName") or "")
+
+        # Source-side thematic metadata is authoritative. This also protects
+        # legacy upload and directory-scan clients that did not send rasterKind.
+        from apps.raster.services.package import (
+            infer_raster_kind,
+            suggested_default_rules,
+        )
+
+        if infer_raster_kind(source_info) == RasterDataset.RasterKind.CATEGORICAL:
+            raster_kind = RasterDataset.RasterKind.CATEGORICAL
+            resampling = normalize_import_resampling(raster_kind, resampling)
+            dataset.raster_kind = raster_kind
+            dataset.resampling = resampling
 
         processed_path.parent.mkdir(parents=True, exist_ok=True)
         if processed_path.exists():
@@ -322,6 +346,8 @@ def import_raster_file(
                 "BIGTIFF=IF_SAFER",
                 "-co",
                 "NUM_THREADS=1",
+                "-co",
+                f"OVERVIEW_RESAMPLING={resampling.upper()}",
                 "-of",
                 "COG",
                 str(source_path),
@@ -339,7 +365,11 @@ def import_raster_file(
 
         default_rules = normalize_rules(
             requested_default_rules
-            or default_raster_rules(source_info, processed_info),
+            or (
+                suggested_default_rules(source_info, input_path.name)
+                if raster_kind == RasterDataset.RasterKind.CATEGORICAL
+                else default_raster_rules(source_info, processed_info)
+            ),
             processed_info,
         )
         bounds_3857 = bounds_from_gdalinfo(processed_info)

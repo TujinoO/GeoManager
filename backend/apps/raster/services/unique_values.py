@@ -7,7 +7,10 @@ import numpy as np
 
 from apps.core.storage import StoragePathError, raster_processed_path
 from apps.raster.models import RasterDataset
-from apps.raster.services.constants import UNIQUE_COLORS
+from apps.raster.services.categorical import (
+    categorical_class_entries,
+    default_categorical_color,
+)
 from apps.raster.services.exceptions import RasterRenderError
 from apps.raster.services.rules_engine import is_integer_band
 
@@ -52,12 +55,22 @@ def classify_unique_values(dataset: RasterDataset, band_index: int) -> dict[str,
                     f"唯一值超过 {MAX_UNIQUE_VALUES} 个，不适合使用唯一值分类"
                 )
 
-    items = [
-        {
-            "value": value,
-            "label": str(value),
-            "color": UNIQUE_COLORS[index % len(UNIQUE_COLORS)],
-        }
-        for index, value in enumerate(sorted(values))
-    ]
+    declared_classes = {
+        int(item["value"]): item
+        for item in categorical_class_entries(dataset.source_gdalinfo)
+    }
+    items = []
+    for index, value in enumerate(sorted(values)):
+        declared = declared_classes.get(value) or {}
+        label = str(declared.get("label") or value)
+        items.append(
+            {
+                "value": value,
+                "label": label,
+                "color": str(
+                    declared.get("color")
+                    or default_categorical_color(value, label, index)
+                ),
+            }
+        )
     return {"band": band_index, "items": items}

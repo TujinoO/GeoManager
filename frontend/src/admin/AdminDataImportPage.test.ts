@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { normalizeImportValues } from "./importValues";
+import type { RasterImportPreview } from "../types";
+import {
+  normalizeImportValues,
+  suggestedRasterCategoryCode,
+} from "./importValues";
 
 describe("normalizeImportValues", () => {
   it("keeps the selected business domain type in the import payload", () => {
@@ -41,5 +45,29 @@ describe("normalizeImportValues", () => {
       categoryCode: "base_geo_admin",
       importMode: "geographic",
     });
+  });
+});
+
+describe("suggestedRasterCategoryCode", () => {
+  it("routes a labeled LUCC classification raster to the LUCC category", () => {
+    expect(
+      suggestedRasterCategoryCode({
+        rasterKind: "categorical",
+        defaultRules: {
+          uniqueValues: ["耕地", "林地", "水体", "建筑", "道路"].map(
+            (label, value) => ({ value, label, color: "#000000" }),
+          ),
+        },
+      } as RasterImportPreview),
+    ).toBe("base_geo_lucc");
+  });
+
+  it("keeps non-LUCC rasters in landscape and remote sensing", () => {
+    expect(
+      suggestedRasterCategoryCode({
+        rasterKind: "continuous",
+        defaultRules: { mode: "gray" },
+      } as RasterImportPreview),
+    ).toBe("thematic_landscape_rs");
   });
 });

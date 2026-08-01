@@ -44,10 +44,18 @@ export function addRasterLayer(
     state.rasterSourceKeys.set(sourceId, key);
   }
   if (!map.getSource(sourceId)) return;
+  const categorical =
+    layer.rasterKind === "categorical" || style.mode === "unique";
   upsertLayer(map, {
     id: layerId,
     type: "raster",
     source: sourceId,
-    paint: { "raster-opacity": clamp(style.opacity / 100, 0, 1) },
+    paint: {
+      "raster-opacity": clamp(style.opacity / 100, 0, 1),
+      "raster-resampling": categorical ? "nearest" : "linear",
+      // Cross-fading neighboring zoom levels blends class colors even when
+      // texture sampling itself uses nearest-neighbor.
+      "raster-fade-duration": categorical ? 0 : 300,
+    },
   });
 }

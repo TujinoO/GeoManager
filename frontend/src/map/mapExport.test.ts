@@ -38,6 +38,17 @@ describe("mapExport", () => {
     expect(highZoom.center[0]).toBeLessThan(90);
   });
 
+  it("expands the export viewport to the target map-frame aspect ratio", () => {
+    const plan = createMapRangeExportPlan(rectangleGeometry, {
+      dpi: 96,
+      tileZoom: 7,
+      targetAspect: 16 / 9,
+    });
+
+    expect(plan.cssWidth / plan.cssHeight).toBeCloseTo(16 / 9, 2);
+    expect(plan.cssWidth).toBeGreaterThan(plan.cssHeight);
+  });
+
   it("adds PNG pHYs metadata for the selected dpi", () => {
     const png = addPngDpiMetadata(minimalPng(), 300);
     const physOffset = findChunk(png, "pHYs");
