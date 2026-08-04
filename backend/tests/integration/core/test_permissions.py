@@ -299,7 +299,7 @@ class SuperadminInitializationTests(TestCase):
             _group_feature_permissions(group), default_user_group_permissions()
         )
 
-    def test_existing_custom_default_user_group_permissions_are_preserved(self):
+    def test_existing_custom_default_user_group_keeps_custom_permissions_and_minimum(self):
         group = Group.objects.get(name=DEFAULT_USER_GROUP_NAME)
         group.permissions.set(
             [
@@ -312,7 +312,10 @@ class SuperadminInitializationTests(TestCase):
         ensure_superadmin_defaults(create_account=False)
 
         group.refresh_from_db()
-        self.assertEqual(_group_feature_permissions(group), {"core.query_data"})
+        self.assertEqual(
+            _group_feature_permissions(group),
+            {"core.query_data", "catalog.view_mapcomposition"},
+        )
 
     def test_ensure_superadmin_defaults_creates_guest_group_for_public_browsing(
         self,
