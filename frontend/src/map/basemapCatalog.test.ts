@@ -5,6 +5,7 @@ import {
   resolveBasemapDefinition,
   tiandituMapboxGlyphs,
 } from "./basemapCatalog";
+import { tiandituTileProviderName } from "./tiandituTileProviderConfig";
 
 describe("basemapCatalog", () => {
   it("provides three user choices and keeps OSM as an internal fallback", () => {
@@ -86,15 +87,19 @@ describe("basemapCatalog", () => {
     const vectorSource = tianditu.style.sources[tianditu.sourceIds[0]] as {
       tiles?: string[];
       maxzoom?: number;
+      provider?: string;
     };
     const labelSource = tianditu.style.sources[tianditu.sourceIds[1]] as {
       tiles?: string[];
       maxzoom?: number;
+      provider?: string;
     };
     expect(vectorSource.tiles).toHaveLength(8);
     expect(labelSource.tiles).toHaveLength(8);
     expect(vectorSource.maxzoom).toBe(18);
     expect(labelSource.maxzoom).toBe(18);
+    expect(vectorSource.provider).toBe(tiandituTileProviderName);
+    expect(labelSource.provider).toBe(tiandituTileProviderName);
     expect(
       vectorSource.tiles?.every((url) => url.includes("/vec_w/wmts")),
     ).toBe(true);

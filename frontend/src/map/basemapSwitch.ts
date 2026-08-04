@@ -25,6 +25,17 @@ const rateLimitFallbackOrder: readonly BasemapId[] = [
   "osm",
 ];
 
+export const defaultBasemapSwitchTimeoutMs = 15_000;
+export const tiandituBasemapSwitchTimeoutMs = 45_000;
+
+export function basemapSwitchTimeoutMsForProvider(
+  provider: BasemapDefinition["provider"],
+) {
+  return provider === "tianditu"
+    ? tiandituBasemapSwitchTimeoutMs
+    : defaultBasemapSwitchTimeoutMs;
+}
+
 export function areBasemapSourcesReady(
   map: BasemapSourceReadinessMap,
   definition: BasemapDefinition,

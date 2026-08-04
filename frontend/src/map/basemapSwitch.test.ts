@@ -7,6 +7,7 @@ import {
 import { getMapState } from "./mapState";
 import {
   areBasemapSourcesReady,
+  basemapSwitchTimeoutMsForProvider,
   basemapErrorMessage,
   createStableReadinessGate,
   isBasemapRateLimitError,
@@ -16,6 +17,7 @@ import {
   restoreBasemapCamera,
   restoreSelectedFeatureState,
   resolveBasemapRateLimitFallback,
+  tiandituBasemapSwitchTimeoutMs,
 } from "./basemapSwitch";
 
 describe("basemapSwitch", () => {
@@ -129,6 +131,14 @@ describe("basemapSwitch", () => {
     expect(areBasemapSourcesReady(map, definition)).toBe(true);
     loaded.delete(definition.sourceIds[1]);
     expect(areBasemapSourcesReady(map, definition)).toBe(false);
+  });
+
+  it("allows paced Tianditu loading a longer switch window", () => {
+    expect(basemapSwitchTimeoutMsForProvider("tianditu")).toBe(
+      tiandituBasemapSwitchTimeoutMs,
+    );
+    expect(basemapSwitchTimeoutMsForProvider("mapbox")).toBe(15_000);
+    expect(tiandituBasemapSwitchTimeoutMs).toBe(45_000);
   });
 
   it("selects a stable rate-limit fallback without reselecting Tianditu", () => {

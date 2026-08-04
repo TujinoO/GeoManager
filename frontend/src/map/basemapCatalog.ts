@@ -1,5 +1,6 @@
 import type { StyleSpecification } from "mapbox-gl";
 import { createOsmRasterStyle, mapboxSatelliteStyle } from "./basemapStyle";
+import { tiandituTileProviderName } from "./tiandituTileProviderConfig";
 
 export type BasemapId =
   | "mapbox-satellite"
@@ -239,6 +240,7 @@ function createTiandituVectorStyle(
     sources: {
       [tiandituVectorSourceId]: {
         type: "raster",
+        provider: tiandituTileProviderName,
         tiles: tiandituTiles("vec", key),
         tileSize: 256,
         maxzoom: 18,
@@ -246,6 +248,7 @@ function createTiandituVectorStyle(
       },
       [tiandituLabelSourceId]: {
         type: "raster",
+        provider: tiandituTileProviderName,
         tiles: tiandituTiles("cva", key),
         tileSize: 256,
         maxzoom: 18,

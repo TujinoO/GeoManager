@@ -8,6 +8,7 @@ import {
 import { App, Button, Tooltip } from "antd";
 import mapboxgl, { type Map as MapboxMap, type MapboxOptions } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import tiandituTileProviderUrl from "../map/tiandituTileProvider.js?url";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BasemapStatusIndicator from "./BasemapStatusIndicator";
 import BasemapSwitcher from "./BasemapSwitcher";
@@ -43,6 +44,7 @@ import {
 } from "../map/basemapRequestConcurrency";
 import {
   areBasemapSourcesReady,
+  basemapSwitchTimeoutMsForProvider,
   basemapErrorMessage,
   createStableReadinessGate,
   isBasemapRateLimitError,
@@ -54,6 +56,7 @@ import {
   restoreSelectedFeatureState,
   type BasemapCameraSnapshot,
 } from "../map/basemapSwitch";
+import { tiandituTileProviderName } from "../map/tiandituTileProviderConfig";
 import {
   isBasemapResourceError,
   type ActiveBasemapDescriptor,
@@ -105,6 +108,7 @@ export interface LayerExtentOverlay {
 }
 
 disableMapboxEventRequests();
+mapboxgl.addTileProvider(tiandituTileProviderName, tiandituTileProviderUrl);
 
 interface Props {
   bootstrap: Bootstrap;
@@ -146,7 +150,6 @@ interface BasemapSwitchOptions {
   rollbackOnFailure?: boolean;
 }
 
-const basemapSwitchTimeoutMs = 15_000;
 const basemapRequestConcurrency =
   createBasemapRequestConcurrencyCoordinator(mapboxgl);
 
@@ -409,9 +412,18 @@ export default function MapCanvas({
         map.on("sourcedata", handleSourceData);
         map.on("idle", handleIdle);
         map.on("error", handleError);
+        const timeoutMs = basemapSwitchTimeoutMsForProvider(
+          definition.provider,
+        );
         timeoutId = window.setTimeout(
-          () => settle(false, new Error(`${definition.label}加载超过 15 秒`)),
-          basemapSwitchTimeoutMs,
+          () =>
+            settle(
+              false,
+              new Error(
+                `${definition.label}加载超过 ${Math.round(timeoutMs / 1_000)} 秒`,
+              ),
+            ),
+          timeoutMs,
         );
         try {
           basemapRequestConcurrencyLeaseRef.current?.update(
