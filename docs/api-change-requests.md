@@ -61,6 +61,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260731-001 | BackendReady | `POST /api/admin/settings/` | validation / persistence / error response | Updated | N/A | Implemented | Focused passed | Bounds editable runtime limits and requires writable `/config` directory mounting for atomic saves |
 | API-20260801-001 | Verified | `GET /api/bootstrap/`, `GET/POST /api/admin/settings/` | response/request field | Updated | Updated | Implemented | Passed | Adds an optional browser-safe Tianditu Key while keeping legacy TOML files valid |
 | API-20260801-002 | Verified | `POST /api/raster/render/`, completed raster render jobs | response fields / tile delivery semantics | Updated | Updated | Implemented | Passed | Adds native zoom and sampling metadata; categorical styles become atomically published nearest-neighbor tile pyramids |
+| API-20260802-001 | Verified | bootstrap/admin settings and upload endpoints | validation / deployment safety | Updated | N/A | Implemented | Passed | Raises the disk-backed upload ceiling to 1024 MB while retaining parser-specific memory limits |
 
 ## Entry Template
 
@@ -638,3 +639,16 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Enforce 1–120 MB, 100–10,000 results, 1–12,000 pixels and 10–600 seconds before touching the TOML; keep atomic replacement and require a writable directory mounted at `/config` instead of a single-file bind mount.
 - Verification: Run OpenAPI generation/lint/change checks, focused core admin-settings tests, frontend settings tests, typecheck and build.
 - Result: Pending final verification.
+
+## API-20260802-001 - One-GiB Disk-Backed Upload Ceiling
+
+- Status: Verified
+- Owner: Frontend/backend implementer
+- Endpoints: `GET /api/bootstrap/`, `GET /api/admin/settings/`, `POST /api/admin/settings/`, raster/vector/table/result/map-composition upload endpoints
+- Change type: request validation | response constraint | deployment safety
+- OpenAPI change: Raises the server-enforced `uploadMaxMb` maximum from 120 to 1024 MB and documents lower workflow-specific memory-safety limits; response shapes and status codes are unchanged.
+- Mock examples: N/A; numeric boundaries, invalid hot-edited upload-limit fallback and disk-backed server limits are covered by focused tests.
+- Frontend reason: Large GeoTIFF interpretation results can exceed 120 MB, while the small-memory production server must not expose GeoPandas or table parsers to 1 GiB in-memory workloads. The browser rejects table and vector files above their 16 MB and 120 MB parser-specific limits before upload.
+- Backend implementation notes: Reuse one 1–1024 MB constant in startup config, runtime TOML reads and admin validation; give Waitress a 1152 MiB multipart ceiling and 720-second channel timeout; retain Django 10 MiB request/2 MiB file-memory thresholds; cap vector imports at `min(uploadMaxMb, 120)`, keep the existing 16 MB table parser limit, and preserve the former global protection for in-memory map-composition decoding with an independent 128 MB PNG ceiling. Deployment samples remain at the safe 64 MB default, and the mounted production TOML must be changed explicitly after the new image passes health checks.
+- Verification: Run OpenAPI lint/generation/change checks, focused config/admin/vector/entrypoint tests, the admin browser regression, frontend typecheck and production build.
+- Result: Passed. All 583 backend tests, all 305 frontend unit tests and all 43 admin browser tests passed; OpenAPI generation/lint/change tracking, generated-client comparison, API documentation and Prism bundle generation passed; TypeScript, focused frontend lint/format and the production build passed. OpenAPI lint retains only six pre-existing unused-component warnings. The repository-wide frontend format check still reports 139 pre-existing files outside this change, including untracked `.playwright-cli` records; the three edited frontend files pass focused formatting and lint checks.

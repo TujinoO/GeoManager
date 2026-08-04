@@ -927,6 +927,7 @@ export const updateCatalogWorkspace = <ThrowOnError extends boolean = false>(opt
  *
  * 解析上传的 Excel/CSV，Excel 会识别全部工作表并按当前工作表读取字段，自动推测经纬度列，
  * 并返回样例行、字段列表、工作表清单、建议后台存储标识和建议数据名称是否重名。该接口不执行坐标数据校验，不写入数据。
+ * 上传文件大小上限取 `application.limits.upload_max_mb` 与 16 MB 的较小值，避免整表解析耗尽内存。
  * 需要 `catalog.add_dataresource`。
  *
  */
@@ -948,7 +949,7 @@ export const importPreview = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * 上传数据校验
  *
- * 按当前表单选择的数据名称、工作表、导入类型、后台存储标识和经纬度列校验上传文件，不写入数据。重复检测按前端显示的数据名称执行。需要 `catalog.add_dataresource`。
+ * 按当前表单选择的数据名称、工作表、导入类型、后台存储标识和经纬度列校验上传文件，不写入数据。重复检测按前端显示的数据名称执行。上传文件大小上限取 `application.limits.upload_max_mb` 与 16 MB 的较小值。需要 `catalog.add_dataresource`。
  */
 export const importValidate = <ThrowOnError extends boolean = false>(options: Options<ImportValidateData, ThrowOnError>): RequestResult<ImportValidateResponses, ImportValidateErrors, ThrowOnError> => (options.client ?? client).post<ImportValidateResponses, ImportValidateErrors, ThrowOnError>({
     ...formDataBodySerializer,
@@ -970,6 +971,7 @@ export const importValidate = <ThrowOnError extends boolean = false>(options: Op
  *
  * 将预检后的 Excel/CSV 导入统一存储。选择地理数据时写入 GeoPackage，
  * 选择非地理数据时写入 SQLite。接口每次导入都会生成唯一后台存储标识并创建新的 DataResource。
+ * 上传文件大小上限取 `application.limits.upload_max_mb` 与 16 MB 的较小值，避免整表解析耗尽内存。
  * `payload.domainType` 在兼容期继续保存为 DataResource.domainType；V1 新客户端同时提交 `payload.categoryCode` 作为甲方四大类权威业务主分类，
  * 资源列表页和地理/非地理数据分类筛选均以该字段为准。
  * 需要 `catalog.add_dataresource`；前端显示名已存在时必须在数据校验阶段确认，并在提交时显式传入 duplicateConfirmed=true 才允许继续导入。继续导入会创建新的 DataResource 和唯一后台存储标识，不覆盖已有数据。
@@ -1202,7 +1204,7 @@ export const updateMapComposition = <ThrowOnError extends boolean = false>(optio
 /**
  * 生成专题成果版本
  *
- * 接收前端按照版式渲染的 PNG 母图、导出参数和当前工作台快照，在业务数据 exports 目录中生成 PNG、JPG 或 PDF 成果并创建不可变版本。版本同时固化版式和工程状态。需要 `catalog.export_mapcomposition`。
+ * 接收前端按照版式渲染的 PNG 母图、导出参数和当前工作台快照，在业务数据 exports 目录中生成 PNG、JPG 或 PDF 成果并创建不可变版本。版本同时固化版式和工程状态；PNG 母图独立限制为 128 MB，并在完整解码前校验文件字节数与像素安全边界。需要 `catalog.export_mapcomposition`。
  */
 export const createMapCompositionVersion = <ThrowOnError extends boolean = false>(options: Options<CreateMapCompositionVersionData, ThrowOnError>): RequestResult<CreateMapCompositionVersionResponses, CreateMapCompositionVersionErrors, ThrowOnError> => (options.client ?? client).post<CreateMapCompositionVersionResponses, CreateMapCompositionVersionErrors, ThrowOnError>({
     ...formDataBodySerializer,
@@ -1311,6 +1313,7 @@ export const getResourceVisualizationSummary = <ThrowOnError extends boolean = f
  * 解析上传的 Shapefile ZIP、GeoJSON 或 GeoPackage，返回可导入图层、属性字段、坐标系、
  * 空间范围、几何类型、要素数量、顶点数量、中文编码识别结果和几何质量摘要，不写入科研数据。
  * Shapefile 必须以 ZIP 上传并至少包含同名 `.shp`、`.shx`、`.dbf`；`.prj` 缺失时提交导入前必须人工指定坐标系。
+ * 上传文件大小上限取 `application.limits.upload_max_mb` 与 120 MB 的较小值，因为 GeoPandas 会把完整图层读入内存。
  * 需要 `catalog.add_dataresource`。
  *
  */
@@ -1333,7 +1336,7 @@ export const previewVectorImport = <ThrowOnError extends boolean = false>(option
  * 矢量文件导入校验
  *
  * 根据选定源图层、编码、人工坐标系和几何修复策略执行完整矢量导入校验，不写入数据。
- * 返回结构化质量问题和同名资源检测结果。需要 `catalog.add_dataresource`。
+ * 返回结构化质量问题和同名资源检测结果。上传文件大小上限取 `application.limits.upload_max_mb` 与 120 MB 的较小值。需要 `catalog.add_dataresource`。
  *
  */
 export const validateVectorImport = <ThrowOnError extends boolean = false>(options: Options<ValidateVectorImportData, ThrowOnError>): RequestResult<ValidateVectorImportResponses, ValidateVectorImportErrors, ThrowOnError> => (options.client ?? client).post<ValidateVectorImportResponses, ValidateVectorImportErrors, ThrowOnError>({
@@ -1356,7 +1359,7 @@ export const validateVectorImport = <ThrowOnError extends boolean = false>(optio
  *
  * 将选定矢量图层标准化为 EPSG:4326 后写入统一 GeoPackage，保留原始上传文件归档，
  * 并创建 DataResource、VectorDataset 和 MapLayer。`payload.domainType` 必须使用 DataDomainType，
- * 矢量文件默认使用新增的 `vector` 业务类型；需要 `catalog.add_dataresource`。
+ * 矢量文件默认使用新增的 `vector` 业务类型；上传文件大小上限取 `application.limits.upload_max_mb` 与 120 MB 的较小值；需要 `catalog.add_dataresource`。
  *
  */
 export const commitVectorImport = <ThrowOnError extends boolean = false>(options: Options<CommitVectorImportData, ThrowOnError>): RequestResult<CommitVectorImportResponses, CommitVectorImportErrors, ThrowOnError> => (options.client ?? client).post<CommitVectorImportResponses, CommitVectorImportErrors, ThrowOnError>({

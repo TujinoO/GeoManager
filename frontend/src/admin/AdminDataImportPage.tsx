@@ -69,7 +69,17 @@ type RasterDimensions = { width: number; height: number };
 const selfAccessScopeId = "__self__";
 const unfinishedImportWarning =
   "当前导入尚未完成，离开页面会丢失已选择的文件、配置和校验结果。";
+const TABLE_UPLOAD_MAX_MB = 16;
+const VECTOR_UPLOAD_MAX_MB = 120;
 type AccessScopeId = ImportAccessScopeId;
+
+export function effectiveTableUploadMaxMb(platformUploadMaxMb: number) {
+  return Math.min(platformUploadMaxMb, TABLE_UPLOAD_MAX_MB);
+}
+
+export function effectiveVectorUploadMaxMb(platformUploadMaxMb: number) {
+  return Math.min(platformUploadMaxMb, VECTOR_UPLOAD_MAX_MB);
+}
 
 const spatialClassLabels: Record<string, string> = {
   spatial: "地理数据",
@@ -846,6 +856,12 @@ export default function AdminDataImportPage() {
     const kind = detectImportKind(selectedFile);
     resetImportState();
     if (kind === "raster") {
+      if (selectedFile.size > bootstrap.limits.uploadMaxMb * 1024 * 1024) {
+        message.error(
+          `栅格数据包总大小不能超过 ${bootstrap.limits.uploadMaxMb} MB`,
+        );
+        return;
+      }
       setImportKind("raster");
       setRasterFile(selectedFile);
       setRasterFiles([selectedFile]);
@@ -855,11 +871,29 @@ export default function AdminDataImportPage() {
       return;
     }
     if (kind === "tabular") {
+      const tableUploadMaxMb = effectiveTableUploadMaxMb(
+        bootstrap.limits.uploadMaxMb,
+      );
+      if (selectedFile.size > tableUploadMaxMb * 1024 * 1024) {
+        message.error(
+          `表格文件不能超过 ${tableUploadMaxMb} MB（内存安全限制）`,
+        );
+        return;
+      }
       setImportKind("tabular");
       void handlePreview(selectedFile);
       return;
     }
     if (kind === "vector") {
+      const vectorUploadMaxMb = effectiveVectorUploadMaxMb(
+        bootstrap.limits.uploadMaxMb,
+      );
+      if (selectedFile.size > vectorUploadMaxMb * 1024 * 1024) {
+        message.error(
+          `矢量文件不能超过 ${vectorUploadMaxMb} MB（内存安全限制）`,
+        );
+        return;
+      }
       setImportKind("vector");
       setVectorFile(selectedFile);
       setCurrentStep(1);
@@ -986,6 +1020,13 @@ export default function AdminDataImportPage() {
     );
     selectedFiles.forEach((file) => merged.set(file.name.toLowerCase(), file));
     const nextFiles = Array.from(merged.values());
+    const totalBytes = nextFiles.reduce((sum, file) => sum + file.size, 0);
+    if (totalBytes > bootstrap.limits.uploadMaxMb * 1024 * 1024) {
+      message.error(
+        `栅格数据包总大小不能超过 ${bootstrap.limits.uploadMaxMb} MB`,
+      );
+      return;
+    }
     setRasterFiles(nextFiles);
     const primaryName = rasterPreview?.primaryFileName ?? rasterFile?.name;
     void previewRasterFiles(nextFiles, primaryName);
@@ -1194,7 +1235,8 @@ export default function AdminDataImportPage() {
                 <Typography.Text type="secondary">
                   支持 CSV、Excel、矢量文件，以及 GeoTIFF/COG、IMG、VRT、 ENVI
                   DAT/BSQ/BIL/BIP + HDR
-                  栅格数据包；系统会根据文件类型自动进入后续流程。
+                  栅格数据包；系统会根据文件类型自动进入后续流程。表格和矢量文件分别受
+                  16 MB、120 MB 内存安全上限保护。
                 </Typography.Text>
                 <div className="import-selected-file">
                   {previewing ? (

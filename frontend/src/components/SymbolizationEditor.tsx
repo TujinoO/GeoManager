@@ -2864,6 +2864,7 @@ function SymbolizationImportDialog({
     <Modal
       title={`导入${kind}符号化方案`}
       open={open}
+      rootClassName="symbolization-import-modal"
       width="min(640px, calc(100vw - 32px))"
       destroyOnHidden
       mask={{ closable: false }}

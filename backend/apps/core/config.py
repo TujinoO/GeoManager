@@ -39,6 +39,7 @@ DEFAULT_CONFIG_CANDIDATES = (
     Path("config/app.example.toml"),
 )
 INTERNAL_DEFAULT_SYMBOLIZER_SCRIPT = "scripts/raster_symbolizers/basic_gradient.py"
+UPLOAD_MAX_MB_RANGE = (1, 1024)
 
 _CONFIG_LOCKS_GUARD = threading.Lock()
 _CONFIG_LOCKS: dict[Path, threading.RLock] = {}
@@ -203,9 +204,10 @@ def load_project_config(config_path: Path, program_root: Path) -> ProjectConfig:
             ),
         ),
         limits=LimitConfig(
-            upload_max_mb=_positive_int(
+            upload_max_mb=_bounded_int(
                 limits.get("upload_max_mb"),
                 "application.limits.upload_max_mb",
+                *UPLOAD_MAX_MB_RANGE,
             ),
             query_result_limit=_positive_int(
                 limits.get("query_result_limit"),
@@ -410,6 +412,19 @@ def _string_tuple(value: Any, key: str) -> tuple[str, ...]:
 def _positive_int(value: Any, key: str) -> int:
     if not isinstance(value, int) or value <= 0:
         raise ConfigValidationError(f"配置项 {key} 必须是正整数")
+    return value
+
+
+def _bounded_int(value: Any, key: str, minimum: int, maximum: int) -> int:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < minimum
+        or value > maximum
+    ):
+        raise ConfigValidationError(
+            f"配置项 {key} 必须是 {minimum} 到 {maximum} 之间的整数"
+        )
     return value
 
 

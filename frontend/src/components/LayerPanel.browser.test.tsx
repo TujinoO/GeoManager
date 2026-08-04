@@ -15,6 +15,92 @@ import type {
 import LayerPanel from "./LayerPanel";
 
 describe("LayerPanel drag ordering", () => {
+  it("orders expanded groups from the group header instead of the child height", async () => {
+    const reorderGroups = vi.fn();
+    const context = makeContext(
+      [
+        {
+          ...makeGroup(
+            "group-a",
+            [makeLayer("layer-a-1", "图层 A1")],
+            "图层组 A",
+          ),
+          isManual: true,
+        },
+        {
+          ...makeGroup(
+            "group-b",
+            [
+              makeLayer("layer-b-1", "图层 B1"),
+              makeLayer("layer-b-2", "图层 B2"),
+            ],
+            "图层组 B",
+          ),
+          isManual: true,
+        },
+      ],
+      vi.fn(),
+      reorderGroups,
+    );
+    render(
+      <AntdApp>
+        <LayerContext.Provider value={context}>
+          <LayerPanel />
+        </LayerContext.Provider>
+      </AntdApp>,
+    );
+
+    const sourceHandle = screen.getByRole("button", {
+      name: "拖动图层组 A排序",
+    });
+    const targetHeader = screen
+      .getByText("图层组 B")
+      .closest(".layer-tree-node-group");
+    const targetShell = targetHeader?.closest(".layer-group-shell");
+    expect(targetHeader).not.toBeNull();
+    expect(targetShell).not.toBeNull();
+    Object.defineProperty(targetHeader, "getBoundingClientRect", {
+      configurable: true,
+      value: () =>
+        ({
+          top: 100,
+          bottom: 180,
+          height: 80,
+          left: 0,
+          right: 300,
+          width: 300,
+          x: 0,
+          y: 100,
+          toJSON: () => ({}),
+        }) satisfies DOMRect,
+    });
+    Object.defineProperty(targetShell, "getBoundingClientRect", {
+      configurable: true,
+      value: () =>
+        ({
+          top: 100,
+          bottom: 500,
+          height: 400,
+          left: 0,
+          right: 300,
+          width: 300,
+          x: 0,
+          y: 100,
+          toJSON: () => ({}),
+        }) satisfies DOMRect,
+    });
+    const dataTransfer = new DataTransfer();
+
+    fireEvent.dragStart(sourceHandle, { dataTransfer });
+    fireEvent.dragOver(targetHeader!, { clientY: 170, dataTransfer });
+    await waitFor(() => {
+      expect(targetShell).toHaveClass("layer-group-drop-after");
+    });
+    fireEvent.drop(targetHeader!, { clientY: 170, dataTransfer });
+
+    expect(reorderGroups).toHaveBeenCalledWith("group-a", "group-b", "after");
+  });
+
   it("uses the pointer position at drop time instead of a stale dragover frame", async () => {
     const moveLayer = vi.fn();
     const context = makeContext(
@@ -84,6 +170,7 @@ describe("LayerPanel drag ordering", () => {
 function makeContext(
   groups: LoadedLayerGroup[],
   moveLayer: LayerContextValue["moveLayer"],
+  reorderGroups: LayerContextValue["reorderGroups"] = vi.fn(),
 ): LayerContextValue {
   return {
     groups,
@@ -104,7 +191,7 @@ function makeContext(
     setLayerSymbolization: vi.fn(),
     removeGroup: vi.fn(),
     removeLayer: vi.fn(),
-    reorderGroups: vi.fn(),
+    reorderGroups,
     moveLayer,
     extractLayer: vi.fn(),
     startRasterRender: vi.fn(),
@@ -126,10 +213,11 @@ function makeContext(
 function makeGroup(
   id: string,
   children: LoadedLayerGroup["children"],
+  name = "测试图层组",
 ): LoadedLayerGroup {
   return {
     id,
-    name: "测试图层组",
+    name,
     sourceResource: sourceResource(),
     visible: true,
     summary: "",

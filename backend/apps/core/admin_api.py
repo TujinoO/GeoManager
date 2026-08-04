@@ -56,6 +56,7 @@ from apps.core.auth_views import serialize_user
 from apps.core.emails import AccountEmailError, validate_account_email
 from apps.core.config import (
     ConfigValidationError,
+    UPLOAD_MAX_MB_RANGE,
     load_project_config,
     load_runtime_config_document,
     sanitized_public_map_credentials,
@@ -122,7 +123,7 @@ from apps.core.role_applications import (
     serialize_role_application,
 )
 from apps.core.platform_brand import canonicalize_platform_name
-from apps.core.runtime_config import runtime_system_name
+from apps.core.runtime_config import runtime_system_name, runtime_upload_max_mb
 from apps.core.storage import (
     StoragePathError,
     app_path,
@@ -136,7 +137,6 @@ from apps.raster.models import RasterDataset
 
 logger = logging.getLogger(__name__)
 
-UPLOAD_MAX_MB_RANGE = (1, 120)
 DEFAULT_BASEMAP_ALIASES = {
     "satellite": "satellite",
     "mapbox-satellite": "satellite",
@@ -3152,7 +3152,7 @@ def _serialize_application_settings(user) -> dict[str, Any]:
             "tiandituAccessToken": tianditu_key,
         },
         "limits": {
-            "uploadMaxMb": application["limits"]["upload_max_mb"],
+            "uploadMaxMb": runtime_upload_max_mb(),
             "queryResultLimit": application["limits"]["query_result_limit"],
             "maxRasterSidePixels": application["limits"]["max_raster_side_pixels"],
         },

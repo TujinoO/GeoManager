@@ -4,6 +4,7 @@ import json
 import tempfile
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 from django.conf import settings
 from django.apps import apps
@@ -15,7 +16,11 @@ from PIL import Image
 
 from apps.audit.models import OperationLog
 from apps.catalog.models import MapComposition, MapCompositionVersion, WorkspaceScene
-from apps.core.initialization import DEFAULT_USER_GROUP_NAME, GUEST_GROUP_NAME
+from apps.core.initialization import (
+    DEFAULT_USER_GROUP_NAME,
+    GUEST_GROUP_NAME,
+    ensure_default_user_group,
+)
 
 
 class MapCompositionApiTests(TestCase):
@@ -344,6 +349,34 @@ class MapCompositionApiTests(TestCase):
         self.assertEqual(response.json()["detail"], "上传图片尺寸与成果参数不一致")
         self.assertFalse(MapCompositionVersion.objects.exists())
 
+    def test_version_rejects_image_above_independent_byte_limit(self):
+        composition = MapComposition.objects.create(
+            owner=self.user,
+            project=self.project,
+            name="文件大小校验专题图",
+            layout=self.layout,
+        )
+        with patch("apps.catalog.map_compositions.MAP_COMPOSITION_IMAGE_MAX_BYTES", 1):
+            response = self.client.post(
+                f"/api/catalog/map-compositions/{composition.id}/versions/",
+                data={
+                    "image": png_file(2, 2),
+                    "payload": json.dumps(
+                        {
+                            "format": "png",
+                            "dpi": 150,
+                            "widthPx": 2,
+                            "heightPx": 2,
+                            "workspaceSnapshot": self.workspace_snapshot,
+                        }
+                    ),
+                },
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "出图母图不能超过 128 MB")
+        self.assertFalse(MapCompositionVersion.objects.exists())
+
     def test_unpublished_is_private_and_published_audience_gets_limited_access(self):
         viewer = get_user_model().objects.create_user(
             username="published-topic-viewer", password="pass12345"
@@ -471,10 +504,24 @@ class MapCompositionApiTests(TestCase):
                 download_response.close()
 
     def test_default_user_can_see_composition_published_to_guest_audience(self):
+        default_group = Group.objects.get(name=DEFAULT_USER_GROUP_NAME)
+        default_group.permissions.remove(
+            Permission.objects.get(
+                content_type__app_label="catalog",
+                codename="view_mapcomposition",
+            )
+        )
+        ensure_default_user_group()
+        self.assertTrue(
+            default_group.permissions.filter(
+                content_type__app_label="catalog",
+                codename="view_mapcomposition",
+            ).exists()
+        )
         viewer = get_user_model().objects.create_user(
             username="ordinary-public-topic-viewer", password="pass12345"
         )
-        viewer.groups.add(Group.objects.get(name=DEFAULT_USER_GROUP_NAME))
+        viewer.groups.add(default_group)
         guest_group = Group.objects.get(name=GUEST_GROUP_NAME)
         composition = MapComposition.objects.create(
             owner=self.user,

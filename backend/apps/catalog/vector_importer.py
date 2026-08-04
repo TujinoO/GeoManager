@@ -48,6 +48,9 @@ SHAPEFILE_OPTIONAL_SUFFIXES = {".prj", ".cpg", ".qix"}
 IGNORED_ARCHIVE_SUFFIXES = {".lock", ".sr.lock"}
 ENCODING_CANDIDATES = ("UTF-8", "GB18030", "GBK", "CP936")
 MAX_ARCHIVE_EXPANSION_RATIO = 8
+# GeoPandas reads a complete vector layer into memory. Keep this independent
+# ceiling even when disk-backed raster/result uploads use the 1 GiB platform cap.
+MAX_VECTOR_UPLOAD_MB = 120
 
 
 @dataclass(frozen=True)
@@ -712,11 +715,12 @@ def _public_layer_preview(value: dict[str, Any]) -> dict[str, Any]:
 
 def _validate_upload_size(uploaded_file) -> None:
     try:
-        max_mb = runtime_upload_max_mb()
+        configured_max_mb = runtime_upload_max_mb()
     except RuntimeConfigError as exc:
         raise ImportDataError(str(exc)) from exc
+    max_mb = min(configured_max_mb, MAX_VECTOR_UPLOAD_MB)
     if int(getattr(uploaded_file, "size", 0) or 0) > max_mb * 1024 * 1024:
-        raise ImportDataError(f"矢量文件大小不能超过 {max_mb} MB")
+        raise ImportDataError(f"矢量文件大小不能超过 {max_mb} MB（内存安全限制）")
 
 
 def _geometry_type(gdf) -> str:

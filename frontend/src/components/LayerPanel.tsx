@@ -598,12 +598,6 @@ export default function LayerPanel() {
                 role="treeitem"
                 tabIndex={0}
                 aria-expanded={expanded}
-                onDragOver={(event) => handleDragOver(event, group.id)}
-                onDragLeave={() => {
-                  cancelScheduledGroupDragTarget();
-                  setDragTarget(null);
-                }}
-                onDrop={(event) => handleDrop(event, group.id)}
               >
                 <LayerGroupNode
                   group={group}
@@ -613,6 +607,19 @@ export default function LayerPanel() {
                   onDragEnd={() => {
                     resetGroupDragState();
                   }}
+                  onDragOver={(event) => handleDragOver(event, group.id)}
+                  onDragLeave={(event) => {
+                    const relatedTarget = event.relatedTarget;
+                    if (
+                      relatedTarget instanceof Node &&
+                      event.currentTarget.contains(relatedTarget)
+                    ) {
+                      return;
+                    }
+                    cancelScheduledGroupDragTarget();
+                    setDragTarget(null);
+                  }}
+                  onDrop={(event) => handleDrop(event, group.id)}
                   onVisibilityChange={ctx.setGroupVisibility}
                   onNameChange={ctx.setGroupName}
                   onLocate={ctx.locateGroup}
@@ -849,6 +856,9 @@ interface GroupNodeProps {
   onToggleExpand: () => void;
   onDragStart: (event: DragEvent<HTMLElement>) => void;
   onDragEnd: () => void;
+  onDragOver: (event: DragEvent<HTMLElement>) => void;
+  onDragLeave: (event: DragEvent<HTMLElement>) => void;
+  onDrop: (event: DragEvent<HTMLElement>) => void;
   onVisibilityChange: (groupId: string, visible: boolean) => void;
   onNameChange: (groupId: string, name: string) => void;
   onLocate: (groupId: string) => void;
@@ -863,6 +873,9 @@ function LayerGroupNode({
   onToggleExpand,
   onDragStart,
   onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
   onVisibilityChange,
   onNameChange,
   onLocate,
@@ -872,7 +885,12 @@ function LayerGroupNode({
 }: GroupNodeProps) {
   const ctx = useLayerContext();
   return (
-    <div className="layer-tree-node layer-tree-node-group">
+    <div
+      className="layer-tree-node layer-tree-node-group"
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       <div className="layer-row-main">
         <div className="layer-heading">
           <LayerTooltip title={expanded ? "折叠" : "展开"}>

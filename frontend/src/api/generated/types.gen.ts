@@ -227,7 +227,7 @@ export type MapConfig = {
 
 export type SystemLimits = {
     /**
-     * 单次上传文件大小上限，单位 MB
+     * 可配置的栅格与独立成果文件单次上传上限，单位 MB；矢量与表格导入仍受更低的独立内存安全限制，专题出图 PNG 固定使用独立 128 MB 上限且不随本项变化
      */
     uploadMaxMb: number;
     /**
@@ -245,7 +245,7 @@ export type SystemLimits = {
  */
 export type AdminSystemLimitsUpdate = {
     /**
-     * 单次上传文件大小上限，单位 MB；为预留 multipart 开销，不得超过 Waitress 的 128 MB 请求体硬限制
+     * 可配置的栅格与独立成果文件单次上传上限，单位 MB；最高 1024 MB，Waitress 使用 1152 MiB 请求体限制预留 multipart 开销；矢量与表格导入仍受更低的独立内存安全限制，专题出图 PNG 固定使用独立 128 MB 上限且不随本项变化
      */
     uploadMaxMb?: number;
     /**

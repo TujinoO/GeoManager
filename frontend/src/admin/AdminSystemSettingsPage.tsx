@@ -26,7 +26,7 @@ interface BasicSettingValues {
 type BasicSettingDescriptionItem = BasicSettingValues;
 
 export const ADMIN_SETTING_RANGES = {
-  uploadMaxMb: { min: 1, max: 120 },
+  uploadMaxMb: { min: 1, max: 1024 },
   queryResultLimit: { min: 100, max: 10_000 },
   maxRasterSidePixels: { min: 1, max: 12_000 },
   symbolizerTimeoutSeconds: { min: 10, max: 600 },
@@ -126,9 +126,16 @@ const settingDescriptionColumns: ProDescriptionsItemProps<BasicSettingDescriptio
         precision: 0,
       },
       formItemProps: {
-        rules: [integerRangeRule(1, 120, "上传上限")],
+        rules: [
+          integerRangeRule(
+            ADMIN_SETTING_RANGES.uploadMaxMb.min,
+            ADMIN_SETTING_RANGES.uploadMaxMb.max,
+            "上传上限",
+          ),
+        ],
       },
-      tooltip: "受应用服务器 128 MB 请求体上限保护，后台最多可设置为 120 MB",
+      tooltip:
+        "栅格与独立成果文件最高可设置为 1024 MB；矢量和表格受更低的内存安全限制，专题出图 PNG 固定为 128 MB，不随本项变化。应用服务器请求体上限为 1152 MiB。",
     },
     {
       title: "查询结果上限",

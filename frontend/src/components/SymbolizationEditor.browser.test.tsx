@@ -14,8 +14,35 @@ import {
   RasterSymbolizationEditor,
   VectorSymbolizationEditor,
 } from "./SymbolizationEditor";
+import "../styles.css";
 
 describe("symbolization JSON reuse", () => {
+  it("keeps raster import instructions and JSON text readable", async () => {
+    render(
+      <ConfigProvider locale={zhCN} theme={appTheme}>
+        <AntApp>
+          <RasterEditorHarness onApply={vi.fn()} />
+        </AntApp>
+      </ConfigProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "导入 JSON" }));
+
+    const instruction = await screen.findByText(
+      "粘贴由“复制 JSON”生成的完整方案",
+    );
+    const modalTitle = screen.getByText("导入栅格符号化方案");
+    const jsonInput = screen.getByRole("textbox", {
+      name: "符号化方案 JSON",
+    });
+    expect(getComputedStyle(modalTitle).color).toBe("rgb(17, 59, 54)");
+    expect(getComputedStyle(instruction).color).toBe("rgb(244, 255, 251)");
+    expect(getComputedStyle(jsonInput).color).toBe("rgb(17, 59, 54)");
+    expect(getComputedStyle(jsonInput).backgroundColor).toBe(
+      "rgb(247, 251, 250)",
+    );
+  });
+
   it("imports pasted raster JSON into the editor before applying it", async () => {
     const onApply = vi.fn();
     render(

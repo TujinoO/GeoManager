@@ -24,6 +24,7 @@ mapbox_access_token = ""
 tianditu_access_token = ""
 
 [application.limits]
+# 安全默认值；完成代理、磁盘和超时配置后可在后台提高，硬上限为 1024 MB。
 upload_max_mb = 64
 query_result_limit = 5000
 max_raster_side_pixels = 12000

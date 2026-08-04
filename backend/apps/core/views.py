@@ -21,7 +21,11 @@ from apps.core.platform_brand import (
     PLATFORM_EDITION,
     PLATFORM_ENGLISH_NAME,
 )
-from apps.core.runtime_config import runtime_allow_registration, runtime_system_name
+from apps.core.runtime_config import (
+    runtime_allow_registration,
+    runtime_system_name,
+    runtime_upload_max_mb,
+)
 
 
 def registration_allowed() -> bool:
@@ -51,7 +55,7 @@ def bootstrap(request):
                 "tiandituAccessToken": tianditu_key,
             },
             "limits": {
-                "uploadMaxMb": application["limits"]["upload_max_mb"],
+                "uploadMaxMb": runtime_upload_max_mb(),
                 "queryResultLimit": application["limits"]["query_result_limit"],
                 "maxRasterSidePixels": application["limits"]["max_raster_side_pixels"],
             },

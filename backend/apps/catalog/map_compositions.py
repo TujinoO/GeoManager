@@ -43,6 +43,8 @@ from apps.core.storage import app_path
 
 LAYOUT_MAX_BYTES = 512 * 1024
 WORKSPACE_SNAPSHOT_MAX_BYTES = 1024 * 1024
+MAP_COMPOSITION_IMAGE_MAX_MB = 128
+MAP_COMPOSITION_IMAGE_MAX_BYTES = MAP_COMPOSITION_IMAGE_MAX_MB * 1024 * 1024
 MAX_OUTPUT_SIDE = 8192
 MAX_OUTPUT_PIXELS = 36_000_000
 
@@ -316,6 +318,11 @@ def create_map_composition_version(request, composition_id: int):
     uploaded = request.FILES.get("image")
     if uploaded is None:
         return JsonResponse({"detail": "请上传 PNG 出图母图"}, status=400)
+    if uploaded.size > MAP_COMPOSITION_IMAGE_MAX_BYTES:
+        return JsonResponse(
+            {"detail": f"出图母图不能超过 {MAP_COMPOSITION_IMAGE_MAX_MB} MB"},
+            status=400,
+        )
     try:
         payload = json.loads(request.POST.get("payload", "{}"))
     except json.JSONDecodeError:
@@ -326,8 +333,7 @@ def create_map_composition_version(request, composition_id: int):
     try:
         image_bytes = uploaded.read()
         image = Image.open(io.BytesIO(image_bytes))
-        image.load()
-    except (UnidentifiedImageError, OSError):
+    except (Image.DecompressionBombError, UnidentifiedImageError, OSError):
         return JsonResponse({"detail": "上传内容不是有效 PNG 图片"}, status=400)
     if image.format != "PNG":
         return JsonResponse({"detail": "出图母图必须使用 PNG 格式"}, status=400)
@@ -340,6 +346,10 @@ def create_map_composition_version(request, composition_id: int):
         or width_px * height_px > MAX_OUTPUT_PIXELS
     ):
         return JsonResponse({"detail": "出图尺寸超过平台安全限制"}, status=400)
+    try:
+        image.load()
+    except (Image.DecompressionBombError, OSError):
+        return JsonResponse({"detail": "上传内容不是有效 PNG 图片"}, status=400)
 
     workspace_snapshot = values.pop("workspace_snapshot")
     resource_manifest = _resource_manifest(workspace_snapshot)

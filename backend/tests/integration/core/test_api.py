@@ -33,6 +33,7 @@ from apps.core.initialization import (
     superadmin_group_locked_permissions,
 )
 from apps.core.models import RoleApplication, SystemSetting, UserProfile
+from apps.core.runtime_config import runtime_upload_max_mb
 from apps.core.storage import (
     StoragePathError,
     app_path,
@@ -99,6 +100,28 @@ class BootstrapApiTests(TestCase):
         self.assertFalse(payload["allowRegistration"])
         self.assertIn("map", payload)
         self.assertIn("tiandituAccessToken", payload["map"])
+
+    def test_bootstrap_falls_back_to_loaded_upload_limit_after_unsafe_hot_edit(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    "upload_max_mb = 512", "upload_max_mb = 1025"
+                ),
+                encoding="utf-8",
+            )
+
+            with override_settings(PROJECT_CONFIG=config):
+                response = self.client.get("/api/bootstrap/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["limits"]["uploadMaxMb"], 512)
 
     def test_bootstrap_returns_configured_tianditu_browser_token(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -406,6 +429,34 @@ class CsrfSettingsTests(SimpleTestCase):
 
 
 class AdminSettingsApiTests(TestCase):
+    def test_settings_get_falls_back_after_unsafe_upload_limit_hot_edit(self):
+        user = get_user_model().objects.create_user(
+            username="settings-limit-hot-edit-admin", password="pass12345"
+        )
+        grant(user, ("core", "manage_system_settings"))
+        self.client.force_login(user)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    "upload_max_mb = 512", "upload_max_mb = 1025"
+                ),
+                encoding="utf-8",
+            )
+
+            with override_settings(PROJECT_CONFIG=config):
+                response = self.client.get("/api/admin/settings/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["limits"]["uploadMaxMb"], 512)
+
     def test_settings_get_hides_unsafe_credentials_from_hot_edited_toml(self):
         user = get_user_model().objects.create_user(
             username="settings-hot-edit-admin", password="pass12345"
@@ -495,9 +546,7 @@ class AdminSettingsApiTests(TestCase):
         )
         self.assertEqual(cleared.status_code, 200)
         self.assertEqual(cleared.json()["map"]["tiandituAccessToken"], "")
-        self.assertEqual(
-            persisted["application"]["map"]["tianditu_access_token"], ""
-        )
+        self.assertEqual(persisted["application"]["map"]["tianditu_access_token"], "")
 
     def test_map_settings_reject_private_or_malformed_browser_credentials(self):
         user = get_user_model().objects.create_user(
@@ -515,7 +564,9 @@ class AdminSettingsApiTests(TestCase):
             )
             config = load_project_config(config_path, program_root=Path("/opt/app"))
 
-            with override_settings(PROJECT_CONFIG=config, PROGRAM_ROOT=Path("/opt/app")):
+            with override_settings(
+                PROJECT_CONFIG=config, PROGRAM_ROOT=Path("/opt/app")
+            ):
                 private_mapbox = self.client.post(
                     "/api/admin/settings/",
                     data=json.dumps(
@@ -552,7 +603,9 @@ class AdminSettingsApiTests(TestCase):
             )
             config = load_project_config(config_path, program_root=Path("/opt/app"))
 
-            with override_settings(PROJECT_CONFIG=config, PROGRAM_ROOT=Path("/opt/app")):
+            with override_settings(
+                PROJECT_CONFIG=config, PROGRAM_ROOT=Path("/opt/app")
+            ):
                 response = self.client.post(
                     "/api/admin/settings/",
                     data=json.dumps({"map": {"defaultBasemap": "osm"}}),
@@ -587,11 +640,7 @@ class AdminSettingsApiTests(TestCase):
                 response = self.client.post(
                     "/api/admin/settings/",
                     data=json.dumps(
-                        {
-                            "systemName": (
-                                "中亚胡杨林生态系统保护数据共享平台"
-                            )
-                        }
+                        {"systemName": ("中亚胡杨林生态系统保护数据共享平台")}
                     ),
                     content_type="application/json",
                 )
@@ -603,9 +652,7 @@ class AdminSettingsApiTests(TestCase):
             response.json()["systemName"],
             "全球胡杨林生态系统保护数据共享平台",
         )
-        self.assertIn(
-            'name = "全球胡杨林生态系统保护数据共享平台"', persisted
-        )
+        self.assertIn('name = "全球胡杨林生态系统保护数据共享平台"', persisted)
 
     def test_update_refreshes_runtime_upload_limit_without_restart(self):
         user = get_user_model().objects.create_user(
@@ -632,15 +679,21 @@ class AdminSettingsApiTests(TestCase):
             ):
                 response = self.client.post(
                     "/api/admin/settings/",
-                    data=json.dumps({"limits": {"uploadMaxMb": 120}}),
+                    data=json.dumps({"limits": {"uploadMaxMb": 1024}}),
                     content_type="application/json",
                 )
 
                 self.assertEqual(response.status_code, 200)
-                self.assertEqual(settings.PROJECT_CONFIG.limits.upload_max_mb, 120)
+                self.assertEqual(response.json()["limits"]["uploadMaxMb"], 1024)
+                self.assertEqual(settings.PROJECT_CONFIG.limits.upload_max_mb, 1024)
                 self.assertEqual(
-                    settings.DATA_UPLOAD_MAX_MEMORY_SIZE, 10 * 1024 * 1024
+                    tomlkit.parse(config_path.read_text(encoding="utf-8"))[
+                        "application"
+                    ]["limits"]["upload_max_mb"],
+                    1024,
                 )
+                self.assertEqual(settings.DATA_UPLOAD_MAX_MEMORY_SIZE, 10 * 1024 * 1024)
+                self.assertEqual(settings.FILE_UPLOAD_MAX_MEMORY_SIZE, 2 * 1024 * 1024)
 
     def test_rejects_unsafe_admin_limits_without_writing_config(self):
         user = get_user_model().objects.create_user(
@@ -651,8 +704,8 @@ class AdminSettingsApiTests(TestCase):
 
         rejected_values = (
             (
-                {"limits": {"uploadMaxMb": 121}},
-                "uploadMaxMb 必须是 1 到 120 之间的整数",
+                {"limits": {"uploadMaxMb": 1025}},
+                "uploadMaxMb 必须是 1 到 1024 之间的整数",
             ),
             (
                 {"limits": {"queryResultLimit": 10_001}},
@@ -1120,9 +1173,7 @@ class RegistrationApiTests(TestCase):
             ["core.browse_data"],
         )
         self.assertEqual(guest_response.json()["user"]["disabledPermissions"], [])
-        self.assertEqual(
-            register_response.json()["user"]["disabledPermissions"], []
-        )
+        self.assertEqual(register_response.json()["user"]["disabledPermissions"], [])
 
     def test_guest_sessions_remain_valid_when_another_visitor_logs_in(self):
         first_visitor = self.client_class()
@@ -1147,12 +1198,8 @@ class RegistrationApiTests(TestCase):
     def test_guest_cannot_pollute_shared_account_from_an_independent_session(self):
         first_visitor = self.client_class()
         second_visitor = self.client_class()
-        self.assertEqual(
-            first_visitor.post("/api/auth/guest-login/").status_code, 200
-        )
-        self.assertEqual(
-            second_visitor.post("/api/auth/guest-login/").status_code, 200
-        )
+        self.assertEqual(first_visitor.post("/api/auth/guest-login/").status_code, 200)
+        self.assertEqual(second_visitor.post("/api/auth/guest-login/").status_code, 200)
         guest = get_user_model().objects.get(username="guest")
         guest.refresh_from_db()
         guest.profile.refresh_from_db()
@@ -1501,9 +1548,7 @@ class FeaturePermissionTests(TestCase):
         target.groups.add(platform_group)
         self.client.force_login(superadmin)
 
-        reset_response = self.client.post(
-            f"/api/users/{target.id}/password/reset/"
-        )
+        reset_response = self.client.post(f"/api/users/{target.id}/password/reset/")
         disable_response = self.client.post(
             f"/api/users/{target.id}/",
             data=json.dumps({"isActive": False}),
@@ -1565,13 +1610,11 @@ class FeaturePermissionTests(TestCase):
 
         for response in (create_response, update_response):
             self.assertEqual(response.status_code, 400)
-            self.assertEqual(
-                response.json()["detail"], "游客角色只能分配给游客账号"
-            )
+            self.assertEqual(response.json()["detail"], "游客角色只能分配给游客账号")
         self.assertFalse(
-            get_user_model().objects.filter(
-                username="guest-role-create-target"
-            ).exists()
+            get_user_model()
+            .objects.filter(username="guest-role-create-target")
+            .exists()
         )
         self.assertEqual(list(target.groups.all()), [ordinary_group])
 
@@ -1998,9 +2041,7 @@ class FeaturePermissionTests(TestCase):
 
         response = self.client.post(
             f"/api/groups/{group.id}/",
-            data=json.dumps(
-                {"permissions": ["core.manage_feature_permissions"]}
-            ),
+            data=json.dumps({"permissions": ["core.manage_feature_permissions"]}),
             content_type="application/json",
         )
 
@@ -3341,8 +3382,12 @@ class StoragePathTests(SimpleTestCase):
         )
 
     def test_gene_and_table_paths_are_under_fixed_subdirectories(self):
-        self.assertEqual(gene_data_path("sample.fasta").parts[-2:], ("gene", "sample.fasta"))
-        self.assertEqual(table_data_path("survey.csv").parts[-2:], ("table", "survey.csv"))
+        self.assertEqual(
+            gene_data_path("sample.fasta").parts[-2:], ("gene", "sample.fasta")
+        )
+        self.assertEqual(
+            table_data_path("survey.csv").parts[-2:], ("table", "survey.csv")
+        )
 
 
 class ConfigLoaderTests(TestCase):
@@ -3388,6 +3433,104 @@ class ConfigLoaderTests(TestCase):
                 "application.system.allow_registration 必须是布尔值",
             ):
                 load_project_config(config_path, program_root=Path("/opt/app"))
+
+    def test_loader_accepts_upload_limit_hard_maximum(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research").replace(
+                    "upload_max_mb = 512", "upload_max_mb = 1024"
+                ),
+                encoding="utf-8",
+            )
+
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+
+        self.assertEqual(config.limits.upload_max_mb, 1024)
+
+    def test_loader_rejects_upload_limit_above_hard_maximum(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research").replace(
+                    "upload_max_mb = 512", "upload_max_mb = 1025"
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ConfigValidationError,
+                r"application\.limits\.upload_max_mb 必须是 1 到 1024 之间的整数",
+            ):
+                load_project_config(config_path, program_root=Path("/opt/app"))
+
+    def test_runtime_reader_falls_back_after_unsafe_upload_limit_hot_edit(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    "upload_max_mb = 512", "upload_max_mb = 1025"
+                ),
+                encoding="utf-8",
+            )
+
+            with override_settings(PROJECT_CONFIG=config):
+                self.assertEqual(runtime_upload_max_mb(), 512)
+
+    def test_runtime_reader_falls_back_when_hot_edited_config_is_malformed(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+            config_path.write_text("[application\n", encoding="utf-8")
+
+            with override_settings(PROJECT_CONFIG=config):
+                self.assertEqual(runtime_upload_max_mb(), 512)
+
+    def test_runtime_reader_falls_back_when_hot_edited_config_is_not_utf8(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+            config_path.write_bytes(b"\xff\xfe")
+
+            with override_settings(PROJECT_CONFIG=config):
+                self.assertEqual(runtime_upload_max_mb(), 512)
+
+    def test_runtime_reader_falls_back_when_hot_edited_limit_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    "upload_max_mb = 512\n", ""
+                ),
+                encoding="utf-8",
+            )
+
+            with override_settings(PROJECT_CONFIG=config):
+                self.assertEqual(runtime_upload_max_mb(), 512)
 
     def test_loader_rejects_invalid_map_numbers(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -3445,8 +3588,7 @@ class ConfigLoaderTests(TestCase):
             config_path.write_text(
                 _minimal_config_text(root / "app", root / "research").replace(
                     'mapbox_access_token = ""',
-                    'mapbox_access_token = ""\n'
-                    'tianditu_access_token = "invalid"',
+                    'mapbox_access_token = ""\ntianditu_access_token = "invalid"',
                 ),
                 encoding="utf-8",
             )

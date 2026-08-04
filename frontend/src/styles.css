@@ -19521,6 +19521,50 @@ body:has(.login-shell),
   overflow: visible;
 }
 
+.symbolization-import-modal .ant-modal-title,
+.symbolization-import-modal .ant-modal-close {
+  color: #113b36;
+}
+
+.symbolization-import-modal .ant-alert-info {
+  background: rgb(22 78 74 / 0.92);
+  border-color: rgb(94 234 212 / 0.38);
+}
+
+.symbolization-import-modal .ant-alert-error {
+  background: rgb(82 38 47 / 0.94);
+  border-color: rgb(251 113 133 / 0.46);
+}
+
+.symbolization-import-modal .ant-alert-title,
+.symbolization-import-modal .ant-alert-message {
+  color: #f4fffb;
+  font-weight: 600;
+}
+
+.symbolization-import-modal .ant-alert-description {
+  color: rgb(244 255 251 / 0.82);
+}
+
+.symbolization-import-modal .ant-alert-info .ant-alert-icon {
+  color: #5eead4;
+}
+
+.symbolization-import-modal .ant-alert-error .ant-alert-icon {
+  color: #fb7185;
+}
+
+.symbolization-import-modal textarea.ant-input {
+  color: #113b36;
+  background: #f7fbfa;
+  border-color: rgb(94 234 212 / 0.58);
+  caret-color: #113b36;
+}
+
+.symbolization-import-modal textarea.ant-input::placeholder {
+  color: rgb(17 59 54 / 0.58);
+}
+
 .workspace-save-overwrite-alert.ant-alert {
   color: #f7fbf9;
   background: #2b5b52;

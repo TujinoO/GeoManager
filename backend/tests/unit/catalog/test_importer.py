@@ -2,6 +2,7 @@ import pandas as pd
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase
 from io import BytesIO
+from types import SimpleNamespace
 from unittest import mock
 
 from apps.catalog.importer import (
@@ -15,6 +16,9 @@ from apps.catalog.importer import (
     read_uploaded_table,
     validate_import_table_name,
     validate_uploaded_table,
+)
+from apps.catalog.vector_importer import (
+    _validate_upload_size as validate_vector_upload_size,
 )
 
 
@@ -224,6 +228,16 @@ class ImporterUnitTests(SimpleTestCase):
         ):
             with self.assertRaisesRegex(ImportDataError, "平台上传大小限制"):
                 read_uploaded_table(uploaded)
+
+    def test_vector_import_keeps_independent_memory_safety_limit(self):
+        uploaded = SimpleNamespace(size=120 * 1024 * 1024 + 1)
+
+        with mock.patch(
+            "apps.catalog.vector_importer.runtime_upload_max_mb",
+            return_value=1024,
+        ):
+            with self.assertRaisesRegex(ImportDataError, "不能超过 120 MB"):
+                validate_vector_upload_size(uploaded)
 
     def _csv_file(self, name: str, content: str) -> SimpleUploadedFile:
         return SimpleUploadedFile(

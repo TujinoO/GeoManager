@@ -170,9 +170,11 @@ Docker 配置中的数据目录应直接使用容器内路径 `/data/app` 和 `/
 
 ### 4 GB 主机的内存安全基线
 
-`config/app.docker.toml` 默认面向小内存单机：Waitress 使用 2 个请求线程，查询单次最多返回 5,000 条，上传限制为 64 MB，栅格单边限制为 12,000 像素，并关闭目录与栅格启动扫描。后台允许设置的硬范围为上传 1–120 MB、查询 100–10,000 条、栅格单边 1–12,000 像素和栅格任务超时 10–600 秒；上传最大值为 Waitress 的 128 MB 请求体限制预留了 multipart 开销。需要扫描时应在平台稳定后由有维护权限的用户手动触发；栅格导入、扫描、渲染和导出共用单并发、有界等待队列，不能通过提高 Waitress 线程数绕开该限制。
+`config/app.docker.toml` 默认面向小内存单机：Waitress 使用 2 个请求线程，查询单次最多返回 5,000 条，可配置上传限制为 64 MB，栅格单边限制为 12,000 像素，并关闭目录与栅格启动扫描。后台允许设置的硬范围为栅格与独立成果上传 1–1024 MB、查询 100–10,000 条、栅格单边 1–12,000 像素和栅格任务超时 10–600 秒；Waitress 请求体硬限制为 1152 MiB，并以 720 秒连接超时为 1024 MB multipart 上传和最长 600 秒栅格任务留出余量。Django 的普通请求内存上限仍为 10 MiB、文件内存阈值仍为 2 MiB，大文件必须落临时磁盘，不能提高这两个内存阈值。矢量导入继续取平台配置与 120 MB 的较小值，表格在线解析继续取平台配置与 16 MB 的较小值；专题出图 PNG 保持独立 128 MB 上限并在完整解码前校验大小与像素边界，且不随可配置上传上限变化，避免整层、整表或图片解码耗尽内存。需要扫描时应在平台稳定后由有维护权限的用户手动触发；栅格导入、扫描、渲染和导出共用单并发、有界等待队列，不能通过提高 Waitress 线程数绕开该限制。
 
-这些文件是新部署样例，不会覆盖现有服务器的 `/config/app.toml`。升级已有容器前必须备份宿主机 TOML，把它迁移到专用配置目录并改为目录挂载，然后显式重建容器以应用挂载、memory、CPU、pids、restart 和日志参数；单独执行 Watchtower 不会改变挂载配置或现有 HostConfig。单文件 bind mount 会使后台保存时的原子 `os.replace()` 返回 `Device or resource busy`，因此不能继续用于可在线维护的配置。本文示例容器名为 `data-platform`；现网容器名如果是 `geomanager`，所有检查、重建和 Watchtower 目标必须统一使用 `geomanager`，不能混用。
+把生产运行值提高到 1024 MB 前，必须同步检查反向代理和磁盘。Nginx 可使用 `client_max_body_size 1152m`、`client_body_timeout 300s`、`proxy_send_timeout 300s`、`proxy_read_timeout 720s`，并保持 `proxy_request_buffering on`，通过磁盘缓冲保护应用进程。Nginx `client_body_temp_path` 和容器 `/tmp` 不能挂在 tmpfs；单次 1 GiB 栅格导入建议至少预留 8–10 GiB 可用磁盘。若域名前有 CDN/WAF，还必须确认其套餐请求体上限；低于 1 GiB 时应使用不经过该代理的受控上传入口，不能仅靠 Nginx 设置绕过。
+
+这些文件是新部署样例，不会覆盖现有服务器的 `/config/app.toml`，其中 64 MB 也刻意保留为安全默认值。升级已有容器前必须备份宿主机 TOML，把它迁移到专用配置目录并改为目录挂载，然后显式重建容器以应用挂载、memory、CPU、pids、restart 和日志参数；单独执行 Watchtower 不会改变挂载配置或现有 HostConfig。首次部署新镜像应先保留原运行值完成健康检查，再把服务器实际挂载的 `application.limits.upload_max_mb` 显式改为 1024 并验证大栅格。单文件 bind mount 会使后台保存时的原子 `os.replace()` 返回 `Device or resource busy`，因此不能继续用于可在线维护的配置。本文示例容器名为 `data-platform`；现网容器名如果是 `geomanager`，所有检查、重建和 Watchtower 目标必须统一使用 `geomanager`，不能混用。
 
 容器的 `2300m` 硬限制用于给 4 GB 宿主机、Docker daemon 和反向代理保留约 1.5 GB。容器可能在超限时单独重启，但不得再次拖垮宿主机。`--memory-swap` 与 `--memory` 设为相同值表示不允许容器额外消耗 swap；若宿主机有其他业务，应继续下调，而不是取消限制。镜像内置 `/api/health/` 健康检查，并从挂载的 `/config/app.toml` 自动读取容器内 Waitress 端口；宿主机端口映射仍需与实际端口保持一致。
 
@@ -190,9 +192,11 @@ docker exec data-platform sh -c 'cat /sys/fs/cgroup/memory.current; cat /sys/fs/
 
 ### 镜像更新与回滚
 
-Watchtower 只会根据容器当前的 image tag 拉取容器镜像，不会在服务器上执行 `git pull`，也不会从 GitHub Fork 直接构建代码。上游工作流发布到当前仓库所有者的 `ghcr.io/tujinoo/geomanager`；推送源码后必须先确认 GitHub Actions 已成功发布镜像，并确保远端容器也使用该镜像地址。镜像命名空间必须与签发 `GITHUB_TOKEN` 的仓库所有者一致，否则构建完成后会在推送阶段因包写入权限不足而失败。
+Watchtower 只会根据容器当前的 image tag 拉取容器镜像，不会在服务器上执行 `git pull`，也不会从 GitHub Fork 直接构建代码。工作流使用 `ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/geomanager`：主仓库 `yiguanxianyu/GeoManager` 构建的是 `ghcr.io/yiguanxianyu/geomanager`，Fork `TujinoO/GeoManager` 构建的才是 `ghcr.io/tujinoo/geomanager`。推送源码后必须先确认 GitHub Actions 已成功发布镜像，并以成功任务显示的实际 tag/digest 与现网容器 `.Config.Image` 为准。镜像命名空间必须与签发 `GITHUB_TOKEN` 的仓库所有者一致，否则构建完成后会在推送阶段因包写入权限不足而失败。
 
-生产更新应记录当前 image ID/digest，优先部署提交 SHA tag 或固定 digest，完成健康检查和关键页面冒烟验证后再清理旧镜像。首次故障恢复不要使用 Watchtower `--cleanup`，否则新镜像异常时可能失去便捷回滚目标。回滚时使用记录的旧 SHA tag/digest 重建同配置容器，数据卷保持不变。
+生产更新应记录当前 image ID/digest，并把旧 digest 与修改前的 `/config/app.toml`、反向代理配置备份配对保存。新容器启动时会执行 Django migration，因此更新前还必须确认平台备份任务成功，或为 `huyang-data` 中的数据库和关键业务数据制作经过校验的可恢复快照。优先部署提交 SHA tag 或固定 digest；修改 Nginx 后先运行 `nginx -t`，再 reload，完成容器健康检查、`/api/bootstrap/` 中 `uploadMaxMb=1024`、关键页面和代表性上传冒烟验证后再清理旧镜像。首次故障恢复不要使用 Watchtower `--cleanup`，否则新镜像异常时可能失去便捷回滚目标。
+
+回滚时不能只恢复旧镜像：旧版本最多接受 120 MB 配置，必须先恢复与旧 digest 配对的旧 `app.toml`，再按原挂载、端口和资源限制用旧 digest 重建容器。数据卷是否保持现状必须依据迁移兼容性决定；若新迁移不支持降级，应同时恢复升级前的数据快照。回滚后重新检查健康状态、日志和关键页面。
 
 远程管理应使用 SSH key，并关闭公网密码登录。密码一旦出现在聊天、终端录屏或共享日志中，应立即轮换；任何口令都不得写入仓库、部署脚本或命令历史。
 

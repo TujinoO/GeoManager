@@ -4,7 +4,11 @@ from typing import Any
 
 from django.conf import settings
 
-from apps.core.config import load_runtime_config_document
+from apps.core.config import (
+    ConfigValidationError,
+    UPLOAD_MAX_MB_RANGE,
+    load_runtime_config_document,
+)
 from apps.core.platform_brand import canonicalize_platform_name
 
 
@@ -34,7 +38,43 @@ def runtime_allow_registration() -> bool:
 
 
 def runtime_upload_max_mb() -> int:
-    return runtime_limit_int("upload_max_mb", "上传大小限制")
+    minimum, maximum = UPLOAD_MAX_MB_RANGE
+    try:
+        value = runtime_application()["limits"]["upload_max_mb"]
+    except (
+        ConfigValidationError,
+        KeyError,
+        OSError,
+        TypeError,
+        UnicodeError,
+        RuntimeConfigError,
+    ):
+        return _loaded_upload_max_mb(minimum, maximum)
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < minimum
+        or value > maximum
+    ):
+        return _loaded_upload_max_mb(minimum, maximum)
+    return value
+
+
+def _loaded_upload_max_mb(minimum: int, maximum: int) -> int:
+    try:
+        value = settings.PROJECT_CONFIG.limits.upload_max_mb
+    except AttributeError as exc:
+        raise RuntimeConfigError("无法读取上传大小限制") from exc
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < minimum
+        or value > maximum
+    ):
+        raise RuntimeConfigError(
+            f"上传大小限制必须是 {minimum} 到 {maximum} 之间的整数"
+        )
+    return value
 
 
 def runtime_query_result_limit() -> int:

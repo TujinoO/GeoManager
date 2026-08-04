@@ -56,7 +56,8 @@ case "${1:-serve}" in
       --port="${WAITRESS_PORT}" \
       --threads="${WAITRESS_THREADS}" \
       --connection-limit=50 \
-      --max-request-body-size=134217728 \
+      --channel-timeout=720 \
+      --max-request-body-size=1207959552 \
       geomanager.wsgi:application
     ;;
   manage)

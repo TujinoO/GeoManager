@@ -27,7 +27,10 @@ import type {
 import AdminAuthPage from "./AdminAuthPage";
 import AdminDataBackupPage from "./AdminDataBackupPage";
 import AdminDashboardPage from "./AdminDashboardPage";
-import AdminDataImportPage from "./AdminDataImportPage";
+import AdminDataImportPage, {
+  effectiveTableUploadMaxMb,
+  effectiveVectorUploadMaxMb,
+} from "./AdminDataImportPage";
 import AdminDataInventoryPage from "./AdminDataInventoryPage";
 import AdminLayout from "./AdminLayout";
 import AdminOperationLogsPage from "./AdminOperationLogsPage";
@@ -1523,13 +1526,13 @@ describe("admin routes", () => {
 
   it("keeps safe system-setting ranges and merges a one-field edit", () => {
     expect(ADMIN_SETTING_RANGES).toEqual({
-      uploadMaxMb: { min: 1, max: 120 },
+      uploadMaxMb: { min: 1, max: 1024 },
       queryResultLimit: { min: 100, max: 10_000 },
       maxRasterSidePixels: { min: 1, max: 12_000 },
       symbolizerTimeoutSeconds: { min: 10, max: 600 },
     });
 
-    expect(mergeSettingValues(adminSettings, { uploadMaxMb: 80 })).toEqual({
+    expect(mergeSettingValues(adminSettings, { uploadMaxMb: 1024 })).toEqual({
       systemName: adminSettings.systemName,
       allowRegistration: adminSettings.allowRegistration,
       defaultCenterLon: adminSettings.map.defaultCenter[0],
@@ -1538,11 +1541,15 @@ describe("admin routes", () => {
       defaultBasemap: adminSettings.map.defaultBasemap,
       mapboxAccessToken: adminSettings.map.mapboxAccessToken,
       tiandituAccessToken: adminSettings.map.tiandituAccessToken,
-      uploadMaxMb: 80,
+      uploadMaxMb: 1024,
       queryResultLimit: adminSettings.limits.queryResultLimit,
       maxRasterSidePixels: adminSettings.limits.maxRasterSidePixels,
       symbolizerTimeoutSeconds: adminSettings.raster.symbolizerTimeoutSeconds,
     });
+    expect(effectiveTableUploadMaxMb(1024)).toBe(16);
+    expect(effectiveTableUploadMaxMb(8)).toBe(8);
+    expect(effectiveVectorUploadMaxMb(1024)).toBe(120);
+    expect(effectiveVectorUploadMaxMb(64)).toBe(64);
   });
 
   it("saves a one-field system limit edit with the complete current settings", async () => {
@@ -1554,7 +1561,8 @@ describe("admin routes", () => {
 
     fireEvent.click(within(item!).getByLabelText("edit"));
     const input = within(item!).getByRole("spinbutton");
-    fireEvent.change(input, { target: { value: "80" } });
+    expect(input).toHaveAttribute("aria-valuemax", "1024");
+    fireEvent.change(input, { target: { value: "1024" } });
     fireEvent.click(within(item!).getByLabelText("check"));
 
     await waitFor(() => {
@@ -1564,7 +1572,7 @@ describe("admin routes", () => {
         map: adminSettings.map,
         limits: {
           ...adminSettings.limits,
-          uploadMaxMb: 80,
+          uploadMaxMb: 1024,
         },
         raster: adminSettings.raster,
       });
@@ -2178,9 +2186,6 @@ describe("admin routes", () => {
   }, 30000);
 
   it("rejects a raster file above the configured upload size before submitting", async () => {
-    mockApi.previewRasterImport.mockRejectedValueOnce(
-      new Error("栅格数据包总大小不能超过 512 MB"),
-    );
     renderAdminRoute("/resources/data/import");
 
     const rasterInput = document.querySelector(
@@ -2196,8 +2201,9 @@ describe("admin routes", () => {
     fireEvent.change(rasterInput, { target: { files: [oversizedFile] } });
 
     expect(
-      await screen.findByText(/栅格数据包总大小不能超过 512 MB/),
+      await screen.findByText(/栅格数据包总大小不能超过 64 MB/),
     ).toBeInTheDocument();
+    expect(mockApi.previewRasterImport).not.toHaveBeenCalled();
     expect(mockApi.importRaster).not.toHaveBeenCalled();
   }, 30000);
 
@@ -2221,6 +2227,49 @@ describe("admin routes", () => {
     ).toBeInTheDocument();
     expect(mockApi.importRaster).not.toHaveBeenCalled();
   }, 30000);
+
+  it("honors a lower platform cap for vector imports", async () => {
+    renderAdminRoute("/resources/data/import");
+
+    const vectorInput = document.querySelector(
+      "input[type='file']",
+    ) as HTMLInputElement;
+    const oversizedFile = new File(["x"], "too-large.geojson", {
+      type: "application/geo+json",
+    });
+    Object.defineProperty(oversizedFile, "size", {
+      value: bootstrap.limits.uploadMaxMb * 1024 * 1024 + 1,
+    });
+
+    fireEvent.change(vectorInput, { target: { files: [oversizedFile] } });
+
+    expect(
+      await screen.findByText("矢量文件不能超过 64 MB（内存安全限制）"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("尚未选择文件")).toBeInTheDocument();
+  });
+
+  it("rejects a table above its memory-safe parser limit before uploading", async () => {
+    renderAdminRoute("/resources/data/import");
+
+    const tableInput = document.querySelector(
+      "input[type='file']",
+    ) as HTMLInputElement;
+    const oversizedFile = new File(["x"], "too-large.csv", {
+      type: "text/csv",
+    });
+    Object.defineProperty(oversizedFile, "size", {
+      value: 16 * 1024 * 1024 + 1,
+    });
+
+    fireEvent.change(tableInput, { target: { files: [oversizedFile] } });
+
+    expect(
+      await screen.findByText("表格文件不能超过 16 MB（内存安全限制）"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("尚未选择文件")).toBeInTheDocument();
+    expect(mockApi.importPreview).not.toHaveBeenCalled();
+  });
 
   it("shows an unsupported state for files without an available import flow", async () => {
     renderAdminRoute("/resources/data/import");

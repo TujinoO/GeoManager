@@ -164,6 +164,10 @@ def ensure_default_user_group() -> Group:
         LEGACY_DEFAULT_USER_GROUP_PERMISSIONS,
     ):
         _set_group_permissions(group, DEFAULT_USER_GROUP_PERMISSIONS)
+    # Viewing published map compositions is part of the built-in ordinary-user
+    # contract. Keep this minimum permission even when an older installation's
+    # role permissions have drifted away from one of the exact legacy sets.
+    _add_group_permissions(group, ("catalog.view_mapcomposition",))
     return group
 
 
