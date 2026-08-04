@@ -240,6 +240,9 @@ export default function MapCanvas({
       generation: activeBasemapState.generation,
       sourceIds: activeBasemap.sourceIds,
       requireAllSourceIds: activeBasemap.requireAllSourceIds,
+      readinessTimeoutMs: basemapSwitchTimeoutMsForProvider(
+        activeBasemap.provider,
+      ),
       resourceMarkers: activeBasemap.errorMarkers,
     }),
     [activeBasemap, activeBasemapState.generation],

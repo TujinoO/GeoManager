@@ -15,7 +15,7 @@ describe("TiandituTileProvider", () => {
     vi.setSystemTime(10_000);
     const starts: number[] = [];
     const scheduler = new RequestStartScheduler({
-      minStartIntervalMs: 300,
+      minStartIntervalMs: 200,
       maxConcurrentRequests: 4,
     });
     const fetchImpl = vi.fn(async () => {
@@ -31,11 +31,53 @@ describe("TiandituTileProvider", () => {
       vector.loadTile(tile(3), loadOptions("vec", new AbortController())),
     ];
 
-    await vi.advanceTimersByTimeAsync(599);
-    expect(starts).toEqual([10_000, 10_300]);
+    await vi.advanceTimersByTimeAsync(399);
+    expect(starts).toEqual([10_000, 10_200]);
     await vi.advanceTimersByTimeAsync(1);
     await Promise.all(requests);
-    expect(starts).toEqual([10_000, 10_300, 10_600]);
+    expect(starts).toEqual([10_000, 10_200, 10_400]);
+    scheduler.dispose();
+  });
+
+  it("pauses the shared vector and label queue after any 429", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(30_000);
+    const starts: Array<{ layer: string; at: number }> = [];
+    let vectorAttempts = 0;
+    const scheduler = new RequestStartScheduler({
+      minStartIntervalMs: 200,
+      maxConcurrentRequests: 4,
+    });
+    const fetchImpl = vi.fn(async (url: string) => {
+      const layer = url.includes("/cva") ? "cva" : "vec";
+      starts.push({ layer, at: Date.now() });
+      if (layer === "vec" && vectorAttempts++ === 0) {
+        return tileResponse(429, { "retry-after": "1" });
+      }
+      return tileResponse(200);
+    });
+    const vector = provider({ scheduler, fetchImpl });
+    const labels = provider({ scheduler, fetchImpl });
+
+    const loads = [
+      vector.loadTile(tile(1), loadOptions("vec", new AbortController())),
+      labels.loadTile(tile(2), loadOptions("cva", new AbortController())),
+    ];
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(starts).toEqual([{ layer: "vec", at: 30_000 }]);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(starts).toEqual([
+      { layer: "vec", at: 30_000 },
+      { layer: "cva", at: 31_000 },
+    ]);
+    await vi.advanceTimersByTimeAsync(200);
+    await Promise.all(loads);
+    expect(starts).toEqual([
+      { layer: "vec", at: 30_000 },
+      { layer: "cva", at: 31_000 },
+      { layer: "vec", at: 31_200 },
+    ]);
     scheduler.dispose();
   });
 

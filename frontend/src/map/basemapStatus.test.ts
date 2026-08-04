@@ -195,6 +195,12 @@ describe("classifyBasemapStatus", () => {
         requireAllSourceIds: true,
       }),
     );
+    expect(activeBasemapScopeKey(activeBasemap)).not.toBe(
+      activeBasemapScopeKey({
+        ...activeBasemap,
+        readinessTimeoutMs: 45_000,
+      }),
+    );
     expect(activeBasemapScopeKey(undefined)).toBe("legacy");
     expect(activeBasemapScopeKey(null)).toBe("none");
   });

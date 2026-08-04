@@ -1,4 +1,4 @@
-const defaultMinStartIntervalMs = 300;
+const defaultMinStartIntervalMs = 200;
 const defaultMaxConcurrentRequests = 4;
 const defaultMaxRetries = 2;
 const defaultBaseRetryDelayMs = 1_000;
@@ -64,6 +64,17 @@ export class RequestStartScheduler {
       this.queue.push(job);
       this.drain();
     });
+  }
+
+  deferFor(delayMs) {
+    const deferredStartAt = this.now() + Math.max(0, delayMs);
+    if (deferredStartAt <= this.nextStartAt) return;
+    this.nextStartAt = deferredStartAt;
+    if (this.timerId !== null) {
+      this.clearTimer(this.timerId);
+      this.timerId = null;
+    }
+    this.drain();
   }
 
   drain() {
@@ -197,10 +208,12 @@ export class TiandituTileProvider {
         this.baseRetryDelayMs * 2 ** attempt,
         this.maxRetryDelayMs,
       );
-      await this.delay(
-        Math.min(retryAfterMs ?? exponentialDelay, this.maxRetryDelayMs),
-        signal,
+      const retryDelayMs = Math.min(
+        retryAfterMs ?? exponentialDelay,
+        this.maxRetryDelayMs,
       );
+      this.scheduler.deferFor(retryDelayMs);
+      await this.delay(retryDelayMs, signal);
     }
 
     throw new Error("Unreachable Tianditu tile retry state");

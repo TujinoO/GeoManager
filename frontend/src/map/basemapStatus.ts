@@ -7,6 +7,7 @@ export interface ActiveBasemapDescriptor {
   generation: BasemapGeneration;
   sourceIds: readonly string[];
   requireAllSourceIds?: boolean;
+  readinessTimeoutMs?: number;
   resourceMarkers: readonly string[];
 }
 
@@ -96,6 +97,7 @@ export function activeBasemapScopeKey(
     typeof activeBasemap.generation,
     activeBasemap.generation,
     Boolean(activeBasemap.requireAllSourceIds),
+    activeBasemap.readinessTimeoutMs ?? null,
   ]);
 }
 

@@ -1,13 +1,18 @@
 import type { Map as MapboxMap } from "mapbox-gl";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ActiveBasemapDescriptor } from "../map/basemapStatus";
+import {
+  initialBasemapDiagnostics,
+  type ActiveBasemapDescriptor,
+} from "../map/basemapStatus";
 import {
   areRequiredBasemapSourcesLoaded,
   BasemapSourceLoadCycle,
   BasemapTileRequestTimings,
   createStrictBasemapReadinessTimer,
   expectedBasemapSourceIds,
+  loadingBasemapDiagnosticsAfterReadinessTimeout,
   probePlatformHealth,
+  strictBasemapReadinessTimeoutMsFor,
 } from "./useBasemapStatus";
 
 afterEach(() => {
@@ -86,6 +91,7 @@ describe("strict basemap source readiness", () => {
     generation: 1,
     sourceIds: ["tianditu-vec", "tianditu-cva"],
     requireAllSourceIds: true,
+    readinessTimeoutMs: 45_000,
     resourceMarkers: ["tianditu.gov.cn"],
   };
 
@@ -125,18 +131,29 @@ describe("strict basemap source readiness", () => {
     expect(expectedBasemapSourceIds(map, mapboxBasemap)).toEqual(["composite"]);
     expect(areRequiredBasemapSourcesLoaded(map, mapboxBasemap)).toBe(true);
   });
+
+  it("uses a provider-specific readiness timeout for paced tile services", () => {
+    expect(strictBasemapReadinessTimeoutMsFor(strictBasemap)).toBe(45_000);
+    expect(strictBasemapReadinessTimeoutMsFor(undefined)).toBe(15_000);
+    expect(
+      strictBasemapReadinessTimeoutMsFor({
+        ...strictBasemap,
+        readinessTimeoutMs: Number.NaN,
+      }),
+    ).toBe(15_000);
+  });
 });
 
 describe("StrictBasemapReadinessTimer", () => {
   it("clears the pending timeout when an idle-ready path settles", async () => {
     vi.useFakeTimers();
     const onReady = vi.fn();
-    const onFailed = vi.fn();
+    const onTimedOut = vi.fn();
     const timer = createStrictBasemapReadinessTimer({
       isCurrentScope: () => true,
       sourcesReady: () => false,
       onReady,
-      onFailed,
+      onTimedOut,
       timeoutMs: 1_000,
     });
 
@@ -145,17 +162,17 @@ describe("StrictBasemapReadinessTimer", () => {
     await vi.advanceTimersByTimeAsync(1_000);
 
     expect(onReady).not.toHaveBeenCalled();
-    expect(onFailed).not.toHaveBeenCalled();
+    expect(onTimedOut).not.toHaveBeenCalled();
   });
 
   it("arms a new timeout for a later strict loading cycle", async () => {
     vi.useFakeTimers();
-    const onFailed = vi.fn();
+    const onTimedOut = vi.fn();
     const timer = createStrictBasemapReadinessTimer({
       isCurrentScope: () => true,
       sourcesReady: () => false,
       onReady: vi.fn(),
-      onFailed,
+      onTimedOut,
       timeoutMs: 1_000,
     });
 
@@ -163,20 +180,20 @@ describe("StrictBasemapReadinessTimer", () => {
     timer.settle();
     timer.enterLoading();
     await vi.advanceTimersByTimeAsync(999);
-    expect(onFailed).not.toHaveBeenCalled();
+    expect(onTimedOut).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
 
-    expect(onFailed).toHaveBeenCalledOnce();
+    expect(onTimedOut).toHaveBeenCalledOnce();
   });
 
   it("restarts the timeout for an explicit refresh", async () => {
     vi.useFakeTimers();
-    const onFailed = vi.fn();
+    const onTimedOut = vi.fn();
     const timer = createStrictBasemapReadinessTimer({
       isCurrentScope: () => true,
       sourcesReady: () => false,
       onReady: vi.fn(),
-      onFailed,
+      onTimedOut,
       timeoutMs: 1_000,
     });
 
@@ -184,21 +201,21 @@ describe("StrictBasemapReadinessTimer", () => {
     await vi.advanceTimersByTimeAsync(600);
     timer.restartLoading();
     await vi.advanceTimersByTimeAsync(600);
-    expect(onFailed).not.toHaveBeenCalled();
+    expect(onTimedOut).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(400);
 
-    expect(onFailed).toHaveBeenCalledOnce();
+    expect(onTimedOut).toHaveBeenCalledOnce();
   });
 
   it("converges to ready when required sources are loaded at timeout", async () => {
     vi.useFakeTimers();
     const onReady = vi.fn();
-    const onFailed = vi.fn();
+    const onTimedOut = vi.fn();
     const timer = createStrictBasemapReadinessTimer({
       isCurrentScope: () => true,
       sourcesReady: () => true,
       onReady,
-      onFailed,
+      onTimedOut,
       timeoutMs: 1_000,
     });
 
@@ -206,19 +223,48 @@ describe("StrictBasemapReadinessTimer", () => {
     await vi.advanceTimersByTimeAsync(1_000);
 
     expect(onReady).toHaveBeenCalledOnce();
-    expect(onFailed).not.toHaveBeenCalled();
+    expect(onTimedOut).not.toHaveBeenCalled();
+  });
+
+  it("does not fail a paced basemap at the legacy 15-second boundary", async () => {
+    vi.useFakeTimers();
+    const onTimedOut = vi.fn();
+    const pacedBasemap: ActiveBasemapDescriptor = {
+      id: "tianditu-vector",
+      generation: 1,
+      sourceIds: ["tianditu-vec", "tianditu-cva"],
+      requireAllSourceIds: true,
+      readinessTimeoutMs: 45_000,
+      resourceMarkers: ["tianditu.gov.cn"],
+    };
+    const timer = createStrictBasemapReadinessTimer({
+      isCurrentScope: () => true,
+      sourcesReady: () => false,
+      onReady: vi.fn(),
+      onTimedOut,
+      timeoutMs: strictBasemapReadinessTimeoutMsFor(pacedBasemap),
+    });
+
+    timer.enterLoading();
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(onTimedOut).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(onTimedOut).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(onTimedOut).toHaveBeenCalledOnce();
   });
 
   it("ignores a timeout from an obsolete basemap generation", async () => {
     vi.useFakeTimers();
     let generation = 1;
     const onReady = vi.fn();
-    const onFailed = vi.fn();
+    const onTimedOut = vi.fn();
     const timer = createStrictBasemapReadinessTimer({
       isCurrentScope: () => generation === 1,
       sourcesReady: () => false,
       onReady,
-      onFailed,
+      onTimedOut,
       timeoutMs: 1_000,
     });
 
@@ -227,7 +273,44 @@ describe("StrictBasemapReadinessTimer", () => {
     await vi.advanceTimersByTimeAsync(1_000);
 
     expect(onReady).not.toHaveBeenCalled();
-    expect(onFailed).not.toHaveBeenCalled();
+    expect(onTimedOut).not.toHaveBeenCalled();
+  });
+});
+
+describe("loadingBasemapDiagnosticsAfterReadinessTimeout", () => {
+  const network = {
+    online: true,
+    effectiveType: "4g",
+    rttMs: 80,
+    downlinkMbps: 10,
+  };
+
+  it("keeps a slow visible basemap loading without recording a failure", () => {
+    const current = {
+      ...initialBasemapDiagnostics(network),
+      basemap: "loading" as const,
+      basemapLoadingSince: 1_000,
+    };
+
+    expect(
+      loadingBasemapDiagnosticsAfterReadinessTimeout(current, 45_000, 60_000),
+    ).toMatchObject({
+      basemap: "loading",
+      basemapLoadingSince: 1_000,
+      recentBasemapFailures: 0,
+    });
+  });
+
+  it("does not overwrite an explicit tile failure", () => {
+    const current = {
+      ...initialBasemapDiagnostics(network),
+      basemap: "failed" as const,
+      recentBasemapFailures: 1,
+    };
+
+    expect(
+      loadingBasemapDiagnosticsAfterReadinessTimeout(current, 45_000, 60_000),
+    ).toBe(current);
   });
 });
 

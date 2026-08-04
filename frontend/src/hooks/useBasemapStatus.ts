@@ -62,7 +62,7 @@ interface StrictBasemapReadinessTimerOptions {
   isCurrentScope: () => boolean;
   sourcesReady: () => boolean;
   onReady: () => void;
-  onFailed: () => void;
+  onTimedOut: () => void;
   timeoutMs?: number;
 }
 
@@ -70,7 +70,7 @@ export function createStrictBasemapReadinessTimer({
   isCurrentScope,
   sourcesReady,
   onReady,
-  onFailed,
+  onTimedOut,
   timeoutMs = strictBasemapReadinessTimeoutMs,
 }: StrictBasemapReadinessTimerOptions): StrictBasemapReadinessTimer {
   let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
@@ -91,7 +91,7 @@ export function createStrictBasemapReadinessTimer({
       if (sourcesReady()) {
         onReady();
       } else {
-        onFailed();
+        onTimedOut();
       }
     }, timeoutMs);
   };
@@ -101,6 +101,17 @@ export function createStrictBasemapReadinessTimer({
     restartLoading: () => start(true),
     settle,
   };
+}
+
+export function strictBasemapReadinessTimeoutMsFor(
+  activeBasemap: ActiveBasemapDescriptor | null | undefined,
+) {
+  const timeoutMs = activeBasemap?.readinessTimeoutMs;
+  return typeof timeoutMs === "number" &&
+    Number.isFinite(timeoutMs) &&
+    timeoutMs > 0
+    ? timeoutMs
+    : strictBasemapReadinessTimeoutMs;
 }
 
 export type PlatformHealthProbeResult =
@@ -400,6 +411,8 @@ export function useBasemapStatus(
 
     const scopedBasemap = activeBasemapRef.current;
     const scopedKey = scopeKey;
+    const readinessTimeoutMs =
+      strictBasemapReadinessTimeoutMsFor(scopedBasemap);
     const attachedAt = performance.now();
     const tileStarts = new BasemapTileRequestTimings();
     const loadCycle = new BasemapSourceLoadCycle(
@@ -436,6 +449,15 @@ export function useBasemapStatus(
       updateDiagnostics(failedBasemapDiagnostics);
       void checkPlatform();
     };
+    const reportTimedOut = () => {
+      updateDiagnostics((current) =>
+        loadingBasemapDiagnosticsAfterReadinessTimeout(
+          current,
+          readinessTimeoutMs,
+        ),
+      );
+      void checkPlatform();
+    };
     strictReadinessTimer = scopedBasemap?.requireAllSourceIds
       ? createStrictBasemapReadinessTimer({
           isCurrentScope: () => activeScopeKeyRef.current === scopedKey,
@@ -450,7 +472,8 @@ export function useBasemapStatus(
             loadCycle.completeFromMapLifecycle(activeSourceIds);
             reportReady(null);
           },
-          onFailed: reportFailed,
+          onTimedOut: reportTimedOut,
+          timeoutMs: readinessTimeoutMs,
         })
       : null;
     strictReadinessTimerRef.current = strictReadinessTimer;
@@ -715,6 +738,20 @@ function failedBasemapDiagnostics(
     basemap: "failed",
     basemapLoadingSince: null,
     recentBasemapFailures: current.recentBasemapFailures + 1,
+  };
+}
+
+export function loadingBasemapDiagnosticsAfterReadinessTimeout(
+  current: BasemapDiagnostics,
+  timeoutMs: number,
+  now = Date.now(),
+): BasemapDiagnostics {
+  if (current.basemap === "failed") return current;
+  return {
+    ...current,
+    basemap: "loading",
+    basemapLoadingSince:
+      current.basemapLoadingSince ?? Math.max(0, now - timeoutMs),
   };
 }
 
