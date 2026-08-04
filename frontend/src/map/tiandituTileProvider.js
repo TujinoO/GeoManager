@@ -1,4 +1,4 @@
-const defaultMinStartIntervalMs = 200;
+const defaultMinStartIntervalMs = 150;
 const defaultMaxConcurrentRequests = 4;
 const defaultMaxRetries = 2;
 const defaultBaseRetryDelayMs = 1_000;

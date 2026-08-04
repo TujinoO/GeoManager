@@ -15,7 +15,6 @@ describe("TiandituTileProvider", () => {
     vi.setSystemTime(10_000);
     const starts: number[] = [];
     const scheduler = new RequestStartScheduler({
-      minStartIntervalMs: 200,
       maxConcurrentRequests: 4,
     });
     const fetchImpl = vi.fn(async () => {
@@ -31,11 +30,11 @@ describe("TiandituTileProvider", () => {
       vector.loadTile(tile(3), loadOptions("vec", new AbortController())),
     ];
 
-    await vi.advanceTimersByTimeAsync(399);
-    expect(starts).toEqual([10_000, 10_200]);
+    await vi.advanceTimersByTimeAsync(299);
+    expect(starts).toEqual([10_000, 10_150]);
     await vi.advanceTimersByTimeAsync(1);
     await Promise.all(requests);
-    expect(starts).toEqual([10_000, 10_200, 10_400]);
+    expect(starts).toEqual([10_000, 10_150, 10_300]);
     scheduler.dispose();
   });
 
@@ -45,7 +44,7 @@ describe("TiandituTileProvider", () => {
     const starts: Array<{ layer: string; at: number }> = [];
     let vectorAttempts = 0;
     const scheduler = new RequestStartScheduler({
-      minStartIntervalMs: 200,
+      minStartIntervalMs: 150,
       maxConcurrentRequests: 4,
     });
     const fetchImpl = vi.fn(async (url: string) => {
@@ -71,12 +70,12 @@ describe("TiandituTileProvider", () => {
       { layer: "vec", at: 30_000 },
       { layer: "cva", at: 31_000 },
     ]);
-    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(150);
     await Promise.all(loads);
     expect(starts).toEqual([
       { layer: "vec", at: 30_000 },
       { layer: "cva", at: 31_000 },
-      { layer: "vec", at: 31_200 },
+      { layer: "vec", at: 31_150 },
     ]);
     scheduler.dispose();
   });
