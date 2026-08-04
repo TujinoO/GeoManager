@@ -9,9 +9,12 @@ export const rateLimitRecoverySwitchOptions = {
   rollbackOnFailure: false,
 } as const;
 
+export type BasemapRecoveryReason = "rate-limit" | "sustained-failure";
+
 export interface BasemapRateLimitRecoveryState {
   descriptor: ActiveBasemapDescriptor | null;
   inFlight: boolean;
+  reason: BasemapRecoveryReason;
   suppressUntil: number;
 }
 
@@ -19,18 +22,20 @@ export function shouldSuppressRecoveredBasemapRateLimitError({
   recovery,
   now,
   isRateLimitError,
+  isSustainedFailure = false,
   matchesRecoveryDescriptor,
 }: {
   recovery: BasemapRateLimitRecoveryState;
   now: number;
   isRateLimitError: boolean;
+  isSustainedFailure?: boolean;
   matchesRecoveryDescriptor: boolean;
 }) {
   return Boolean(
-    (recovery.inFlight || now < recovery.suppressUntil) &&
     recovery.descriptor &&
-    isRateLimitError &&
-    matchesRecoveryDescriptor,
+    matchesRecoveryDescriptor &&
+    (recovery.inFlight || now < recovery.suppressUntil) &&
+    (isRateLimitError || isSustainedFailure),
   );
 }
 

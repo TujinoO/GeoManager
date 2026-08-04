@@ -11,8 +11,12 @@ import {
   basemapErrorMessage,
   createStableReadinessGate,
   isBasemapRateLimitError,
+  isHardTiandituSourceDataError,
   isHardBasemapStyleError,
+  isTolerableTiandituTileError,
+  isTrippedTiandituTransientError,
   readBasemapCamera,
+  readTiandituTileFailure,
   redactBasemapCredentials,
   restoreBasemapCamera,
   restoreSelectedFeatureState,
@@ -79,6 +83,82 @@ describe("basemapSwitch", () => {
     expect(isHardBasemapStyleError(new Error("tile request timed out"))).toBe(
       false,
     );
+  });
+
+  it("tolerates only classified transient Tianditu failures below the window threshold", () => {
+    const isolated = {
+      sourceId: "basemap-tianditu-vector",
+      error: tiandituFailure("transient", false),
+    };
+    const sustained = {
+      sourceId: "basemap-tianditu-vector",
+      error: tiandituFailure("transient", true),
+    };
+    const credentials = {
+      sourceId: "basemap-tianditu-vector",
+      error: tiandituFailure("credentials", true),
+    };
+
+    expect(isTolerableTiandituTileError(isolated)).toBe(true);
+    expect(isHardBasemapStyleError(isolated)).toBe(false);
+    expect(isTolerableTiandituTileError(sustained)).toBe(false);
+    expect(isTrippedTiandituTransientError(sustained)).toBe(true);
+    expect(isHardBasemapStyleError(sustained)).toBe(true);
+    expect(isHardBasemapStyleError(credentials)).toBe(true);
+    expect(readTiandituTileFailure(isolated)).toMatchObject({
+      businessCode: "TEMPORARY",
+      failureKind: "transient",
+      layer: "vec",
+      node: "t1",
+      status: 403,
+    });
+  });
+
+  it("keeps unclassified legacy 403 errors hard", () => {
+    expect(isTolerableTiandituTileError(new Error("HTTP 403 Forbidden"))).toBe(
+      false,
+    );
+    expect(isHardBasemapStyleError(new Error("HTTP 403 Forbidden"))).toBe(true);
+  });
+
+  it("requires the strict Tianditu provider identity and a normalized window", () => {
+    const window = tiandituFailure("transient", false).failureWindow;
+    expect(
+      isTolerableTiandituTileError({
+        failureKind: "transient",
+        failureWindow: window,
+      }),
+    ).toBe(false);
+    expect(
+      isTolerableTiandituTileError({
+        ...tiandituFailure("transient", false),
+        failureWindow: { tripped: false },
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps an unclassified Tianditu sourcedata error hard", () => {
+    expect(
+      isHardTiandituSourceDataError({
+        provider: "tianditu",
+        sourceDataType: "error",
+        error: undefined,
+      }),
+    ).toBe(true);
+    expect(
+      isHardTiandituSourceDataError({
+        provider: "tianditu",
+        sourceDataType: "error",
+        error: tiandituFailure("transient", false),
+      }),
+    ).toBe(false);
+    expect(
+      isHardTiandituSourceDataError({
+        provider: "mapbox",
+        sourceDataType: "error",
+        error: undefined,
+      }),
+    ).toBe(false);
   });
 
   it("recognizes rate limiting as a hard error without mistaking tile coordinates", () => {
@@ -179,3 +259,27 @@ describe("basemapSwitch", () => {
     }
   });
 });
+
+function tiandituFailure(
+  failureKind: "credentials" | "transient",
+  tripped: boolean,
+) {
+  return {
+    name: "TiandituTileHttpError",
+    provider: "tianditu",
+    status: 403,
+    attempts: 2,
+    businessCode: "TEMPORARY",
+    failureKind,
+    failureWindow: {
+      consecutiveFailures: tripped ? 3 : 1,
+      failureCount: tripped ? 3 : 1,
+      failureRate: tripped ? 0.5 : 0.1,
+      sampleCount: tripped ? 6 : 10,
+      tripped,
+      windowMs: 15_000,
+    },
+    layer: "vec",
+    node: "t1",
+  };
+}

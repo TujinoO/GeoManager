@@ -2,14 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   activeBasemapScopeKey,
   classifyBasemapStatus,
+  diagnosticsWithTiandituFailure,
   initialBasemapDiagnostics,
   isBasemapResourceError,
   isBasemapSourceId,
   resetBasemapDiagnosticsForSwitch,
+  visibleTiandituFailure,
   type ActiveBasemapDescriptor,
   type BasemapDiagnostics,
   type BrowserNetworkSnapshot,
 } from "./basemapStatus";
+import type { TiandituTileFailureInfo } from "./basemapSwitch";
 
 const normalNetwork: BrowserNetworkSnapshot = {
   online: true,
@@ -23,6 +26,23 @@ const activeBasemap: ActiveBasemapDescriptor = {
   generation: 3,
   sourceIds: ["tianditu-image", "tianditu-labels"],
   resourceMarkers: ["tianditu.gov.cn"],
+};
+
+const isolatedTiandituFailure: TiandituTileFailureInfo = {
+  attempts: 2,
+  businessCode: "TEMPORARY",
+  failureKind: "transient",
+  failureWindow: {
+    consecutiveFailures: 1,
+    failureCount: 1,
+    failureRate: 0.1,
+    sampleCount: 10,
+    tripped: false,
+    windowMs: 15_000,
+  },
+  layer: "vec",
+  node: "t1",
+  status: 403,
 };
 
 function diagnostics(
@@ -75,6 +95,47 @@ describe("classifyBasemapStatus", () => {
       tone: "error",
       label: "底图服务异常",
     });
+  });
+
+  it("reports an isolated Tianditu tile failure as a temporary warning", () => {
+    const current = diagnosticsWithTiandituFailure(
+      diagnostics(),
+      isolatedTiandituFailure,
+      1_000,
+    );
+
+    expect(classifyBasemapStatus(current, 2_000)).toMatchObject({
+      kind: "service",
+      tone: "warning",
+      label: "底图局部波动",
+    });
+    expect(visibleTiandituFailure(current, 16_001)).toBeNull();
+    expect(classifyBasemapStatus(current, 16_001).label).toBe("底图正常");
+  });
+
+  it("keeps a tripped Tianditu failure fatal", () => {
+    const current = diagnosticsWithTiandituFailure(
+      diagnostics({ basemap: "failed", recentBasemapFailures: 1 }),
+      {
+        ...isolatedTiandituFailure,
+        failureWindow: {
+          ...isolatedTiandituFailure.failureWindow!,
+          consecutiveFailures: 3,
+          failureCount: 3,
+          failureRate: 0.5,
+          sampleCount: 6,
+          tripped: true,
+        },
+      },
+      1_000,
+    );
+
+    expect(classifyBasemapStatus(current, 30_000)).toMatchObject({
+      kind: "service",
+      tone: "error",
+      label: "底图服务异常",
+    });
+    expect(visibleTiandituFailure(current, 30_000)).not.toBeNull();
   });
 
   it("attributes tile failures to a browser-reported slow network", () => {

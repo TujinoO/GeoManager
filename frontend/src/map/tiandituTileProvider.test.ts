@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   RequestStartScheduler,
+  TiandituFailureWindow,
+  TiandituNodeCircuitBreaker,
   TiandituTileProvider,
   parseRetryAfterMs,
 } from "./tiandituTileProvider.js";
@@ -28,6 +30,448 @@ describe("TiandituTileProvider", () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["301007", "301018"])(
+    "classifies credential business code %s without retrying or leaking details",
+    async (businessCode) => {
+      const fetchImpl = vi.fn(async () =>
+        errorResponse(
+          403,
+          JSON.stringify({
+            code: businessCode,
+            message: "domain whitelist rejected tk=must-not-appear",
+          }),
+        ),
+      );
+      const load = provider({ fetchImpl }).loadTile(
+        tile(1),
+        tiandituLoadOptions("t0", "vec", new AbortController()),
+      );
+
+      await expect(load).rejects.toMatchObject({
+        attempts: 1,
+        businessCode,
+        failureKind: "credentials",
+        failureWindow: { tripped: true },
+        layer: "vec",
+        node: "t0",
+        retryable: false,
+        status: 403,
+      });
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      await expect(load).rejects.not.toThrow(/must-not-appear/);
+    },
+  );
+
+  it.each([
+    ["JSON status", '{"status":"301007"}', "301007"],
+    ["XML status", "<response><status>301018</status></response>", "301018"],
+    ["plain text", "service rejected request: 301007", "301007"],
+  ])(
+    "extracts credential business codes from %s",
+    async (_label, body, code) => {
+      const load = provider({
+        fetchImpl: vi.fn(async () => errorResponse(403, body)),
+      }).loadTile(
+        tile(1),
+        tiandituLoadOptions("t0", "vec", new AbortController()),
+      );
+
+      await expect(load).rejects.toMatchObject({
+        businessCode: code,
+        failureKind: "credentials",
+      });
+    },
+  );
+
+  it("does not treat generic domain or permission wording as credentials", async () => {
+    const load = provider({
+      fetchImpl: vi.fn(async () =>
+        errorResponse(
+          403,
+          "upstream domain permission temporarily denied 来源 权限",
+        ),
+      ),
+      maxRetries: 0,
+    }).loadTile(
+      tile(1),
+      tiandituLoadOptions("t0", "vec", new AbortController()),
+    );
+
+    await expect(load).rejects.toMatchObject({
+      businessCode: null,
+      failureKind: "transient",
+      failureWindow: { tripped: false },
+    });
+  });
+
+  it("falls back safely when reading a 403 response body fails", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ...errorResponse(403, ""),
+      text: async () => {
+        throw new Error("unreadable response tk=must-not-appear");
+      },
+    })) as unknown as typeof fetch;
+    const load = provider({ fetchImpl, maxRetries: 0 }).loadTile(
+      tile(1),
+      tiandituLoadOptions("t0", "vec", new AbortController()),
+    );
+
+    await expect(load).rejects.toMatchObject({
+      businessCode: null,
+      failureKind: "transient",
+    });
+    await expect(load).rejects.not.toThrow(/must-not-appear/);
+  });
+
+  it("does not expose an upstream status phrase", async () => {
+    const response = errorResponse(403, "temporary forbidden");
+    (response as unknown as { statusText: string }).statusText =
+      "Forbidden tk=must-not-appear";
+    const load = provider({
+      fetchImpl: vi.fn(async () => response),
+      maxRetries: 0,
+    }).loadTile(
+      tile(1),
+      tiandituLoadOptions("t0", "vec", new AbortController()),
+    );
+
+    await expect(load).rejects.toMatchObject({ failureKind: "transient" });
+    await expect(load).rejects.not.toThrow(/must-not-appear/);
+  });
+
+  it("retries an unclassified 403 once on an alternate healthy node", async () => {
+    vi.useFakeTimers();
+    const failureWindow = new TiandituFailureWindow();
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(errorResponse(403, "temporary forbidden"))
+      .mockResolvedValueOnce(tileResponse(200));
+    const load = provider({
+      failureWindow,
+      fetchImpl,
+      random: () => 0.5,
+      transientRetryDelayMs: 250,
+    }).loadTile(
+      tile(1),
+      tiandituLoadOptions("t0", "cva", new AbortController()),
+    );
+
+    await vi.advanceTimersByTimeAsync(249);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(load).resolves.toMatchObject({
+      data: expect.any(ArrayBuffer),
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(
+      fetchImpl.mock.calls.map(([url]) => new URL(String(url)).hostname),
+    ).toEqual(["t0.tianditu.gov.cn", "t1.tianditu.gov.cn"]);
+    expect(failureWindow.snapshot()).toMatchObject({
+      failureCount: 0,
+      sampleCount: 1,
+      tripped: false,
+    });
+  });
+
+  it("records one logical failure after the bounded 403 retry is exhausted", async () => {
+    vi.useFakeTimers();
+    const failureWindow = new TiandituFailureWindow();
+    const fetchImpl = vi.fn(async () =>
+      errorResponse(403, "temporary forbidden"),
+    );
+    const load = provider({
+      failureWindow,
+      fetchImpl,
+      random: () => 0.5,
+      transientRetryDelayMs: 10,
+    }).loadTile(
+      tile(1),
+      tiandituLoadOptions("t2", "vec", new AbortController()),
+    );
+    const rejection = expect(load).rejects.toMatchObject({
+      attempts: 2,
+      failureKind: "transient",
+      failureWindow: {
+        failureCount: 1,
+        failureRate: 1,
+        sampleCount: 1,
+        tripped: false,
+      },
+      retryExhausted: true,
+    });
+
+    await vi.runAllTimersAsync();
+    await rejection;
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries a network failure on an alternate node and records one success", async () => {
+    vi.useFakeTimers();
+    const failureWindow = new TiandituFailureWindow();
+    const fetchImpl = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch secret-url"))
+      .mockResolvedValueOnce(tileResponse(200));
+    const load = provider({
+      failureWindow,
+      fetchImpl,
+      random: () => 0.5,
+      transientRetryDelayMs: 250,
+    }).loadTile(
+      tile(1),
+      tiandituLoadOptions("t0", "vec", new AbortController()),
+    );
+
+    await vi.advanceTimersByTimeAsync(249);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(load).resolves.toMatchObject({
+      data: expect.any(ArrayBuffer),
+    });
+    expect(
+      fetchImpl.mock.calls.map(([url]) => new URL(String(url)).hostname),
+    ).toEqual(["t0.tianditu.gov.cn", "t1.tianditu.gov.cn"]);
+    expect(failureWindow.snapshot()).toMatchObject({
+      failureCount: 0,
+      sampleCount: 1,
+    });
+  });
+
+  it("raises one redacted logical failure after bounded network retries", async () => {
+    vi.useFakeTimers();
+    const failureWindow = new TiandituFailureWindow();
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError("Failed to fetch https://example.test/?tk=secret");
+    });
+    const load = provider({
+      failureWindow,
+      fetchImpl,
+      maxRetries: 2,
+      random: () => 0.5,
+      transientRetryDelayMs: 10,
+    }).loadTile(
+      tile(1),
+      tiandituLoadOptions("t0", "cva", new AbortController()),
+    );
+    const rejection = expect(load).rejects.toMatchObject({
+      attempts: 3,
+      businessCode: null,
+      failureKind: "transient",
+      failureReason: "network-error",
+      failureWindow: { failureCount: 1, sampleCount: 1 },
+    });
+
+    await vi.runAllTimersAsync();
+    await rejection;
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(
+      fetchImpl.mock.calls.map(([url]) => new URL(String(url)).hostname),
+    ).toEqual([
+      "t0.tianditu.gov.cn",
+      "t1.tianditu.gov.cn",
+      "t2.tianditu.gov.cn",
+    ]);
+    await expect(load).rejects.not.toThrow(/secret/);
+  });
+
+  it("retries transient 503 responses across distinct nodes", async () => {
+    vi.useFakeTimers();
+    const failureWindow = new TiandituFailureWindow();
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(errorResponse(503, "upstream unavailable"))
+      .mockResolvedValueOnce(errorResponse(503, "upstream unavailable"))
+      .mockResolvedValueOnce(tileResponse(200));
+    const load = provider({
+      failureWindow,
+      fetchImpl,
+      random: () => 0.5,
+      transientRetryDelayMs: 10,
+    }).loadTile(
+      tile(1),
+      tiandituLoadOptions("t0", "vec", new AbortController()),
+    );
+
+    await vi.runAllTimersAsync();
+    await expect(load).resolves.toMatchObject({
+      data: expect.any(ArrayBuffer),
+    });
+    expect(
+      fetchImpl.mock.calls.map(([url]) => new URL(String(url)).hostname),
+    ).toEqual([
+      "t0.tianditu.gov.cn",
+      "t1.tianditu.gov.cn",
+      "t2.tianditu.gov.cn",
+    ]);
+    expect(failureWindow.snapshot()).toMatchObject({
+      failureCount: 0,
+      sampleCount: 1,
+      tripped: false,
+    });
+  });
+
+  it("trips only after sustained logical tile failures", () => {
+    const window = new TiandituFailureWindow({
+      failureRateThreshold: 0.5,
+      minFailures: 3,
+      minSamples: 8,
+    });
+
+    expect(window.recordFailure().tripped).toBe(false);
+    expect(window.recordSuccess().tripped).toBe(false);
+    expect(window.recordFailure().tripped).toBe(false);
+    expect(window.recordSuccess().tripped).toBe(false);
+    expect(window.recordFailure().tripped).toBe(false);
+    expect(window.recordSuccess().tripped).toBe(false);
+    expect(window.recordFailure().tripped).toBe(false);
+    expect(window.recordSuccess()).toMatchObject({
+      failureCount: 4,
+      failureRate: 0.5,
+      sampleCount: 8,
+      tripped: true,
+    });
+  });
+
+  it("recomputes consecutive failures after old samples leave the window", () => {
+    let now = 0;
+    const window = new TiandituFailureWindow({ now: () => now });
+
+    window.recordFailure();
+    now = 10_000;
+    window.recordFailure();
+    now = 20_000;
+    expect(window.recordFailure()).toMatchObject({
+      consecutiveFailures: 2,
+      failureCount: 2,
+      sampleCount: 2,
+      tripped: false,
+    });
+  });
+
+  it("keeps at most twelve samples and expires them after fifteen seconds", () => {
+    let now = 0;
+    const cappedWindow = new TiandituFailureWindow({ now: () => now });
+    cappedWindow.recordFailure();
+    for (let index = 1; index <= 12; index += 1) {
+      now = index;
+      cappedWindow.recordSuccess();
+    }
+    expect(cappedWindow.snapshot()).toMatchObject({
+      failureCount: 0,
+      sampleCount: 12,
+    });
+
+    now = 0;
+    const expiringWindow = new TiandituFailureWindow({ now: () => now });
+    expiringWindow.recordFailure();
+    now = 15_000;
+    expect(expiringWindow.snapshot()).toMatchObject({ sampleCount: 1 });
+    now = 15_001;
+    expect(expiringWindow.snapshot()).toMatchObject({
+      consecutiveFailures: 0,
+      failureCount: 0,
+      sampleCount: 0,
+      tripped: false,
+    });
+  });
+
+  it("opens a failing node circuit and probes it again after cooldown", () => {
+    let now = 1_000;
+    const circuit = new TiandituNodeCircuitBreaker({
+      cooldownMs: 30_000,
+      failureThreshold: 2,
+      failureWindowMs: 15_000,
+      now: () => now,
+    });
+    const url = tiandituUrl("t0", "vec");
+
+    circuit.recordFailure("t0");
+    circuit.recordFailure("t0");
+    expect(new URL(circuit.route(url).url).hostname).toBe("t1.tianditu.gov.cn");
+
+    now += 30_000;
+    expect(new URL(circuit.route(url).url).hostname).toBe("t0.tianditu.gov.cn");
+  });
+
+  it("does not let a late in-flight success close an open circuit", () => {
+    let now = 1_000;
+    const circuit = new TiandituNodeCircuitBreaker({
+      cooldownMs: 30_000,
+      now: () => now,
+    });
+    const url = tiandituUrl("t0", "vec");
+    circuit.recordFailure("t0");
+    circuit.recordFailure("t0");
+
+    circuit.recordSuccess("t0");
+    expect(new URL(circuit.route(url).url).hostname).toBe("t1.tianditu.gov.cn");
+
+    now += 30_000;
+    expect(new URL(circuit.route(url).url).hostname).toBe("t0.tianditu.gov.cn");
+    circuit.recordSuccess("t0");
+    expect(new URL(circuit.route(url).url).hostname).toBe("t0.tianditu.gov.cn");
+  });
+
+  it("uses a different alternate when the original node is already open", async () => {
+    vi.useFakeTimers();
+    const circuit = new TiandituNodeCircuitBreaker();
+    circuit.recordFailure("t0");
+    circuit.recordFailure("t0");
+    const fetchImpl = vi.fn(async () => errorResponse(403, "temporary"));
+    const load = provider({
+      fetchImpl,
+      nodeCircuit: circuit,
+      random: () => 0.5,
+      transientRetryDelayMs: 10,
+    }).loadTile(
+      tile(1),
+      tiandituLoadOptions("t0", "vec", new AbortController()),
+    );
+    const rejection = expect(load).rejects.toMatchObject({
+      failureKind: "transient",
+    });
+
+    await vi.runAllTimersAsync();
+    await rejection;
+    expect(
+      fetchImpl.mock.calls.map(([url]) => new URL(String(url)).hostname),
+    ).toEqual(["t1.tianditu.gov.cn", "t2.tianditu.gov.cn"]);
+  });
+
+  it("fails locally without fetching when every node circuit is open", async () => {
+    const circuit = new TiandituNodeCircuitBreaker();
+    for (let index = 0; index < 8; index += 1) {
+      circuit.recordFailure(`t${index}`);
+      circuit.recordFailure(`t${index}`);
+    }
+    const fetchImpl = vi.fn(async () => tileResponse(200));
+    const load = provider({ fetchImpl, nodeCircuit: circuit }).loadTile(
+      tile(1),
+      tiandituLoadOptions("t0", "cva", new AbortController()),
+    );
+
+    await expect(load).rejects.toMatchObject({
+      attempts: 0,
+      failureKind: "transient",
+      failureReason: "circuit-open",
+      node: null,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("rewrites only HTTPS Tianditu node URLs", () => {
+    const circuit = new TiandituNodeCircuitBreaker();
+    circuit.recordFailure("t0");
+    circuit.recordFailure("t0");
+    const insecureUrl = tiandituUrl("t0", "vec").replace("https:", "http:");
+
+    expect(circuit.route(insecureUrl)).toMatchObject({
+      available: true,
+      node: null,
+      url: insecureUrl,
+    });
   });
 
   it("paces request starts across vector and label provider instances", async () => {
@@ -213,6 +657,59 @@ describe("TiandituTileProvider", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps every 429 retry on the originally routed node", async () => {
+    const circuit = new TiandituNodeCircuitBreaker();
+    const hosts: string[] = [];
+    const fetchImpl = vi.fn(async (url: string) => {
+      hosts.push(new URL(url).hostname);
+      return hosts.length === 1 ? tileResponse(429) : tileResponse(200);
+    });
+    const load = provider({
+      baseRetryDelayMs: 0,
+      delay: async () => {
+        circuit.recordFailure("t0");
+        circuit.recordFailure("t0");
+      },
+      fetchImpl,
+      maxRetries: 1,
+      maxRetryDelayMs: 0,
+      nodeCircuit: circuit,
+    }).loadTile(
+      tile(1),
+      tiandituLoadOptions("t0", "vec", new AbortController()),
+    );
+
+    await expect(load).resolves.toMatchObject({
+      data: expect.any(ArrayBuffer),
+    });
+    expect(hosts).toEqual(["t0.tianditu.gov.cn", "t0.tianditu.gov.cn"]);
+  });
+
+  it("applies shared rate-limit cooldown even on the terminal 429", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(70_000);
+    const scheduler = new RequestStartScheduler({
+      maxConcurrentRequests: 6,
+      minStartIntervalMs: 100,
+      now: () => Date.now(),
+    });
+    const load = provider({
+      baseRetryDelayMs: 1_000,
+      fetchImpl: vi.fn(async () => tileResponse(429)),
+      maxRetries: 0,
+      scheduler,
+    }).loadTile(tile(1), loadOptions("vec", new AbortController()));
+
+    await expect(load).rejects.toMatchObject({
+      failureKind: "rate-limit",
+      status: 429,
+    });
+    expect(scheduler.nextStartAt).toBe(71_000);
+    expect(scheduler.minStartIntervalMs).toBe(200);
+    expect(scheduler.maxConcurrentRequests).toBe(3);
+    scheduler.dispose();
+  });
+
   it("uses bounded exponential delay when Retry-After is absent", async () => {
     vi.useFakeTimers();
     const fetchImpl = vi
@@ -284,6 +781,7 @@ describe("TiandituTileProvider", () => {
 
   it("passes cancellation through to an in-flight fetch", async () => {
     const controller = new AbortController();
+    const failureWindow = new TiandituFailureWindow();
     const fetchImpl = vi.fn(
       (_url: string, init: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
@@ -295,6 +793,7 @@ describe("TiandituTileProvider", () => {
         }),
     );
     const load = provider({
+      failureWindow,
       scheduler: new RequestStartScheduler({ minStartIntervalMs: 0 }),
       fetchImpl,
     }).loadTile(tile(1), loadOptions("vec", controller));
@@ -302,6 +801,11 @@ describe("TiandituTileProvider", () => {
     await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1));
     controller.abort();
     await expect(load).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(failureWindow.snapshot()).toMatchObject({
+      failureCount: 0,
+      sampleCount: 0,
+    });
   });
 
   it("parses both Retry-After seconds and HTTP dates", () => {
@@ -314,7 +818,15 @@ describe("TiandituTileProvider", () => {
 });
 
 function provider(dependencies: Record<string, unknown>) {
-  return new TiandituTileProvider({}, dependencies);
+  return new TiandituTileProvider(
+    {},
+    {
+      failureWindow: new TiandituFailureWindow(),
+      nodeCircuit: new TiandituNodeCircuitBreaker(),
+      scheduler: new RequestStartScheduler({ minStartIntervalMs: 0 }),
+      ...dependencies,
+    },
+  );
 }
 
 function tile(x: number) {
@@ -328,17 +840,47 @@ function loadOptions(layer: string, controller: AbortController) {
   };
 }
 
+function tiandituLoadOptions(
+  node: `t${number}`,
+  layer: "vec" | "cva",
+  controller: AbortController,
+) {
+  return {
+    request: { url: tiandituUrl(node, layer) },
+    signal: controller.signal,
+  };
+}
+
+function tiandituUrl(node: `t${number}`, layer: "vec" | "cva") {
+  return `https://${node}.tianditu.gov.cn/${layer}_w/wmts?LAYER=${layer}&tk=must-not-appear`;
+}
+
 function tileResponse(
   status: number,
   headers: Record<string, string> = {},
   arrayBuffer: () => Promise<ArrayBuffer> = async () =>
     new Uint8Array([1, 2, 3]).buffer,
+  body = "",
 ) {
   return {
     ok: status >= 200 && status < 300,
     status,
-    statusText: status === 429 ? "Too Many Requests" : "OK",
+    statusText:
+      status === 403
+        ? "Forbidden"
+        : status === 429
+          ? "Too Many Requests"
+          : "OK",
     headers: new Headers(headers),
     arrayBuffer,
+    text: async () => body,
   } as Response;
+}
+
+function errorResponse(
+  status: number,
+  body: string,
+  headers: Record<string, string> = {},
+) {
+  return tileResponse(status, headers, async () => new ArrayBuffer(0), body);
 }

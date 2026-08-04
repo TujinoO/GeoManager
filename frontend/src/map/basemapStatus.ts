@@ -1,3 +1,5 @@
+import type { TiandituTileFailureInfo } from "./basemapSwitch";
+
 export type PlatformReachability = "checking" | "reachable" | "unreachable";
 export type BasemapLoadState = "unknown" | "loading" | "ready" | "failed";
 export type BasemapGeneration = string | number;
@@ -5,6 +7,7 @@ export type BasemapGeneration = string | number;
 export interface ActiveBasemapDescriptor {
   id: string;
   generation: BasemapGeneration;
+  provider?: string;
   sourceIds: readonly string[];
   requireAllSourceIds?: boolean;
   readinessTimeoutMs?: number;
@@ -27,7 +30,13 @@ export interface BasemapDiagnostics {
   basemapLatencyMs: number | null;
   basemapLoadingSince: number | null;
   recentBasemapFailures: number;
+  recentTiandituFailure: RecentTiandituFailureDiagnostics | null;
   checkedAt: number | null;
+}
+
+export interface RecentTiandituFailureDiagnostics {
+  details: TiandituTileFailureInfo;
+  observedAt: number;
 }
 
 export type BasemapStatusKind =
@@ -70,6 +79,7 @@ export function initialBasemapDiagnostics(
     basemapLatencyMs: null,
     basemapLoadingSince: null,
     recentBasemapFailures: 0,
+    recentTiandituFailure: null,
     checkedAt: null,
   };
 }
@@ -84,7 +94,35 @@ export function resetBasemapDiagnosticsForSwitch(
     basemapLatencyMs: null,
     basemapLoadingSince: now,
     recentBasemapFailures: 0,
+    recentTiandituFailure: null,
   };
+}
+
+export function diagnosticsWithTiandituFailure(
+  diagnostics: BasemapDiagnostics,
+  details: TiandituTileFailureInfo,
+  observedAt = Date.now(),
+): BasemapDiagnostics {
+  return {
+    ...diagnostics,
+    recentTiandituFailure: { details, observedAt },
+  };
+}
+
+export function visibleTiandituFailure(
+  diagnostics: BasemapDiagnostics,
+  now = Date.now(),
+) {
+  const failure = diagnostics.recentTiandituFailure;
+  if (!failure) return null;
+  if (
+    diagnostics.basemap === "failed" ||
+    failure.details.failureWindow?.tripped
+  ) {
+    return failure;
+  }
+  const windowMs = failure.details.failureWindow?.windowMs ?? 0;
+  return windowMs > 0 && now - failure.observedAt <= windowMs ? failure : null;
 }
 
 export function activeBasemapScopeKey(
@@ -96,6 +134,7 @@ export function activeBasemapScopeKey(
     activeBasemap.id,
     typeof activeBasemap.generation,
     activeBasemap.generation,
+    activeBasemap.provider ?? null,
     Boolean(activeBasemap.requireAllSourceIds),
     activeBasemap.readinessTimeoutMs ?? null,
   ]);
@@ -105,6 +144,7 @@ export function classifyBasemapStatus(
   diagnostics: BasemapDiagnostics,
   now = Date.now(),
 ): BasemapStatusPresentation {
+  const tiandituFailure = visibleTiandituFailure(diagnostics, now);
   const networkSlow = isBrowserConnectionSlow(diagnostics.network);
   const basemapSlow =
     (diagnostics.basemapLatencyMs ?? 0) >= basemapSlowThresholdMs ||
@@ -151,6 +191,19 @@ export function classifyBasemapStatus(
       label: "底图服务异常",
       summary:
         "平台接口可以访问，但底图样式或瓦片加载失败，问题更可能来自外部底图服务。",
+    };
+  }
+
+  if (
+    tiandituFailure?.details.failureKind === "transient" &&
+    tiandituFailure.details.failureWindow?.tripped === false
+  ) {
+    return {
+      kind: "service",
+      tone: "warning",
+      label: "底图局部波动",
+      summary:
+        "少量天地图瓦片在重试后仍未加载，当前失败比例尚未达到整套底图回退阈值。",
     };
   }
 

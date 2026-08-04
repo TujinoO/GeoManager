@@ -15,6 +15,31 @@ export interface StableReadinessGate {
   cancel: () => void;
 }
 
+export type TiandituTileFailureKind =
+  | "credentials"
+  | "rate-limit"
+  | "transient"
+  | "permanent";
+
+export interface TiandituTileFailureWindowSnapshot {
+  consecutiveFailures: number;
+  failureCount: number;
+  failureRate: number;
+  sampleCount: number;
+  tripped: boolean;
+  windowMs: number;
+}
+
+export interface TiandituTileFailureInfo {
+  attempts: number | null;
+  businessCode: string | null;
+  failureKind: TiandituTileFailureKind;
+  failureWindow: TiandituTileFailureWindowSnapshot | null;
+  layer: "vec" | "cva" | null;
+  node: string | null;
+  status: number | null;
+}
+
 type BasemapSourceReadinessMap = Pick<
   MapboxMap,
   "getSource" | "isSourceLoaded"
@@ -163,6 +188,10 @@ export function basemapErrorMessage(error: unknown) {
 }
 
 export function isHardBasemapStyleError(error: unknown) {
+  const tiandituFailure = readTiandituTileFailure(error);
+  if (tiandituFailure) {
+    return !isTolerableTiandituFailureInfo(tiandituFailure);
+  }
   if (isBasemapRateLimitError(error)) return true;
   const message = nestedErrorMessage(error).toLowerCase();
   return (
@@ -172,6 +201,66 @@ export function isHardBasemapStyleError(error: unknown) {
     message.includes("invalid token") ||
     message.includes("style is not done loading")
   );
+}
+
+export function isTolerableTiandituTileError(error: unknown) {
+  return isTolerableTiandituFailureInfo(readTiandituTileFailure(error));
+}
+
+export function isTrippedTiandituTransientError(error: unknown) {
+  const failure = readTiandituTileFailure(error);
+  return Boolean(
+    failure?.failureKind === "transient" &&
+    failure.failureWindow?.tripped === true,
+  );
+}
+
+export function isHardTiandituSourceDataError({
+  provider,
+  sourceDataType,
+  error,
+}: {
+  provider: string | null | undefined;
+  sourceDataType: string | null | undefined;
+  error: unknown;
+}) {
+  return (
+    provider === "tianditu" &&
+    sourceDataType === "error" &&
+    !isTolerableTiandituTileError(error)
+  );
+}
+
+export function readTiandituTileFailure(
+  value: unknown,
+  depth = 0,
+): TiandituTileFailureInfo | null {
+  if (value == null || depth > 4 || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const failureKind = normalizedTiandituFailureKind(record.failureKind);
+  if (
+    record.provider === "tianditu" &&
+    record.name === "TiandituTileHttpError" &&
+    failureKind
+  ) {
+    return {
+      attempts: finiteNumber(record.attempts),
+      businessCode:
+        normalizedSafeText(record.businessCode) ??
+        normalizedSafeText(record.serviceCode),
+      failureKind,
+      failureWindow: normalizedFailureWindow(record.failureWindow),
+      layer:
+        record.layer === "vec" || record.layer === "cva" ? record.layer : null,
+      node: /^t[0-7]$/.test(String(record.node)) ? String(record.node) : null,
+      status: finiteNumber(record.status) ?? finiteNumber(record.statusCode),
+    };
+  }
+  for (const key of ["error", "cause", "response"] as const) {
+    const nested = readTiandituTileFailure(record[key], depth + 1);
+    if (nested) return nested;
+  }
+  return null;
 }
 
 export function isBasemapRateLimitError(error: unknown) {
@@ -230,4 +319,78 @@ function hasNestedHttpStatus(
     }
   }
   return false;
+}
+
+function normalizedTiandituFailureKind(
+  value: unknown,
+): TiandituTileFailureKind | null {
+  return value === "credentials" ||
+    value === "rate-limit" ||
+    value === "transient" ||
+    value === "permanent"
+    ? value
+    : null;
+}
+
+function isTolerableTiandituFailureInfo(
+  failure: TiandituTileFailureInfo | null,
+) {
+  return Boolean(
+    failure?.failureKind === "transient" &&
+    failure.failureWindow !== null &&
+    !failure.failureWindow.tripped,
+  );
+}
+
+function normalizedFailureWindow(
+  value: unknown,
+): TiandituTileFailureWindowSnapshot | null {
+  if (value == null || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const consecutiveFailures = finiteNumber(record.consecutiveFailures);
+  const failureCount = finiteNumber(record.failureCount);
+  const failureRate = finiteNumber(record.failureRate);
+  const sampleCount = finiteNumber(record.sampleCount);
+  const windowMs = finiteNumber(record.windowMs);
+  if (
+    consecutiveFailures === null ||
+    !isNonNegativeInteger(consecutiveFailures) ||
+    failureCount === null ||
+    !isNonNegativeInteger(failureCount) ||
+    failureRate === null ||
+    failureRate < 0 ||
+    failureRate > 1 ||
+    sampleCount === null ||
+    !isNonNegativeInteger(sampleCount) ||
+    failureCount > sampleCount ||
+    consecutiveFailures > failureCount ||
+    typeof record.tripped !== "boolean" ||
+    windowMs === null ||
+    !Number.isInteger(windowMs) ||
+    windowMs <= 0
+  ) {
+    return null;
+  }
+  return {
+    consecutiveFailures,
+    failureCount,
+    failureRate,
+    sampleCount,
+    tripped: record.tripped,
+    windowMs,
+  };
+}
+
+function finiteNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function isNonNegativeInteger(value: number) {
+  return Number.isInteger(value) && value >= 0;
+}
+
+function normalizedSafeText(value: unknown) {
+  return typeof value === "string" && /^[A-Za-z0-9_.-]{1,32}$/.test(value)
+    ? value
+    : null;
 }

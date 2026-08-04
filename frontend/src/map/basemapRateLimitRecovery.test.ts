@@ -27,6 +27,7 @@ function recovery(
   return {
     descriptor,
     inFlight: true,
+    reason: "rate-limit",
     suppressUntil: 31_000,
     ...overrides,
   };
@@ -67,6 +68,31 @@ describe("Tianditu rate-limit recovery invariants", () => {
         ...locks,
       }),
     ).toBe(false);
+  });
+
+  it("suppresses repeated sustained failures with the same single-flight cooldown", () => {
+    const sustainedRecovery = recovery({
+      inFlight: false,
+      reason: "sustained-failure",
+    });
+    expect(
+      shouldSuppressRecoveredBasemapRateLimitError({
+        recovery: sustainedRecovery,
+        now: 30_999,
+        isRateLimitError: false,
+        isSustainedFailure: true,
+        matchesRecoveryDescriptor: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldSuppressRecoveredBasemapRateLimitError({
+        recovery: sustainedRecovery,
+        now: 30_999,
+        isRateLimitError: true,
+        isSustainedFailure: false,
+        matchesRecoveryDescriptor: true,
+      }),
+    ).toBe(true);
   });
 
   it("uses only Tianditu -> Mapbox -> OSM when Mapbox recovery fails", () => {

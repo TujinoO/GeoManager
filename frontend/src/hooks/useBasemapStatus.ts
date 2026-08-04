@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Map as MapboxMap, MapSourceDataEvent } from "mapbox-gl";
 import {
+  isHardTiandituSourceDataError,
+  isTolerableTiandituTileError,
+  readTiandituTileFailure,
+} from "../map/basemapSwitch";
+import {
   activeBasemapScopeKey,
+  diagnosticsWithTiandituFailure,
   initialBasemapDiagnostics,
   isBasemapResourceError,
   isBasemapSourceId,
@@ -458,6 +464,15 @@ export function useBasemapStatus(
       );
       void checkPlatform();
     };
+    const recordTiandituFailure = (value: unknown) => {
+      const failure = readTiandituTileFailure(value);
+      if (failure) {
+        updateDiagnostics((current) =>
+          diagnosticsWithTiandituFailure(current, failure),
+        );
+      }
+      return failure;
+    };
     strictReadinessTimer = scopedBasemap?.requireAllSourceIds
       ? createStrictBasemapReadinessTimer({
           isCurrentScope: () => activeScopeKeyRef.current === scopedKey,
@@ -501,6 +516,21 @@ export function useBasemapStatus(
       const key = tileRequestKey(event);
       const startedAt = tileStarts.finish(key);
       if (event.sourceDataType === "error") {
+        const sourceError = (event as MapSourceDataEvent & { error?: unknown })
+          .error;
+        recordTiandituFailure(sourceError);
+        if (scopedBasemap?.provider === "tianditu") {
+          if (
+            isHardTiandituSourceDataError({
+              provider: scopedBasemap.provider,
+              sourceDataType: event.sourceDataType,
+              error: sourceError,
+            })
+          ) {
+            reportFailed();
+          }
+          return;
+        }
         reportFailed();
         return;
       }
@@ -564,6 +594,13 @@ export function useBasemapStatus(
       }
       if (!isBasemapError && (map.loaded() || clearlyBusinessResource)) {
         return;
+      }
+      if (isBasemapError) {
+        recordTiandituFailure(event);
+        if (isTolerableTiandituTileError(event)) {
+          tileStarts.clear();
+          return;
+        }
       }
       tileStarts.clear();
       reportFailed();
@@ -642,6 +679,9 @@ export function useBasemapStatus(
             basemap: mapReady ? "ready" : "loading",
             basemapLoadingSince: mapReady ? null : Date.now(),
             recentBasemapFailures: mapReady ? 0 : current.recentBasemapFailures,
+            recentTiandituFailure: mapReady
+              ? null
+              : current.recentTiandituFailure,
           },
     );
     if (!retryBasemap && mapReady) {
@@ -727,6 +767,10 @@ function readyBasemapDiagnostics(
         : smoothLatency(current.basemapLatencyMs, latencyMs),
     basemapLoadingSince: null,
     recentBasemapFailures: 0,
+    recentTiandituFailure:
+      current.recentTiandituFailure?.details.failureWindow?.tripped === true
+        ? null
+        : current.recentTiandituFailure,
   };
 }
 

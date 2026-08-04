@@ -6,7 +6,11 @@ import {
   ZoomOutOutlined,
 } from "@ant-design/icons";
 import { App, Button, Tooltip } from "antd";
-import mapboxgl, { type Map as MapboxMap, type MapboxOptions } from "mapbox-gl";
+import mapboxgl, {
+  type Map as MapboxMap,
+  type MapboxOptions,
+  type MapSourceDataEvent,
+} from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import tiandituTileProviderUrl from "../map/tiandituTileProvider.js?url";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -36,6 +40,7 @@ import {
   rateLimitRecoverySwitchOptions,
   shouldBlockRateLimitedBasemapSelection,
   shouldSuppressRecoveredBasemapRateLimitError,
+  type BasemapRecoveryReason,
   type BasemapRateLimitRecoveryState,
 } from "../map/basemapRateLimitRecovery";
 import {
@@ -48,7 +53,10 @@ import {
   basemapErrorMessage,
   createStableReadinessGate,
   isBasemapRateLimitError,
+  isHardTiandituSourceDataError,
   isHardBasemapStyleError,
+  isTolerableTiandituTileError,
+  isTrippedTiandituTransientError,
   readBasemapCamera,
   resolveBasemapRateLimitFallback,
   resolveBasemapTechnicalFallback,
@@ -191,10 +199,15 @@ export default function MapCanvas({
   const rateLimitRecoveryRef = useRef<BasemapRateLimitRecoveryState>({
     descriptor: null,
     inFlight: false,
+    reason: "rate-limit",
     suppressUntil: 0,
   });
   const recoverRateLimitedBasemapRef = useRef<
-    (definition: BasemapDefinition, descriptor: ActiveBasemapDescriptor) => void
+    (
+      definition: BasemapDefinition,
+      descriptor: ActiveBasemapDescriptor,
+      reason: BasemapRecoveryReason,
+    ) => void
   >(() => undefined);
   const cancelBasemapStyleLoadRef = useRef<((reason?: unknown) => void) | null>(
     null,
@@ -238,6 +251,7 @@ export default function MapCanvas({
     () => ({
       id: activeBasemap.id,
       generation: activeBasemapState.generation,
+      provider: activeBasemap.provider,
       sourceIds: activeBasemap.sourceIds,
       requireAllSourceIds: activeBasemap.requireAllSourceIds,
       readinessTimeoutMs: basemapSwitchTimeoutMsForProvider(
@@ -389,21 +403,45 @@ export default function MapCanvas({
             settle(false, error);
           }
         };
-        const handleSourceData = (event: { sourceId?: string }) => {
-          if (event.sourceId && definition.sourceIds.includes(event.sourceId)) {
-            checkBasemapReady();
+        const handleSourceData = (
+          event: MapSourceDataEvent & { error?: unknown },
+        ) => {
+          if (
+            !event.sourceId ||
+            !definition.sourceIds.includes(event.sourceId)
+          ) {
+            return;
           }
+          if (
+            isHardTiandituSourceDataError({
+              provider: definition.provider,
+              sourceDataType: event.sourceDataType,
+              error: event.error,
+            })
+          ) {
+            const error =
+              event.error ?? new Error("天地图瓦片源加载失败（HTTP 404）");
+            lastBasemapError = error;
+            settle(false, error);
+            return;
+          }
+          checkBasemapReady();
         };
         const handleIdle = () => checkBasemapReady();
         const handleError = (event: { error?: unknown; sourceId?: string }) => {
           const descriptor: ActiveBasemapDescriptor = {
             id: definition.id,
             generation: sequence,
+            provider: definition.provider,
             sourceIds: definition.sourceIds,
             requireAllSourceIds: definition.requireAllSourceIds,
             resourceMarkers: definition.errorMarkers,
           };
           if (!isBasemapResourceError(event, descriptor)) return;
+          if (isTolerableTiandituTileError(event)) {
+            checkBasemapReady();
+            return;
+          }
           lastBasemapError = event;
           if (isHardBasemapStyleError(event)) {
             settle(false, event);
@@ -494,18 +532,27 @@ export default function MapCanvas({
       const descriptor: ActiveBasemapDescriptor = {
         id: definition.id,
         generation: basemapGenerationRef.current,
+        provider: definition.provider,
         sourceIds: definition.sourceIds,
         requireAllSourceIds: definition.requireAllSourceIds,
         resourceMarkers: definition.errorMarkers,
       };
       const isActiveBasemapError = isBasemapResourceError(event, descriptor);
+      const isSustainedFailure = Boolean(
+        isActiveBasemapError && isTrippedTiandituTransientError(event),
+      );
+      if (isActiveBasemapError && isTolerableTiandituTileError(event)) {
+        return;
+      }
       const recovery = rateLimitRecoveryRef.current;
       const now = Date.now();
+      const isRateLimitError = isBasemapRateLimitError(event);
       if (
         shouldSuppressRecoveredBasemapRateLimitError({
           recovery,
           now,
-          isRateLimitError: isBasemapRateLimitError(event),
+          isRateLimitError,
+          isSustainedFailure,
           matchesRecoveryDescriptor: Boolean(
             recovery.descriptor &&
             isBasemapResourceError(event, recovery.descriptor),
@@ -520,15 +567,19 @@ export default function MapCanvas({
       if (
         isActiveBasemapError &&
         definition.provider === "tianditu" &&
-        isBasemapRateLimitError(event)
+        (isRateLimitError || isSustainedFailure)
       ) {
+        const reason: BasemapRecoveryReason = isRateLimitError
+          ? "rate-limit"
+          : "sustained-failure";
         rateLimitRecoveryRef.current = {
           descriptor,
           inFlight: true,
+          reason,
           suppressUntil: now + rateLimitRecoveryCooldownMs,
         };
         onMapError?.(basemapErrorMessage(event));
-        recoverRateLimitedBasemapRef.current(definition, descriptor);
+        recoverRateLimitedBasemapRef.current(definition, descriptor, reason);
         return;
       }
       onMapError?.(basemapErrorMessage(event));
@@ -703,7 +754,11 @@ export default function MapCanvas({
         )
       ) {
         if (options.announce !== false) {
-          message.warning("天地图服务正在限流冷却，请稍后再试");
+          message.warning(
+            rateLimitRecovery.reason === "sustained-failure"
+              ? "天地图服务异常正在冷却，请稍后再试"
+              : "天地图服务正在限流冷却，请稍后再试",
+          );
         }
         return false;
       }
@@ -836,6 +891,7 @@ export default function MapCanvas({
     (
       failedDefinition: BasemapDefinition,
       failedDescriptor: ActiveBasemapDescriptor,
+      reason: BasemapRecoveryReason,
     ) => {
       const recovery = rateLimitRecoveryRef.current;
       if (
@@ -872,11 +928,15 @@ export default function MapCanvas({
           if (recovered) {
             const recoveredDefinition = activeBasemapRef.current;
             message.warning(
-              `${failedDefinition.label}请求受限，已自动切换到${recoveredDefinition.label}`,
+              reason === "rate-limit"
+                ? `${failedDefinition.label}请求受限，已自动切换到${recoveredDefinition.label}`
+                : `${failedDefinition.label}持续加载失败，已自动切换到${recoveredDefinition.label}`,
             );
           } else {
             message.error(
-              `${failedDefinition.label}请求受限，自动恢复底图失败，请稍后重新检测`,
+              reason === "rate-limit"
+                ? `${failedDefinition.label}请求受限，自动恢复底图失败，请稍后重新检测`
+                : `${failedDefinition.label}持续加载失败，自动恢复底图失败，请稍后重新检测`,
             );
           }
         } finally {
@@ -884,7 +944,8 @@ export default function MapCanvas({
           if (
             currentRecovery.descriptor?.id === failedDescriptor.id &&
             currentRecovery.descriptor.generation ===
-              failedDescriptor.generation
+              failedDescriptor.generation &&
+            currentRecovery.reason === reason
           ) {
             currentRecovery.inFlight = false;
           }

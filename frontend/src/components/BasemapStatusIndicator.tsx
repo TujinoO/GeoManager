@@ -17,7 +17,9 @@ import {
 import {
   classifyBasemapStatus,
   isBrowserConnectionSlow,
+  visibleTiandituFailure,
   type ActiveBasemapDescriptor,
+  type RecentTiandituFailureDiagnostics,
   type BasemapStatusPresentation,
 } from "../map/basemapStatus";
 
@@ -39,17 +41,22 @@ export default function BasemapStatusIndicator({
     retryBasemap,
   });
   const [, setClock] = useState(0);
+  const now = Date.now();
+  const recentTiandituFailure = visibleTiandituFailure(diagnostics, now);
+  const hasExpiringTiandituFailure =
+    recentTiandituFailure?.details.failureWindow?.tripped === false;
 
   useEffect(() => {
-    if (diagnostics.basemap !== "loading") return;
+    if (diagnostics.basemap !== "loading" && !hasExpiringTiandituFailure)
+      return;
     const intervalId = window.setInterval(
       () => setClock((current) => current + 1),
       1_000,
     );
     return () => window.clearInterval(intervalId);
-  }, [diagnostics.basemap]);
+  }, [diagnostics.basemap, hasExpiringTiandituFailure]);
 
-  const presentation = classifyBasemapStatus(diagnostics);
+  const presentation = classifyBasemapStatus(diagnostics, now);
   const latency = primaryLatency(presentation, diagnostics);
   const content = (
     <div className="basemap-status-details">
@@ -78,7 +85,7 @@ export default function BasemapStatusIndicator({
           label="底图服务"
           value={formatBasemapServiceDetail(
             activeBasemapName,
-            basemapDetail(diagnostics),
+            basemapDetail(diagnostics, now),
           )}
         />
       </dl>
@@ -175,17 +182,56 @@ function platformDetail(
     : `可访问 · ${diagnostics.platformLatencyMs} ms`;
 }
 
-function basemapDetail(
+export function basemapDetail(
   diagnostics: ReturnType<typeof useBasemapStatus>["diagnostics"],
+  now = Date.now(),
 ) {
+  const failure = visibleTiandituFailure(diagnostics, now);
+  const failureDetail = failure
+    ? formatTiandituFailureDiagnostic(failure)
+    : null;
   if (diagnostics.recentBasemapFailures > 0) {
-    return `加载失败 · 最近 ${diagnostics.recentBasemapFailures} 次`;
+    return failureDetail
+      ? `加载失败 · ${failureDetail}`
+      : `加载失败 · 最近 ${diagnostics.recentBasemapFailures} 次`;
   }
+  if (failureDetail) return `局部波动 · ${failureDetail}`;
   if (diagnostics.basemap === "loading") return "正在加载当前视野";
   if (diagnostics.basemap === "unknown") return "等待地图初始化";
   return diagnostics.basemapLatencyMs === null
     ? "可访问"
     : `可访问 · 最近响应 ${diagnostics.basemapLatencyMs} ms`;
+}
+
+export function formatTiandituFailureDiagnostic(
+  failure: RecentTiandituFailureDiagnostics,
+) {
+  const { details } = failure;
+  const parts = [tiandituFailureKindLabel(details.failureKind)];
+  const window = details.failureWindow;
+  if (window && window.sampleCount > 0) {
+    const percentage = Math.round(
+      Math.max(0, Math.min(1, window.failureRate)) * 100,
+    );
+    parts.push(
+      `瓦片失败 ${window.failureCount}/${window.sampleCount}（${percentage}%）`,
+    );
+  }
+  if (details.businessCode) parts.push(`业务码 ${details.businessCode}`);
+  if (details.layer) {
+    parts.push(details.layer === "vec" ? "矢量层" : "注记层");
+  }
+  if (details.node) parts.push(details.node);
+  return parts.join(" · ");
+}
+
+function tiandituFailureKindLabel(
+  kind: RecentTiandituFailureDiagnostics["details"]["failureKind"],
+) {
+  if (kind === "credentials") return "凭证异常";
+  if (kind === "rate-limit") return "请求限流";
+  if (kind === "permanent") return "永久错误";
+  return "瞬时错误";
 }
 
 function primaryLatency(
