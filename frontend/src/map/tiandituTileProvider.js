@@ -1,5 +1,8 @@
-const defaultMinStartIntervalMs = 150;
-const defaultMaxConcurrentRequests = 4;
+const defaultMinStartIntervalMs = 100;
+const defaultMaxConcurrentRequests = 6;
+const defaultMinConcurrentRequests = 2;
+const defaultMaxAdaptiveStartIntervalMs = 600;
+const defaultRecoverySuccessThreshold = 16;
 const defaultMaxRetries = 2;
 const defaultBaseRetryDelayMs = 1_000;
 const defaultMaxRetryDelayMs = 10_000;
@@ -22,12 +25,29 @@ export class RequestStartScheduler {
   constructor({
     minStartIntervalMs = defaultMinStartIntervalMs,
     maxConcurrentRequests = defaultMaxConcurrentRequests,
+    minConcurrentRequests = defaultMinConcurrentRequests,
+    maxAdaptiveStartIntervalMs = defaultMaxAdaptiveStartIntervalMs,
+    recoverySuccessThreshold = defaultRecoverySuccessThreshold,
     now = () => Date.now(),
     setTimer = (callback, delayMs) => setTimeout(callback, delayMs),
     clearTimer = (timerId) => clearTimeout(timerId),
   } = {}) {
-    this.minStartIntervalMs = Math.max(0, minStartIntervalMs);
-    this.maxConcurrentRequests = Math.max(1, maxConcurrentRequests);
+    this.baseMinStartIntervalMs = Math.max(0, minStartIntervalMs);
+    this.minStartIntervalMs = this.baseMinStartIntervalMs;
+    this.baseMaxConcurrentRequests = Math.max(1, maxConcurrentRequests);
+    this.maxConcurrentRequests = this.baseMaxConcurrentRequests;
+    this.minConcurrentRequests = Math.min(
+      this.baseMaxConcurrentRequests,
+      Math.max(1, minConcurrentRequests),
+    );
+    this.maxAdaptiveStartIntervalMs = Math.max(
+      this.baseMinStartIntervalMs,
+      maxAdaptiveStartIntervalMs,
+    );
+    this.recoverySuccessThreshold = Math.max(
+      1,
+      Math.floor(recoverySuccessThreshold),
+    );
     this.now = now;
     this.setTimer = setTimer;
     this.clearTimer = clearTimer;
@@ -35,6 +55,8 @@ export class RequestStartScheduler {
     this.activeRequests = 0;
     this.nextStartAt = 0;
     this.timerId = null;
+    this.successfulRequestsSinceRateLimit = 0;
+    this.rateLimitPenaltyUntil = 0;
   }
 
   schedule(run, signal) {
@@ -73,6 +95,66 @@ export class RequestStartScheduler {
     if (this.timerId !== null) {
       this.clearTimer(this.timerId);
       this.timerId = null;
+    }
+    this.drain();
+  }
+
+  recordRateLimit(delayMs) {
+    const now = this.now();
+    const normalizedDelayMs = Math.max(0, delayMs);
+    const isExistingBurst = now < this.rateLimitPenaltyUntil;
+    this.rateLimitPenaltyUntil = Math.max(
+      this.rateLimitPenaltyUntil,
+      now + normalizedDelayMs,
+    );
+    this.successfulRequestsSinceRateLimit = 0;
+
+    if (!isExistingBurst) {
+      const doubledIntervalMs =
+        this.minStartIntervalMs > 0 ? this.minStartIntervalMs * 2 : 1;
+      this.minStartIntervalMs = Math.min(
+        this.maxAdaptiveStartIntervalMs,
+        Math.max(this.baseMinStartIntervalMs, doubledIntervalMs),
+      );
+      this.maxConcurrentRequests = Math.max(
+        this.minConcurrentRequests,
+        Math.ceil(this.maxConcurrentRequests / 2),
+      );
+    }
+
+    this.deferFor(normalizedDelayMs);
+  }
+
+  recordSuccess() {
+    if (this.now() < this.rateLimitPenaltyUntil) return;
+    if (
+      this.minStartIntervalMs === this.baseMinStartIntervalMs &&
+      this.maxConcurrentRequests === this.baseMaxConcurrentRequests
+    ) {
+      this.successfulRequestsSinceRateLimit = 0;
+      this.rateLimitPenaltyUntil = 0;
+      return;
+    }
+
+    this.successfulRequestsSinceRateLimit += 1;
+    if (this.successfulRequestsSinceRateLimit < this.recoverySuccessThreshold) {
+      return;
+    }
+
+    this.successfulRequestsSinceRateLimit = 0;
+    this.minStartIntervalMs = Math.max(
+      this.baseMinStartIntervalMs,
+      Math.ceil(this.minStartIntervalMs / 2),
+    );
+    this.maxConcurrentRequests = Math.min(
+      this.baseMaxConcurrentRequests,
+      this.maxConcurrentRequests + 1,
+    );
+    if (
+      this.minStartIntervalMs === this.baseMinStartIntervalMs &&
+      this.maxConcurrentRequests === this.baseMaxConcurrentRequests
+    ) {
+      this.rateLimitPenaltyUntil = 0;
     }
     this.drain();
   }
@@ -183,14 +265,21 @@ export class TiandituTileProvider {
     let retryAfterMs = null;
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt += 1) {
-      const response = await this.scheduler.schedule(
-        () => this.fetchImpl(request.url, requestInit(request, signal)),
-        signal,
-      );
+      const { response, data } = await this.scheduler.schedule(async () => {
+        const response = await this.fetchImpl(
+          request.url,
+          requestInit(request, signal),
+        );
+        return {
+          response,
+          data: response.ok ? await response.arrayBuffer() : null,
+        };
+      }, signal);
 
       if (response.ok) {
+        this.scheduler.recordSuccess();
         return {
-          data: await response.arrayBuffer(),
+          data,
           expires: response.headers.get("expires") ?? undefined,
           cacheControl: response.headers.get("cache-control") ?? undefined,
         };
@@ -200,7 +289,7 @@ export class TiandituTileProvider {
         response.headers.get("retry-after"),
         this.now(),
       );
-      if (response.status !== 429 || attempt >= this.maxRetries) {
+      if (response.status !== 429) {
         throw new TiandituTileHttpError(response, attempt + 1, retryAfterMs);
       }
 
@@ -212,7 +301,10 @@ export class TiandituTileProvider {
         retryAfterMs ?? exponentialDelay,
         this.maxRetryDelayMs,
       );
-      this.scheduler.deferFor(retryDelayMs);
+      this.scheduler.recordRateLimit(retryDelayMs);
+      if (attempt >= this.maxRetries) {
+        throw new TiandituTileHttpError(response, attempt + 1, retryAfterMs);
+      }
       await this.delay(retryDelayMs, signal);
     }
 

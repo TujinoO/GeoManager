@@ -30,11 +30,37 @@ describe("TiandituTileProvider", () => {
       vector.loadTile(tile(3), loadOptions("vec", new AbortController())),
     ];
 
-    await vi.advanceTimersByTimeAsync(299);
-    expect(starts).toEqual([10_000, 10_150]);
+    await vi.advanceTimersByTimeAsync(199);
+    expect(starts).toEqual([10_000, 10_100]);
     await vi.advanceTimersByTimeAsync(1);
     await Promise.all(requests);
-    expect(starts).toEqual([10_000, 10_150, 10_300]);
+    expect(starts).toEqual([10_000, 10_100, 10_200]);
+    scheduler.dispose();
+  });
+
+  it("allows six requests in flight when responses are slow", async () => {
+    const releases: Array<(value: ArrayBuffer) => void> = [];
+    const scheduler = new RequestStartScheduler({ minStartIntervalMs: 0 });
+    const fetchImpl = vi.fn(async () =>
+      tileResponse(
+        200,
+        {},
+        () => new Promise<ArrayBuffer>((resolve) => releases.push(resolve)),
+      ),
+    );
+    const tileProvider = provider({ scheduler, fetchImpl });
+    const loads = Array.from({ length: 7 }, (_, index) =>
+      tileProvider.loadTile(
+        tile(index),
+        loadOptions("vec", new AbortController()),
+      ),
+    );
+
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(6));
+    releases[0](new ArrayBuffer(0));
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(7));
+    for (const release of releases.slice(1)) release(new ArrayBuffer(0));
+    await Promise.all(loads);
     scheduler.dispose();
   });
 
@@ -44,8 +70,8 @@ describe("TiandituTileProvider", () => {
     const starts: Array<{ layer: string; at: number }> = [];
     let vectorAttempts = 0;
     const scheduler = new RequestStartScheduler({
-      minStartIntervalMs: 150,
-      maxConcurrentRequests: 4,
+      minStartIntervalMs: 100,
+      maxConcurrentRequests: 6,
     });
     const fetchImpl = vi.fn(async (url: string) => {
       const layer = url.includes("/cva") ? "cva" : "vec";
@@ -65,18 +91,84 @@ describe("TiandituTileProvider", () => {
 
     await vi.advanceTimersByTimeAsync(999);
     expect(starts).toEqual([{ layer: "vec", at: 30_000 }]);
+    expect(scheduler.minStartIntervalMs).toBe(200);
+    expect(scheduler.maxConcurrentRequests).toBe(3);
     await vi.advanceTimersByTimeAsync(1);
     expect(starts).toEqual([
       { layer: "vec", at: 30_000 },
       { layer: "cva", at: 31_000 },
     ]);
-    await vi.advanceTimersByTimeAsync(150);
+    await vi.advanceTimersByTimeAsync(200);
     await Promise.all(loads);
     expect(starts).toEqual([
       { layer: "vec", at: 30_000 },
       { layer: "cva", at: 31_000 },
-      { layer: "vec", at: 31_150 },
+      { layer: "vec", at: 31_200 },
     ]);
+    scheduler.dispose();
+  });
+
+  it("coalesces a burst of 429 responses and backs off again after cooldown", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(40_000);
+    const scheduler = new RequestStartScheduler({
+      minStartIntervalMs: 100,
+      maxConcurrentRequests: 6,
+      maxAdaptiveStartIntervalMs: 600,
+    });
+
+    scheduler.recordRateLimit(1_000);
+    expect(scheduler.minStartIntervalMs).toBe(200);
+    expect(scheduler.maxConcurrentRequests).toBe(3);
+
+    await vi.advanceTimersByTimeAsync(100);
+    scheduler.recordRateLimit(1_000);
+    expect(scheduler.minStartIntervalMs).toBe(200);
+    expect(scheduler.maxConcurrentRequests).toBe(3);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    scheduler.recordRateLimit(1_000);
+    expect(scheduler.minStartIntervalMs).toBe(400);
+    expect(scheduler.maxConcurrentRequests).toBe(2);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    scheduler.recordRateLimit(1_000);
+    expect(scheduler.minStartIntervalMs).toBe(600);
+    expect(scheduler.maxConcurrentRequests).toBe(2);
+    scheduler.dispose();
+  });
+
+  it("recovers speed gradually after a sustained run of successful tiles", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(50_000);
+    const scheduler = new RequestStartScheduler({
+      minStartIntervalMs: 100,
+      maxConcurrentRequests: 6,
+      recoverySuccessThreshold: 2,
+    });
+
+    scheduler.recordRateLimit(1_000);
+    scheduler.recordSuccess();
+    scheduler.recordSuccess();
+    expect(scheduler.minStartIntervalMs).toBe(200);
+    expect(scheduler.maxConcurrentRequests).toBe(3);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    scheduler.recordSuccess();
+    scheduler.recordSuccess();
+    expect(scheduler.minStartIntervalMs).toBe(100);
+    expect(scheduler.maxConcurrentRequests).toBe(4);
+
+    scheduler.recordSuccess();
+    scheduler.recordSuccess();
+    expect(scheduler.minStartIntervalMs).toBe(100);
+    expect(scheduler.maxConcurrentRequests).toBe(5);
+
+    scheduler.recordSuccess();
+    scheduler.recordSuccess();
+    scheduler.recordSuccess();
+    expect(scheduler.minStartIntervalMs).toBe(100);
+    expect(scheduler.maxConcurrentRequests).toBe(6);
     scheduler.dispose();
   });
 
@@ -216,12 +308,17 @@ function loadOptions(layer: string, controller: AbortController) {
   };
 }
 
-function tileResponse(status: number, headers: Record<string, string> = {}) {
+function tileResponse(
+  status: number,
+  headers: Record<string, string> = {},
+  arrayBuffer: () => Promise<ArrayBuffer> = async () =>
+    new Uint8Array([1, 2, 3]).buffer,
+) {
   return {
     ok: status >= 200 && status < 300,
     status,
     statusText: status === 429 ? "Too Many Requests" : "OK",
     headers: new Headers(headers),
-    arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+    arrayBuffer,
   } as Response;
 }
