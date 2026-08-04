@@ -6,6 +6,9 @@ const defaultRecoverySuccessThreshold = 16;
 const defaultMaxRetries = 2;
 const defaultBaseRetryDelayMs = 1_000;
 const defaultMaxRetryDelayMs = 10_000;
+// Tianditu browser keys validate the request source. Send only the platform
+// origin across sites, never the current path or query string.
+const tiandituReferrerPolicy = "strict-origin-when-cross-origin";
 
 export class TiandituTileHttpError extends Error {
   constructor(response, attempts, retryAfterMs = null) {
@@ -319,7 +322,7 @@ function requestInit(request, signal) {
     method: request.method,
     body: request.body,
     credentials: request.credentials,
-    referrerPolicy: request.referrerPolicy,
+    referrerPolicy: tiandituReferrerPolicy,
   };
 }
 

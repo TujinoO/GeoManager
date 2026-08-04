@@ -10,6 +10,26 @@ afterEach(() => {
 });
 
 describe("TiandituTileProvider", () => {
+  it("overrides same-origin policy so browser keys can send the platform origin", async () => {
+    const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
+      expect(init.referrerPolicy).toBe("strict-origin-when-cross-origin");
+      return tileResponse(200);
+    });
+
+    await provider({
+      scheduler: new RequestStartScheduler({ minStartIntervalMs: 0 }),
+      fetchImpl,
+    }).loadTile(tile(1), {
+      request: {
+        url: "https://tiles.example.test/vec",
+        referrerPolicy: "same-origin",
+      },
+      signal: new AbortController().signal,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it("paces request starts across vector and label provider instances", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(10_000);
