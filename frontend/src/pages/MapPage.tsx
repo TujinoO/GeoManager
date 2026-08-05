@@ -41,6 +41,11 @@ import { workspaceSnapshot } from "../workspace/workspaceSnapshot";
 import { effectiveMapLayers } from "../map/effectiveMapLayers";
 import { clearFeatureState, getMapState } from "../map/mapState";
 import {
+  claimMapErrorNotification,
+  mapErrorNotificationKey,
+  summarizeMapErrorForUser,
+} from "../map/mapErrorFeedback";
+import {
   exportMapRangeImage,
   inferBasemapTileZoomRange,
   type MapImageExportOptions,
@@ -432,9 +437,7 @@ export default function MapPage() {
   const latestResourceFiltersRef = useRef<ResourceFilters>({});
   const loadedSceneIdRef = useRef<number | null>(null);
   const loadedCompositionIdRef = useRef<number | null>(null);
-  const lastMapErrorRef = useRef<{ message: string; timestamp: number } | null>(
-    null,
-  );
+  const mapErrorNotificationHistoryRef = useRef(new Map<string, number>());
   const permissions = user?.permissions ?? emptyPermissions;
   const userRoles = user?.roles ?? [];
   const categoryOptions = useMemo(
@@ -1116,16 +1119,19 @@ export default function MapPage() {
 
   const handleMapError = useCallback(
     (errorMessage: string) => {
-      const now = Date.now();
-      const previous = lastMapErrorRef.current;
       if (
-        previous?.message === errorMessage &&
-        now - previous.timestamp < 5000
-      ) {
+        !claimMapErrorNotification(
+          mapErrorNotificationHistoryRef.current,
+          errorMessage,
+        )
+      )
         return;
-      }
-      lastMapErrorRef.current = { message: errorMessage, timestamp: now };
-      message.error(`地图加载异常：${errorMessage}`);
+      message.open({
+        key: mapErrorNotificationKey,
+        type: "error",
+        content: `地图加载异常：${summarizeMapErrorForUser(errorMessage)}`,
+        duration: 5,
+      });
     },
     [message],
   );

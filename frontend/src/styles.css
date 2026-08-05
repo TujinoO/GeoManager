@@ -19216,6 +19216,58 @@ body:has(.login-shell),
   }
 }
 
+.layer-raster-render-feedback {
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 8px;
+  color: #eafff8;
+  background: rgb(15 118 110 / 0.18);
+  border: 1px solid rgb(94 234 212 / 0.34);
+  border-radius: 7px;
+
+  &.is-failed {
+    color: #ffe4e6;
+    background: rgb(159 18 57 / 0.18);
+    border-color: rgb(251 113 133 / 0.42);
+  }
+
+  & .ant-progress-inner {
+    background: rgb(255 255 255 / 0.14);
+  }
+
+  & .ant-progress-bg {
+    background: #5eead4;
+  }
+
+  & small {
+    color: rgb(234 255 248 / 0.72);
+    font-size: 11px;
+    line-height: 1.45;
+  }
+}
+
+.layer-raster-render-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+
+  & span {
+    display: inline-flex;
+    gap: 6px;
+    min-width: 0;
+    align-items: center;
+  }
+
+  & b {
+    flex: 0 0 auto;
+    color: #99f6e4;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
 .layer-legend-strip {
   display: flex;
   flex-wrap: wrap;

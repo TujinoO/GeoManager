@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createBasemapCatalog } from "./basemapCatalog";
 import {
+  basemapRecoveryAction,
+  basemapRecoveryCooldownMs,
   canRunRateLimitRecovery,
   rateLimitRecoverySwitchOptions,
   shouldBlockRateLimitedBasemapSelection,
@@ -25,8 +27,10 @@ function recovery(
   overrides: Partial<BasemapRateLimitRecoveryState> = {},
 ): BasemapRateLimitRecoveryState {
   return {
+    attemptId: 1,
+    cooldownMs: 30_000,
     descriptor,
-    inFlight: true,
+    phase: "pending",
     reason: "rate-limit",
     suppressUntil: 31_000,
     ...overrides,
@@ -45,7 +49,7 @@ describe("Tianditu rate-limit recovery invariants", () => {
     ).toBe(true);
     expect(
       shouldSuppressRecoveredBasemapRateLimitError({
-        recovery: recovery({ inFlight: false }),
+        recovery: recovery({ phase: "idle" }),
         now: 31_001,
         isRateLimitError: true,
         matchesRecoveryDescriptor: true,
@@ -57,22 +61,69 @@ describe("Tianditu rate-limit recovery invariants", () => {
     { drawModeActive: true, basemapSwitchDisabled: false },
     { drawModeActive: false, basemapSwitchDisabled: true },
   ])("does not switch while drawing or exporting: %o", (locks) => {
+    const context = {
+      recovery: recovery(),
+      failedDescriptor: descriptor,
+      failedBasemapId: "tianditu-vector" as const,
+      activeBasemapId: "tianditu-vector" as const,
+      activeGeneration: 7,
+      basemapSwitching: false,
+      ...locks,
+    };
+
+    expect(canRunRateLimitRecovery(context)).toBe(false);
+    expect(basemapRecoveryAction(context)).toBe("defer");
+  });
+
+  it("runs a deferred recovery after the interaction lock clears", () => {
+    const context = {
+      recovery: recovery(),
+      failedDescriptor: descriptor,
+      failedBasemapId: "tianditu-vector" as const,
+      activeBasemapId: "tianditu-vector" as const,
+      activeGeneration: 7,
+      basemapSwitching: false,
+      drawModeActive: false,
+      basemapSwitchDisabled: false,
+    };
+
+    expect(basemapRecoveryAction(context)).toBe("run");
+    expect(canRunRateLimitRecovery(context)).toBe(true);
+  });
+
+  it("ignores a duplicate recovery entry while the same attempt is running", () => {
     expect(
-      canRunRateLimitRecovery({
-        recovery: recovery(),
+      basemapRecoveryAction({
+        recovery: recovery({ phase: "running" }),
         failedDescriptor: descriptor,
         failedBasemapId: "tianditu-vector",
         activeBasemapId: "tianditu-vector",
         activeGeneration: 7,
         basemapSwitching: false,
-        ...locks,
+        drawModeActive: false,
+        basemapSwitchDisabled: false,
       }),
-    ).toBe(false);
+    ).toBe("ignore");
+  });
+
+  it("discards a deferred recovery after the active generation changes", () => {
+    expect(
+      basemapRecoveryAction({
+        recovery: recovery(),
+        failedDescriptor: descriptor,
+        failedBasemapId: "tianditu-vector",
+        activeBasemapId: "tianditu-vector",
+        activeGeneration: 8,
+        basemapSwitching: false,
+        drawModeActive: false,
+        basemapSwitchDisabled: false,
+      }),
+    ).toBe("discard");
   });
 
   it("suppresses repeated sustained failures with the same single-flight cooldown", () => {
     const sustainedRecovery = recovery({
-      inFlight: false,
+      phase: "idle",
       reason: "sustained-failure",
     });
     expect(
@@ -90,6 +141,21 @@ describe("Tianditu rate-limit recovery invariants", () => {
         now: 30_999,
         isRateLimitError: true,
         isSustainedFailure: false,
+        matchesRecoveryDescriptor: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("suppresses repeated confirmed service errors during automatic recovery", () => {
+    const serviceRecovery = recovery({
+      reason: "service-error",
+    });
+    expect(
+      shouldSuppressRecoveredBasemapRateLimitError({
+        recovery: serviceRecovery,
+        now: 31_001,
+        isRateLimitError: false,
+        isServiceError: true,
         matchesRecoveryDescriptor: true,
       }),
     ).toBe(true);
@@ -118,17 +184,24 @@ describe("Tianditu rate-limit recovery invariants", () => {
   it("blocks reselecting Tianditu throughout its cooldown", () => {
     expect(
       shouldBlockRateLimitedBasemapSelection(
-        recovery({ inFlight: false }),
+        recovery({ phase: "idle" }),
         "tianditu-vector",
         30_999,
       ),
     ).toBe(true);
     expect(
       shouldBlockRateLimitedBasemapSelection(
-        recovery({ inFlight: false }),
+        recovery({ phase: "idle" }),
         "tianditu-vector",
         31_000,
       ),
     ).toBe(false);
+  });
+
+  it("aligns the UI cooldown with a bounded Retry-After", () => {
+    expect(basemapRecoveryCooldownMs("rate-limit", 120_000)).toBe(120_000);
+    expect(basemapRecoveryCooldownMs("rate-limit", 600_000)).toBe(120_000);
+    expect(basemapRecoveryCooldownMs("rate-limit", 2_000)).toBe(30_000);
+    expect(basemapRecoveryCooldownMs("service-error", 120_000)).toBe(30_000);
   });
 });

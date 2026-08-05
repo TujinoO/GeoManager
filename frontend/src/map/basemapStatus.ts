@@ -56,6 +56,15 @@ export interface BasemapStatusPresentation {
 }
 
 export const basemapSlowThresholdMs = 3_000;
+export const tiandituBasemapSlowThresholdMs = 12_000;
+
+export function basemapSlowThresholdMsFor(
+  activeBasemap: ActiveBasemapDescriptor | null | undefined,
+) {
+  return activeBasemap?.provider === "tianditu"
+    ? tiandituBasemapSlowThresholdMs
+    : basemapSlowThresholdMs;
+}
 
 export const defaultBasemapResourceMarkers = [
   "mapbox://",
@@ -116,11 +125,12 @@ export function visibleTiandituFailure(
   const failure = diagnostics.recentTiandituFailure;
   if (!failure) return null;
   if (
-    diagnostics.basemap === "failed" ||
+    failure.details.failureKind !== "transient" ||
     failure.details.failureWindow?.tripped
   ) {
     return failure;
   }
+  if (diagnostics.basemap === "failed") return null;
   const windowMs = failure.details.failureWindow?.windowMs ?? 0;
   return windowMs > 0 && now - failure.observedAt <= windowMs ? failure : null;
 }
@@ -143,14 +153,15 @@ export function activeBasemapScopeKey(
 export function classifyBasemapStatus(
   diagnostics: BasemapDiagnostics,
   now = Date.now(),
+  slowThresholdMs = basemapSlowThresholdMs,
 ): BasemapStatusPresentation {
   const tiandituFailure = visibleTiandituFailure(diagnostics, now);
   const networkSlow = isBrowserConnectionSlow(diagnostics.network);
   const basemapSlow =
-    (diagnostics.basemapLatencyMs ?? 0) >= basemapSlowThresholdMs ||
+    (diagnostics.basemapLatencyMs ?? 0) >= slowThresholdMs ||
     (diagnostics.basemap === "loading" &&
       diagnostics.basemapLoadingSince !== null &&
-      now - diagnostics.basemapLoadingSince >= basemapSlowThresholdMs);
+      now - diagnostics.basemapLoadingSince >= slowThresholdMs);
   const platformSlow = (diagnostics.platformLatencyMs ?? 0) >= 2_000;
 
   if (!diagnostics.network.online) {

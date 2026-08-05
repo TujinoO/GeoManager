@@ -6,7 +6,10 @@ const defaultRecoverySuccessThreshold = 16;
 const defaultMaxRetries = 2;
 const defaultBaseRetryDelayMs = 1_000;
 const defaultMaxRetryDelayMs = 10_000;
+const defaultMaxRetryAfterMs = 120_000;
+const defaultMaxInlineRetryAfterMs = 10_000;
 const defaultTransientRetryDelayMs = 250;
+const defaultRequestTimeoutMs = 10_000;
 const defaultFailureWindowMs = 15_000;
 const defaultFailureWindowMaxSamples = 12;
 const defaultFailureWindowMinSamples = 8;
@@ -21,6 +24,7 @@ const maxErrorBodyCharacters = 4_096;
 const tiandituReferrerPolicy = "strict-origin-when-cross-origin";
 const tiandituNodePattern = /^t([0-7])\.tianditu\.gov\.cn$/i;
 const credentialServiceCodes = new Set(["301007", "301018"]);
+const credentialConfirmationServiceCodes = new Set(["301018"]);
 
 export class TiandituTileHttpError extends Error {
   constructor(response, attempts, options = {}) {
@@ -46,8 +50,13 @@ export class TiandituTileHttpError extends Error {
     super(`Tianditu tile request failed (${details.join("; ")})`);
     this.name = "TiandituTileHttpError";
     this.provider = "tianditu";
-    this.status = response.status;
-    this.statusCode = response.status;
+    // Mapbox GL intentionally converts status=404 into a detail-free
+    // sourcedata event. Preserve the upstream status separately and expose a
+    // neutral status so the structured failure window reaches the main thread.
+    const exposedStatus = response.status === 404 ? 0 : response.status;
+    this.status = exposedStatus;
+    this.statusCode = exposedStatus;
+    this.upstreamStatus = response.status;
     this.attempts = attempts;
     this.failureKind = failureKind;
     this.failureReason = failureReason;
@@ -96,10 +105,14 @@ export class TiandituFailureWindow {
     return this.snapshot(now);
   }
 
-  recordFailure() {
+  recordFailure({ countsTowardConsecutive = true } = {}) {
     const now = this.now();
     this.prune(now);
-    this.events.push({ failed: true, timestamp: now });
+    this.events.push({
+      countsTowardConsecutive,
+      failed: true,
+      timestamp: now,
+    });
     this.trimToMaxSamples();
     this.recomputeConsecutiveFailures();
     return this.snapshot(now);
@@ -142,7 +155,12 @@ export class TiandituFailureWindow {
   recomputeConsecutiveFailures() {
     let count = 0;
     for (let index = this.events.length - 1; index >= 0; index -= 1) {
-      if (!this.events[index].failed) break;
+      if (
+        !this.events[index].failed ||
+        this.events[index].countsTowardConsecutive === false
+      ) {
+        break;
+      }
       count += 1;
     }
     this.consecutiveFailures = count;
@@ -453,8 +471,20 @@ export class TiandituTileProvider {
       dependencies.baseRetryDelayMs ?? defaultBaseRetryDelayMs;
     this.maxRetryDelayMs =
       dependencies.maxRetryDelayMs ?? defaultMaxRetryDelayMs;
+    this.maxRetryAfterMs = finiteNonNegativeNumber(
+      dependencies.maxRetryAfterMs,
+      defaultMaxRetryAfterMs,
+    );
+    this.maxInlineRetryAfterMs = finiteNonNegativeNumber(
+      dependencies.maxInlineRetryAfterMs,
+      defaultMaxInlineRetryAfterMs,
+    );
     this.transientRetryDelayMs =
       dependencies.transientRetryDelayMs ?? defaultTransientRetryDelayMs;
+    this.requestTimeoutMs = Math.max(
+      1,
+      dependencies.requestTimeoutMs ?? defaultRequestTimeoutMs,
+    );
     this.now = dependencies.now ?? (() => Date.now());
     this.delay = dependencies.delay ?? abortableDelay;
     this.failureWindow = dependencies.failureWindow ?? sharedFailureWindow;
@@ -491,20 +521,28 @@ export class TiandituTileProvider {
 
       let result;
       try {
-        result = await this.scheduler.schedule(async () => {
-          fetchAttempts += 1;
-          const response = await this.fetchImpl(
-            routedRequest.url,
-            requestInit(request, signal),
-          );
-          return {
-            response,
-            data: response.ok ? await response.arrayBuffer() : null,
-            errorDetails: response.ok
-              ? null
-              : await readTiandituErrorDetails(response),
-          };
-        }, signal);
+        result = await this.scheduler.schedule(
+          () =>
+            withRequestTimeout(
+              async (requestSignal) => {
+                fetchAttempts += 1;
+                const response = await this.fetchImpl(
+                  routedRequest.url,
+                  requestInit(request, requestSignal),
+                );
+                return {
+                  response,
+                  data: response.ok ? await response.arrayBuffer() : null,
+                  errorDetails: response.ok
+                    ? null
+                    : await readTiandituErrorDetails(response),
+                };
+              },
+              signal,
+              this.requestTimeoutMs,
+            ),
+          signal,
+        );
       } catch (error) {
         if (isAbortFailure(error, signal)) throw error;
         stickyRateLimitRequest = null;
@@ -518,7 +556,9 @@ export class TiandituTileProvider {
             fetchAttempts,
             {
               failureKind: "transient",
-              failureReason: "network-error",
+              failureReason: isRequestTimeoutFailure(error)
+                ? "request-timeout"
+                : "network-error",
               failureWindow,
               layer: tiandituLayer(routedRequest.url),
               node: routedRequest.node,
@@ -531,6 +571,7 @@ export class TiandituTileProvider {
       }
 
       const { response, data, errorDetails } = result;
+      if (signal.aborted) throw createAbortError();
 
       if (response.ok) {
         this.nodeCircuit.recordSuccess(routedRequest.node);
@@ -548,9 +589,29 @@ export class TiandituTileProvider {
         this.now(),
       );
       const failureKind = classifyTiandituFailure(response, errorDetails);
-      if (failureKind === "transient") {
+      const isMissingTile = response.status === 404;
+      if (failureKind === "transient" && !isMissingTile) {
         this.nodeCircuit.recordFailure(routedRequest.node);
         nodeAttempt += 1;
+      } else if (isMissingTile) {
+        nodeAttempt += 1;
+      }
+
+      const shouldConfirmCredentialFailure =
+        failureKind === "credentials" &&
+        credentialConfirmationServiceCodes.has(
+          errorDetails?.serviceCode ?? "",
+        ) &&
+        attempt < Math.min(1, this.maxRetries);
+      if (shouldConfirmCredentialFailure) {
+        const confirmationDelayMs = retryDelayForFailure(
+          "transient",
+          attempt,
+          this,
+        );
+        this.scheduler.deferFor(confirmationDelayMs);
+        await this.delay(confirmationDelayMs, signal);
+        continue;
       }
 
       if (failureKind === "credentials" || failureKind === "permanent") {
@@ -566,10 +627,14 @@ export class TiandituTileProvider {
       }
 
       const exponentialDelay = retryDelayForFailure(failureKind, attempt, this);
-      const retryDelayMs = Math.min(
-        retryAfterMs ?? exponentialDelay,
-        this.maxRetryDelayMs,
-      );
+      const retryDelayMs =
+        retryAfterMs === null
+          ? exponentialDelay
+          : Math.min(retryAfterMs, this.maxRetryAfterMs);
+      const retryAfterRequiresBackgroundCooldown =
+        failureKind === "rate-limit" &&
+        retryAfterMs !== null &&
+        retryAfterMs > this.maxInlineRetryAfterMs;
       if (failureKind === "rate-limit") {
         stickyRateLimitRequest = routedRequest;
         this.scheduler.recordRateLimit(retryDelayMs);
@@ -577,25 +642,29 @@ export class TiandituTileProvider {
         stickyRateLimitRequest = null;
       }
       const retryLimit =
-        response.status === 403
+        response.status === 403 || isMissingTile
           ? Math.min(1, this.maxRetries)
           : this.maxRetries;
-      if (attempt >= retryLimit) {
-        const recordedWindow = this.failureWindow.recordFailure();
+      if (attempt >= retryLimit || retryAfterRequiresBackgroundCooldown) {
+        const recordedWindow = this.failureWindow.recordFailure({
+          countsTowardConsecutive: !isMissingTile,
+        });
         const failureWindow =
           failureKind === "rate-limit"
             ? forceTrip(recordedWindow)
             : recordedWindow;
         throw new TiandituTileHttpError(response, attempt + 1, {
           failureKind,
+          failureReason: isMissingTile ? "missing-tile" : null,
           failureWindow,
           layer: tiandituLayer(routedRequest.url),
           node: routedRequest.node,
-          retryAfterMs,
+          retryAfterMs:
+            failureKind === "rate-limit" ? retryDelayMs : retryAfterMs,
           serviceCode: errorDetails?.serviceCode ?? null,
         });
       }
-      if (failureKind !== "rate-limit") {
+      if (failureKind !== "rate-limit" && !isMissingTile) {
         this.scheduler.deferFor(retryDelayMs);
       }
       await this.delay(retryDelayMs, signal);
@@ -630,6 +699,7 @@ async function readTiandituErrorDetails(response) {
 function classifyTiandituFailure(response, details) {
   if (response.status === 429) return "rate-limit";
   if (response.status === 401) return "credentials";
+  if (response.status === 404) return "transient";
   if (response.status === 403) {
     if (
       details?.credentialHint ||
@@ -662,6 +732,12 @@ function retryDelayForFailure(failureKind, attempt, provider) {
   );
   const jitter = 0.75 + Math.min(1, Math.max(0, provider.random())) * 0.5;
   return Math.max(1, Math.round(baseDelay * jitter));
+}
+
+function finiteNonNegativeNumber(value, fallback) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : fallback;
 }
 
 function parseTiandituUrl(rawUrl) {
@@ -770,6 +846,45 @@ function safeHttpStatusText(status, statusText) {
 
 function isAbortFailure(error, signal) {
   return signal.aborted || error?.name === "AbortError";
+}
+
+function isRequestTimeoutFailure(error) {
+  return error?.name === "TiandituTileTimeoutError";
+}
+
+async function withRequestTimeout(run, signal, timeoutMs) {
+  if (signal.aborted) throw createAbortError();
+  const controller = new AbortController();
+  const handleAbort = () => controller.abort();
+  signal.addEventListener("abort", handleAbort, { once: true });
+  let timedOut = false;
+  let timeoutId = null;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+      reject(createRequestTimeoutError());
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([run(controller.signal), timeout]);
+  } catch (error) {
+    if (signal.aborted) throw createAbortError();
+    if (timedOut && !isRequestTimeoutFailure(error)) {
+      throw createRequestTimeoutError();
+    }
+    throw error;
+  } finally {
+    if (timeoutId !== null) clearTimeout(timeoutId);
+    signal.removeEventListener("abort", handleAbort);
+  }
+}
+
+function createRequestTimeoutError() {
+  const error = new Error("Tianditu tile request timed out");
+  error.name = "TiandituTileTimeoutError";
+  return error;
 }
 
 function requestInit(request, signal) {

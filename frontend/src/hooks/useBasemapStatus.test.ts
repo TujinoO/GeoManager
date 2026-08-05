@@ -12,6 +12,7 @@ import {
   expectedBasemapSourceIds,
   loadingBasemapDiagnosticsAfterReadinessTimeout,
   probePlatformHealth,
+  readyBasemapDiagnostics,
   strictBasemapReadinessTimeoutMsFor,
 } from "./useBasemapStatus";
 
@@ -37,6 +38,28 @@ describe("BasemapTileRequestTimings", () => {
     expect(timings.finish("tile-a")).toBeUndefined();
     expect(timings.finish("tile-b")).toBe(200);
     expect(timings.finish("tile-c")).toBe(300);
+  });
+});
+
+describe("readyBasemapDiagnostics", () => {
+  it("does not replace a tile response sample with a whole-view completion time", () => {
+    const current = {
+      ...initialBasemapDiagnostics({
+        online: true,
+        effectiveType: "4g",
+        rttMs: 80,
+        downlinkMbps: 10,
+      }),
+      basemap: "loading" as const,
+      basemapLatencyMs: 80,
+      basemapLoadingSince: 1_000,
+    };
+
+    expect(readyBasemapDiagnostics(current, null)).toMatchObject({
+      basemap: "ready",
+      basemapLatencyMs: 80,
+      basemapLoadingSince: null,
+    });
   });
 });
 

@@ -298,9 +298,7 @@ const nonGeoAnalytics: NonGeoAnalytics = {
       median: 8.85,
       q1: 7.025,
       q3: 10.675,
-      bins: [
-        { label: "5.2-12.5", min: 5.2, max: 12.5, count: 2, ratio: 1 },
-      ],
+      bins: [{ label: "5.2-12.5", min: 5.2, max: 12.5, count: 2, ratio: 1 }],
     },
   ],
   correlation: null,
@@ -832,21 +830,16 @@ describe("application critical flows", () => {
     expect(mockApi.resources).toHaveBeenCalledWith({
       spatialClass: "non_spatial",
     });
-    expect(mockApi.nonGeoAnalysis).toHaveBeenCalledWith(
-      nonGeoTableResource.id,
-    );
+    expect(mockApi.nonGeoAnalysis).toHaveBeenCalledWith(nonGeoTableResource.id);
 
     fireEvent.click(screen.getByRole("button", { name: "查询明细" }));
     await waitFor(() => {
-      expect(mockApi.nonGeoQuery).toHaveBeenCalledWith(
-        nonGeoTableResource.id,
-        {
-          limit: 80,
-          offset: 0,
-          sortField: "height",
-          sortDirection: "desc",
-        },
-      );
+      expect(mockApi.nonGeoQuery).toHaveBeenCalledWith(nonGeoTableResource.id, {
+        limit: 80,
+        offset: 0,
+        sortField: "height",
+        sortDirection: "desc",
+      });
     });
     expect(await screen.findByText("S-1")).toBeInTheDocument();
 
@@ -870,6 +863,35 @@ describe("application critical flows", () => {
     expect(await screen.findByText(refreshedResource.name)).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.queryAllByText(nonGeoTableResource.name)).toHaveLength(0);
+    });
+  });
+
+  it("keeps the legacy analysis URL compatible with the non-geographic workspace", async () => {
+    mockApi.me.mockResolvedValue({ authenticated: true, user: normalUser });
+
+    renderApp("/analysis");
+
+    await waitFor(() => {
+      expect(mockApi.resources).toHaveBeenCalledWith({
+        spatialClass: "non_spatial",
+      });
+    });
+  });
+
+  it("keeps the shared guest account out of personal settings", async () => {
+    const guestUser: User = {
+      ...normalUser,
+      id: 99,
+      username: "guest",
+      displayName: "游客",
+      roles: ["游客"],
+    };
+    mockApi.me.mockResolvedValue({ authenticated: true, user: guestUser });
+
+    renderApp("/admin/profile");
+
+    await waitFor(() => {
+      expect(mockApi.resources).toHaveBeenCalled();
     });
   });
 

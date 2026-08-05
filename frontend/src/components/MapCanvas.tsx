@@ -35,8 +35,8 @@ import {
   writeBasemapPreference,
 } from "../map/basemapPreference";
 import {
-  canRunRateLimitRecovery,
-  rateLimitRecoveryCooldownMs,
+  basemapRecoveryAction,
+  basemapRecoveryCooldownMs,
   rateLimitRecoverySwitchOptions,
   shouldBlockRateLimitedBasemapSelection,
   shouldSuppressRecoveredBasemapRateLimitError,
@@ -58,6 +58,7 @@ import {
   isTolerableTiandituTileError,
   isTrippedTiandituTransientError,
   readBasemapCamera,
+  readTiandituTileFailure,
   resolveBasemapRateLimitFallback,
   resolveBasemapTechnicalFallback,
   restoreBasemapCamera,
@@ -65,6 +66,10 @@ import {
   type BasemapCameraSnapshot,
 } from "../map/basemapSwitch";
 import { tiandituTileProviderName } from "../map/tiandituTileProviderConfig";
+import {
+  basemapRecoveryNotificationKey,
+  shouldForwardMapErrorToGlobalMessage,
+} from "../map/mapErrorFeedback";
 import {
   isBasemapResourceError,
   type ActiveBasemapDescriptor,
@@ -142,7 +147,6 @@ interface ActiveBasemapState {
 
 interface BasemapStyleLoadResult {
   ok: boolean;
-  latencyMs: number | null;
   error?: unknown;
 }
 
@@ -197,8 +201,10 @@ export default function MapCanvas({
   const basemapRequestConcurrencyLeaseRef =
     useRef<BasemapRequestConcurrencyLease | null>(null);
   const rateLimitRecoveryRef = useRef<BasemapRateLimitRecoveryState>({
+    attemptId: 0,
+    cooldownMs: 30_000,
     descriptor: null,
-    inFlight: false,
+    phase: "idle",
     reason: "rate-limit",
     suppressUntil: 0,
   });
@@ -336,7 +342,6 @@ export default function MapCanvas({
         new Error("新的底图切换已替代上一请求"),
       );
       styleInitializedRef.current = false;
-      const startedAt = performance.now();
 
       return new Promise<BasemapStyleLoadResult>((resolve) => {
         let settled = false;
@@ -379,9 +384,6 @@ export default function MapCanvas({
           cleanup();
           resolve({
             ok,
-            latencyMs: ok
-              ? Math.max(1, Math.round(performance.now() - startedAt))
-              : null,
             error,
           });
         };
@@ -538,8 +540,15 @@ export default function MapCanvas({
         resourceMarkers: definition.errorMarkers,
       };
       const isActiveBasemapError = isBasemapResourceError(event, descriptor);
-      const isSustainedFailure = Boolean(
-        isActiveBasemapError && isTrippedTiandituTransientError(event),
+      const isSustainedFailure = isTrippedTiandituTransientError(event);
+      const tiandituFailure = readTiandituTileFailure(event);
+      const isTiandituResourceEvent = Boolean(
+        tiandituFailure || event.sourceId?.startsWith("basemap-tianditu-"),
+      );
+      const isServiceError = Boolean(
+        tiandituFailure &&
+        (tiandituFailure.failureKind === "credentials" ||
+          tiandituFailure.failureKind === "permanent"),
       );
       if (isActiveBasemapError && isTolerableTiandituTileError(event)) {
         return;
@@ -547,12 +556,20 @@ export default function MapCanvas({
       const recovery = rateLimitRecoveryRef.current;
       const now = Date.now();
       const isRateLimitError = isBasemapRateLimitError(event);
+      const recoveryReason: BasemapRecoveryReason | null = isRateLimitError
+        ? "rate-limit"
+        : isSustainedFailure
+          ? "sustained-failure"
+          : isServiceError
+            ? "service-error"
+            : null;
       if (
         shouldSuppressRecoveredBasemapRateLimitError({
           recovery,
           now,
           isRateLimitError,
           isSustainedFailure,
+          isServiceError,
           matchesRecoveryDescriptor: Boolean(
             recovery.descriptor &&
             isBasemapResourceError(event, recovery.descriptor),
@@ -561,25 +578,51 @@ export default function MapCanvas({
       ) {
         return;
       }
-      if (basemapSwitchingRef.current && isActiveBasemapError) {
+      const registerRecovery = (phase: "idle" | "pending") => {
+        if (!recoveryReason) return;
+        const cooldownMs = basemapRecoveryCooldownMs(
+          recoveryReason,
+          tiandituFailure?.retryAfterMs,
+        );
+        rateLimitRecoveryRef.current = {
+          attemptId: recovery.attemptId + 1,
+          cooldownMs,
+          descriptor,
+          phase,
+          reason: recoveryReason,
+          suppressUntil: now + cooldownMs,
+        };
+      };
+      if (basemapSwitchingRef.current) {
+        if (
+          isActiveBasemapError &&
+          definition.provider === "tianditu" &&
+          recoveryReason
+        ) {
+          registerRecovery("idle");
+        }
         return;
       }
       if (
         isActiveBasemapError &&
         definition.provider === "tianditu" &&
-        (isRateLimitError || isSustainedFailure)
+        recoveryReason
       ) {
-        const reason: BasemapRecoveryReason = isRateLimitError
-          ? "rate-limit"
-          : "sustained-failure";
-        rateLimitRecoveryRef.current = {
+        registerRecovery("pending");
+        recoverRateLimitedBasemapRef.current(
+          definition,
           descriptor,
-          inFlight: true,
-          reason,
-          suppressUntil: now + rateLimitRecoveryCooldownMs,
-        };
-        onMapError?.(basemapErrorMessage(event));
-        recoverRateLimitedBasemapRef.current(definition, descriptor, reason);
+          recoveryReason,
+        );
+        return;
+      }
+      if (
+        !shouldForwardMapErrorToGlobalMessage({
+          activeBasemapError: isActiveBasemapError,
+          errorProvider: isTiandituResourceEvent ? "tianditu" : null,
+          provider: definition.provider,
+        })
+      ) {
         return;
       }
       onMapError?.(basemapErrorMessage(event));
@@ -755,9 +798,7 @@ export default function MapCanvas({
       ) {
         if (options.announce !== false) {
           message.warning(
-            rateLimitRecovery.reason === "sustained-failure"
-              ? "天地图服务异常正在冷却，请稍后再试"
-              : "天地图服务正在限流冷却，请稍后再试",
+            basemapRecoveryCooldownMessage(rateLimitRecovery.reason),
           );
         }
         return false;
@@ -894,19 +935,19 @@ export default function MapCanvas({
       reason: BasemapRecoveryReason,
     ) => {
       const recovery = rateLimitRecoveryRef.current;
-      if (
-        !canRunRateLimitRecovery({
-          recovery,
-          failedDescriptor,
-          failedBasemapId: failedDefinition.id,
-          activeBasemapId: activeBasemapRef.current.id,
-          activeGeneration: basemapGenerationRef.current,
-          basemapSwitching: basemapSwitchingRef.current,
-          drawModeActive: Boolean(drawMode),
-          basemapSwitchDisabled,
-        })
-      ) {
-        recovery.inFlight = false;
+      const recoveryAction = basemapRecoveryAction({
+        recovery,
+        failedDescriptor,
+        failedBasemapId: failedDefinition.id,
+        activeBasemapId: activeBasemapRef.current.id,
+        activeGeneration: basemapGenerationRef.current,
+        basemapSwitching: basemapSwitchingRef.current,
+        drawModeActive: Boolean(drawMode),
+        basemapSwitchDisabled,
+      });
+      if (recoveryAction === "defer" || recoveryAction === "ignore") return;
+      if (recoveryAction === "discard") {
+        recovery.phase = "idle";
         return;
       }
       const fallback = resolveBasemapRateLimitFallback(
@@ -914,9 +955,13 @@ export default function MapCanvas({
         failedDefinition.id,
       );
       if (!fallback) {
-        recovery.inFlight = false;
+        recovery.phase = "idle";
         return;
       }
+
+      const attemptId = recovery.attemptId;
+      recovery.phase = "running";
+      recovery.suppressUntil = Date.now() + recovery.cooldownMs;
 
       void (async () => {
         try {
@@ -927,17 +972,19 @@ export default function MapCanvas({
           if (!mountedRef.current) return;
           if (recovered) {
             const recoveredDefinition = activeBasemapRef.current;
-            message.warning(
-              reason === "rate-limit"
-                ? `${failedDefinition.label}请求受限，已自动切换到${recoveredDefinition.label}`
-                : `${failedDefinition.label}持续加载失败，已自动切换到${recoveredDefinition.label}`,
-            );
+            message.open({
+              key: basemapRecoveryNotificationKey,
+              type: "warning",
+              content: `${failedDefinition.label}${basemapRecoveryReasonText(reason)}，已自动切换到${recoveredDefinition.label}`,
+              duration: 5,
+            });
           } else {
-            message.error(
-              reason === "rate-limit"
-                ? `${failedDefinition.label}请求受限，自动恢复底图失败，请稍后重新检测`
-                : `${failedDefinition.label}持续加载失败，自动恢复底图失败，请稍后重新检测`,
-            );
+            message.open({
+              key: basemapRecoveryNotificationKey,
+              type: "error",
+              content: `${failedDefinition.label}${basemapRecoveryReasonText(reason)}，自动恢复底图失败，请稍后重新检测`,
+              duration: 5,
+            });
           }
         } finally {
           const currentRecovery = rateLimitRecoveryRef.current;
@@ -945,9 +992,10 @@ export default function MapCanvas({
             currentRecovery.descriptor?.id === failedDescriptor.id &&
             currentRecovery.descriptor.generation ===
               failedDescriptor.generation &&
-            currentRecovery.reason === reason
+            currentRecovery.reason === reason &&
+            currentRecovery.attemptId === attemptId
           ) {
-            currentRecovery.inFlight = false;
+            currentRecovery.phase = "idle";
           }
         }
       })();
@@ -956,9 +1004,26 @@ export default function MapCanvas({
   );
   recoverRateLimitedBasemapRef.current = recoverRateLimitedBasemap;
 
+  useEffect(() => {
+    const recovery = rateLimitRecoveryRef.current;
+    const descriptor = recovery.descriptor;
+    if (recovery.phase !== "pending" || !descriptor) return;
+    const definition = resolveBasemapDefinition(basemapCatalog, descriptor.id);
+    if (!definition) {
+      recovery.phase = "idle";
+      return;
+    }
+    recoverRateLimitedBasemap(definition, descriptor, recovery.reason);
+  }, [
+    basemapCatalog,
+    basemapSwitchDisabled,
+    basemapSwitching,
+    drawMode,
+    recoverRateLimitedBasemap,
+  ]);
+
   const retryActiveBasemap = useCallback<BasemapRetryProbe>(
     async ({ signal }) => {
-      const startedAt = performance.now();
       const ok = await switchBasemap(activeBasemapRef.current.id, {
         force: true,
         persist: false,
@@ -967,9 +1032,8 @@ export default function MapCanvas({
       if (signal.aborted) return;
       return {
         ok,
-        latencyMs: ok
-          ? Math.max(1, Math.round(performance.now() - startedAt))
-          : null,
+        // A forced reload measures whole-view readiness, not a tile RTT.
+        latencyMs: null,
       };
     },
     [switchBasemap],
@@ -1056,6 +1120,20 @@ export default function MapCanvas({
       </div>
     </div>
   );
+}
+
+function basemapRecoveryReasonText(reason: BasemapRecoveryReason) {
+  if (reason === "rate-limit") return "请求受限";
+  if (reason === "service-error") return "凭证或服务配置异常";
+  return "持续加载失败";
+}
+
+function basemapRecoveryCooldownMessage(reason: BasemapRecoveryReason) {
+  if (reason === "rate-limit") return "天地图服务正在限流冷却，请稍后再试";
+  if (reason === "service-error") {
+    return "天地图凭证或服务配置异常正在冷却，请稍后再试";
+  }
+  return "天地图服务异常正在冷却，请稍后再试";
 }
 
 function disableMapboxEventRequests() {

@@ -15,6 +15,7 @@ import {
   type BasemapRetryProbe,
 } from "../hooks/useBasemapStatus";
 import {
+  basemapSlowThresholdMsFor,
   classifyBasemapStatus,
   isBrowserConnectionSlow,
   visibleTiandituFailure,
@@ -56,8 +57,16 @@ export default function BasemapStatusIndicator({
     return () => window.clearInterval(intervalId);
   }, [diagnostics.basemap, hasExpiringTiandituFailure]);
 
-  const presentation = classifyBasemapStatus(diagnostics, now);
-  const latency = primaryLatency(presentation, diagnostics);
+  const presentation = classifyBasemapStatus(
+    diagnostics,
+    now,
+    basemapSlowThresholdMsFor(activeBasemap),
+  );
+  const latency = primaryLatency(
+    presentation,
+    diagnostics,
+    activeBasemap?.provider,
+  );
   const content = (
     <div className="basemap-status-details">
       <div className="basemap-status-details-heading">
@@ -85,7 +94,7 @@ export default function BasemapStatusIndicator({
           label="底图服务"
           value={formatBasemapServiceDetail(
             activeBasemapName,
-            basemapDetail(diagnostics, now),
+            basemapDetail(diagnostics, now, activeBasemap?.provider),
           )}
         />
       </dl>
@@ -185,22 +194,35 @@ function platformDetail(
 export function basemapDetail(
   diagnostics: ReturnType<typeof useBasemapStatus>["diagnostics"],
   now = Date.now(),
+  provider?: ActiveBasemapDescriptor["provider"],
 ) {
   const failure = visibleTiandituFailure(diagnostics, now);
   const failureDetail = failure
     ? formatTiandituFailureDiagnostic(failure)
     : null;
-  if (diagnostics.recentBasemapFailures > 0) {
+  if (
+    diagnostics.basemap === "failed" ||
+    diagnostics.recentBasemapFailures > 0
+  ) {
     return failureDetail
       ? `加载失败 · ${failureDetail}`
       : `加载失败 · 最近 ${diagnostics.recentBasemapFailures} 次`;
   }
-  if (failureDetail) return `局部波动 · ${failureDetail}`;
+  if (
+    failureDetail &&
+    failure?.details.failureKind === "transient" &&
+    failure.details.failureWindow?.tripped === false
+  ) {
+    return `局部波动 · ${failureDetail}`;
+  }
+  if (failureDetail) return `服务异常 · ${failureDetail}`;
   if (diagnostics.basemap === "loading") return "正在加载当前视野";
   if (diagnostics.basemap === "unknown") return "等待地图初始化";
   return diagnostics.basemapLatencyMs === null
     ? "可访问"
-    : `可访问 · 最近响应 ${diagnostics.basemapLatencyMs} ms`;
+    : provider === "tianditu"
+      ? `可访问 · 近期瓦片就绪（含客户端排队）${diagnostics.basemapLatencyMs} ms`
+      : `可访问 · 最近响应 ${diagnostics.basemapLatencyMs} ms`;
 }
 
 export function formatTiandituFailureDiagnostic(
@@ -234,15 +256,20 @@ function tiandituFailureKindLabel(
   return "瞬时错误";
 }
 
-function primaryLatency(
+export function primaryLatency(
   presentation: BasemapStatusPresentation,
   diagnostics: ReturnType<typeof useBasemapStatus>["diagnostics"],
+  provider?: ActiveBasemapDescriptor["provider"],
 ) {
+  if (presentation.tone === "error" || presentation.label === "底图局部波动") {
+    return null;
+  }
   if (presentation.kind === "platform") {
     return diagnostics.platformLatencyMs;
   }
   if (presentation.kind === "network" && diagnostics.network.rttMs !== null) {
     return diagnostics.network.rttMs;
   }
+  if (provider === "tianditu" && presentation.kind === "healthy") return null;
   return diagnostics.basemapLatencyMs;
 }

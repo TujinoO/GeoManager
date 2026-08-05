@@ -23,6 +23,9 @@ import { downloadBlob } from "../../utils/download";
 import CompositionSettings from "./CompositionSettings";
 import CompositionOutputPanel from "./CompositionOutputPanel";
 
+const autoPreviewDelayMs = 160;
+const previewDpi = 96;
+
 interface Props {
   open: boolean;
   composition: MapComposition | null;
@@ -61,9 +64,11 @@ export default function MapCompositionEditor({
   const [format, setFormat] = useState<"png" | "jpg" | "pdf">("pdf");
   const [versionNote, setVersionNote] = useState("");
   const initializedCompositionId = useRef<number | null>(null);
+  const layoutRef = useRef(layout);
   const previewSequence = useRef(0);
   const previewUrlRef = useRef("");
   const previewAbortController = useRef<AbortController | null>(null);
+  const previewTimer = useRef<number | null>(null);
   const legendItems = useMemo(() => compositionLegendItems(groups), [groups]);
   const issues = useMemo(
     () => compositionIssues(layout, legendItems),
@@ -86,14 +91,14 @@ export default function MapCompositionEditor({
       if (current) URL.revokeObjectURL(current);
       return "";
     });
-    setLayout(
-      normalizeCompositionLayout(
-        composition.layout,
-        composition.name,
-        fallbackBounds,
-        sourceText,
-      ),
+    const nextLayout = normalizeCompositionLayout(
+      composition.layout,
+      composition.name,
+      fallbackBounds,
+      sourceText,
     );
+    layoutRef.current = nextLayout;
+    setLayout(nextLayout);
     setVersionNote("");
   }, [composition, fallbackBounds, sourceText]);
 
@@ -103,6 +108,10 @@ export default function MapCompositionEditor({
 
   useEffect(
     () => () => {
+      if (previewTimer.current !== null) {
+        window.clearTimeout(previewTimer.current);
+        previewTimer.current = null;
+      }
       previewAbortController.current?.abort();
       previewAbortController.current = null;
       previewSequence.current += 1;
@@ -116,6 +125,11 @@ export default function MapCompositionEditor({
       message.warning("地图尚未准备好");
       return;
     }
+    if (previewTimer.current !== null) {
+      window.clearTimeout(previewTimer.current);
+      previewTimer.current = null;
+    }
+    const previewLayout = layoutRef.current;
     const sequence = previewSequence.current + 1;
     previewSequence.current = sequence;
     previewAbortController.current?.abort();
@@ -125,12 +139,12 @@ export default function MapCompositionEditor({
     try {
       const blob = await renderCompositionPng(
         map,
-        layout,
+        previewLayout,
         legendItems,
         accessToken,
         {
-          outputDpi: 96,
-          mapDpi: Math.min(layout.page.dpi, 300),
+          outputDpi: previewDpi,
+          mapDpi: previewDpi,
           signal: controller.signal,
         },
       );
@@ -150,7 +164,7 @@ export default function MapCompositionEditor({
       }
       if (sequence === previewSequence.current) setPreviewing(false);
     }
-  }, [accessToken, layout, legendItems, map, message]);
+  }, [accessToken, legendItems, map, message]);
 
   useEffect(() => {
     previewAbortController.current?.abort();
@@ -160,17 +174,27 @@ export default function MapCompositionEditor({
       setPreviewing(false);
       return;
     }
-    const timer = window.setTimeout(() => void refreshPreview(), 420);
+    const timer = window.setTimeout(() => {
+      if (previewTimer.current === timer) previewTimer.current = null;
+      void refreshPreview();
+    }, autoPreviewDelayMs);
+    previewTimer.current = timer;
     return () => {
       window.clearTimeout(timer);
+      if (previewTimer.current === timer) previewTimer.current = null;
       previewAbortController.current?.abort();
       previewAbortController.current = null;
     };
-  }, [composition, map, open, refreshPreview]);
+  }, [composition?.id, layout, map, open, refreshPreview]);
 
-  const updateLayout = useCallback((next: MapCompositionLayout) => {
-    setLayout(constrainCompositionLayout(next));
-  }, []);
+  const updateLayout = useCallback(
+    (update: (current: MapCompositionLayout) => MapCompositionLayout) => {
+      const next = constrainCompositionLayout(update(layoutRef.current));
+      layoutRef.current = next;
+      setLayout(next);
+    },
+    [],
+  );
 
   async function saveDraft() {
     if (!composition) return null;

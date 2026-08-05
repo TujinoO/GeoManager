@@ -419,7 +419,6 @@ export function useBasemapStatus(
     const scopedKey = scopeKey;
     const readinessTimeoutMs =
       strictBasemapReadinessTimeoutMsFor(scopedBasemap);
-    const attachedAt = performance.now();
     const tileStarts = new BasemapTileRequestTimings();
     const loadCycle = new BasemapSourceLoadCycle(
       expectedBasemapSourceIds(map, scopedBasemap),
@@ -434,19 +433,13 @@ export function useBasemapStatus(
         activeScopeKeyRef.current === scopedKey ? updater(current) : current,
       );
     };
-    const reportReady = (latencyMs: number | null | undefined) => {
+    const reportReady = (latencyMs: number | null) => {
       strictReadinessTimer?.settle();
       if (pendingScopeKeyRef.current === scopedKey) {
         pendingScopeKeyRef.current = null;
       }
       updateDiagnostics((current) => {
-        const resolvedLatencyMs =
-          latencyMs === undefined
-            ? current.basemapLoadingSince === null
-              ? null
-              : Date.now() - current.basemapLoadingSince
-            : latencyMs;
-        return readyBasemapDiagnostics(current, resolvedLatencyMs);
+        return readyBasemapDiagnostics(current, latencyMs);
       });
     };
     const reportFailed = () => {
@@ -562,7 +555,7 @@ export function useBasemapStatus(
           expectedBasemapSourceIds(map, scopedBasemap),
         )
       ) {
-        reportReady(Math.max(1, Math.round(performance.now() - attachedAt)));
+        reportReady(null);
       }
     };
     const handleIdle = () => {
@@ -582,7 +575,7 @@ export function useBasemapStatus(
       ) {
         return;
       }
-      reportReady(undefined);
+      reportReady(null);
     };
     const handleMapError = (event: MapResourceErrorEvent) => {
       const clearlyBusinessResource =
@@ -694,7 +687,6 @@ export function useBasemapStatus(
     retryAbortRef.current?.abort();
     const controller = new AbortController();
     retryAbortRef.current = controller;
-    const startedAt = performance.now();
     void (async () => {
       try {
         const result = await retryBasemap({
@@ -717,12 +709,9 @@ export function useBasemapStatus(
             pendingScopeKeyRef.current = null;
           }
           loadCycle?.completeFromMapLifecycle(activeSourceIds);
-          const latencyMs =
-            result.latencyMs == null
-              ? Math.max(1, Math.round(performance.now() - startedAt))
-              : result.latencyMs;
+          // Only an explicitly supplied tile-level sample may update tile RTT.
           updateDiagnostics((current) =>
-            readyBasemapDiagnostics(current, latencyMs),
+            readyBasemapDiagnostics(current, result.latencyMs ?? null),
           );
         } else {
           if (pendingScopeKeyRef.current === scopedKey) {
@@ -754,7 +743,7 @@ export function useBasemapStatus(
   return { diagnostics, refresh };
 }
 
-function readyBasemapDiagnostics(
+export function readyBasemapDiagnostics(
   current: BasemapDiagnostics,
   latencyMs: number | null,
 ): BasemapDiagnostics {
@@ -782,7 +771,22 @@ function failedBasemapDiagnostics(
     basemap: "failed",
     basemapLoadingSince: null,
     recentBasemapFailures: current.recentBasemapFailures + 1,
+    recentTiandituFailure: shouldKeepFailureDetailAfterHardFailure(
+      current.recentTiandituFailure,
+    )
+      ? current.recentTiandituFailure
+      : null,
   };
+}
+
+function shouldKeepFailureDetailAfterHardFailure(
+  failure: BasemapDiagnostics["recentTiandituFailure"],
+) {
+  return Boolean(
+    failure &&
+    (failure.details.failureKind !== "transient" ||
+      failure.details.failureWindow?.tripped === true),
+  );
 }
 
 export function loadingBasemapDiagnosticsAfterReadinessTimeout(

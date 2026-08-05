@@ -15,6 +15,7 @@ import {
   isHardBasemapStyleError,
   isTolerableTiandituTileError,
   isTrippedTiandituTransientError,
+  mapboxBasemapSwitchTimeoutMs,
   readBasemapCamera,
   readTiandituTileFailure,
   redactBasemapCredentials,
@@ -110,6 +111,7 @@ describe("basemapSwitch", () => {
       failureKind: "transient",
       layer: "vec",
       node: "t1",
+      retryAfterMs: 120_000,
       status: 403,
     });
   });
@@ -137,14 +139,21 @@ describe("basemapSwitch", () => {
     ).toBe(false);
   });
 
-  it("keeps an unclassified Tianditu sourcedata error hard", () => {
+  it("does not escalate an unstructured Tianditu sourcedata error", () => {
     expect(
       isHardTiandituSourceDataError({
         provider: "tianditu",
         sourceDataType: "error",
         error: undefined,
       }),
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      isHardTiandituSourceDataError({
+        provider: "tianditu",
+        sourceDataType: "error",
+        error: new Error("HTTP 404 Not Found"),
+      }),
+    ).toBe(false);
     expect(
       isHardTiandituSourceDataError({
         provider: "tianditu",
@@ -152,6 +161,13 @@ describe("basemapSwitch", () => {
         error: tiandituFailure("transient", false),
       }),
     ).toBe(false);
+    expect(
+      isHardTiandituSourceDataError({
+        provider: "tianditu",
+        sourceDataType: "error",
+        error: tiandituFailure("credentials", true),
+      }),
+    ).toBe(true);
     expect(
       isHardTiandituSourceDataError({
         provider: "mapbox",
@@ -213,12 +229,16 @@ describe("basemapSwitch", () => {
     expect(areBasemapSourcesReady(map, definition)).toBe(false);
   });
 
-  it("allows paced Tianditu loading a longer switch window", () => {
+  it("allows paced Tianditu loading a two-minute switch window", () => {
     expect(basemapSwitchTimeoutMsForProvider("tianditu")).toBe(
       tiandituBasemapSwitchTimeoutMs,
     );
-    expect(basemapSwitchTimeoutMsForProvider("mapbox")).toBe(15_000);
-    expect(tiandituBasemapSwitchTimeoutMs).toBe(45_000);
+    expect(basemapSwitchTimeoutMsForProvider("mapbox")).toBe(
+      mapboxBasemapSwitchTimeoutMs,
+    );
+    expect(mapboxBasemapSwitchTimeoutMs).toBe(60_000);
+    expect(basemapSwitchTimeoutMsForProvider("osm")).toBe(15_000);
+    expect(tiandituBasemapSwitchTimeoutMs).toBe(120_000);
   });
 
   it("selects a stable rate-limit fallback without reselecting Tianditu", () => {
@@ -281,5 +301,6 @@ function tiandituFailure(
     },
     layer: "vec",
     node: "t1",
+    retryAfterMs: 120_000,
   };
 }

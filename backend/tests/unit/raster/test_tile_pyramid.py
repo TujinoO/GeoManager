@@ -69,12 +69,16 @@ class AtomicMbtilesPyramidTests(SimpleTestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             target = Path(tmpdir) / "style.mbtiles"
+            progress_updates: list[tuple[int, int, int]] = []
             first = build_atomic_mbtiles_pyramid(
                 target,
                 style_hash="style-a",
                 bounds=[-half, -half, half, half],
                 metadata=metadata,
                 render_native_tile=render_native,
+                progress=lambda done, total, zoom: progress_updates.append(
+                    (done, total, zoom)
+                ),
             )
             second = build_atomic_mbtiles_pyramid(
                 target,
@@ -89,6 +93,8 @@ class AtomicMbtilesPyramidTests(SimpleTestCase):
             self.assertFalse(first.reused)
             self.assertTrue(second.reused)
             self.assertEqual(first.total_tiles, 5)
+            self.assertEqual(progress_updates[0], (1, 5, 1))
+            self.assertEqual(progress_updates[-1], (5, 5, 0))
             self.assertEqual(read_mbtiles_metadata(target)["complete"], "1")
             for (x, y), color in colors.items():
                 tile = read_mbtiles_tile(target, 1, x, y)

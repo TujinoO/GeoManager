@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   activeBasemapScopeKey,
+  basemapSlowThresholdMsFor,
   classifyBasemapStatus,
   diagnosticsWithTiandituFailure,
   initialBasemapDiagnostics,
@@ -24,6 +25,7 @@ const normalNetwork: BrowserNetworkSnapshot = {
 const activeBasemap: ActiveBasemapDescriptor = {
   id: "tianditu-imagery",
   generation: 3,
+  provider: "tianditu",
   sourceIds: ["tianditu-image", "tianditu-labels"],
   resourceMarkers: ["tianditu.gov.cn"],
 };
@@ -42,6 +44,7 @@ const isolatedTiandituFailure: TiandituTileFailureInfo = {
   },
   layer: "vec",
   node: "t1",
+  retryAfterMs: null,
   status: 403,
 };
 
@@ -113,6 +116,21 @@ describe("classifyBasemapStatus", () => {
     expect(classifyBasemapStatus(current, 16_001).label).toBe("底图正常");
   });
 
+  it("does not let a soft fluctuation hide a confirmed hard failure", () => {
+    const current = diagnosticsWithTiandituFailure(
+      diagnostics({ basemap: "failed", recentBasemapFailures: 1 }),
+      isolatedTiandituFailure,
+      1_000,
+    );
+
+    expect(classifyBasemapStatus(current, 2_000)).toMatchObject({
+      kind: "service",
+      tone: "error",
+      label: "底图服务异常",
+    });
+    expect(visibleTiandituFailure(current, 2_000)).toBeNull();
+  });
+
   it("keeps a tripped Tianditu failure fatal", () => {
     const current = diagnosticsWithTiandituFailure(
       diagnostics({ basemap: "failed", recentBasemapFailures: 1 }),
@@ -163,6 +181,22 @@ describe("classifyBasemapStatus", () => {
       kind: "service",
       tone: "warning",
       label: "底图延迟较高",
+    });
+  });
+
+  it("allows a paced Tianditu view cycle a provider-specific soft threshold", () => {
+    const current = diagnostics({ basemapLatencyMs: 7_103 });
+
+    expect(
+      classifyBasemapStatus(
+        current,
+        10_000,
+        basemapSlowThresholdMsFor(activeBasemap),
+      ),
+    ).toMatchObject({
+      kind: "healthy",
+      tone: "success",
+      label: "底图正常",
     });
   });
 

@@ -1124,7 +1124,54 @@ function LayerItemNode({
           {selected ? "已选" : "选中"}
         </Button>
       </div>
+      <RasterRenderFeedback layer={layer} />
       <LayerLegend layer={layer} />
+    </div>
+  );
+}
+
+function RasterRenderFeedback({ layer }: { layer: LoadedLayer }) {
+  if (layer.layerType !== "raster") return null;
+  const status = layer.renderStatus ?? "";
+  const running = ["queued", "running", "processing"].includes(status);
+  if (!running && status !== "failed") return null;
+
+  const progress = Math.min(100, Math.max(0, layer.renderProgress ?? 0));
+  const messages = layer.renderMessages ?? [];
+  const latestMessage = messages[messages.length - 1];
+  const isUniqueValue = layer.symbolization.mode === "unique";
+  if (status === "failed") {
+    return (
+      <div
+        className="layer-raster-render-feedback is-failed"
+        role="alert"
+        aria-label={`${layer.name}渲染失败`}
+      >
+        <strong>{isUniqueValue ? "唯一值配色渲染失败" : "栅格渲染失败"}</strong>
+        <small>{latestMessage || layer.summary || "请稍后重试"}</small>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="layer-raster-render-feedback"
+      role="status"
+      aria-live="polite"
+      aria-label={`${layer.name}渲染状态`}
+    >
+      <div className="layer-raster-render-heading">
+        <span>
+          <Spin size="small" />
+          {isUniqueValue ? "唯一值配色正在后台生成" : "栅格正在后台渲染"}
+        </span>
+        <b>{Math.round(progress)}%</b>
+      </div>
+      <Progress percent={progress} size="small" showInfo={false} />
+      <small>
+        {latestMessage || "正在准备渲染任务"}
+        ；地图暂时保留当前样式，完成后自动更新
+      </small>
     </div>
   );
 }

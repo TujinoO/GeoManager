@@ -76,6 +76,7 @@ export function useRasterRender(
       groupId: string,
       layerId: string,
       task: RasterRenderTask,
+      completionMessage: string | null,
     ) => {
       const registry = taskRegistryRef.current;
       if (!registry) return;
@@ -97,6 +98,9 @@ export function useRasterRender(
           }));
           if (job.status === "ready" && job.result) {
             applyResult(groupId, layerId, job.result as RasterRenderResult);
+            if (completionMessage) {
+              message.success(completionMessage);
+            }
             return;
           }
           if (job.status === "failed") {
@@ -140,6 +144,11 @@ export function useRasterRender(
       const registry = taskRegistryRef.current;
       if (!registry) return;
       const task = registry.start(`${groupId}:${layerId}`);
+      const isUniqueValueRender =
+        rulesMode === "custom" && symbolization.mode === "unique";
+      const completionMessage = isUniqueValueRender
+        ? `${layer.name}唯一值颜色渲染完成，地图已自动更新`
+        : null;
       updateLayer(groupId, layerId, (current) => ({
         ...current,
         summary: "后台符号化中",
@@ -148,6 +157,12 @@ export function useRasterRender(
         renderMessages: ["提交符号化任务"],
         tileUrl: current.tileUrl,
       }));
+      if (isUniqueValueRender) {
+        message.info(
+          `${layer.name}唯一值颜色正在后台生成；期间地图保留当前样式，完成后会自动更新`,
+          4,
+        );
+      }
 
       try {
         const job = await api.renderRasterAsync(
@@ -171,7 +186,7 @@ export function useRasterRender(
           renderProgress: job.progressPercent,
           renderMessages: job.messages,
         }));
-        await pollJob(job.id, groupId, layerId, task);
+        await pollJob(job.id, groupId, layerId, task, completionMessage);
       } catch (error) {
         if (task.timedOut && registry.isCurrent(task)) {
           updateLayer(groupId, layerId, (current) => ({

@@ -10,6 +10,17 @@ export function RequireAuth() {
   return <Outlet />;
 }
 
+/** The shared guest account has no writable personal settings. */
+export function RequireAccountSelfService() {
+  const { user } = useAppContext();
+  const isGuest =
+    user?.username === "guest" || Boolean(user?.roles.includes("游客"));
+  if (isGuest) {
+    return <Navigate to="/data" replace />;
+  }
+  return <Outlet />;
+}
+
 /** 需要至少一项后台运维能力才能访问运行概览和管理页面 */
 export function RequireAdminAccess() {
   const { user } = useAppContext();

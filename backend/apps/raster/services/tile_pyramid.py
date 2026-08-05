@@ -21,6 +21,7 @@ from apps.raster.services.exceptions import RasterRenderError
 MIN_STATIC_ZOOM = 0
 MAX_STATIC_ZOOM = 22
 MAX_STATIC_TILE_COUNT = 50_000
+PROGRESS_UPDATE_TILE_INTERVAL = 25
 _WEB_MERCATOR_SPAN = WEB_MERCATOR_HALF_WORLD * 2
 _BASE_PIXEL_SIZE = _WEB_MERCATOR_SPAN / DEFAULT_TILE_SIZE
 
@@ -127,6 +128,17 @@ def build_atomic_mbtiles_pyramid(
     )
     completed = 0
     connection: sqlite3.Connection | None = None
+
+    def report_build_progress(zoom: int, *, force: bool = False) -> None:
+        if progress is None:
+            return
+        if (
+            force
+            or completed == 1
+            or completed % PROGRESS_UPDATE_TILE_INTERVAL == 0
+        ):
+            progress(completed, spec.total_tiles, zoom)
+
     try:
         connection = sqlite3.connect(temporary_path)
         connection.execute("PRAGMA journal_mode=OFF")
@@ -169,9 +181,9 @@ def build_atomic_mbtiles_pyramid(
                 render_native_tile(spec.max_zoom, x, y),
             )
             completed += 1
+            report_build_progress(spec.max_zoom)
         connection.commit()
-        if progress:
-            progress(completed, spec.total_tiles, spec.max_zoom)
+        report_build_progress(spec.max_zoom, force=True)
 
         for z in range(spec.max_zoom - 1, spec.min_zoom - 1, -1):
             parent_range = tile_range_for_bounds(bounds, z)
@@ -186,9 +198,9 @@ def build_atomic_mbtiles_pyramid(
                     _parent_tile_from_children(connection, z, x, y),
                 )
                 completed += 1
+                report_build_progress(z)
             connection.commit()
-            if progress:
-                progress(completed, spec.total_tiles, z)
+            report_build_progress(z, force=True)
 
         if completed != spec.total_tiles:
             raise RasterRenderError(

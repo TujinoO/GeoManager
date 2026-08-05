@@ -22,7 +22,9 @@ import {
 interface Props {
   layout: MapCompositionLayout;
   liveMapBounds: MapBounds;
-  onChange: (layout: MapCompositionLayout) => void;
+  onChange: (
+    update: (current: MapCompositionLayout) => MapCompositionLayout,
+  ) => void;
 }
 
 export default function CompositionSettings({
@@ -31,17 +33,31 @@ export default function CompositionSettings({
   onChange,
 }: Props) {
   function patchPage(values: Partial<MapCompositionLayout["page"]>) {
-    onChange({ ...layout, page: { ...layout.page, ...values } });
+    onChange((current) => ({
+      ...current,
+      page: { ...current.page, ...values },
+    }));
   }
   function patchElement<Key extends keyof MapCompositionLayout>(
     key: Key,
     values: Partial<MapCompositionLayout[Key]>,
   ) {
-    const current = layout[key] as Record<string, unknown>;
-    onChange({
-      ...layout,
-      [key]: { ...current, ...values },
+    onChange((currentLayout) => {
+      const current = currentLayout[key] as Record<string, unknown>;
+      return {
+        ...currentLayout,
+        [key]: { ...current, ...values },
+      };
     });
+  }
+  function updateMapBounds(update: (bounds: MapBounds) => MapBounds) {
+    onChange((current) => ({
+      ...current,
+      mapFrame: {
+        ...current.mapFrame,
+        bounds: update(current.mapFrame.bounds),
+      },
+    }));
   }
 
   return (
@@ -62,8 +78,12 @@ export default function CompositionSettings({
                     { label: "A3", value: "A3" },
                   ]}
                   onChange={(preset) =>
-                    onChange(
-                      applyPaperPreset(layout, preset, layout.page.orientation),
+                    onChange((current) =>
+                      applyPaperPreset(
+                        current,
+                        preset,
+                        current.page.orientation,
+                      ),
                     )
                   }
                 />
@@ -76,8 +96,12 @@ export default function CompositionSettings({
                     { label: "纵向", value: "portrait" },
                   ]}
                   onChange={(orientation) =>
-                    onChange(
-                      applyPaperPreset(layout, layout.page.preset, orientation),
+                    onChange((current) =>
+                      applyPaperPreset(
+                        current,
+                        current.page.preset,
+                        orientation,
+                      ),
                     )
                   }
                 />
@@ -106,7 +130,9 @@ export default function CompositionSettings({
                 <Button
                   block
                   onClick={() =>
-                    onChange(restoreStandardCompositionLayout(layout))
+                    onChange((current) =>
+                      restoreStandardCompositionLayout(current),
+                    )
                   }
                 >
                   恢复标准版式
@@ -141,9 +167,9 @@ export default function CompositionSettings({
                     size="small"
                     aria-label="地图范围向左平移"
                     onClick={() =>
-                      patchElement("mapFrame", {
-                        bounds: panMapBounds(layout.mapFrame.bounds, -0.12, 0),
-                      })
+                      updateMapBounds((bounds) =>
+                        panMapBounds(bounds, -0.12, 0),
+                      )
                     }
                   >
                     左移
@@ -152,9 +178,7 @@ export default function CompositionSettings({
                     size="small"
                     aria-label="地图范围向右平移"
                     onClick={() =>
-                      patchElement("mapFrame", {
-                        bounds: panMapBounds(layout.mapFrame.bounds, 0.12, 0),
-                      })
+                      updateMapBounds((bounds) => panMapBounds(bounds, 0.12, 0))
                     }
                   >
                     右移
@@ -163,9 +187,7 @@ export default function CompositionSettings({
                     size="small"
                     aria-label="地图范围向上平移"
                     onClick={() =>
-                      patchElement("mapFrame", {
-                        bounds: panMapBounds(layout.mapFrame.bounds, 0, 0.12),
-                      })
+                      updateMapBounds((bounds) => panMapBounds(bounds, 0, 0.12))
                     }
                   >
                     上移
@@ -174,9 +196,9 @@ export default function CompositionSettings({
                     size="small"
                     aria-label="地图范围向下平移"
                     onClick={() =>
-                      patchElement("mapFrame", {
-                        bounds: panMapBounds(layout.mapFrame.bounds, 0, -0.12),
-                      })
+                      updateMapBounds((bounds) =>
+                        panMapBounds(bounds, 0, -0.12),
+                      )
                     }
                   >
                     下移
@@ -185,9 +207,7 @@ export default function CompositionSettings({
                     size="small"
                     aria-label="放大地图范围"
                     onClick={() =>
-                      patchElement("mapFrame", {
-                        bounds: zoomMapBounds(layout.mapFrame.bounds, 0.8),
-                      })
+                      updateMapBounds((bounds) => zoomMapBounds(bounds, 0.8))
                     }
                   >
                     放大
@@ -196,9 +216,7 @@ export default function CompositionSettings({
                     size="small"
                     aria-label="缩小地图范围"
                     onClick={() =>
-                      patchElement("mapFrame", {
-                        bounds: zoomMapBounds(layout.mapFrame.bounds, 1.25),
-                      })
+                      updateMapBounds((bounds) => zoomMapBounds(bounds, 1.25))
                     }
                   >
                     缩小
@@ -226,17 +244,21 @@ export default function CompositionSettings({
                       { label: "Web Mercator 投影格网", value: "projected" },
                     ]}
                     onChange={(type) =>
-                      patchElement("grid", {
-                        type,
-                        interval:
-                          type === "projected"
-                            ? suggestedProjectedGridInterval(
-                                layout.mapFrame.bounds,
-                              )
-                            : suggestedGeographicGridInterval(
-                                layout.mapFrame.bounds,
-                              ),
-                      })
+                      onChange((current) => ({
+                        ...current,
+                        grid: {
+                          ...current.grid,
+                          type,
+                          interval:
+                            type === "projected"
+                              ? suggestedProjectedGridInterval(
+                                  current.mapFrame.bounds,
+                                )
+                              : suggestedGeographicGridInterval(
+                                  current.mapFrame.bounds,
+                                ),
+                        },
+                      }))
                     }
                   />
                 </Field>

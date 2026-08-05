@@ -37,6 +37,7 @@ export interface TiandituTileFailureInfo {
   failureWindow: TiandituTileFailureWindowSnapshot | null;
   layer: "vec" | "cva" | null;
   node: string | null;
+  retryAfterMs: number | null;
   status: number | null;
 }
 
@@ -51,14 +52,15 @@ const rateLimitFallbackOrder: readonly BasemapId[] = [
 ];
 
 export const defaultBasemapSwitchTimeoutMs = 15_000;
-export const tiandituBasemapSwitchTimeoutMs = 45_000;
+export const mapboxBasemapSwitchTimeoutMs = 60_000;
+export const tiandituBasemapSwitchTimeoutMs = 120_000;
 
 export function basemapSwitchTimeoutMsForProvider(
   provider: BasemapDefinition["provider"],
 ) {
-  return provider === "tianditu"
-    ? tiandituBasemapSwitchTimeoutMs
-    : defaultBasemapSwitchTimeoutMs;
+  if (provider === "tianditu") return tiandituBasemapSwitchTimeoutMs;
+  if (provider === "mapbox") return mapboxBasemapSwitchTimeoutMs;
+  return defaultBasemapSwitchTimeoutMs;
 }
 
 export function areBasemapSourcesReady(
@@ -224,11 +226,9 @@ export function isHardTiandituSourceDataError({
   sourceDataType: string | null | undefined;
   error: unknown;
 }) {
-  return (
-    provider === "tianditu" &&
-    sourceDataType === "error" &&
-    !isTolerableTiandituTileError(error)
-  );
+  if (provider !== "tianditu" || sourceDataType !== "error") return false;
+  const failure = readTiandituTileFailure(error);
+  return failure !== null && !isTolerableTiandituFailureInfo(failure);
 }
 
 export function readTiandituTileFailure(
@@ -253,7 +253,11 @@ export function readTiandituTileFailure(
       layer:
         record.layer === "vec" || record.layer === "cva" ? record.layer : null,
       node: /^t[0-7]$/.test(String(record.node)) ? String(record.node) : null,
-      status: finiteNumber(record.status) ?? finiteNumber(record.statusCode),
+      retryAfterMs: nonNegativeFiniteNumber(record.retryAfterMs),
+      status:
+        finiteNumber(record.upstreamStatus) ??
+        finiteNumber(record.status) ??
+        finiteNumber(record.statusCode),
     };
   }
   for (const key of ["error", "cause", "response"] as const) {
@@ -330,6 +334,11 @@ function normalizedTiandituFailureKind(
     value === "permanent"
     ? value
     : null;
+}
+
+function nonNegativeFiniteNumber(value: unknown) {
+  const number = finiteNumber(value);
+  return number !== null && number >= 0 ? number : null;
 }
 
 function isTolerableTiandituFailureInfo(

@@ -5,16 +5,40 @@ import { describe, expect, it, vi } from "vitest";
 import { LayerContext, type LayerContextValue } from "../hooks/LayerContext";
 import {
   cloneDefaultGroupSymbolization,
+  cloneDefaultRasterSymbolization,
   cloneDefaultVectorSymbolization,
 } from "../symbolization";
 import type {
   LoadedLayerGroup,
+  LoadedRasterLayer,
   LoadedVectorLayer,
   ResourceListItem,
 } from "../types";
 import LayerPanel from "./LayerPanel";
 
 describe("LayerPanel drag ordering", () => {
+  it("keeps categorical raster progress visible while a unique-value style is built", () => {
+    const context = makeContext(
+      [makeGroup("raster-group", [makeRasterLayer()])],
+      vi.fn(),
+    );
+    render(
+      <AntdApp>
+        <LayerContext.Provider value={context}>
+          <LayerPanel />
+        </LayerContext.Provider>
+      </AntdApp>,
+    );
+
+    const status = screen.getByRole("status", {
+      name: "分类栅格渲染状态",
+    });
+    expect(status).toHaveTextContent("唯一值配色正在后台生成");
+    expect(status).toHaveTextContent("37%");
+    expect(status).toHaveTextContent("LUCC 静态瓦片 z16：925/2575");
+    expect(status).toHaveTextContent("完成后自动更新");
+  });
+
   it("orders expanded groups from the group header instead of the child height", async () => {
     const reorderGroups = vi.fn();
     const context = makeContext(
@@ -240,6 +264,34 @@ function makeLayer(id: string, name: string): LoadedVectorLayer {
     summary: "",
     metadata: {},
     symbolization: cloneDefaultVectorSymbolization(),
+    fields: [],
+  };
+}
+
+function makeRasterLayer(): LoadedRasterLayer {
+  const symbolization = cloneDefaultRasterSymbolization();
+  symbolization.mode = "unique";
+  symbolization.uniqueValues = [{ value: 1, label: "林地", color: "#2f7d62" }];
+  return {
+    id: "raster-layer",
+    name: "分类栅格",
+    layerType: "raster",
+    sourceResource: {
+      ...sourceResource(),
+      dataType: "raster",
+      domainType: "raster",
+      defaultView: "map",
+    },
+    rasterDatasetId: 7,
+    rasterKind: "categorical",
+    renderStatus: "running",
+    renderProgress: 37,
+    renderMessages: ["LUCC 静态瓦片 z16：925/2575"],
+    geometryType: "Raster",
+    visible: true,
+    summary: "后台符号化中",
+    metadata: {},
+    symbolization,
     fields: [],
   };
 }

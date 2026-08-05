@@ -12,6 +12,7 @@ import { applyPlatformDocumentTitle } from "./config/platformBrand";
 import {
   AdminIndexRedirect,
   RedirectIfAuth,
+  RequireAccountSelfService,
   RequireAdminAccess,
   RequireAuth,
   RequireDataInventory,
@@ -196,6 +197,10 @@ export default function App() {
               }
             />
             <Route
+              path="/analysis"
+              element={<Navigate to="/nongeo" replace />}
+            />
+            <Route
               path="/results"
               element={
                 <RouteTransition>
@@ -271,7 +276,9 @@ export default function App() {
             </Route>
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<AdminIndexRedirect />} />
-              <Route path="profile" element={<AdminProfilePage />} />
+              <Route element={<RequireAccountSelfService />}>
+                <Route path="profile" element={<AdminProfilePage />} />
+              </Route>
               <Route element={<RequireAdminAccess />}>
                 <Route
                   path="dashboard"
