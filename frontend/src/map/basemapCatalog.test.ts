@@ -8,7 +8,7 @@ import {
 import { tiandituTileProviderName } from "./tiandituTileProviderConfig";
 
 describe("basemapCatalog", () => {
-  it("provides three user choices and keeps OSM as an internal fallback", () => {
+  it("provides four user choices and keeps OSM as an internal fallback", () => {
     const catalog = createBasemapCatalog({
       mapboxAccessToken: "mapbox-test-token",
       tiandituKey: "tianditu-test-key",
@@ -18,13 +18,19 @@ describe("basemapCatalog", () => {
       "mapbox-satellite",
       "mapbox-streets",
       "tianditu-vector",
+      "tianditu-imagery",
       "osm",
     ]);
     expect(
       catalog
         .filter((basemap) => basemap.selectable)
         .map((basemap) => basemap.id),
-    ).toEqual(["mapbox-satellite", "mapbox-streets", "tianditu-vector"]);
+    ).toEqual([
+      "mapbox-satellite",
+      "mapbox-streets",
+      "tianditu-vector",
+      "tianditu-imagery",
+    ]);
     expect(catalog[0].id).toBe("mapbox-satellite");
     expect(resolveBasemapDefinition(catalog, "osm")?.selectable).toBe(false);
   });
@@ -47,13 +53,13 @@ describe("basemapCatalog", () => {
       mapboxAccessToken: "mapbox-test-token",
     });
 
-    expect(
-      resolveBasemapDefinition(catalog, "tianditu-vector")?.credentials,
-    ).toMatchObject({
-      available: false,
-      missing: ["tiandituKey"],
-      reason: "未配置天地图 Key",
-    });
+    for (const id of ["tianditu-vector", "tianditu-imagery"] as const) {
+      expect(resolveBasemapDefinition(catalog, id)?.credentials).toMatchObject({
+        available: false,
+        missing: ["tiandituKey"],
+        reason: "未配置天地图 Key",
+      });
+    }
   });
 
   it("keeps Tianditu usable without Mapbox while warning about business fonts", () => {
@@ -85,37 +91,82 @@ describe("basemapCatalog", () => {
 
     expect(Object.keys(tianditu.style.sources)).toEqual(tianditu.sourceIds);
     const vectorSource = tianditu.style.sources[tianditu.sourceIds[0]] as {
+      url?: string;
       tiles?: string[];
       maxzoom?: number;
       provider?: string;
     };
     const labelSource = tianditu.style.sources[tianditu.sourceIds[1]] as {
+      url?: string;
       tiles?: string[];
       maxzoom?: number;
       provider?: string;
     };
-    expect(vectorSource.tiles).toHaveLength(8);
-    expect(labelSource.tiles).toHaveLength(8);
-    expect(vectorSource.maxzoom).toBe(18);
-    expect(labelSource.maxzoom).toBe(18);
+    expect(vectorSource.tiles).toBeUndefined();
+    expect(labelSource.tiles).toBeUndefined();
+    expect(vectorSource.maxzoom).toBeUndefined();
+    expect(labelSource.maxzoom).toBeUndefined();
     expect(vectorSource.provider).toBe(tiandituTileProviderName);
     expect(labelSource.provider).toBe(tiandituTileProviderName);
-    expect(
-      vectorSource.tiles?.every((url) => url.includes("/vec_w/wmts")),
-    ).toBe(true);
-    expect(labelSource.tiles?.every((url) => url.includes("/cva_w/wmts"))).toBe(
-      true,
-    );
+    expect(vectorSource.url).toContain("/vec_w/wmts");
+    expect(labelSource.url).toContain("/cva_w/wmts");
+    expect(vectorSource.url).toContain("REQUEST=GetCapabilities");
+    expect(labelSource.url).toContain("REQUEST=GetCapabilities");
     const encodedKey = encodeURIComponent(rawKey);
-    expect(
-      [...(vectorSource.tiles ?? []), ...(labelSource.tiles ?? [])].every(
-        (url) => url.includes(`tk=${encodedKey}`) && !url.includes(rawKey),
-      ),
-    ).toBe(true);
+    for (const url of [vectorSource.url, labelSource.url]) {
+      expect(url).toContain(`tk=${encodedKey}`);
+      expect(url).not.toContain(rawKey);
+    }
     expect(tianditu.style.layers?.map((layer) => layer.id)).toEqual([
       tianditu.sourceIds[0],
       tianditu.sourceIds[1],
     ]);
+  });
+
+  it("overzooms the last reliable img_w level while retaining detailed labels", () => {
+    const rawKey = "test imagery key/+?&";
+    const catalog = createBasemapCatalog({ tiandituKey: rawKey });
+    const imagery = resolveBasemapDefinition(catalog, "tianditu-imagery");
+    expect(imagery).toBeDefined();
+    expect(imagery?.requireAllSourceIds).toBe(true);
+    expect(typeof imagery?.style).toBe("object");
+    if (!imagery || typeof imagery.style === "string") {
+      throw new Error("天地图影像应使用内联样式");
+    }
+
+    expect(Object.keys(imagery.style.sources)).toEqual(imagery.sourceIds);
+    const imageSource = imagery.style.sources[imagery.sourceIds[0]] as {
+      url?: string;
+      tiles?: string[];
+      maxzoom?: number;
+      provider?: string;
+    };
+    const labelSource = imagery.style.sources[imagery.sourceIds[1]] as {
+      url?: string;
+      tiles?: string[];
+      maxzoom?: number;
+      provider?: string;
+    };
+    expect(imageSource.tiles).toBeUndefined();
+    expect(labelSource.tiles).toBeUndefined();
+    expect(imageSource.maxzoom).toBeUndefined();
+    expect(labelSource.maxzoom).toBeUndefined();
+    expect(imageSource.provider).toBe(tiandituTileProviderName);
+    expect(labelSource.provider).toBe(tiandituTileProviderName);
+    expect(imageSource.url).toContain("/img_w/wmts");
+    expect(labelSource.url).toContain("/cia_w/wmts");
+    const encodedKey = encodeURIComponent(rawKey);
+    for (const url of [imageSource.url, labelSource.url]) {
+      expect(url).toContain(`tk=${encodedKey}`);
+      expect(url).not.toContain(rawKey);
+    }
+    expect(imagery.style.layers?.map((layer) => layer.id)).toEqual([
+      imagery.sourceIds[0],
+      imagery.sourceIds[1],
+    ]);
+    expect(
+      imagery.style.layers?.every((layer) => layer.maxzoom === undefined),
+    ).toBe(true);
   });
 
   it("uses the explicit preference and fallback order", () => {
@@ -132,9 +183,9 @@ describe("basemapCatalog", () => {
     expect(
       availableBasemapFallback(allAvailable, {
         userPreference: "unknown",
-        systemDefault: "tianditu-vector",
+        systemDefault: "tianditu-imagery",
       }).id,
-    ).toBe("tianditu-vector");
+    ).toBe("tianditu-imagery");
     expect(
       availableBasemapFallback(allAvailable, {
         userPreference: "osm",

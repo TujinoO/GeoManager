@@ -58,12 +58,12 @@ async function openSwitcher() {
 }
 
 describe("BasemapSwitcher", () => {
-  it("shows only the three selectable local previews and marks the active item", async () => {
+  it("shows only the four selectable local previews and marks the active item", async () => {
     render(switcherView());
 
     const dialog = await openSwitcher();
     const options = within(dialog).getAllByRole("button");
-    expect(options).toHaveLength(3);
+    expect(options).toHaveLength(4);
     expect(
       within(dialog).getByRole("button", {
         name: /Mapbox 卫星实景图，当前使用/,
@@ -71,6 +71,7 @@ describe("BasemapSwitcher", () => {
     ).toHaveAttribute("aria-pressed", "true");
     expect(within(dialog).getByText("Mapbox 街道图")).toBeInTheDocument();
     expect(within(dialog).getByText("天地图矢量注记图")).toBeInTheDocument();
+    expect(within(dialog).getByText("天地图卫星影像图")).toBeInTheDocument();
     expect(within(dialog).queryByText(/OpenStreetMap/)).not.toBeInTheDocument();
     expect(dialog.querySelector("img")).toBeNull();
     expect(dialog.innerHTML).not.toMatch(/https?:\/\//i);

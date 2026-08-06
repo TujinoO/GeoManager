@@ -12,6 +12,57 @@ afterEach(() => {
 });
 
 describe("TiandituTileProvider", () => {
+  it.each([
+    ["img", 16],
+    ["cia", 18],
+    ["vec", 18],
+    ["cva", 18],
+  ] as const)(
+    "returns complete %s TileJSON metadata with maxzoom %s",
+    async (layer, maxzoom) => {
+      const rawKey = "metadata key/+?&";
+      const fetchImpl = vi.fn();
+
+      const metadata = await provider({ fetchImpl }).load({
+        request: { url: tiandituMetadataUrl(layer, rawKey) },
+      });
+
+      expect(fetchImpl).not.toHaveBeenCalled();
+      expect(metadata).toMatchObject({
+        attribution: "© 天地图",
+        maxzoom,
+        minzoom: 0,
+        scheme: "xyz",
+        tileSize: 256,
+        tilejson: "3.0.0",
+      });
+      expect(metadata.tiles).toHaveLength(8);
+      expect(
+        metadata.tiles.every(
+          (url: string, index: number) =>
+            url.startsWith(
+              `https://t${index}.tianditu.gov.cn/${layer}_w/wmts?`,
+            ) &&
+            url.includes(`LAYER=${layer}`) &&
+            url.includes(`tk=${encodeURIComponent(rawKey)}`) &&
+            !url.includes(rawKey),
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it("rejects invalid source metadata without leaking its key", async () => {
+    const secret = "must-not-appear";
+    const load = provider({}).load({
+      request: {
+        url: `https://example.test/img_w/wmts?LAYER=img&tk=${secret}`,
+      },
+    });
+
+    await expect(load).rejects.toThrow(/metadata request is invalid/);
+    await expect(load).rejects.not.toThrow(new RegExp(secret));
+  });
+
   it("overrides same-origin policy so browser keys can send the platform origin", async () => {
     const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
       expect(init.referrerPolicy).toBe("strict-origin-when-cross-origin");
@@ -60,6 +111,25 @@ describe("TiandituTileProvider", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     await expect(load).rejects.not.toThrow(/must-not-appear/);
   });
+
+  it.each(["img", "cia"] as const)(
+    "reports the Tianditu imagery layer %s in structured failures",
+    async (layer) => {
+      const load = provider({
+        fetchImpl: vi.fn(async () =>
+          errorResponse(403, JSON.stringify({ code: "301007" })),
+        ),
+      }).loadTile(
+        tile(1),
+        tiandituLoadOptions("t0", layer, new AbortController()),
+      );
+
+      await expect(load).rejects.toMatchObject({
+        failureKind: "credentials",
+        layer,
+      });
+    },
+  );
 
   it("confirms a 301018 key-type response once on an alternate node", async () => {
     vi.useFakeTimers();
@@ -1137,7 +1207,7 @@ function loadOptions(layer: string, controller: AbortController) {
 
 function tiandituLoadOptions(
   node: `t${number}`,
-  layer: "vec" | "cva",
+  layer: TiandituLayer,
   controller: AbortController,
 ) {
   return {
@@ -1146,8 +1216,14 @@ function tiandituLoadOptions(
   };
 }
 
-function tiandituUrl(node: `t${number}`, layer: "vec" | "cva") {
+type TiandituLayer = "vec" | "cva" | "img" | "cia";
+
+function tiandituUrl(node: `t${number}`, layer: TiandituLayer) {
   return `https://${node}.tianditu.gov.cn/${layer}_w/wmts?LAYER=${layer}&tk=must-not-appear`;
+}
+
+function tiandituMetadataUrl(layer: TiandituLayer, key: string) {
+  return `https://t0.tianditu.gov.cn/${layer}_w/wmts?SERVICE=WMTS&REQUEST=GetCapabilities&LAYER=${layer}&tk=${encodeURIComponent(key)}`;
 }
 
 function tileResponse(

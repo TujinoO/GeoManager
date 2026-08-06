@@ -14,7 +14,7 @@ interface BasicSettingValues {
   defaultCenterLon: number;
   defaultCenterLat: number;
   defaultZoom: number;
-  defaultBasemap: string;
+  defaultBasemap: AdminSettings["map"]["defaultBasemap"];
   mapboxAccessToken: string;
   tiandituAccessToken: string;
   uploadMaxMb: number;
@@ -45,6 +45,7 @@ const basemapValueEnum = {
   satellite: { text: "Mapbox 卫星实景图" },
   "mapbox-streets": { text: "Mapbox 街道图" },
   "tianditu-vector": { text: "天地图矢量注记图" },
+  "tianditu-imagery": { text: "天地图卫星影像图" },
 };
 
 const settingDescriptionColumns: ProDescriptionsItemProps<BasicSettingDescriptionItem>[] =

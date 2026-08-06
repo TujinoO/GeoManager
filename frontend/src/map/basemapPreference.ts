@@ -5,6 +5,7 @@ const validBasemapIds = new Set<BasemapId>([
   "mapbox-satellite",
   "mapbox-streets",
   "tianditu-vector",
+  "tianditu-imagery",
 ]);
 
 interface BasemapPreferenceStorage {

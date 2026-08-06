@@ -22808,6 +22808,41 @@ body:has(.login-shell),
   transform: rotate(22deg);
 }
 
+.basemap-switcher-preview-tianditu-imagery {
+  background:
+    radial-gradient(
+      circle at 20% 30%,
+      rgba(176, 192, 137, 0.9) 0 11%,
+      transparent 12%
+    ),
+    radial-gradient(
+      circle at 72% 62%,
+      rgba(104, 126, 73, 0.86) 0 18%,
+      transparent 19%
+    ),
+    linear-gradient(138deg, #315c63 0 27%, #758258 28% 58%, #8a754d 59% 100%);
+}
+
+.basemap-switcher-preview-tianditu-imagery::before {
+  top: -24%;
+  left: 55%;
+  width: 8px;
+  height: 150%;
+  border: 1px solid rgba(244, 235, 198, 0.9);
+  background: rgba(190, 160, 91, 0.92);
+  box-shadow: 0 0 0 1px rgba(35, 58, 47, 0.25);
+  transform: rotate(29deg);
+}
+
+.basemap-switcher-preview-tianditu-imagery::after {
+  right: -4%;
+  bottom: 18%;
+  width: 70%;
+  height: 4px;
+  background: rgba(239, 229, 190, 0.9);
+  transform: rotate(-10deg);
+}
+
 .basemap-switcher-preview-fallback {
   background:
     repeating-linear-gradient(

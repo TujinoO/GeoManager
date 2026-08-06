@@ -123,6 +123,18 @@ describe("basemapSwitch", () => {
     expect(isHardBasemapStyleError(new Error("HTTP 403 Forbidden"))).toBe(true);
   });
 
+  it.each(["img", "cia"] as const)(
+    "preserves the structured Tianditu imagery layer %s",
+    (layer) => {
+      expect(
+        readTiandituTileFailure({
+          ...tiandituFailure("transient", false),
+          layer,
+        }),
+      ).toMatchObject({ layer });
+    },
+  );
+
   it("requires the strict Tianditu provider identity and a normalized window", () => {
     const window = tiandituFailure("transient", false).failureWindow;
     expect(

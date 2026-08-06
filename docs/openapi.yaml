@@ -3902,7 +3902,8 @@ components:
           example: 6.5
         defaultBasemap:
           type: string
-          description: 默认正式底图标识；支持 satellite、mapbox-streets 或 tianditu-vector，历史 osm 配置在下次管理员保存时迁移为 satellite
+          enum: [satellite, mapbox-streets, tianditu-vector, tianditu-imagery, osm]
+          description: 默认底图标识；正式选项为 satellite、mapbox-streets、tianditu-vector 或 tianditu-imagery；osm 只作为历史配置兼容返回或输入，并在管理员下次保存系统设置时迁移为 satellite
           example: satellite
         mapboxAccessToken:
           type: string

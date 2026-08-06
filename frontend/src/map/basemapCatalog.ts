@@ -6,11 +6,17 @@ export type BasemapId =
   | "mapbox-satellite"
   | "mapbox-streets"
   | "tianditu-vector"
+  | "tianditu-imagery"
   | "osm";
 
 export type BasemapProvider = "mapbox" | "tianditu" | "osm";
 export type BasemapCredentialName = "mapboxAccessToken" | "tiandituKey";
-export type BasemapVisual = "satellite" | "streets" | "tianditu" | "fallback";
+export type BasemapVisual =
+  | "satellite"
+  | "streets"
+  | "tianditu"
+  | "tianditu-imagery"
+  | "fallback";
 
 export interface BasemapCredentials {
   mapboxAccessToken?: string;
@@ -59,6 +65,8 @@ export const tiandituMapboxGlyphs =
 
 const tiandituVectorSourceId = "basemap-tianditu-vector";
 const tiandituLabelSourceId = "basemap-tianditu-labels";
+const tiandituImagerySourceId = "basemap-tianditu-imagery";
+const tiandituImageryLabelSourceId = "basemap-tianditu-imagery-labels";
 const osmSourceId = "osm-raster";
 const osmLayerId = "osm-raster";
 
@@ -72,6 +80,10 @@ const tiandituSourceIds = [
   tiandituVectorSourceId,
   tiandituLabelSourceId,
 ] as const;
+const tiandituImagerySourceIds = [
+  tiandituImagerySourceId,
+  tiandituImageryLabelSourceId,
+] as const;
 
 const basemapIdAliases: Readonly<Record<string, BasemapId>> = {
   satellite: "mapbox-satellite",
@@ -80,6 +92,7 @@ const basemapIdAliases: Readonly<Record<string, BasemapId>> = {
   "mapbox-satellite": "mapbox-satellite",
   "mapbox-streets": "mapbox-streets",
   "tianditu-vector": "tianditu-vector",
+  "tianditu-imagery": "tianditu-imagery",
   osm: "osm",
 };
 
@@ -168,6 +181,30 @@ export function createBasemapCatalog(
       visual: "tianditu",
     },
     {
+      id: "tianditu-imagery",
+      label: "天地图卫星影像图",
+      description: "天地图影像底图与中文影像注记组合（非实时影像）",
+      provider: "tianditu",
+      selectable: true,
+      style: createTiandituImageryStyle(credentials.tiandituKey),
+      sourceIds: tiandituImagerySourceIds,
+      requireAllSourceIds: true,
+      errorMarkers: [
+        "tianditu.gov.cn",
+        tiandituImagerySourceId,
+        tiandituImageryLabelSourceId,
+      ],
+      attribution: "© 天地图",
+      credentials: tiandituCredentials,
+      postProcess: {
+        applyExpressionSafety: false,
+        applyChineseLanguage: false,
+        applySatelliteColorCorrection: false,
+        hideAdministrativeBoundaries: false,
+      },
+      visual: "tianditu-imagery",
+    },
+    {
       id: "osm",
       label: "OpenStreetMap 技术兜底",
       description: "内部技术兜底，不提供生产可用性承诺",
@@ -219,6 +256,7 @@ export function availableBasemapFallback(
     "mapbox-satellite",
     "mapbox-streets",
     "tianditu-vector",
+    "tianditu-imagery",
   ];
 
   for (const id of selectableFallbacks) {
@@ -234,49 +272,78 @@ export function availableBasemapFallback(
 function createTiandituVectorStyle(
   key: string | undefined,
 ): StyleSpecification {
+  return createTiandituRasterStyle({
+    baseLayer: "vec",
+    baseSourceId: tiandituVectorSourceId,
+    key,
+    labelLayer: "cva",
+    labelSourceId: tiandituLabelSourceId,
+  });
+}
+
+function createTiandituImageryStyle(
+  key: string | undefined,
+): StyleSpecification {
+  return createTiandituRasterStyle({
+    baseLayer: "img",
+    baseSourceId: tiandituImagerySourceId,
+    key,
+    labelLayer: "cia",
+    labelSourceId: tiandituImageryLabelSourceId,
+  });
+}
+
+type TiandituLayer = "vec" | "cva" | "img" | "cia";
+
+function createTiandituRasterStyle({
+  baseLayer,
+  baseSourceId,
+  key,
+  labelLayer,
+  labelSourceId,
+}: {
+  baseLayer: TiandituLayer;
+  baseSourceId: string;
+  key: string | undefined;
+  labelLayer: TiandituLayer;
+  labelSourceId: string;
+}): StyleSpecification {
   return {
     version: 8,
     glyphs: tiandituMapboxGlyphs,
     sources: {
-      [tiandituVectorSourceId]: {
+      [baseSourceId]: {
         type: "raster",
         provider: tiandituTileProviderName,
-        tiles: tiandituTiles("vec", key),
-        tileSize: 256,
-        maxzoom: 18,
-        attribution: "© 天地图",
+        url: tiandituTileJsonUrl(baseLayer, key),
       },
-      [tiandituLabelSourceId]: {
+      [labelSourceId]: {
         type: "raster",
         provider: tiandituTileProviderName,
-        tiles: tiandituTiles("cva", key),
-        tileSize: 256,
-        maxzoom: 18,
-        attribution: "© 天地图",
+        url: tiandituTileJsonUrl(labelLayer, key),
       },
     },
     layers: [
       {
-        id: tiandituVectorSourceId,
+        id: baseSourceId,
         type: "raster",
-        source: tiandituVectorSourceId,
+        source: baseSourceId,
       },
       {
-        id: tiandituLabelSourceId,
+        id: labelSourceId,
         type: "raster",
-        source: tiandituLabelSourceId,
+        source: labelSourceId,
       },
     ],
   };
 }
 
-function tiandituTiles(layer: "vec" | "cva", key: string | undefined) {
+function tiandituTileJsonUrl(layer: TiandituLayer, key: string | undefined) {
   const encodedKey = encodeURIComponent(key?.trim() ?? "");
-  return Array.from(
-    { length: 8 },
-    (_, index) =>
-      `https://t${index}.tianditu.gov.cn/${layer}_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${layer}&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${encodedKey}`,
-  );
+  // The custom provider intercepts this metadata request and returns TileJSON.
+  // Keeping tiles out of the style lets Mapbox GL retain provider maxzoom and
+  // natively overscale the last available parent tile at higher camera zooms.
+  return `https://t0.tianditu.gov.cn/${layer}_w/wmts?SERVICE=WMTS&REQUEST=GetCapabilities&VERSION=1.0.0&LAYER=${layer}&tk=${encodedKey}`;
 }
 
 function mapboxCredentialState(

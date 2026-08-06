@@ -620,6 +620,44 @@ class AdminSettingsApiTests(TestCase):
             persisted["application"]["map"]["default_basemap"], "satellite"
         )
 
+    def test_map_settings_accept_tianditu_imagery_default(self):
+        user = get_user_model().objects.create_user(
+            username="settings-tianditu-imagery-admin", password="pass12345"
+        )
+        grant(user, ("core", "manage_system_settings"))
+        self.client.force_login(user)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            config_path = root / "app.toml"
+            config_path.write_text(
+                _minimal_config_text(root / "app", root / "research"),
+                encoding="utf-8",
+            )
+            config = load_project_config(config_path, program_root=Path("/opt/app"))
+
+            with override_settings(
+                PROJECT_CONFIG=config, PROGRAM_ROOT=Path("/opt/app")
+            ):
+                response = self.client.post(
+                    "/api/admin/settings/",
+                    data=json.dumps(
+                        {"map": {"defaultBasemap": "tianditu-imagery"}}
+                    ),
+                    content_type="application/json",
+                )
+
+            persisted = tomlkit.parse(config_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["map"]["defaultBasemap"], "tianditu-imagery"
+        )
+        self.assertEqual(
+            persisted["application"]["map"]["default_basemap"],
+            "tianditu-imagery",
+        )
+
     def test_update_upgrades_known_legacy_platform_name_before_persisting(self):
         user = get_user_model().objects.create_user(
             username="settings-brand-admin", password="pass12345"

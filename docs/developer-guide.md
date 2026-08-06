@@ -202,7 +202,7 @@ tianditu_access_token = ""
 
 `tianditu_access_token` 是可选配置。旧配置文件没有该键时，后端按空字符串加载，`GET /api/bootstrap/` 和 `GET /api/admin/settings/` 仍会返回 `map.tiandituAccessToken: ""`，因此现有部署无需配置迁移即可启动。具备 `core.manage_system_settings` 权限的管理员可通过 `POST /api/admin/settings/` 的 `map.tiandituAccessToken` 更新或清空该值，修改会与其他 application 设置一样原子写回启动时指定的源 TOML。
 
-`default_basemap` 的正式选项为 `satellite`、`mapbox-streets` 和 `tianditu-vector`；历史 `osm` 值只作为兼容输入，并在管理员下次保存系统设置时迁移为 `satellite`。OSM 匿名公共瓦片只在三项正式底图均不可用时作为隐藏技术兜底。
+`default_basemap` 的正式选项为 `satellite`、`mapbox-streets`、`tianditu-vector` 和 `tianditu-imagery`；其中 `tianditu-imagery` 使用天地图球面墨卡托 `img_w + cia_w` 影像与中文影像注记组合。`img_w` 固定以 z16 作为平台可靠影像上限，地图继续放大时由 Mapbox GL overscale 最后一级影像，不再请求会返回“该区域无影像”占位图的 z17；`cia_w` 注记继续使用其 z18 上限。历史 `osm` 值只作为兼容输入，并在管理员下次保存系统设置时迁移为 `satellite`。OSM 匿名公共瓦片只在四项正式底图均不可用时作为隐藏技术兜底。
 
 这两个字段都会通过公共 Bootstrap 接口下发给浏览器，只能保存供应商明确允许公开使用的浏览器端 Token/Key，不得保存 Mapbox `sk.*`、下载账户密码或其他服务端私密凭证。管理员接口只接受 Mapbox `pk.*` 公开 Token，并要求天地图 Key 为控制台签发的 32 位字母数字串；该格式校验不能替代供应商控制台中的“浏览器端”类型、生产域名白名单和配额检查。生产环境应为开发、测试和生产分别申请凭证，并在供应商控制台配置可用的域名来源限制和配额告警。天地图瓦片请求使用 `tk` 参数；平台接入球面墨卡托 WMTS 时应使用 `_w` 服务。服务端代理、长期缓存或 CDN 分发需要单独的服务端凭证及供应商书面许可，不使用本浏览器配置替代。
 

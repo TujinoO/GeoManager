@@ -145,6 +145,7 @@ DEFAULT_BASEMAP_ALIASES = {
     "mapbox-streets": "mapbox-streets",
     "tianditu": "tianditu-vector",
     "tianditu-vector": "tianditu-vector",
+    "tianditu-imagery": "tianditu-imagery",
     # Migrate the historical public-tile default to the supported production
     # default whenever an administrator next saves system settings.
     "osm": "satellite",
@@ -3614,8 +3615,8 @@ def _map_patch(value: Any) -> dict[str, Any] | JsonResponse:
             return JsonResponse(
                 {
                     "detail": (
-                        "defaultBasemap 仅支持 satellite、mapbox-streets "
-                        "或 tianditu-vector"
+                        "defaultBasemap 仅支持 satellite、mapbox-streets、"
+                        "tianditu-vector 或 tianditu-imagery"
                     )
                 },
                 status=400,

@@ -23,6 +23,10 @@ const maxErrorBodyCharacters = 4_096;
 // origin across sites, never the current path or query string.
 const tiandituReferrerPolicy = "strict-origin-when-cross-origin";
 const tiandituNodePattern = /^t([0-7])\.tianditu\.gov\.cn$/i;
+const tiandituSourcePathPattern = /^\/(vec|cva|img|cia)_w\/wmts$/i;
+const tiandituAttribution = "© 天地图";
+const tiandituDefaultMaxZoom = 18;
+const tiandituImageryReliableMaxZoom = 16;
 const credentialServiceCodes = new Set(["301007", "301018"]);
 const credentialConfirmationServiceCodes = new Set(["301018"]);
 
@@ -492,6 +496,29 @@ export class TiandituTileProvider {
     this.random = dependencies.random ?? Math.random;
   }
 
+  async load({ request } = {}) {
+    const source = parseTiandituSourceMetadataRequest(request?.url);
+    if (!source) {
+      // Do not include the URL because it carries the browser-visible key.
+      throw new Error("Tianditu source metadata request is invalid");
+    }
+
+    return {
+      tilejson: "3.0.0",
+      tiles: tiandituTiles(source.layer, source.key),
+      tileSize: 256,
+      minzoom: 0,
+      // img_w returns HTTP-200 placeholder tiles from z17 in the platform
+      // coverage area. This cap makes Mapbox GL overscale real z16 imagery.
+      maxzoom:
+        source.layer === "img"
+          ? tiandituImageryReliableMaxZoom
+          : tiandituDefaultMaxZoom,
+      attribution: tiandituAttribution,
+      scheme: "xyz",
+    };
+  }
+
   async loadTile(_tile, { request, signal }) {
     let retryAfterMs = null;
     let nodeAttempt = 0;
@@ -674,6 +701,36 @@ export class TiandituTileProvider {
   }
 }
 
+function parseTiandituSourceMetadataRequest(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
+    const pathLayer = url.pathname.match(tiandituSourcePathPattern)?.[1];
+    const queryLayer = url.searchParams.get("LAYER")?.toLowerCase();
+    const layer = pathLayer?.toLowerCase();
+    if (
+      url.protocol !== "https:" ||
+      !tiandituNodePattern.test(url.hostname) ||
+      !layer ||
+      queryLayer !== layer ||
+      !url.searchParams.has("tk")
+    ) {
+      return null;
+    }
+    return { key: url.searchParams.get("tk") ?? "", layer };
+  } catch {
+    return null;
+  }
+}
+
+function tiandituTiles(layer, key) {
+  const encodedKey = encodeURIComponent(key);
+  return Array.from(
+    { length: 8 },
+    (_, index) =>
+      `https://t${index}.tianditu.gov.cn/${layer}_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=${layer}&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${encodedKey}`,
+  );
+}
+
 async function readTiandituErrorDetails(response) {
   if (typeof response.text !== "function") {
     return { credentialHint: false, serviceCode: null };
@@ -755,10 +812,15 @@ function parseTiandituUrl(rawUrl) {
 function tiandituLayer(rawUrl) {
   try {
     const url = new URL(rawUrl);
-    const pathLayer = url.pathname.match(/\/(vec|cva)_w(?:\/|$)/i)?.[1];
+    const pathLayer = url.pathname.match(/\/(vec|cva|img|cia)_w(?:\/|$)/i)?.[1];
     const queryLayer = url.searchParams.get("LAYER");
     const layer = (pathLayer ?? queryLayer ?? "").toLowerCase();
-    return layer === "vec" || layer === "cva" ? layer : null;
+    return layer === "vec" ||
+      layer === "cva" ||
+      layer === "img" ||
+      layer === "cia"
+      ? layer
+      : null;
   } catch {
     return null;
   }

@@ -62,6 +62,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260801-001 | Verified | `GET /api/bootstrap/`, `GET/POST /api/admin/settings/` | response/request field | Updated | Updated | Implemented | Passed | Adds an optional browser-safe Tianditu Key while keeping legacy TOML files valid |
 | API-20260801-002 | Verified | `POST /api/raster/render/`, completed raster render jobs | response fields / tile delivery semantics | Updated | Updated | Implemented | Passed | Adds native zoom and sampling metadata; categorical styles become atomically published nearest-neighbor tile pyramids |
 | API-20260802-001 | Verified | bootstrap/admin settings and upload endpoints | validation / deployment safety | Updated | N/A | Implemented | Passed | Raises the disk-backed upload ceiling to 1024 MB while retaining parser-specific memory limits |
+| API-20260806-001 | Verified | bootstrap/admin settings map configuration | accepted configuration value / response enum | Updated | N/A | Implemented | Passed | Adds `tianditu-imagery` as the fourth formal and configurable default basemap |
 
 ## Entry Template
 
@@ -629,7 +630,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 
 ## API-20260731-001 - Bounded And Persistable Admin Runtime Limits
 
-- Status: BackendReady
+- Status: Verified
 - Owner: Frontend/backend implementer
 - Endpoints: `POST /api/admin/settings/`
 - Change type: request validation | error response | deployment safety
@@ -638,7 +639,7 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Frontend reason: Editable descriptions submit only the active field, so the page must merge it with current settings before saving and must not advertise values that the server or small-memory deployment cannot safely support.
 - Backend implementation notes: Enforce 1–120 MB, 100–10,000 results, 1–12,000 pixels and 10–600 seconds before touching the TOML; keep atomic replacement and require a writable directory mounted at `/config` instead of a single-file bind mount.
 - Verification: Run OpenAPI generation/lint/change checks, focused core admin-settings tests, frontend settings tests, typecheck and build.
-- Result: Pending final verification.
+- Result: Passed. All 384 frontend unit tests, 48 relevant browser tests and all 12 backend admin-settings integration tests passed; TypeScript, OpenAPI lint/generation/change checks, API documentation, Prism bundle generation and the production build passed. A real Chrome session confirmed four selectable basemaps, successful HTTP 200 tile requests from both `img_w` and `cia_w`, visible satellite imagery with Chinese labels after pan/zoom, and a successful switch back to Mapbox. OpenAPI lint retains only six pre-existing unused-component warnings.
 
 ## API-20260802-001 - One-GiB Disk-Backed Upload Ceiling
 
@@ -652,3 +653,16 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Backend implementation notes: Reuse one 1–1024 MB constant in startup config, runtime TOML reads and admin validation; give Waitress a 1152 MiB multipart ceiling and 720-second channel timeout; retain Django 10 MiB request/2 MiB file-memory thresholds; cap vector imports at `min(uploadMaxMb, 120)`, keep the existing 16 MB table parser limit, and preserve the former global protection for in-memory map-composition decoding with an independent 128 MB PNG ceiling. Deployment samples remain at the safe 64 MB default, and the mounted production TOML must be changed explicitly after the new image passes health checks.
 - Verification: Run OpenAPI lint/generation/change checks, focused config/admin/vector/entrypoint tests, the admin browser regression, frontend typecheck and production build.
 - Result: Passed. All 583 backend tests, all 305 frontend unit tests and all 43 admin browser tests passed; OpenAPI generation/lint/change tracking, generated-client comparison, API documentation and Prism bundle generation passed; TypeScript, focused frontend lint/format and the production build passed. OpenAPI lint retains only six pre-existing unused-component warnings. The repository-wide frontend format check still reports 139 pre-existing files outside this change, including untracked `.playwright-cli` records; the three edited frontend files pass focused formatting and lint checks.
+
+## API-20260806-001 - Tianditu Imagery Default Basemap
+
+- Status: BackendReady
+- Owner: Frontend/backend implementer
+- Endpoints: `GET /api/bootstrap/`, `GET /api/admin/settings/`, `POST /api/admin/settings/`
+- Change type: accepted configuration value | response enum documentation
+- OpenAPI change: Extends `MapConfig.defaultBasemap` with `tianditu-imagery` for the Tianditu spherical-Mercator `img_w + cia_w` imagery and Chinese-label combination; response fields, authentication and status codes are unchanged.
+- Mock examples: N/A; existing `satellite` examples remain valid and the new accepted value is covered by focused frontend catalog and backend settings tests.
+- Frontend reason: The geographic workbench now exposes Tianditu imagery as the fourth formal basemap and administrators need to select the same canonical ID as the platform default.
+- Backend implementation notes: Accept and persist only the canonical `tianditu-imagery` value through the existing TOML-backed settings path; reuse the existing public Tianditu browser Key and do not add a proxy, credential field or database migration.
+- Verification: Run OpenAPI lint/generation/change checks, focused frontend basemap/provider/browser tests, the focused backend settings test, TypeScript and the production build, then exercise the switch in a real browser.
+- Result: Pending final verification.

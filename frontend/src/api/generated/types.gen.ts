@@ -212,9 +212,9 @@ export type MapConfig = {
      */
     defaultZoom: number;
     /**
-     * 默认正式底图标识；支持 satellite、mapbox-streets 或 tianditu-vector，历史 osm 配置在下次管理员保存时迁移为 satellite
+     * 默认底图标识；正式选项为 satellite、mapbox-streets、tianditu-vector 或 tianditu-imagery；osm 只作为历史配置兼容返回或输入，并在管理员下次保存系统设置时迁移为 satellite
      */
-    defaultBasemap: string;
+    defaultBasemap: 'satellite' | 'mapbox-streets' | 'tianditu-vector' | 'tianditu-imagery' | 'osm';
     /**
      * 前端加载 Mapbox 服务所需的 pk.* 浏览器公开 Token；为空字符串表示未配置，sk.* 私密 Token 会被拒绝
      */

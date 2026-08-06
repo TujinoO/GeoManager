@@ -32,6 +32,15 @@ describe("basemapPreference", () => {
     expect(readBasemapPreference("user:8", storage)).toBeNull();
   });
 
+  it("persists the Tianditu imagery preference", () => {
+    const storage = memoryStorage();
+
+    expect(writeBasemapPreference("user:9", "tianditu-imagery", storage)).toBe(
+      true,
+    );
+    expect(readBasemapPreference("user:9", storage)).toBe("tianditu-imagery");
+  });
+
   it("does not restore or persist the hidden OSM technical fallback", () => {
     const key = basemapPreferenceKey("user:8");
     const storage = memoryStorage({ [key]: "osm" });

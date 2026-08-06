@@ -35,7 +35,7 @@ export interface TiandituTileFailureInfo {
   businessCode: string | null;
   failureKind: TiandituTileFailureKind;
   failureWindow: TiandituTileFailureWindowSnapshot | null;
-  layer: "vec" | "cva" | null;
+  layer: "vec" | "cva" | "img" | "cia" | null;
   node: string | null;
   retryAfterMs: number | null;
   status: number | null;
@@ -251,7 +251,12 @@ export function readTiandituTileFailure(
       failureKind,
       failureWindow: normalizedFailureWindow(record.failureWindow),
       layer:
-        record.layer === "vec" || record.layer === "cva" ? record.layer : null,
+        record.layer === "vec" ||
+        record.layer === "cva" ||
+        record.layer === "img" ||
+        record.layer === "cia"
+          ? record.layer
+          : null,
       node: /^t[0-7]$/.test(String(record.node)) ? String(record.node) : null,
       retryAfterMs: nonNegativeFiniteNumber(record.retryAfterMs),
       status:
