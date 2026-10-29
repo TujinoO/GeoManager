@@ -9,7 +9,7 @@ disable_catalog_startup_scan = true
 disable_raster_startup_scan = true
 
 [application.system]
-name = "干旱区胡杨林生态智慧监测平台"
+name = "全球胡杨林生态系统保护数据共享平台"
 allow_registration = true
 
 [application.storage]

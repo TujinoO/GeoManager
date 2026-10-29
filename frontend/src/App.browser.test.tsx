@@ -642,12 +642,12 @@ describe("application critical flows", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
-        name: "干旱区胡杨林生态智慧监测平台",
+        name: "全球胡杨林生态系统保护数据共享平台",
       }),
     ).toBeInTheDocument();
     expect(
       screen.getAllByText(
-        "Arid-region Poplar Forest Ecological Intelligent Monitoring Platform",
+        "Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform",
       ).length,
     ).toBeGreaterThan(0);
 
@@ -689,16 +689,19 @@ describe("application critical flows", () => {
     ).toBeInTheDocument();
   });
 
-  it("upgrades a legacy bootstrap name in the browser tab", async () => {
+  it.each([
+    "中亚胡杨林生态系统保护数据共享平台",
+    "干旱区胡杨林生态智慧监测平台",
+  ])("normalizes bootstrap name %s in the browser tab", async (systemName) => {
     mockApi.bootstrap.mockResolvedValueOnce({
       ...bootstrap,
-      systemName: "中亚胡杨林生态系统保护数据共享平台",
+      systemName,
     });
 
     renderApp("/login");
 
     await screen.findByRole("heading", { name: "用户登录" });
-    expect(document.title).toBe("干旱区胡杨林生态智慧监测平台");
+    expect(document.title).toBe("全球胡杨林生态系统保护数据共享平台");
   });
 
   it("submits required email and a separate research role application", async () => {

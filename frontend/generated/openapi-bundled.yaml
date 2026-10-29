@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: 干旱区胡杨林生态智慧监测平台 API
+  title: 全球胡杨林生态系统保护数据共享平台 API
   description: |
-    干旱区胡杨林生态智慧监测平台后端接口文档。
+    全球胡杨林生态系统保护数据共享平台后端接口文档。
 
     ## 认证方式
     本平台使用 Django Session 认证机制：
@@ -3730,8 +3730,8 @@ components:
       properties:
         systemName:
           type: string
-          description: 系统显示名称；已知的历史平台名称会自动升级为当前确认的“干旱区胡杨林生态智慧监测平台”，自定义部署名称保持不变
-          example: 干旱区胡杨林生态智慧监测平台
+          description: 系统显示名称；已知的历史平台名称会自动升级为当前确认的“全球胡杨林生态系统保护数据共享平台”，自定义部署名称保持不变
+          example: 全球胡杨林生态系统保护数据共享平台
         allowRegistration:
           type: boolean
           description: 是否允许用户自助注册
@@ -3782,19 +3782,19 @@ components:
         chineseName:
           type: string
           description: 平台中文全称，用于登录页主标题和 logo 替代文本。
-          example: 干旱区胡杨林生态智慧监测平台
+          example: 全球胡杨林生态系统保护数据共享平台
         englishName:
           type: string
           description: 平台英文名称，用于登录页英文标题和品牌副标题。
-          example: Arid-region Poplar Forest Ecological Intelligent Monitoring Platform
+          example: Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform
         abbreviation:
           type: string
           description: 平台英文缩写，用于品牌区短名称。
-          example: APF-EIMP
+          example: GPEDSP
         edition:
           type: string
           description: 平台版本型号或发行版名称，用于登录页底部版本栏。
-          example: APF-EIMP · WebGIS Monitoring Edition
+          example: GPEDSP · WebGIS Research Edition
         version:
           type: string
           description: 当前软件语义化版本号，用于登录页底部版本栏。
@@ -3809,7 +3809,7 @@ components:
         badge:
           type: string
           description: 登录页主标题上方的短标签文案。
-          example: 生态智慧监测平台
+          example: 生态保护数据共享平台
         summary:
           type: string
           description: 平台一句话概述，需高度概括平台数据集成、可视化、查询分析与共享服务能力。

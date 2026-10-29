@@ -748,3 +748,12 @@ CREATE TABLE gpkg_data_columns (
 - 前端统一使用 `i18next` / `react-i18next`，Ant Design、Day.js、`html lang`、浏览器标题、登录页、公共导航、数据目录、数据加载面板、预警页、资源中心与管理布局随语言切换。`pnpm run i18n:check` 校验中英文词典键和静态引用。
 - API 客户端统一发送 `Accept-Language`；Django 启用 `LocaleMiddleware`，公开登录概览、认证入口、统一登录/权限错误按请求语言返回。响应结构未改变，因此不修改 OpenAPI；旧接口仍保留 `detail` 字段和前端兼容翻译。
 - Mapbox 可切换 `zh-Hans` / `en` 名称字段；天地图注记为中文栅格瓦片，英文模式不能改写其地名内容。用户上传的资源名、文件名、人员机构名和自由文本保持原始数据，不做运行时机器翻译。
+
+# 2026-10-29 平台正式名称恢复
+
+- GitHub `main` 核查结果：V3.21 `61e39e3a2cb76d8ca5c53a4ce1fa4d2d2a6ccdf8` 是临时改名前的最后版本；V3.22 `15881503236ca50d21fada74cb40b475a8d2e7f4` 修改品牌；当前 V3.23 `1ebec8e94782529357dd4e2d343c641dbf287ab2` 增加双语与栅格加载更新。
+- 按用户要求仅恢复“全球胡杨林生态系统保护数据共享平台”及对应英文名、GPEDSP 缩写和 Research Edition，保留 V3.23 功能。
+- 前后端同步恢复品牌、登录短标签、浏览器标题、Logo 替代文本、英文内容和演示数据署名。临时名称作为已知别名归一化，保留自定义部署名；没有数据库、权限、数据路径或栅格逻辑变更。
+- API 字段结构不变；同步更新 OpenAPI 描述和示例、开发者指南及生成客户端、API 页面、Prism 规范。验证结果见 API-20261029-001。
+- 验证通过：前端单元测试 398 项、登录与应用浏览器测试 20 项、后端核心 API 测试 127 项及 32 个子测试，以及品牌、双语、API 生成一致性、类型、针对性格式与构建检查。Pixi 本机不可用，后端使用现有 GeoManager Conda 环境（Python 3.12.13 / Django 6.0.6）；未验证 Pixi Python 3.14 环境。
+- 用户确认仅恢复本地代码；工作分支为 `codex/branding-restore-gpedsp`，不推送 GitHub、不部署服务器。

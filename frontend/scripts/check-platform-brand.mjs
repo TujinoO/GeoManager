@@ -1,9 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-const canonicalName = "干旱区胡杨林生态智慧监测平台";
+const canonicalName = "全球胡杨林生态系统保护数据共享平台";
 const legacyNames = [
-  "全球胡杨林生态系统保护数据共享平台",
+  "干旱区胡杨林生态智慧监测平台",
   "中亚胡杨林生态系统保护数据共享平台",
   "中亚胡杨林生态保护数据共享平台",
   "中亚胡杨林生态数据共享平台",

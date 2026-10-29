@@ -200,14 +200,14 @@ class BootstrapApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.json()["allowRegistration"])
 
-    def test_bootstrap_upgrades_previous_canonical_platform_name(self):
+    def test_bootstrap_restores_temporary_platform_name(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             config_path = root / "app.toml"
             config_path.write_text(
                 _minimal_config_text(root / "app", root / "research").replace(
                     'name = "测试系统"',
-                    'name = "全球胡杨林生态系统保护数据共享平台"',
+                    'name = "干旱区胡杨林生态智慧监测平台"',
                 ),
                 encoding="utf-8",
             )
@@ -219,7 +219,7 @@ class BootstrapApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.json()["systemName"],
-            "干旱区胡杨林生态智慧监测平台",
+            "全球胡杨林生态系统保护数据共享平台",
         )
 
 
@@ -359,16 +359,16 @@ class LoginOverviewApiTests(TestCase):
         payload = response.json()
         self.assertEqual(
             payload["platform"]["chineseName"],
-            "干旱区胡杨林生态智慧监测平台",
+            "全球胡杨林生态系统保护数据共享平台",
         )
         self.assertEqual(
             payload["platform"]["englishName"],
-            "Arid-region Poplar Forest Ecological Intelligent Monitoring Platform",
+            "Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform",
         )
-        self.assertEqual(payload["platform"]["abbreviation"], "APF-EIMP")
+        self.assertEqual(payload["platform"]["abbreviation"], "GPEDSP")
         self.assertEqual(
             payload["platform"]["edition"],
-            "APF-EIMP · WebGIS Monitoring Edition",
+            "GPEDSP · WebGIS Research Edition",
         )
         self.assertEqual(payload["platform"]["version"], "v0.1.0")
         metrics = {item["id"]: item for item in payload["metrics"]}
@@ -424,7 +424,7 @@ class LoginOverviewApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(
-            payload["hero"]["badge"], "Ecological Intelligent Monitoring Platform"
+            payload["hero"]["badge"], "Ecological Conservation Data Sharing Platform"
         )
         self.assertEqual(payload["metrics"][0]["label"], "Data resources")
         self.assertEqual(payload["serviceStatus"]["title"], "Platform service status")
@@ -699,9 +699,9 @@ class AdminSettingsApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.json()["systemName"],
-            "干旱区胡杨林生态智慧监测平台",
+            "全球胡杨林生态系统保护数据共享平台",
         )
-        self.assertIn('name = "干旱区胡杨林生态智慧监测平台"', persisted)
+        self.assertIn('name = "全球胡杨林生态系统保护数据共享平台"', persisted)
 
     def test_update_refreshes_runtime_upload_limit_without_restart(self):
         user = get_user_model().objects.create_user(

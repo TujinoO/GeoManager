@@ -570,7 +570,7 @@ function EnglishSystemOverview() {
           conservation and scientific collaboration
         </Typography.Title>
         <Typography.Paragraph>
-          APF-EIMP organizes multi-source materials from northwestern China and
+          GPEDSP organizes multi-source materials from northwestern China and
           Central Asian drylands into a durable research workspace. It connects
           ecological patterns, field observations, sample records, and molecular
           evidence while preserving source, access scope, quality notes, and

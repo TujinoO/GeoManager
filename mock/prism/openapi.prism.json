@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "干旱区胡杨林生态智慧监测平台 API",
-    "description": "干旱区胡杨林生态智慧监测平台后端接口文档。\n\n## 认证方式\n本平台使用 Django Session 认证机制：\n1. `GET /api/auth/csrf/` 获取 CSRF Token\n2. `POST /api/auth/login/` 登录建立 Session\n3. 后续请求携带 `sessionid` Cookie 和 `X-CSRFToken` 请求头\n\n## 权限体系\n- **功能权限**：30 余项细粒度功能权限，通过用户组分配，按后台权限、日志权限、概览权限、数据权限、人员权限分组管理\n- **数据访问权限**：基于 `access_groups` 的数据隔离\n\n## 错误处理\n所有错误响应包含 `detail` 字段描述错误原因。\nAPI 接口不会返回登录页 HTML：未认证请求返回 JSON `401`，CSRF 校验失败返回 JSON `403`。\n",
+    "title": "全球胡杨林生态系统保护数据共享平台 API",
+    "description": "全球胡杨林生态系统保护数据共享平台后端接口文档。\n\n## 认证方式\n本平台使用 Django Session 认证机制：\n1. `GET /api/auth/csrf/` 获取 CSRF Token\n2. `POST /api/auth/login/` 登录建立 Session\n3. 后续请求携带 `sessionid` Cookie 和 `X-CSRFToken` 请求头\n\n## 权限体系\n- **功能权限**：30 余项细粒度功能权限，通过用户组分配，按后台权限、日志权限、概览权限、数据权限、人员权限分组管理\n- **数据访问权限**：基于 `access_groups` 的数据隔离\n\n## 错误处理\n所有错误响应包含 `detail` 字段描述错误原因。\nAPI 接口不会返回登录页 HTML：未认证请求返回 JSON `401`，CSRF 校验失败返回 JSON `403`。\n",
     "version": "0.1.0",
     "contact": {
       "name": "API Support",
@@ -12626,8 +12626,8 @@
         "properties": {
           "systemName": {
             "type": "string",
-            "description": "系统显示名称；已知的历史平台名称会自动升级为当前确认的“干旱区胡杨林生态智慧监测平台”，自定义部署名称保持不变",
-            "example": "干旱区胡杨林生态智慧监测平台"
+            "description": "系统显示名称；已知的历史平台名称会自动升级为当前确认的“全球胡杨林生态系统保护数据共享平台”，自定义部署名称保持不变",
+            "example": "全球胡杨林生态系统保护数据共享平台"
           },
           "allowRegistration": {
             "type": "boolean",
@@ -12695,22 +12695,22 @@
           "chineseName": {
             "type": "string",
             "description": "平台中文全称，用于登录页主标题和 logo 替代文本。",
-            "example": "干旱区胡杨林生态智慧监测平台"
+            "example": "全球胡杨林生态系统保护数据共享平台"
           },
           "englishName": {
             "type": "string",
             "description": "平台英文名称，用于登录页英文标题和品牌副标题。",
-            "example": "Arid-region Poplar Forest Ecological Intelligent Monitoring Platform"
+            "example": "Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform"
           },
           "abbreviation": {
             "type": "string",
             "description": "平台英文缩写，用于品牌区短名称。",
-            "example": "APF-EIMP"
+            "example": "GPEDSP"
           },
           "edition": {
             "type": "string",
             "description": "平台版本型号或发行版名称，用于登录页底部版本栏。",
-            "example": "APF-EIMP · WebGIS Monitoring Edition"
+            "example": "GPEDSP · WebGIS Research Edition"
           },
           "version": {
             "type": "string",
@@ -12730,7 +12730,7 @@
           "badge": {
             "type": "string",
             "description": "登录页主标题上方的短标签文案。",
-            "example": "生态智慧监测平台"
+            "example": "生态保护数据共享平台"
           },
           "summary": {
             "type": "string",

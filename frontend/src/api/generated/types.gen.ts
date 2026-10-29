@@ -20,7 +20,7 @@ export type DetailResponse = {
 
 export type BootstrapResponse = {
     /**
-     * 系统显示名称；已知的历史平台名称会自动升级为当前确认的“干旱区胡杨林生态智慧监测平台”，自定义部署名称保持不变
+     * 系统显示名称；已知的历史平台名称会自动升级为当前确认的“全球胡杨林生态系统保护数据共享平台”，自定义部署名称保持不变
      */
     systemName: string;
     /**

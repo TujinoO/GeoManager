@@ -85,8 +85,8 @@ def login_overview(request):
             },
             "hero": {
                 "badge": localized(
-                    "生态智慧监测平台",
-                    "Ecological Intelligent Monitoring Platform",
+                    "生态保护数据共享平台",
+                    "Ecological Conservation Data Sharing Platform",
                 ),
                 "summary": localized(
                     (

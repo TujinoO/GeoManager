@@ -3,6 +3,12 @@
 > 全球胡杨林生态系统保护数据共享平台
 > 版本：v0.1.0
 
+### 平台名称恢复（2026-10-29）
+
+当前正式名称为“全球胡杨林生态系统保护数据共享平台”，英文名称为“Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform”，缩写为 GPEDSP，发行版为“GPEDSP · WebGIS Research Edition”。此次恢复名称保留 V3.23 的双语切换与栅格加载流程。
+
+`GET /api/bootstrap/`、`GET/POST /api/admin/settings/` 和 `GET /api/login/overview/` 将已知临时名称“干旱区胡杨林生态智慧监测平台”归一化为正式名称；已有“中亚胡杨”别名继续支持，自定义部署名称保持原值。接口字段、类型、状态码和权限没有变化，不需要数据库迁移或手工修改已有 TOML。此次前后端联动仅调整品牌展示、名称归一化及对应 API 文档与生成产物。
+
 ---
 
 ## 目录

@@ -65,6 +65,8 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 | API-20260806-001 | Verified | bootstrap/admin settings map configuration | accepted configuration value / response enum | Updated | N/A | Implemented | Passed | Adds `tianditu-imagery` as the fourth formal and configurable default basemap |
 | API-20260810-001 | Verified | `GET /api/bootstrap/`, `GET/POST /api/admin/settings/`, `GET /api/login/overview/` | response/example value normalization | Updated | N/A | Implemented | Passed | Temporarily presents the arid-region intelligent-monitoring brand while normalizing the previous canonical name and preserving unrelated custom deployments |
 
+| API-20261029-001 | Verified | `GET /api/bootstrap/`, `GET/POST /api/admin/settings/`, `GET /api/login/overview/` | response/example value normalization | Updated | Regenerated | Implemented | Passed | Restores the global conservation data-sharing brand while preserving V3.23 functionality |
+
 ## Entry Template
 
 ```markdown
@@ -81,6 +83,19 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - Verification: commands or response checks required before marking implemented
 - Result: current backend/frontend verification result
 ```
+
+## API-20261029-001 - Restore the global conservation data-sharing brand
+
+- Status: Verified
+- Owner: Frontend/backend implementer; explicit cross-stack handoff authorized by the user to restore only the platform name
+- Endpoints: `GET /api/bootstrap/`, `GET/POST /api/admin/settings/`, `GET /api/login/overview/`
+- Change type: response/example value normalization | frontend metadata
+- OpenAPI change: Restores 全球胡杨林生态系统保护数据共享平台, Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform, GPEDSP and GPEDSP · WebGIS Research Edition. Fields, types, authentication, permissions and status codes are unchanged.
+- Mock examples: Regenerate `mock/prism/openapi.prism.json` from the canonical OpenAPI document; no hand-written example changes.
+- Frontend reason: Restore the formal identity for continued development while retaining V3.23 language switching and raster-loading fixes.
+- Backend implementation notes: Normalize the temporary Chinese brand and existing Central Asia aliases to the restored name, preserve unrelated custom names, and restore the localized overview badge. No database or data-path migration.
+- Verification: Core API integration tests, frontend brand normalization and login/App browser tests; brand/i18n checks, API generation comparison/change tracking/docs/lint, TypeScript, focused formatting and production build.
+- Result: Passed. `pnpm test`: 398 tests; targeted `pnpm run test:browser src/App.browser.test.tsx src/pages/LoginPage.browser.test.tsx`: 20 tests; core API pytest: 127 tests and 32 subtests. Brand/i18n checks, API generation/comparison (16 files), change tracking, lint/docs/bundle/Prism regeneration, TypeScript, focused Oxlint/Oxfmt, Ruff formatting check, production build and `git diff --check` passed. OpenAPI retains six existing unused-component warnings. Pixi was unavailable locally; backend tests used the existing `D:/Users/anaconda/envs/geomanager` Conda environment (Python 3.12.13 / Django 6.0.6), rather than the repository Pixi Python 3.14 environment. No GitHub push or server deployment was performed. The repository generates `frontend/src/api/generated/types.gen.ts`; no `schema.d.ts` is present.
 
 ## API-20260810-001 - Temporary arid-region intelligent-monitoring brand
 

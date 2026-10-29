@@ -1,15 +1,15 @@
 import type { AppLocale } from "../i18n";
 
 export const platformBrand = {
-  chineseName: "干旱区胡杨林生态智慧监测平台",
+  chineseName: "全球胡杨林生态系统保护数据共享平台",
   englishName:
-    "Arid-region Poplar Forest Ecological Intelligent Monitoring Platform",
-  shortName: "APF-EIMP",
-  edition: "APF-EIMP · WebGIS Monitoring Edition",
+    "Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform",
+  shortName: "GPEDSP",
+  edition: "GPEDSP · WebGIS Research Edition",
 } as const;
 
 const legacyPlatformNames = new Set([
-  "全球胡杨林生态系统保护数据共享平台",
+  "干旱区胡杨林生态智慧监测平台",
   "中亚胡杨林生态系统保护数据共享平台",
   "中亚胡杨林生态保护数据共享平台",
   "中亚胡杨林生态数据共享平台",

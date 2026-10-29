@@ -83,10 +83,10 @@ export const zhCN = {
       other: "其他数据",
     },
     brand: {
-      chineseName: "干旱区胡杨林生态智慧监测平台",
+      chineseName: "全球胡杨林生态系统保护数据共享平台",
       englishName:
-        "Arid-region Poplar Forest Ecological Intelligent Monitoring Platform",
-      edition: "APF-EIMP · WebGIS Monitoring Edition",
+        "Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform",
+      edition: "GPEDSP · WebGIS Research Edition",
     },
     navigation: {
       dataCatalog: "数据总目录",
@@ -163,7 +163,7 @@ export const zhCN = {
     },
     auth: {
       platformOverview: "平台概览",
-      platformMark: "生态智慧监测平台",
+      platformMark: "生态保护数据共享平台",
       login: "用户登录",
       register: "用户注册",
       loginSubtitle: "登录后进入数据资源总目录，后台功能按权限显示。",
@@ -1060,10 +1060,10 @@ export const enUS = {
       other: "Other data",
     },
     brand: {
-      chineseName: "干旱区胡杨林生态智慧监测平台",
+      chineseName: "全球胡杨林生态系统保护数据共享平台",
       englishName:
-        "Arid-region Poplar Forest Ecological Intelligent Monitoring Platform",
-      edition: "APF-EIMP · WebGIS Monitoring Edition",
+        "Global Populus euphratica Forest Ecosystem Conservation Data Sharing Platform",
+      edition: "GPEDSP · WebGIS Research Edition",
     },
     navigation: {
       dataCatalog: "Data Catalog",
@@ -1145,7 +1145,7 @@ export const enUS = {
     },
     auth: {
       platformOverview: "Platform overview",
-      platformMark: "Ecological Intelligent Monitoring Platform",
+      platformMark: "Ecological Conservation Data Sharing Platform",
       login: "Sign in",
       register: "Create account",
       loginSubtitle:

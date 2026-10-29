@@ -291,7 +291,7 @@ export function createNonGeoDemo(locale: AppLocale): DemoBundle {
     availableViews: ["table", "metadata"],
     defaultView: "table",
     source: l("平台内置演示", "Platform demo"),
-    provider: l("APF-EIMP 演示数据集", "APF-EIMP demonstration dataset"),
+    provider: l("GPEDSP 演示数据集", "GPEDSP demonstration dataset"),
     dataDate: "2026-08-19",
     spatialExtent: "",
     coordinateSystem: "",
