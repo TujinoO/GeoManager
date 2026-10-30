@@ -57,12 +57,14 @@ import {
   type ImportFormValues,
 } from "./importValues";
 import { startSequentialPolling } from "../utils/sequentialPolling";
+import AnalysisImportPanel from "../pages/analysis/AnalysisImportPanel";
+import "../pages/analysis/analysis.css";
 import VectorImportWorkflow from "./VectorImportWorkflow";
 import ResultImportWorkflow from "./ResultImportWorkflow";
 import { taxonomyLeafOptions } from "../utils/taxonomy";
 
 type IssueAction = "continue" | "import";
-type ImportTarget = "resource" | "result";
+type ImportTarget = "resource" | "result" | "analysis";
 type ImportKind = "tabular" | "raster" | "vector" | "unsupported";
 type ImportStorageMode = ImportFormValues["importMode"] | "raster";
 type DomainDefinition = DataSchemaSummary["domains"][number];
@@ -375,11 +377,14 @@ export default function AdminDataImportPage() {
     user.permissions.canPublishResultArtifacts,
   );
   const [importTarget, setImportTarget] = useState<ImportTarget>(() =>
-    (new URLSearchParams(location.search).get("target") === "result" &&
-      canImportResults) ||
-    !canImportResources
-      ? "result"
-      : "resource",
+    new URLSearchParams(location.search).get("target") === "analysis" &&
+    canImportResources
+      ? "analysis"
+      : (new URLSearchParams(location.search).get("target") === "result" &&
+            canImportResults) ||
+          !canImportResources
+        ? "result"
+        : "resource",
   );
   const [resultImportDirty, setResultImportDirty] = useState(false);
   const [schema, setSchema] = useState<DataSchemaSummary | null>(null);
@@ -830,6 +835,13 @@ export default function AdminDataImportPage() {
             ...(canImportResources
               ? [
                   {
+                    label: l(
+                      "非地理与基因数据",
+                      "Non-geographic and genomic data",
+                    ),
+                    value: "analysis" as const,
+                  },
+                  {
                     label: l("导入为数据资源", "Import as data resource"),
                     value: "resource" as const,
                   },
@@ -849,6 +861,24 @@ export default function AdminDataImportPage() {
     </ProCard>
   );
 
+  if (importTarget === "analysis") {
+    return (
+      <div className="admin-page-stack admin-import-page">
+        {importTargetSelector}
+        <AnalysisImportPanel
+          canImport={Boolean(user?.permissions.canCreateDataResources)}
+          onDirtyChange={setResultImportDirty}
+          onImported={() => setResultImportDirty(false)}
+          onOpen={(id, kind) => {
+            allowNavigationRef.current = true;
+            navigate(
+              `/nongeo?resourceId=${id}&view=${kind === "molecular" ? "molecular" : kind === "samples" ? "samples" : ["sequence", "expression", "function", "variants", "genome"].includes(kind) ? "genome" : "ecology"}${["sequence", "expression", "function", "variants"].includes(kind) ? `&section=${kind}` : ""}`,
+            );
+          }}
+        />
+      </div>
+    );
+  }
   if (importTarget === "result") {
     return (
       <div className="admin-page-stack admin-import-page">

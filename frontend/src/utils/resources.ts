@@ -36,3 +36,20 @@ export function resourceSpatialExtent(resource: ResourceListItem) {
 export function resourceExportId(resource: ResourceListItem) {
   return resource.id;
 }
+
+export function analysisResourceUrl(resource: ResourceListItem) {
+  const kind = resource.analysisKind;
+  const genomic =
+    resource.dataType === "gene" ||
+    ["sequence", "expression", "function", "variants"].includes(kind ?? "");
+  const view = genomic
+    ? "genome"
+    : kind === "molecular" || resource.domainType === "molecular"
+      ? "molecular"
+      : kind === "samples" || resource.domainType === "germplasm"
+        ? "samples"
+        : "ecology";
+  const section =
+    genomic && resource.dataType !== "gene" ? `&section=${kind}` : "";
+  return `/nongeo?view=${view}&resourceId=${resource.id}${section}`;
+}

@@ -2409,3 +2409,43 @@ A: 重新提交相同的任务请求即可。
 成果展示页聚合已发布 `MapComposition` 与已发布 `ResultArtifact`。图片和 PDF 可在线预览，CSV/XLSX 仅允许授权下载。成果文件按访问角色共享；选择游客角色的成果视为公开成果，游客与其他已登录角色均可见；历史草稿或被下架成果仅创建者、超级管理员和平台管理员可见。
 
 数据资源模块原“专题管理”入口升级为“成果管理”，同一页面分别管理工作台生成的专题图成果和导入/分析成果。专题图继续支持打开来源工程、预览、下载、选择版本发布、更新范围、下架和删除；导入成果支持预览、下载、发布历史草稿、更新范围、下架和永久删除。`POST /api/catalog/results/{resultId}/` 使用 `publish|unpublish|delete` 动作完成这些管理操作并写入审计日志。
+# 数据分析工作台（2026-10-29）
+
+入口 `/nongeo`；兼容原 `/analysis` 路由。资源目录表格及基因资源通过 resourceId 深链接到对应专题。普通表格复用目录和业务 SQLite；基因大文件专业索引存放于 TOML research_data_root 下 `gene/analysis/<uuid>/`，由 GenomeIndex 关联现有组装模型；原始文件与 SHA256 清单保留。迁移：`manage.py migrate`，迁移前先备份业务元数据库。
+
+| 接口 | 行为 |
+| --- | --- |
+| GET `/api/analysis/templates/` | 六类表格和基因组模板字典 |
+| GET `/api/analysis/templates/{kind}/file/?format=csv&example=false` | CSV/XLSX 空模板或合成示例；genome 使用 zip 合成配套文件 |
+| POST `/api/analysis/import/` | multipart：file、kind、name、provenance(observed/synthetic)、validateOnly；校验和实际导入共享规则 |
+| POST `/api/analysis/resources/{id}/query/` | JSON：keyword、filters[{field,op,value}]、groupBy、metric、xField、yField、offset、limit |
+| POST `/api/analysis/resources/{id}/export/` | 同一筛选，导出全部匹配行，处理表格公式注入 |
+| GET/POST `/api/analysis/views/` | 读取本人视图／保存{resourceId,name,query}；读取时重新检查资源权限 |
+| GET `/api/omics/assemblies/` | 已完成索引且可访问的组装 |
+| GET `/api/omics/assemblies/{id}/summary/` | 真实统计、染色体别名、1Mb窗口、文件清单 |
+| GET `/api/omics/assemblies/{id}/genes/` | q/seqid/start/end/offset/limit；原始和GWH/转录本/蛋白编号均可检索 |
+| GET `/api/omics/assemblies/{id}/genes/{geneId}/` | 全部转录本结构与序列关联 |
+| GET `/api/omics/assemblies/{id}/sequence/` | role/id/start/end/strand；最多100000字符，负链返回反向互补 |
+| POST `/api/omics/import/` | multipart：genome、gff必填；protein/rna/cds可选；code/name/sex/provenance |
+
+接口均需session登录，未登录401 JSON，CSRF失败403 JSON。目录/模板需browse_data；分析/基因查询需query_data并核验资源访问；导入需add_dataresource；导出需export_dataresource。保存视图以用户隔离；导入和CSV导出记审计。前端PNG/JSON按钮遵循导出权限。新增数据默认由上传者维护，不自动扩大共享范围。
+
+统计：最多200000行，明细默认30、最多500行；统计基于完整筛选结果，分类前30组，其余在明细中查看。分类默认计数，显式选指标时柱图展示均值，饼图和矩形树图仍展示计数。零值保留，缺失/非有限值不入数值统计。相关系数用所有有效配对，少于3对或常数列返回null；散点最多1000个等距展示点。功能分类按每类去重基因计数，类别可重叠；表达热图最多40×24、log2(value+1)，不进行差异表达；变异位置直方图要求单条染色体。模板字段及单位由模板接口统一维护。
+
+基因API/UI采用1-based闭区间，专业索引采用0-based半开区间。chr别名从原始header读取，不能按FASTA顺序猜测。序列N50按完整FASTA条目算；不等同contig N50。参考组装对照仅比较统计与长度；无比对文件就没有共线性带。RNA FASTA是转录本序列，不能用作表达矩阵。
+
+大型基因组请用 `manage.py import_analysis_genome --help`；准备演示：`manage.py prepare_analysis_demo --owner <已有用户名> --output <模板输出绝对路径> --genome-directory <官方十文件目录>`。命令保留已存在资源与原件；全部路径来自TOML，不写入代码。浏览器小型导入上限32MiB上传/256MiB展开；CLI默认4GiB展开预算。失败索引不会发布为可用组装。
+
+本仓库API类型实际生成至 `frontend/src/api/generated/types.gen.ts`，当前没有旧文档中的schema.d.ts。以 `pnpm run generate:api` 和 `check:api` 为准。
+
+# 专业可视化载荷补充（2026-10-30）
+
+基因检索`q`优先使用编号别名索引精确匹配；未命中再执行不区分大小写的包含检索。区间条件与编号条件取交集。完整编号检索无需扫描全部别名，避免首次读取大索引时的停顿。
+
+`POST /api/analysis/resources/{id}/query/` 的 `visuals` 基于全部筛选记录计算，不从明细分页推导。生态矩阵最多24样方×24物种；表达相关性最多24样品，使用全部有效基因的log2(value+1)，至少3对且非常数；分组表达气泡最多24基因×12组，颜色为log2(有效表达均值+1)，大小为严格正值比例。五数分布最多18组，须同指标同单位，须显示样本数，端点为实际最小/最大值。多测定标记须先筛选。功能图前20条目按去重基因数选择，边为共同基因数及Jaccard，不是互作或富集。样品流向尾类合并为其他，各阶段均包含全部样品。变异位置每条染色体独立分箱，终点只代表最大导入坐标；计数为记录数。所有图显示限制见`visuals.notes`。认证、资源访问、导出权限与既有接口一致。
+
+## 2026-10-30 数据类型导航与统一接入
+
+合同角色先扩展专业导入：新增sequence（序列测量表），支持TSV及规范双等位VCF/VCF.gz转长表；VCF需assembly，source保留来源。压缩文本展开64MiB、200000行，表格上传16MiB。VCF多等位、结构变异、不合法GT明确拒绝，不推测参考版本。基因配套导入上传512MiB、展开4GiB，流式读取；可能耗时数分钟。权限和原件保留不变。前端随后使用同一接口整合到后台统一导入页，来源信息放资源详情和导出报告。四类分析入口不改变业务数据库分类。
+
+原生基因组导入可选sourceUrl（最多2000字符）；仅作为文字保存和报告显示，不由服务器访问该地址。

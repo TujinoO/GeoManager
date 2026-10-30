@@ -6,6 +6,8 @@ import {
   DownOutlined,
   FolderOpenOutlined,
   UpOutlined,
+  LeftOutlined,
+  RightOutlined,
 } from "@ant-design/icons";
 import { App, Button, ConfigProvider, Layout, Spin, Tabs, Tooltip } from "antd";
 import type { LngLatBounds, Map as MapboxMap } from "mapbox-gl";
@@ -441,6 +443,8 @@ export default function MapPage() {
     useState<SpatialQueryContext | null>(null);
   const [spatialQueryResult, setSpatialQueryResult] =
     useState<SpatialQueryWorkbenchResult | null>(null);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
   const [spatialWorkbenchOpen, setSpatialWorkbenchOpen] = useState(false);
   const [activeDraw, setActiveDraw] = useState<{
     purpose: DrawPurpose;
@@ -2280,7 +2284,7 @@ export default function MapPage() {
         }}
       />
       <div
-        className={`workspace-body ${
+        className={`workspace-body ${leftCollapsed ? "workspace-left-collapsed" : ""} ${rightCollapsed ? "workspace-right-collapsed" : ""} ${
           spatialWorkbenchOpen
             ? "workspace-body-spatial-open"
             : "workspace-body-spatial-collapsed"
@@ -2318,6 +2322,34 @@ export default function MapPage() {
             {english ? "Data insights" : "数据洞察"}
           </Button>
         </div>
+        <Tooltip
+          title={leftCollapsed ? "展开数据栏" : "收起数据栏"}
+          placement="right"
+        >
+          <Button
+            className={`map-panel-edge-toggle map-panel-edge-left ${mobileMapPanel === "left" ? "mobile-panel-edge-active" : ""}`}
+            type="text"
+            aria-label={leftCollapsed ? "展开数据栏" : "收起数据栏"}
+            aria-controls="map-data-sidebar"
+            aria-expanded={!leftCollapsed}
+            icon={leftCollapsed ? <RightOutlined /> : <LeftOutlined />}
+            onClick={() => setLeftCollapsed((v) => !v)}
+          />
+        </Tooltip>
+        <Tooltip
+          title={rightCollapsed ? "展开分析栏" : "收起分析栏"}
+          placement="left"
+        >
+          <Button
+            className={`map-panel-edge-toggle map-panel-edge-right ${mobileMapPanel === "right" ? "mobile-panel-edge-active" : ""}`}
+            type="text"
+            aria-label={rightCollapsed ? "展开分析栏" : "收起分析栏"}
+            aria-controls="map-analysis-sidebar"
+            aria-expanded={!rightCollapsed}
+            icon={rightCollapsed ? <LeftOutlined /> : <RightOutlined />}
+            onClick={() => setRightCollapsed((v) => !v)}
+          />
+        </Tooltip>
         <main className="map-stage">
           <Suspense
             fallback={
@@ -2345,7 +2377,8 @@ export default function MapPage() {
           </Suspense>
         </main>
         <aside
-          className={`floating-panel floating-panel-left ${
+          id="map-data-sidebar"
+          className={`floating-panel floating-panel-left ${leftCollapsed ? "map-side-hidden" : ""} ${
             mobileMapPanel === "left"
               ? "mobile-map-panel-visible"
               : "mobile-map-panel-hidden"
@@ -2439,7 +2472,8 @@ export default function MapPage() {
           </ConfigProvider>
         </aside>
         <aside
-          className={`floating-panel floating-panel-right ${
+          id="map-analysis-sidebar"
+          className={`floating-panel floating-panel-right ${rightCollapsed ? "map-side-thumbnail-only" : ""} ${
             mobileMapPanel === "right"
               ? "mobile-map-panel-visible"
               : "mobile-map-panel-hidden"
@@ -2636,3 +2670,4 @@ function spatialQueryMessage(result: ResourceQueryResult, english = false) {
   }
   return base;
 }
+import "../styles/workspace-panels.css";

@@ -42,6 +42,7 @@ import WorkspaceHeader from "../components/WorkspaceHeader";
 import { platformBrand } from "../config/platformBrand";
 import { useAppContext } from "../contexts/AppContext";
 import { currentLocale } from "../i18n";
+import { analysisResourceUrl } from "../utils/resources";
 import type {
   DataSchemaCatalogNode,
   DataSchemaSummary,
@@ -249,7 +250,7 @@ export default function DataCatalogPage() {
       resource.availableViews.includes("table") ||
       resource.availableViews.includes("gallery")
     ) {
-      navigate(`/nongeo?resourceQ=${encodeURIComponent(resource.name)}`);
+      navigate(analysisResourceUrl(resource));
       return;
     }
     setDetailResource(resource);

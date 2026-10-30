@@ -36,6 +36,8 @@ def serialize_resource(resource: DataResource) -> dict:
         ),
         "availableViews": available_views,
         "defaultView": default_view,
+        "analysisKind": resource.default_visualization.get("analysisKind"),
+        "provenance": resource.default_visualization.get("provenance", "observed"),
         "source": resource.source,
         "provider": resource.provider,
         "dataDate": resource.data_date.isoformat() if resource.data_date else None,
@@ -64,8 +66,8 @@ def _resource_views(resource: DataResource) -> tuple[list[str], str]:
         return ["map", "metadata"], "map"
     if resource.data_type == DataResource.DataType.IMAGE:
         return ["gallery", "metadata"], "gallery"
-    # V1 先诚实返回当前已实现能力；普通表格真实分析和文件预览在后续
-    # 增强中启用，避免前端把演示数据当成真实结果。
+    if resource.data_type in {DataResource.DataType.TABLE, DataResource.DataType.GENE}:
+        return ["table", "metadata"], "table"
     return ["metadata"], "metadata"
 
 

@@ -380,6 +380,170 @@ describe("api client", () => {
     );
   });
 
+  it("retries a busy vector query and preserves its filters and GeoJSON result", async () => {
+    const resource = { id: 7 } as ResourceListItem;
+    const payload = {
+      attributeFilters: [
+        { field: "height", operator: "gte" as const, value: "8" },
+      ],
+      spatialFilter: null,
+      limit: 10,
+    };
+    const result = {
+      returnedCount: 1,
+      geojson: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [87.7, 43.9] },
+            properties: { height: 8.5 },
+          },
+        ],
+      },
+    };
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { detail: "查询任务繁忙，请稍后重试" },
+          { status: 503, headers: { "Retry-After": "0" } },
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse(result));
+
+    await expect(api.queryResource(resource, payload)).resolves.toEqual(result);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    for (const call of fetchMock.mock.calls) {
+      const request = call[0] as Request;
+      expect(requestPath(request)).toBe("/api/catalog/resources/7/query/");
+      expect(JSON.parse(await request.clone().text())).toEqual(payload);
+    }
+  });
+
+  it("queues overlapping vector queries instead of competing for the server slot", async () => {
+    let finishFirst!: (response: Response) => void;
+    fetchMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            finishFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ resourceId: 8 }));
+    const first = api.queryResource({ id: 7 } as ResourceListItem, {
+      limit: 10,
+    });
+    const second = api.queryResource({ id: 8 } as ResourceListItem, {
+      limit: 20,
+    });
+
+    try {
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      finishFirst(jsonResponse({ resourceId: 7 }));
+      await Promise.allSettled([first, second]);
+    }
+    await expect(first).resolves.toEqual({ resourceId: 7 });
+    await expect(second).resolves.toEqual({ resourceId: 8 });
+    expect(requestPath(capturedRequest(fetchMock, 1))).toBe(
+      "/api/catalog/resources/8/query/",
+    );
+  });
+
+  it("honors Retry-After before resubmitting a busy query", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { detail: "查询任务繁忙，请稍后重试" },
+          { status: 503, headers: { "Retry-After": "1" } },
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse({ returnedCount: 1 }));
+    const started = performance.now();
+
+    await expect(
+      api.queryResource({ id: 7 } as ResourceListItem, {}),
+    ).resolves.toEqual({ returnedCount: 1 });
+    expect(performance.now() - started).toBeGreaterThanOrEqual(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops after three busy retries and lets the next queued query run", async () => {
+    fetchMock.mockImplementation((request: Request) =>
+      Promise.resolve(
+        requestPath(request).includes("/7/")
+          ? jsonResponse(
+              { detail: "查询任务繁忙，请稍后重试" },
+              { status: 503, headers: { "Retry-After": "0" } },
+            )
+          : jsonResponse({ resourceId: 8 }),
+      ),
+    );
+    const failed = api.queryResource({ id: 7 } as ResourceListItem, {});
+    const next = api.queryResource({ id: 8 } as ResourceListItem, {});
+
+    await expect(failed).rejects.toMatchObject({
+      status: 503,
+      message: "查询任务繁忙，请稍后重试",
+    });
+    await expect(next).resolves.toEqual({ resourceId: 8 });
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+  });
+
+  it.each([400, 401, 403, 404, 500])(
+    "does not retry query error %s or block subsequent queries",
+    async (status) => {
+      fetchMock
+        .mockResolvedValueOnce(
+          jsonResponse(
+            { detail: "查询失败" },
+            { status, headers: { "Retry-After": "0" } },
+          ),
+        )
+        .mockResolvedValueOnce(jsonResponse({ resourceId: 8 }));
+      const failed = api.queryResource({ id: 7 } as ResourceListItem, {});
+      const next = api.queryResource({ id: 8 } as ResourceListItem, {});
+
+      await expect(failed).rejects.toMatchObject({ status });
+      await expect(next).resolves.toEqual({ resourceId: 8 });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each([null, "invalid", "60"])(
+    "does not retry an unavailable query with Retry-After %s",
+    async (retryAfter) => {
+      fetchMock.mockResolvedValue(
+        jsonResponse(
+          { detail: "服务不可用" },
+          {
+            status: 503,
+            headers: retryAfter === null ? {} : { "Retry-After": retryAfter },
+          },
+        ),
+      );
+
+      await expect(
+        api.queryResource({ id: 7 } as ResourceListItem, {}),
+      ).rejects.toMatchObject({ status: 503 });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("continues the query queue after a network failure", async () => {
+    fetchMock
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(jsonResponse({ resourceId: 8 }));
+    const failed = api.queryResource({ id: 7 } as ResourceListItem, {});
+    const next = api.queryResource({ id: 8 } as ResourceListItem, {});
+
+    await expect(failed).rejects.toBeInstanceOf(Error);
+    await expect(next).resolves.toEqual({ resourceId: 8 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("starts custom raster rendering with explicit rules mode and dataset reference", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({

@@ -51,6 +51,7 @@ const { MockApiError, mockApi } = vi.hoisted(() => {
       rasterJob: vi.fn(),
       adminOperationLogs: vi.fn(),
       adminSystemLogs: vi.fn(),
+      adminDataResources: vi.fn(),
       adminDashboard: vi.fn(),
       adminDashboardServer: vi.fn(),
       dataSchemaSummary: vi.fn(),
@@ -63,6 +64,21 @@ vi.mock("./api/client", () => ({
   api: mockApi,
   registerForbiddenHandler: vi.fn(),
   unregisterForbiddenHandler: vi.fn(),
+}));
+
+const { analysisMocks } = vi.hoisted(() => ({
+  analysisMocks: {
+    templates: vi.fn(),
+    importTable: vi.fn(),
+    assemblies: vi.fn(),
+    views: vi.fn(),
+    query: vi.fn(),
+  },
+}));
+vi.mock("./api/analysis", () => ({
+  analysisApi: analysisMocks,
+  downloadBlob: vi.fn(),
+  AnalysisApiError: MockApiError,
 }));
 
 vi.mock("./components/MapCanvas", () => ({
@@ -568,6 +584,10 @@ describe("application critical flows", () => {
         roles: ["游客"],
       },
     });
+    mockApi.adminDataResources.mockResolvedValue({
+      items: [],
+      availableAccessGroups: [],
+    });
     mockApi.adminDashboard.mockResolvedValue({
       generatedAt: "2026-01-01T00:00:00+08:00",
       cards: {},
@@ -593,6 +613,55 @@ describe("application critical flows", () => {
     );
     mockApi.nonGeoAnalysis.mockResolvedValue(nonGeoAnalytics);
     mockApi.nonGeoQuery.mockResolvedValue(nonGeoAnalytics.tablePreview);
+    analysisMocks.assemblies.mockResolvedValue({ items: [] });
+    analysisMocks.views.mockResolvedValue({ items: [] });
+    analysisMocks.query.mockResolvedValue({
+      resourceId: 22,
+      resourceName: nonGeoTableResource.name,
+      kind: "traits",
+      provenance: "observed",
+      unit: "观测记录",
+      total: 2,
+      filteredCount: 2,
+      offset: 0,
+      rows: [{ sample_id: "S-1", height: 2 }],
+      fields: [
+        {
+          name: "sample_id",
+          numeric: false,
+          n: 2,
+          missing: 0,
+          min: null,
+          max: null,
+          mean: null,
+          median: null,
+          q1: null,
+          q3: null,
+        },
+      ],
+      categories: [],
+      histogram: [],
+      scatter: [],
+      heatmap: [],
+      visuals: {
+        metrics: [],
+        boxes: [],
+        matrices: [],
+        dots: [],
+        flows: [],
+        nodes: [],
+        edges: [],
+        variantBins: [],
+        variantClasses: [],
+        notes: [],
+      },
+      warnings: [],
+      pairedCount: 0,
+      correlation: null,
+      query: {},
+      scope: "full",
+      generatedAt: "2026-10-29T00:00:00Z",
+    });
     mockApi.queryResource.mockResolvedValue(tarimQueryResult);
     mockApi.workspaces.mockResolvedValue({
       items: [],
@@ -985,6 +1054,104 @@ describe("application critical flows", () => {
     });
   });
 
+  it("collapses workbench panels without replacing the map or thumbnail", async () => {
+    window.localStorage.setItem(
+      `huyang-system.workspace-tour.v1.${normalUser.id}.${normalUser.username}`,
+      "completed",
+    );
+    mockApi.me.mockResolvedValue({ authenticated: true, user: normalUser });
+    renderApp("/map");
+    const canvas = await screen.findByTestId("map-canvas");
+    expect(
+      screen.queryByRole("button", { name: "专注地图", exact: true }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "收起数据栏", exact: true }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "收起分析栏", exact: true }),
+    );
+    expect(screen.getByRole("button", { name: "展开数据栏" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: "展开分析栏" })).toHaveClass(
+      "map-panel-edge-right",
+    );
+    expect(document.querySelector(".workspace-body")).toHaveClass(
+      "workspace-left-collapsed",
+      "workspace-right-collapsed",
+    );
+    expect(
+      document.querySelector(".right-map-overview-panel"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("map-canvas")).toBe(canvas);
+    fireEvent.click(screen.getByRole("button", { name: "展开数据栏" }));
+    expect(document.querySelector(".workspace-body")).not.toHaveClass(
+      "workspace-left-collapsed",
+    );
+    expect(screen.getByTestId("map-canvas")).toBe(canvas);
+  });
+
+  it("imports analysis tables through the unified administration entry", async () => {
+    mockApi.me.mockResolvedValue({
+      authenticated: true,
+      user: {
+        ...adminUser,
+        permissions: {
+          ...adminUser.permissions,
+          canUploadData: true,
+          canCreateDataResources: true,
+        },
+      },
+    });
+    analysisMocks.templates.mockResolvedValue({
+      version: "1.0",
+      items: [
+        {
+          kind: "traits",
+          name: "生态与功能性状",
+          unit: "观测记录",
+          uniqueKey: ["record_id"],
+          columns: [],
+          formats: ["csv", "xlsx"],
+        },
+      ],
+    });
+    analysisMocks.importTable.mockResolvedValue({
+      valid: true,
+      resourceId: 88,
+      rowCount: 1,
+      issues: [],
+      warnings: [],
+    });
+    renderApp("/resources/data/import?target=analysis");
+    const input = await screen.findByLabelText("表格数据文件");
+    fireEvent.change(screen.getByLabelText("导入数据名称"), {
+      target: { value: "接口测试资料" },
+    });
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(["record_id,plot_code,species\nr1,p1,胡杨"], "test.csv", {
+            type: "text/csv",
+          }),
+        ],
+      },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "校验并导入", exact: true }),
+    );
+    await waitFor(() =>
+      expect(analysisMocks.importTable).toHaveBeenCalledTimes(1),
+    );
+    const body = analysisMocks.importTable.mock.calls[0]![0] as FormData;
+    expect(body.get("kind")).toBe("traits");
+    expect(body.get("provenance")).toBe("observed");
+    expect(body.get("validateOnly")).toBe("false");
+    expect((await screen.findAllByText(/已导入/)).length).toBeGreaterThan(0);
+  });
+
   it("isolates non-geographic resources and refreshes the real resource list", async () => {
     window.localStorage.setItem(
       `huyang-system.workspace-tour.v1.${normalUser.id}.${normalUser.username}`,
@@ -1009,25 +1176,21 @@ describe("application critical flows", () => {
     expect(
       screen.queryByText(tarimVectorResource.name),
     ).not.toBeInTheDocument();
-    expect(await screen.findByText("记录总量")).toBeInTheDocument();
-    expect(screen.getByText("字段角色")).toBeInTheDocument();
+    expect(await screen.findByText("筛选记录 / 总记录")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "数据检查" })).toBeInTheDocument();
     expect(
       screen.queryByText("非地理分析接口暂不可用"),
     ).not.toBeInTheDocument();
     expect(mockApi.resources).toHaveBeenCalledWith({
       spatialClass: "non_spatial",
     });
-    expect(mockApi.nonGeoAnalysis).toHaveBeenCalledWith(nonGeoTableResource.id);
+    expect(analysisMocks.query).toHaveBeenCalledWith(
+      nonGeoTableResource.id,
+      expect.any(Object),
+      expect.any(AbortSignal),
+    );
 
-    fireEvent.click(screen.getByRole("button", { name: "查询明细" }));
-    await waitFor(() => {
-      expect(mockApi.nonGeoQuery).toHaveBeenCalledWith(nonGeoTableResource.id, {
-        limit: 80,
-        offset: 0,
-        sortField: "height",
-        sortDirection: "desc",
-      });
-    });
+    fireEvent.click(screen.getByRole("tab", { name: "数据明细" }));
     expect(await screen.findByText("S-1")).toBeInTheDocument();
 
     const refreshedResource = {
@@ -1045,9 +1208,11 @@ describe("application critical flows", () => {
         resourceName: refreshedResource.name,
       },
     });
-    fireEvent.click(screen.getByRole("button", { name: "刷新非地理数据资源" }));
+    fireEvent.click(screen.getByRole("button", { name: /刷新资源/ }));
 
-    expect(await screen.findByText(refreshedResource.name)).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText(refreshedResource.name)).length,
+    ).toBeGreaterThan(0);
     await waitFor(() => {
       expect(screen.queryAllByText(nonGeoTableResource.name)).toHaveLength(0);
     });
@@ -1063,6 +1228,37 @@ describe("application critical flows", () => {
         spatialClass: "non_spatial",
       });
     });
+  });
+
+  it("opens the resource specified by a deep link after the asynchronous list arrives", async () => {
+    mockApi.me.mockResolvedValue({ authenticated: true, user: normalUser });
+    const target = {
+      ...nonGeoTableResource,
+      id: 88,
+      name: "链接指定的生态资源",
+    };
+    mockApi.resources.mockResolvedValue({
+      items: [nonGeoTableResource, target],
+    });
+    renderApp("/nongeo?view=ecology&resourceId=88");
+    await waitFor(() =>
+      expect(analysisMocks.query).toHaveBeenCalledWith(
+        88,
+        expect.any(Object),
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(analysisMocks.query.mock.calls.at(-1)?.[0]).toBe(88);
+  });
+
+  it("does not substitute an unrelated table when the requested resource is unavailable", async () => {
+    mockApi.me.mockResolvedValue({ authenticated: true, user: normalUser });
+    mockApi.resources.mockResolvedValue({ items: [nonGeoTableResource] });
+    renderApp("/nongeo?view=ecology&resourceId=999999");
+    expect(
+      await screen.findByText("指定的数据资源不存在或当前账号无权访问"),
+    ).toBeVisible();
+    expect(screen.queryByRole("tab", { name: "分析总览" })).toBeNull();
   });
 
   it("keeps the shared guest account out of personal settings", async () => {

@@ -22,12 +22,7 @@ from reportlab.platypus import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKSPACE_ROOT = REPO_ROOT.parent
-SOURCE_MARKDOWN = (
-    WORKSPACE_ROOT
-    / "analysis_outputs"
-    / "help_center"
-    / "中亚胡杨林生态系统保护数据共享平台帮助文档.md"
-)
+SOURCE_MARKDOWN = REPO_ROOT / "docs" / "platform-user-guide.md"
 OUTPUT_PDF = REPO_ROOT / "frontend" / "public" / "docs" / "CAPFED-help-center.pdf"
 
 FONT_REGULAR = "MicrosoftYaHei"
@@ -198,6 +193,8 @@ def build_story(markdown: str, styles: dict[str, ParagraphStyle]) -> list:
           story.append(Spacer(1, 6))
           continue
       if line.startswith("## "):
+          if line == "## 常见问题":
+              story.append(PageBreak())
           story.append(Paragraph(clean_inline(line[3:]), styles["h2"]))
       elif line.startswith("### "):
           story.append(Paragraph(clean_inline(line[4:]), styles["h3"]))

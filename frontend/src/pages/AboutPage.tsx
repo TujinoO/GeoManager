@@ -22,8 +22,8 @@ import {
   UsergroupAddOutlined,
 } from "@ant-design/icons";
 import { Button, Input, Layout, Tag, Typography } from "antd";
-import { useState, type ReactNode } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState, type ReactNode } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   aboutAssets,
   aboutNavigationSections,
@@ -946,7 +946,15 @@ export function KnowledgeSection({
 }
 
 export function DocsSection({ section }: { section: AboutSection }) {
-  const [activeArticleId, setActiveArticleId] = useState("platform-guide");
+  const [helpParams] = useSearchParams();
+  const articleParam = helpParams.get("article");
+  const [activeArticleId, setActiveArticleId] = useState(
+    articleParam ?? "platform-guide",
+  );
+  useEffect(() => {
+    if (articleParam && helpArticles.some((a) => a.id === articleParam))
+      setActiveArticleId(articleParam);
+  }, [articleParam]);
   const [searchKeyword, setSearchKeyword] = useState("");
   const activeArticle =
     helpArticles.find((article) => article.id === activeArticleId) ??

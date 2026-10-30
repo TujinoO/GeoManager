@@ -4,6 +4,1032 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | 'http://localhost:8000' | 'https://api.huyang.example.com' | (string & {});
 };
 
+/**
+ * 模板字段
+ */
+export type AnalysisTemplateColumn = {
+    /**
+     * 字段名
+     */
+    name: string;
+    /**
+     * 是否必填
+     */
+    required: boolean;
+    /**
+     * 是否数值
+     */
+    numeric: boolean;
+    /**
+     * 语义与单位
+     */
+    description: string;
+};
+
+/**
+ * 数据导入模板
+ */
+export type AnalysisTemplate = {
+    /**
+     * 模板类型
+     */
+    kind: string;
+    /**
+     * 中文名称
+     */
+    name: string;
+    /**
+     * 统计对象
+     */
+    unit: string;
+    /**
+     * 字段
+     */
+    columns: Array<AnalysisTemplateColumn>;
+    /**
+     * 联合唯一键
+     */
+    uniqueKey: Array<string>;
+    /**
+     * 可下载格式
+     */
+    formats: Array<string>;
+};
+
+/**
+ * 版本化模板目录
+ */
+export type AnalysisTemplateCatalog = {
+    /**
+     * 模板版本
+     */
+    version: string;
+    /**
+     * 模板列表
+     */
+    items: Array<AnalysisTemplate>;
+};
+
+/**
+ * 单个筛选条件
+ */
+export type AnalysisFilter = {
+    /**
+     * 允许的字段名
+     */
+    field: string;
+    /**
+     * 类型化筛选操作
+     */
+    op: 'eq' | 'contains' | 'gte' | 'lte' | 'missing';
+    /**
+     * 比较值；missing时忽略
+     */
+    value: string;
+};
+
+/**
+ * 统一分析与导出条件
+ */
+export type AnalysisQuery = {
+    /**
+     * 跨列关键词
+     */
+    keyword?: string;
+    /**
+     * 分类字段
+     */
+    groupBy?: string;
+    /**
+     * 数值字段
+     */
+    metric?: string;
+    /**
+     * 相关性X字段
+     */
+    xField?: string;
+    /**
+     * 相关性Y字段
+     */
+    yField?: string;
+    /**
+     * 最多8项AND条件
+     */
+    filters?: Array<AnalysisFilter>;
+    /**
+     * 分页起点，0开始
+     */
+    offset?: number;
+    /**
+     * 分页大小1–500
+     */
+    limit?: number;
+};
+
+/**
+ * 筛选后全量字段画像
+ */
+export type AnalysisField = {
+    /**
+     * 字段名
+     */
+    name: string;
+    /**
+     * 数值类型
+     */
+    numeric: boolean;
+    /**
+     * 缺失或非有限值数
+     */
+    missing: number;
+    /**
+     * 有效值数
+     */
+    n: number;
+    /**
+     * 最小值
+     */
+    min: number | null;
+    /**
+     * 最大值
+     */
+    max: number | null;
+    /**
+     * 均值
+     */
+    mean: number | null;
+    /**
+     * 中位数
+     */
+    median: number | null;
+    /**
+     * 25%分位数
+     */
+    q1: number | null;
+    /**
+     * 75%分位数
+     */
+    q3: number | null;
+};
+
+/**
+ * 分类统计
+ */
+export type AnalysisCategory = {
+    /**
+     * 分类标签
+     */
+    label: string;
+    /**
+     * 记录数；功能表为去重基因数
+     */
+    count: number;
+    /**
+     * 所选数值字段均值；未指定则为计数
+     */
+    value: number | null;
+};
+
+/**
+ * 直方图区间
+ */
+export type AnalysisHistogramBin = {
+    /**
+     * 左端点
+     */
+    start: number | null;
+    /**
+     * 右端点；最后一箱含右界
+     */
+    end: number | null;
+    /**
+     * 记录数
+     */
+    count: number;
+};
+
+/**
+ * 散点
+ */
+export type AnalysisPoint = {
+    /**
+     * X值
+     */
+    x: number | null;
+    /**
+     * Y值
+     */
+    y: number | null;
+    /**
+     * 对象标识
+     */
+    label: string;
+};
+
+/**
+ * 热图单元
+ */
+export type AnalysisHeatCell = {
+    /**
+     * 列标签
+     */
+    x: string;
+    /**
+     * 行标签
+     */
+    y: string;
+    /**
+     * 表达log2(value+1)，功能为去重基因数
+     */
+    value: number | null;
+};
+
+/**
+ * 专业数据的摘要指标；统计范围为全部筛选记录
+ */
+export type AnalysisVisualMetric = {
+    /**
+     * 指标名称
+     */
+    label: string;
+    /**
+     * 可读指标值
+     */
+    value: string;
+    /**
+     * 统计对象及口径
+     */
+    note: string;
+};
+
+/**
+ * 按组的五数分布；须同指标同单位，最多18组，须用有效值全量计算
+ */
+export type AnalysisBox = {
+    /**
+     * 分组标签
+     */
+    label: string;
+    /**
+     * 数值字段
+     */
+    field: string;
+    /**
+     * 有效值数量
+     */
+    n: number;
+    /**
+     * 最小值
+     */
+    min: number;
+    /**
+     * 25%分位数
+     */
+    q1: number;
+    /**
+     * 中位数
+     */
+    median: number;
+    /**
+     * 75%分位数
+     */
+    q3: number;
+    /**
+     * 最大值
+     */
+    max: number;
+};
+
+/**
+ * 矩阵单元；缺失及无法计算的相关性为null
+ */
+export type AnalysisMatrixCell = {
+    /**
+     * 列标签
+     */
+    x: string;
+    /**
+     * 行标签
+     */
+    y: string;
+    /**
+     * 矩阵值
+     */
+    value: number | null;
+    /**
+     * 有效记录或有效配对数
+     */
+    n: number;
+};
+
+/**
+ * 专业矩阵，明确计算方法与展示上限
+ */
+export type AnalysisMatrix = {
+    /**
+     * community或sampleCorrelation
+     */
+    id: string;
+    /**
+     * 图名
+     */
+    title: string;
+    /**
+     * 变换、分母、展示限制
+     */
+    method: string;
+    /**
+     * 矩阵单元，最多24×24
+     */
+    cells: Array<AnalysisMatrixCell>;
+};
+
+/**
+ * 基因与样本组表达气泡；取前24基因×前12组
+ */
+export type AnalysisDot = {
+    /**
+     * 样本组
+     */
+    x: string;
+    /**
+     * 基因编号
+     */
+    y: string;
+    /**
+     * log2(组内有效值均值+1)
+     */
+    value: number;
+    /**
+     * 有效值中严格大于0的比例，0到1；不含缺失
+     */
+    fraction: number;
+    /**
+     * 有效样本数
+     */
+    n: number;
+};
+
+/**
+ * 样品的相邻分类流向；每一阶段均覆盖全部筛选样品，尾类合为其他
+ */
+export type AnalysisFlow = {
+    /**
+     * 含分类阶段前缀的起点
+     */
+    source: string;
+    /**
+     * 含分类阶段前缀的终点
+     */
+    target: string;
+    /**
+     * 样品记录数
+     */
+    value: number;
+};
+
+/**
+ * 功能条目节点，最多20个；按去重基因数排序
+ */
+export type AnalysisNetworkNode = {
+    /**
+     * 数据库与条目编号联合键
+     */
+    id: string;
+    /**
+     * 功能条目名称
+     */
+    label: string;
+    /**
+     * 去重基因数
+     */
+    value: number;
+    /**
+     * 注释数据库
+     */
+    category: string;
+};
+
+/**
+ * 功能共注释关系，仅描述同基因拥有两个注释；不是蛋白互作或富集
+ */
+export type AnalysisNetworkEdge = {
+    /**
+     * 起点条目ID
+     */
+    source: string;
+    /**
+     * 终点条目ID
+     */
+    target: string;
+    /**
+     * 共同基因数
+     */
+    value: number;
+    /**
+     * Jaccard共同基因数/基因并集数
+     */
+    score: number;
+};
+
+/**
+ * 按染色体分别分箱的变异记录位置；不推断参考染色体全长
+ */
+export type AnalysisVariantBin = {
+    /**
+     * 染色体名
+     */
+    chromosome: string;
+    /**
+     * 1-based起点
+     */
+    start: number;
+    /**
+     * 包含终点
+     */
+    end: number;
+    /**
+     * 此箱记录数
+     */
+    count: number;
+};
+
+/**
+ * 以全量筛选数据生成的专业可视化载荷；只限制展示维度，不使用分页明细计算
+ */
+export type AnalysisVisuals = {
+    /**
+     * 专业摘要，最多4项
+     */
+    metrics: Array<AnalysisVisualMetric>;
+    /**
+     * 分组五数分布
+     */
+    boxes: Array<AnalysisBox>;
+    /**
+     * 群落或样品相关矩阵
+     */
+    matrices: Array<AnalysisMatrix>;
+    /**
+     * 基因分组表达气泡
+     */
+    dots: Array<AnalysisDot>;
+    /**
+     * 样品来源、性别、材料类型流向
+     */
+    flows: Array<AnalysisFlow>;
+    /**
+     * 功能图节点
+     */
+    nodes: Array<AnalysisNetworkNode>;
+    /**
+     * 功能共注释边，最多190条
+     */
+    edges: Array<AnalysisNetworkEdge>;
+    /**
+     * 最多24条染色体，每条最多30箱
+     */
+    variantBins: Array<AnalysisVariantBin>;
+    /**
+     * SNV替换/插入/缺失/复杂变异记录数
+     */
+    variantClasses: Array<AnalysisCategory>;
+    /**
+     * 专业统计与显示限制，前端必须展示
+     */
+    notes: Array<string>;
+};
+
+/**
+ * 可复现的全量分析结果
+ */
+export type AnalysisResult = {
+    /**
+     * 来源资源
+     */
+    resourceId: number;
+    /**
+     * 资源名
+     */
+    resourceName: string;
+    /**
+     * 专业数据类型
+     */
+    kind: string;
+    /**
+     * observed或synthetic
+     */
+    provenance: string;
+    /**
+     * 统计单位
+     */
+    unit: string;
+    /**
+     * 当前筛选的测量单位；无单位时为空，混合单位时明确提示先筛选
+     */
+    measurementUnit?: string;
+    /**
+     * 资源总行数
+     */
+    total: number;
+    /**
+     * 筛选后全量行数
+     */
+    filteredCount: number;
+    /**
+     * 页起点
+     */
+    offset: number;
+    /**
+     * 当前页明细
+     */
+    rows: Array<{
+        [key: string]: string | number | boolean | null;
+    }>;
+    /**
+     * 全量字段画像
+     */
+    fields: Array<AnalysisField>;
+    /**
+     * 前30个分类，其余单列
+     */
+    categories: Array<AnalysisCategory>;
+    /**
+     * 所选指标10箱
+     */
+    histogram: Array<AnalysisHistogramBin>;
+    /**
+     * 最多1000个等距展示点，相关性使用全部有效对
+     */
+    scatter: Array<AnalysisPoint>;
+    /**
+     * 相关性有效配对总数
+     */
+    pairedCount: number;
+    /**
+     * Pearson r；常数或少于3对时null
+     */
+    correlation: number | null;
+    /**
+     * 最多40基因×24样本的表达图，或功能分组图
+     */
+    heatmap: Array<AnalysisHeatCell>;
+    visuals: AnalysisVisuals;
+    /**
+     * 语义和范围说明
+     */
+    warnings: Array<string>;
+    query: AnalysisQuery;
+    /**
+     * ISO生成时间
+     */
+    generatedAt: string;
+    /**
+     * 统计范围full或filtered；散点/热图另有限制
+     */
+    scope: string;
+};
+
+/**
+ * 专业导入校验结果
+ */
+export type AnalysisImportResult = {
+    /**
+     * 是否通过校验
+     */
+    valid: boolean;
+    /**
+     * 校验时null，成功导入后资源ID
+     */
+    resourceId: number | null;
+    /**
+     * 输入记录数
+     */
+    rowCount: number;
+    /**
+     * 阻断问题
+     */
+    issues: Array<string>;
+    /**
+     * 非阻断质量提示
+     */
+    warnings: Array<string>;
+};
+
+/**
+ * 按用户隔离的分析视图
+ */
+export type AnalysisSavedView = {
+    /**
+     * 视图ID
+     */
+    id: number;
+    /**
+     * 视图名
+     */
+    name: string;
+    /**
+     * 资源ID
+     */
+    resourceId: number;
+    query: AnalysisQuery;
+    /**
+     * 更新时间
+     */
+    updatedAt: string;
+};
+
+/**
+ * 保存分析参数，不存储原始数据
+ */
+export type AnalysisViewCreate = {
+    /**
+     * 视图名，1–120字符
+     */
+    name: string;
+    /**
+     * 资源ID
+     */
+    resourceId: number;
+    query: AnalysisQuery;
+};
+
+/**
+ * 视图目录
+ */
+export type AnalysisViewList = {
+    /**
+     * 当前用户可访问视图
+     */
+    items: Array<AnalysisSavedView>;
+};
+
+/**
+ * 1Mb摘要窗口
+ */
+export type GenomeBin = {
+    /**
+     * 1-based窗口起点
+     */
+    start: number;
+    /**
+     * 闭区间终点
+     */
+    end: number;
+    /**
+     * GC/ACGT比值
+     */
+    gc: number | null;
+    /**
+     * 起点落入窗口的基因数
+     */
+    geneCount: number;
+};
+
+/**
+ * 索引序列
+ */
+export type GenomeIndexedSequence = {
+    /**
+     * FASTA编号
+     */
+    id: string;
+    /**
+     * 原始序列别名
+     */
+    name: string;
+    /**
+     * 长度bp
+     */
+    length: number;
+    /**
+     * GC/ACGT
+     */
+    gc: number | null;
+    /**
+     * N碱基数
+     */
+    n: number;
+    /**
+     * 基因数
+     */
+    geneCount: number;
+    /**
+     * 全序列摘要
+     */
+    bins: Array<GenomeBin>;
+};
+
+/**
+ * 可访问的参考组装
+ */
+export type GenomeAssemblyItem = {
+    /**
+     * 组装数据库ID
+     */
+    id: number;
+    /**
+     * 受控资源ID
+     */
+    resourceId: number;
+    /**
+     * 组装编号
+     */
+    code: string;
+    /**
+     * 名称
+     */
+    name: string;
+    /**
+     * 版本
+     */
+    version: string;
+    /**
+     * female/male/unknown
+     */
+    sex: string;
+    /**
+     * observed/synthetic
+     */
+    provenance: string;
+    /**
+     * 索引状态
+     */
+    status: string;
+    /**
+     * 组装长度bp
+     */
+    totalBp: number;
+    /**
+     * 基因模型数
+     */
+    geneCount: number;
+};
+
+/**
+ * 组装列表
+ */
+export type GenomeAssemblyList = {
+    /**
+     * 已授权组装
+     */
+    items: Array<GenomeAssemblyItem>;
+};
+
+/**
+ * 输入文件指纹
+ */
+export type GenomeFileManifest = {
+    /**
+     * 文件角色
+     */
+    role: string;
+    /**
+     * 原文件名
+     */
+    name: string;
+    /**
+     * 完整原件校验值
+     */
+    sha256: string;
+    /**
+     * 压缩或原文件字节数
+     */
+    size: number;
+};
+
+/**
+ * 全量预计算基因组摘要
+ */
+export type GenomeSummary = {
+    assembly: GenomeAssemblyItem;
+    /**
+     * 所有FASTA序列总长
+     */
+    totalBp: number;
+    /**
+     * 全部序列数
+     */
+    sequenceCount: number;
+    /**
+     * 命名染色体数
+     */
+    chromosomeCount: number;
+    /**
+     * FASTA序列N50，非contig N50
+     */
+    sequenceN50: number;
+    /**
+     * GC/ACGT
+     */
+    gc: number | null;
+    /**
+     * N数
+     */
+    nCount: number;
+    /**
+     * 基因数
+     */
+    geneCount: number;
+    /**
+     * 转录本数
+     */
+    transcriptCount: number;
+    /**
+     * 蛋白条目数
+     */
+    proteinCount: number;
+    /**
+     * 全部序列与摘要
+     */
+    sequences: Array<GenomeIndexedSequence>;
+    /**
+     * 原件角色与hash
+     */
+    files: Array<GenomeFileManifest>;
+    /**
+     * 缺失关系等信息
+     */
+    warnings: Array<string>;
+    /**
+     * 1-based-closed
+     */
+    coordinateSystem: string;
+    /**
+     * 原始数据来源URL或说明
+     */
+    sourceUrl: string;
+};
+
+/**
+ * 基因索引
+ */
+export type GenomeGene = {
+    /**
+     * 原始基因编号
+     */
+    id: string;
+    /**
+     * 外部编号
+     */
+    accession: string;
+    /**
+     * 所属序列
+     */
+    seqid: string;
+    /**
+     * 1-based起点
+     */
+    start: number;
+    /**
+     * 闭区间终点
+     */
+    end: number;
+    /**
+     * 链向
+     */
+    strand: string;
+    /**
+     * 关联蛋白数
+     */
+    proteinCount: number;
+};
+
+/**
+ * 分页检索与精确区间交集
+ */
+export type GenomeGeneList = {
+    /**
+     * 命中基因
+     */
+    items: Array<GenomeGene>;
+    /**
+     * 命中总数
+     */
+    total: number;
+    /**
+     * 偏移
+     */
+    offset: number;
+    /**
+     * 1-based-closed
+     */
+    coordinateSystem: string;
+};
+
+/**
+ * 结构注释轨道
+ */
+export type GenomeFeature = {
+    /**
+     * 特征编号，允许空
+     */
+    id: string;
+    /**
+     * 父特征编号
+     */
+    parent: string;
+    /**
+     * GFF特征类型
+     */
+    type: string;
+    /**
+     * 1-based起点
+     */
+    start: number;
+    /**
+     * 闭区间终点
+     */
+    end: number;
+    /**
+     * 链向
+     */
+    strand: string;
+    /**
+     * 原始GFF phase
+     */
+    phase: string;
+};
+
+/**
+ * 基因关联序列
+ */
+export type GenomeSequenceLink = {
+    /**
+     * 序列编号
+     */
+    id: string;
+    /**
+     * protein/rna/cds
+     */
+    role: string;
+    /**
+     * aa或nt长度
+     */
+    length: number;
+    /**
+     * 转录本关联
+     */
+    transcriptId: string;
+};
+
+/**
+ * 完整基因模型
+ */
+export type GenomeGeneDetail = {
+    gene: GenomeGene;
+    /**
+     * 基因及全部直接/转录本子特征
+     */
+    features: Array<GenomeFeature>;
+    /**
+     * 所有编号关联序列
+     */
+    sequences: Array<GenomeSequenceLink>;
+    /**
+     * 1-based-closed
+     */
+    coordinateSystem: string;
+};
+
+/**
+ * 有界序列读取
+ */
+export type GenomeSequenceResult = {
+    /**
+     * 序列编号
+     */
+    id: string;
+    /**
+     * 角色
+     */
+    role: string;
+    /**
+     * 返回起点
+     */
+    start: number;
+    /**
+     * 返回闭区间终点
+     */
+    end: number;
+    /**
+     * 链向
+     */
+    strand: string;
+    /**
+     * DNA/RNA或蛋白序列；最多100000字符
+     */
+    sequence: string;
+    /**
+     * 原记录全长
+     */
+    length: number;
+    /**
+     * 1-based-closed
+     */
+    coordinateSystem: string;
+};
+
 export type ErrorResponse = {
     /**
      * 错误描述信息
@@ -2407,6 +3433,14 @@ export type ResultArtifactListResponse = {
 };
 
 export type DataResource = {
+    /**
+     * 专业分析类型；未按专业模板登记时为null
+     */
+    analysisKind?: string | null;
+    /**
+     * observed真实来源或synthetic合成演示；页面须持续显示
+     */
+    provenance?: string;
     /**
      * 数据资源 ID
      */
@@ -5580,6 +6614,666 @@ export type ResourceId = number;
  * 异步任务 ID
  */
 export type JobId = string;
+
+export type GetAnalysisTemplatesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/analysis/templates/';
+};
+
+export type GetAnalysisTemplatesErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type GetAnalysisTemplatesError = GetAnalysisTemplatesErrors[keyof GetAnalysisTemplatesErrors];
+
+export type GetAnalysisTemplatesResponses = {
+    /**
+     * 请求成功
+     */
+    200: AnalysisTemplateCatalog;
+};
+
+export type GetAnalysisTemplatesResponse = GetAnalysisTemplatesResponses[keyof GetAnalysisTemplatesResponses];
+
+export type DownloadAnalysisTemplateData = {
+    body?: never;
+    path: {
+        /**
+         * 模板类型
+         */
+        kind: string;
+    };
+    query?: {
+        /**
+         * 是否包含合成示例
+         */
+        example?: boolean;
+        /**
+         * csv/xlsx/zip
+         */
+        format?: string;
+    };
+    url: '/api/analysis/templates/{kind}/file/';
+};
+
+export type DownloadAnalysisTemplateErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type DownloadAnalysisTemplateError = DownloadAnalysisTemplateErrors[keyof DownloadAnalysisTemplateErrors];
+
+export type DownloadAnalysisTemplateResponses = {
+    /**
+     * 下载文件
+     */
+    200: Blob | File;
+};
+
+export type DownloadAnalysisTemplateResponse = DownloadAnalysisTemplateResponses[keyof DownloadAnalysisTemplateResponses];
+
+export type ImportAnalysisTableData = {
+    /**
+     * 表格导入表单
+     */
+    body: {
+        /**
+         * CSV、TSV、XLSX，或variants的VCF/VCF.gz数据
+         */
+        file: Blob | File;
+        /**
+         * traits/samples/molecular/expression/function/variants/sequence
+         */
+        kind: string;
+        /**
+         * 新资源名称
+         */
+        name: string;
+        /**
+         * 真实或合成来源；必须明确选择
+         */
+        provenance: 'observed' | 'synthetic';
+        /**
+         * true仅校验，不写数据
+         */
+        validateOnly?: boolean;
+        /**
+         * 数据来源或提供单位，在资源详情与报告中保留
+         */
+        source?: string;
+        /**
+         * VCF导入时的精确参考组装编号，不能以染色体名称代替
+         */
+        assembly?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/analysis/import/';
+};
+
+export type ImportAnalysisTableErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type ImportAnalysisTableError = ImportAnalysisTableErrors[keyof ImportAnalysisTableErrors];
+
+export type ImportAnalysisTableResponses = {
+    /**
+     * 请求成功
+     */
+    201: AnalysisImportResult;
+};
+
+export type ImportAnalysisTableResponse = ImportAnalysisTableResponses[keyof ImportAnalysisTableResponses];
+
+export type QueryAnalysisResourceData = {
+    /**
+     * 已校验的分析参数或上传文件
+     */
+    body: AnalysisQuery;
+    path: {
+        /**
+         * 资源或组装数据库ID
+         */
+        id: number;
+    };
+    query?: never;
+    url: '/api/analysis/resources/{id}/query/';
+};
+
+export type QueryAnalysisResourceErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type QueryAnalysisResourceError = QueryAnalysisResourceErrors[keyof QueryAnalysisResourceErrors];
+
+export type QueryAnalysisResourceResponses = {
+    /**
+     * 请求成功
+     */
+    200: AnalysisResult;
+};
+
+export type QueryAnalysisResourceResponse = QueryAnalysisResourceResponses[keyof QueryAnalysisResourceResponses];
+
+export type ExportAnalysisResourceData = {
+    /**
+     * 已校验的分析参数或上传文件
+     */
+    body: AnalysisQuery;
+    path: {
+        /**
+         * 资源或组装数据库ID
+         */
+        id: number;
+    };
+    query?: never;
+    url: '/api/analysis/resources/{id}/export/';
+};
+
+export type ExportAnalysisResourceErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type ExportAnalysisResourceError = ExportAnalysisResourceErrors[keyof ExportAnalysisResourceErrors];
+
+export type ExportAnalysisResourceResponses = {
+    /**
+     * 下载文件
+     */
+    200: Blob | File;
+};
+
+export type ExportAnalysisResourceResponse = ExportAnalysisResourceResponses[keyof ExportAnalysisResourceResponses];
+
+export type ListAnalysisViewsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/analysis/views/';
+};
+
+export type ListAnalysisViewsErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type ListAnalysisViewsError = ListAnalysisViewsErrors[keyof ListAnalysisViewsErrors];
+
+export type ListAnalysisViewsResponses = {
+    /**
+     * 请求成功
+     */
+    200: AnalysisViewList;
+};
+
+export type ListAnalysisViewsResponse = ListAnalysisViewsResponses[keyof ListAnalysisViewsResponses];
+
+export type SaveAnalysisViewData = {
+    /**
+     * 已校验的分析参数或上传文件
+     */
+    body: AnalysisViewCreate;
+    path?: never;
+    query?: never;
+    url: '/api/analysis/views/';
+};
+
+export type SaveAnalysisViewErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type SaveAnalysisViewError = SaveAnalysisViewErrors[keyof SaveAnalysisViewErrors];
+
+export type SaveAnalysisViewResponses = {
+    /**
+     * 请求成功
+     */
+    201: AnalysisSavedView;
+};
+
+export type SaveAnalysisViewResponse = SaveAnalysisViewResponses[keyof SaveAnalysisViewResponses];
+
+export type ListGenomeAssembliesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/omics/assemblies/';
+};
+
+export type ListGenomeAssembliesErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type ListGenomeAssembliesError = ListGenomeAssembliesErrors[keyof ListGenomeAssembliesErrors];
+
+export type ListGenomeAssembliesResponses = {
+    /**
+     * 请求成功
+     */
+    200: GenomeAssemblyList;
+};
+
+export type ListGenomeAssembliesResponse = ListGenomeAssembliesResponses[keyof ListGenomeAssembliesResponses];
+
+export type GetGenomeSummaryData = {
+    body?: never;
+    path: {
+        /**
+         * 资源或组装数据库ID
+         */
+        id: number;
+    };
+    query?: never;
+    url: '/api/omics/assemblies/{id}/summary/';
+};
+
+export type GetGenomeSummaryErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type GetGenomeSummaryError = GetGenomeSummaryErrors[keyof GetGenomeSummaryErrors];
+
+export type GetGenomeSummaryResponses = {
+    /**
+     * 请求成功
+     */
+    200: GenomeSummary;
+};
+
+export type GetGenomeSummaryResponse = GetGenomeSummaryResponses[keyof GetGenomeSummaryResponses];
+
+export type SearchGenomeGenesData = {
+    body?: never;
+    path: {
+        /**
+         * 资源或组装数据库ID
+         */
+        id: number;
+    };
+    query?: {
+        /**
+         * 最长150字符；优先精确匹配原始/GWH/转录本/蛋白编号，未命中再执行不区分大小写的包含检索
+         */
+        q?: string;
+        /**
+         * FASTA ID或染色体别名
+         */
+        seqid?: string;
+        /**
+         * 1-based起点
+         */
+        start?: number;
+        /**
+         * 闭区间终点
+         */
+        end?: number;
+        /**
+         * 分页偏移
+         */
+        offset?: number;
+        /**
+         * 页大小
+         */
+        limit?: number;
+    };
+    url: '/api/omics/assemblies/{id}/genes/';
+};
+
+export type SearchGenomeGenesErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type SearchGenomeGenesError = SearchGenomeGenesErrors[keyof SearchGenomeGenesErrors];
+
+export type SearchGenomeGenesResponses = {
+    /**
+     * 请求成功
+     */
+    200: GenomeGeneList;
+};
+
+export type SearchGenomeGenesResponse = SearchGenomeGenesResponses[keyof SearchGenomeGenesResponses];
+
+export type GetGenomeGeneData = {
+    body?: never;
+    path: {
+        /**
+         * 资源或组装数据库ID
+         */
+        id: number;
+        /**
+         * 原始或外部基因编号
+         */
+        geneId: string;
+    };
+    query?: never;
+    url: '/api/omics/assemblies/{id}/genes/{geneId}/';
+};
+
+export type GetGenomeGeneErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type GetGenomeGeneError = GetGenomeGeneErrors[keyof GetGenomeGeneErrors];
+
+export type GetGenomeGeneResponses = {
+    /**
+     * 请求成功
+     */
+    200: GenomeGeneDetail;
+};
+
+export type GetGenomeGeneResponse = GetGenomeGeneResponses[keyof GetGenomeGeneResponses];
+
+export type GetGenomeSequenceData = {
+    body?: never;
+    path: {
+        /**
+         * 资源或组装数据库ID
+         */
+        id: number;
+    };
+    query?: {
+        /**
+         * genome/protein/rna/cds
+         */
+        role?: string;
+        /**
+         * 序列编号或染色体别名
+         */
+        seqid?: string;
+        /**
+         * 1-based起点
+         */
+        start?: number;
+        /**
+         * 闭区间终点
+         */
+        end?: number;
+        /**
+         * +或-；蛋白只能+
+         */
+        strand?: string;
+    };
+    url: '/api/omics/assemblies/{id}/sequence/';
+};
+
+export type GetGenomeSequenceErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type GetGenomeSequenceError = GetGenomeSequenceErrors[keyof GetGenomeSequenceErrors];
+
+export type GetGenomeSequenceResponses = {
+    /**
+     * 请求成功
+     */
+    200: GenomeSequenceResult;
+};
+
+export type GetGenomeSequenceResponse = GetGenomeSequenceResponses[keyof GetGenomeSequenceResponses];
+
+export type ImportGenomeFilesData = {
+    /**
+     * 基因组配套文件
+     */
+    body: {
+        /**
+         * 组装名称
+         */
+        name: string;
+        /**
+         * 唯一组装编号
+         */
+        code: string;
+        /**
+         * female/male/unknown
+         */
+        sex?: string;
+        /**
+         * 必须明确来源
+         */
+        provenance: 'observed' | 'synthetic';
+        /**
+         * 可选的原始数据库网址或资料来源，随组装保留
+         */
+        sourceUrl?: string;
+        /**
+         * genome文件；支持gzip
+         */
+        genome: Blob | File;
+        /**
+         * gff文件；支持gzip
+         */
+        gff: Blob | File;
+        /**
+         * protein文件；支持gzip
+         */
+        protein?: Blob | File;
+        /**
+         * rna文件；支持gzip
+         */
+        rna?: Blob | File;
+        /**
+         * cds文件；支持gzip
+         */
+        cds?: Blob | File;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/omics/import/';
+};
+
+export type ImportGenomeFilesErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type ImportGenomeFilesError = ImportGenomeFilesErrors[keyof ImportGenomeFilesErrors];
+
+export type ImportGenomeFilesResponses = {
+    /**
+     * 请求成功
+     */
+    201: GenomeSummary;
+};
+
+export type ImportGenomeFilesResponse = ImportGenomeFilesResponses[keyof ImportGenomeFilesResponses];
 
 export type GetBootstrapData = {
     body?: never;

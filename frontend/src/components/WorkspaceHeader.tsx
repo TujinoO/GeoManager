@@ -1,3 +1,4 @@
+import "../styles/workspace-header-fit.css";
 import {
   AlertOutlined,
   ApartmentOutlined,
@@ -57,6 +58,8 @@ import type {
   WorkspaceScene,
 } from "../types";
 import {
+  analysisResourceUrl,
+  isNonGeographicResource,
   resourceCategoryName,
   resourceFormatLabel,
   resourceProvider,
@@ -575,12 +578,20 @@ export default function WorkspaceHeader({
   function commitSearch(value: string) {
     const keyword = value.trim();
     const query = keyword ? `?resourceQ=${encodeURIComponent(keyword)}` : "";
-    navigate(`/map${query}`);
+    navigate(`${activeTab === "nongeo" ? "/nongeo" : "/map"}${query}`);
     onGlobalSearch?.(keyword);
     closeSearchPanel();
   }
 
   async function quickLoadResource(resource: ResourceListItem) {
+    if (
+      isNonGeographicResource(resource) &&
+      ["table", "gene"].includes(resource.dataType)
+    ) {
+      navigate(analysisResourceUrl(resource));
+      closeSearchPanel();
+      return;
+    }
     if (onQuickLoadResource) {
       setQuickLoadingResourceId(resource.id);
       try {
@@ -648,7 +659,14 @@ export default function WorkspaceHeader({
   const mapCategoryMenuItems = useMemo<MenuProps["items"]>(
     () =>
       workspaceCategoryMenuItems(
-        taxonomyTree(effectiveDataSchema),
+        taxonomyTree(effectiveDataSchema).map((root) => ({
+          ...root,
+          children: root.children.map((child) =>
+            child.categoryCode === "thematic_gene_germplasm"
+              ? { ...child, name: "种质采样位置" }
+              : child,
+          ),
+        })),
         "/map",
         navigateFromHeader,
         t,
@@ -656,14 +674,48 @@ export default function WorkspaceHeader({
     [effectiveDataSchema, navigateFromHeader, t],
   );
   const analysisCategoryMenuItems = useMemo<MenuProps["items"]>(
-    () =>
-      workspaceCategoryMenuItems(
-        taxonomyTree(effectiveDataSchema),
-        "/nongeo",
-        navigateFromHeader,
-        t,
-      ),
-    [effectiveDataSchema, navigateFromHeader, t],
+    () => [
+      {
+        key: "analysis-all",
+        label: "全部分析数据",
+        onClick: () => navigateFromHeader("/nongeo"),
+      },
+      { type: "divider" },
+      {
+        key: "analysis-ecology",
+        label: "生态观测与性状",
+        onClick: () => navigateFromHeader("/nongeo?view=ecology"),
+      },
+      {
+        key: "analysis-samples",
+        label: "样品与种质",
+        onClick: () => navigateFromHeader("/nongeo?view=samples"),
+      },
+      {
+        key: "analysis-molecular",
+        label: "分子实验",
+        onClick: () => navigateFromHeader("/nongeo?view=molecular"),
+      },
+      {
+        key: "analysis-genome",
+        label: "基因组与组学",
+        children: [
+          ["overview", "参考基因组"],
+          ["browser", "基因结构与序列"],
+          ["comparison", "参考组装比较"],
+          ["sequence", "序列统计"],
+          ["expression", "基因表达"],
+          ["function", "功能注释"],
+          ["variants", "遗传变异"],
+        ].map(([section, label]) => ({
+          key: `analysis-${section}`,
+          label,
+          onClick: () =>
+            navigateFromHeader(`/nongeo?view=genome&section=${section}`),
+        })),
+      },
+    ],
+    [navigateFromHeader],
   );
 
   const dataManagementMenuItems = useMemo<MenuProps["items"]>(() => {

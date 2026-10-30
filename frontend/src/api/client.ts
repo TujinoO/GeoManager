@@ -190,6 +190,54 @@ async function unwrap<T>(request: Promise<HeyApiResponse>): Promise<T> {
   return data as T;
 }
 
+// Match the backend's single heavy-query slot across quick load, spatial
+// queries and workspace restore. A failed query must not block the queue.
+let resourceQueryTail = Promise.resolve();
+const RESOURCE_QUERY_MAX_RETRIES = 3;
+const RESOURCE_QUERY_MAX_RETRY_DELAY_MS = 10_000;
+
+function resourceQueryRetryDelay(
+  response: Response | undefined,
+): number | null {
+  if (response?.status !== 503) return null;
+  const retryAfter = response.headers.get("Retry-After")?.trim();
+  if (!retryAfter) return null;
+  const delay = /^\d+$/.test(retryAfter)
+    ? Number(retryAfter) * 1000
+    : Math.max(0, Date.parse(retryAfter) - Date.now());
+  return Number.isFinite(delay) && delay <= RESOURCE_QUERY_MAX_RETRY_DELAY_MS
+    ? delay
+    : null;
+}
+
+function queryResource(
+  resource: ResourceListItem,
+  payload: ResourceQueryPayload,
+): Promise<ResourceQueryResult> {
+  const result = resourceQueryTail.then(async () => {
+    for (let attempt = 0; ; attempt += 1) {
+      const response = await sdk.queryResource({
+        path: { id: resource.id },
+        body: payload,
+      });
+      const retryDelay = resourceQueryRetryDelay(response.response);
+      if (
+        response.error === undefined ||
+        retryDelay === null ||
+        attempt >= RESOURCE_QUERY_MAX_RETRIES
+      ) {
+        return unwrap<ResourceQueryResult>(Promise.resolve(response));
+      }
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+    }
+  });
+  resourceQueryTail = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
+
 async function unwrapBlob(
   request: Promise<HeyApiResponse>,
 ): Promise<{ blob: Blob; filename: string }> {
@@ -911,13 +959,7 @@ export const api = {
       `/api/catalog/resources/${resourceId}/nongeo-query/`,
       { method: "POST", body: payload },
     ),
-  queryResource: (resource: ResourceListItem, payload: ResourceQueryPayload) =>
-    unwrap<ResourceQueryResult>(
-      sdk.queryResource({
-        path: { id: resource.id },
-        body: payload,
-      }),
-    ),
+  queryResource,
   exportLayers: (payload: ExportLayersPayload) =>
     unwrapBlob(sdk.exportLayers({ body: payload, parseAs: "blob" })),
   exportLayersAsync: (payload: ExportLayersPayload) =>

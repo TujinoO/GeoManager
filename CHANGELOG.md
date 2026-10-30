@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve unsaved map-composition edits when the live map view or source summary changes
 - Recommend usable geographic and Web Mercator grid intervals for both local and regional extents
 
+## [V3.24] - 2026-10-30
+
+- 新增生态观测、种质样本、分子实验及基因组数据分析工作台，支持筛选统计、图表、CSV/报告导出和个人视图保存。
+- 统一分析数据导入入口，提供表格模板、参考数据包及原生基因组文件校验与索引。
+- 改进目录查询排队和临时繁忙重试，优化地图侧栏及窄屏布局。
+- 恢复 GPEDSP 平台品牌，更新帮助中心、离线 PDF 和操作指南。
+- 升级说明：新增 `omics.0003` 数据表迁移，由容器启动时执行；本地业务数据和研究数据不随代码发布自动导入生产。
+
 ## [0.1.0] - 2026-05-28
 
 ### Added

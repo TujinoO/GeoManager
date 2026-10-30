@@ -1,0 +1,19 @@
+@media (min-width: 761px) {
+  .workspace-header .workspace-search-nav {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .workspace-header .header-primary-actions {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .workspace-header .header-primary-actions .workspace-switch-card {
+    flex-shrink: 0;
+  }
+  .workspace-header .brand-block {
+    min-width: 0;
+    max-width: clamp(130px, 22vw, 260px);
+  }
+}

@@ -10,6 +10,7 @@ urlpatterns = [
     path("api/", include("apps.catalog.urls")),
     path("api/", include("apps.standards.urls")),
     path("api/germplasm/", include("apps.omics.urls")),
+    path("api/omics/", include("apps.omics.analysis_urls")),
     path("api/raster/", include("apps.raster.urls")),
 ]
 

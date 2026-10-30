@@ -1,0 +1,785 @@
+.analysis-workspace {
+  background:
+    radial-gradient(
+      circle at 15% 15%,
+      rgba(22, 184, 169, 0.1),
+      transparent 38%
+    ),
+    radial-gradient(
+      circle at 85% 40%,
+      rgba(70, 163, 216, 0.08),
+      transparent 36%
+    ),
+    linear-gradient(135deg, #f3faf6, #eaf5f3);
+  color: var(--c-data-text);
+}
+.analysis-workspace .workspace-header .workspace-search-nav {
+  --workspace-search-expanded-dynamic: clamp(150px, 14vw, 220px);
+  --workspace-search-collapsed-dynamic: 120px;
+  overflow: hidden;
+  min-width: 0;
+}
+.analysis-workspace .workspace-header .header-primary-actions {
+  flex: 1 1 auto;
+  overflow-x: auto;
+  min-width: 0;
+  scrollbar-width: thin;
+}
+.analysis-workspace
+  .workspace-header
+  .header-primary-actions
+  .workspace-switch-card {
+  flex-shrink: 0;
+}
+.analysis-workspace .workspace-header .brand-block {
+  min-width: 0;
+  max-width: 250px;
+  flex: 0 1 250px;
+}
+.analysis-workspace .workspace-header .brand-copy {
+  min-width: 0;
+}
+.analysis-workspace .workspace-header .brand-copy h4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.analysis-workspace .workspace-header .header-account-actions {
+  flex-shrink: 0;
+}
+.analysis-workspace .workspace-header .workspace-global-search {
+  flex-shrink: 0;
+}
+.analysis-shell {
+  position: absolute;
+  inset: 80px 12px 12px;
+  border: 1px solid rgba(52, 128, 116, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 18px 44px rgba(60, 96, 88, 0.1);
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr);
+  min-height: 0;
+}
+.analysis-sidebar {
+  min-width: 0;
+  overflow-y: auto;
+  padding: 24px 18px;
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.94),
+    rgba(229, 245, 238, 0.9)
+  );
+  border-right: 1px solid rgba(52, 128, 116, 0.18);
+}
+.analysis-sidebar-brand {
+  padding: 0 10px 22px;
+}
+.analysis-mobile-menu-toggle {
+  display: none;
+}
+.analysis-sidebar-brand > span,
+.analysis-eyebrow {
+  color: var(--c-data-accent);
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+.analysis-sidebar-brand h2 {
+  margin: 8px 0;
+  font-size: 21px;
+  color: var(--c-primary-dark);
+}
+.analysis-sidebar p {
+  color: var(--c-data-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.analysis-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 12px;
+  margin-bottom: 5px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--c-data-text);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.analysis-nav-item > .anticon {
+  font-size: 19px;
+  flex-shrink: 0;
+}
+.analysis-nav-item span {
+  min-width: 0;
+}
+.analysis-nav-item strong,
+.analysis-nav-item small {
+  display: block;
+}
+.analysis-nav-item strong {
+  font-weight: 500;
+  font-size: 14px;
+}
+.analysis-nav-item small {
+  margin-top: 5px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--c-data-muted);
+}
+.analysis-nav-item.is-active {
+  box-shadow:
+    0 8px 22px rgba(22, 184, 169, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  color: var(--c-data-accent-hover);
+  border-color: rgba(22, 184, 169, 0.4);
+  background: linear-gradient(115deg, #d0f5e9, #e9f8f4);
+}
+.analysis-nav-item:hover,
+.analysis-resource:hover {
+  background-color: #e1f4ec;
+}
+.analysis-sidebar-section {
+  margin-top: 25px;
+  border-top: 1px solid rgba(52, 128, 116, 0.18);
+  padding: 18px 4px 0;
+}
+.analysis-sidebar-section h3 {
+  color: var(--c-data-text);
+  font-size: 12px;
+  font-weight: 500;
+  margin: 0 0 12px;
+}
+.analysis-resource-list {
+  max-height: 340px;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+.analysis-resource {
+  width: 100%;
+  min-width: 0;
+  display: block;
+  padding: 12px 9px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(52, 128, 116, 0.2);
+  border-radius: 8px;
+  color: var(--c-data-text);
+  margin-bottom: 7px;
+  cursor: pointer;
+  font: inherit;
+}
+.analysis-resource strong {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  display: block;
+  line-height: 1.6;
+}
+.analysis-resource small {
+  display: block;
+  font-size: 10px;
+  color: var(--c-data-muted);
+  padding-top: 5px;
+}
+.analysis-resource.is-selected {
+  border-color: #16b8a9;
+  background: #dff5ed;
+}
+.analysis-saved {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 0;
+  font: inherit;
+  font-size: 12px;
+  background: none;
+  border: 0;
+  color: var(--c-data-accent-hover);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.analysis-main {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+  padding: 28px clamp(16px, 2.4vw, 40px) 50px;
+  background:
+    radial-gradient(
+      ellipse at 80% 0,
+      rgba(70, 163, 216, 0.08),
+      transparent 60%
+    ),
+    rgba(247, 252, 249, 0.74);
+}
+.analysis-page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.analysis-page-heading h1 {
+  color: var(--c-primary-dark);
+  font-size: 27px;
+  font-weight: 600;
+  margin: 8px 0;
+  letter-spacing: 1px;
+}
+.analysis-page-heading p {
+  color: var(--c-data-muted);
+  font-size: 12px;
+  margin: 0;
+}
+.analysis-selection {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 12px 16px;
+  background: rgba(229, 246, 239, 0.85);
+  border: 1px solid rgba(52, 128, 116, 0.18);
+  border-radius: 9px;
+  margin-bottom: 18px;
+  overflow-wrap: anywhere;
+}
+.analysis-selection strong {
+  color: var(--c-primary-dark);
+  font-size: 14px;
+}
+.analysis-selection span,
+.analysis-muted {
+  color: var(--c-data-muted);
+  font-size: 12px;
+}
+.analysis-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 14px 0;
+  min-width: 0;
+}
+.analysis-toolbar > .ant-input-search {
+  flex: 1 1 180px;
+  min-width: 0;
+  max-width: 300px;
+}
+.analysis-toolbar > .ant-select {
+  flex: 0 1 150px;
+  min-width: 120px;
+  max-width: 100%;
+}
+.analysis-toolbar > .analysis-toolbar-field {
+  display: grid;
+  gap: 5px;
+  flex: 0 1 150px;
+  min-width: 130px;
+  max-width: 100%;
+}
+.analysis-toolbar-field > span {
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--c-data-muted);
+}
+.analysis-toolbar-field .ant-select {
+  width: 100%;
+}
+.analysis-table-workbench > .analysis-toolbar {
+  align-items: flex-end;
+}
+.analysis-filterbar > .ant-input {
+  flex: 0 1 200px;
+}
+.analysis-toolbar > .ant-input-number {
+  width: 145px;
+  max-width: 100%;
+}
+.analysis-source-line {
+  display: flex;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 11px;
+  color: var(--c-data-muted);
+  margin: 12px 0;
+  overflow-wrap: anywhere;
+}
+.analysis-source-line > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.analysis-card {
+  min-width: 0;
+  max-width: 100%;
+  margin-bottom: 18px;
+  padding: 20px;
+  border: 1px solid rgba(52, 128, 116, 0.18);
+  border-radius: 8px;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.95),
+    rgba(241, 250, 246, 0.88)
+  );
+  box-shadow:
+    0 12px 30px rgba(38, 82, 74, 0.065),
+    0 0 24px rgba(22, 184, 169, 0.035),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+.analysis-card h3 {
+  color: var(--c-primary-dark);
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.analysis-card p,
+.analysis-card li {
+  color: var(--c-data-muted);
+  line-height: 1.85;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.analysis-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+.analysis-card-heading > div {
+  min-width: 0;
+}
+.analysis-card-heading > .ant-segmented,
+.analysis-card-heading > .ant-btn {
+  flex-shrink: 0;
+}
+.analysis-chart-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 4px;
+  max-width: 100%;
+}
+.analysis-chart-viewport {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.analysis-card-heading p {
+  margin: 0;
+}
+.analysis-chart-card {
+  padding-bottom: 8px;
+}
+.analysis-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+.analysis-chart-grid > .analysis-card {
+  margin-bottom: 0;
+}
+.analysis-chart-grid {
+  margin-bottom: 18px;
+}
+.analysis-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+.analysis-metric {
+  margin: 0;
+  padding: 18px 16px;
+}
+.analysis-metric > span {
+  font-size: 11px;
+  color: var(--c-data-muted);
+}
+.analysis-metric > strong {
+  display: block;
+  color: var(--c-primary-dark);
+  font-size: clamp(18px, 1.6vw, 28px);
+  margin: 8px 0 6px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.analysis-metric > small {
+  display: block;
+  font-size: 10px;
+  line-height: 1.8;
+  color: var(--c-data-muted);
+  overflow-wrap: anywhere;
+}
+.analysis-loading {
+  min-height: 240px;
+  display: grid;
+  place-items: center;
+}
+.analysis-karyotype-scroll,
+.analysis-gene-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.analysis-karyotype {
+  width: 100%;
+  min-width: 700px;
+  display: block;
+}
+.analysis-chromosome {
+  cursor: pointer;
+  outline-offset: 3px;
+}
+.analysis-chromosome:focus rect:first-of-type {
+  stroke: #128d81;
+  stroke-width: 3;
+}
+.analysis-gene-tracks {
+  min-width: 720px;
+  width: 100%;
+  display: block;
+}
+.analysis-sequence {
+  margin-top: 20px;
+}
+.analysis-sequence pre {
+  padding: 18px;
+  background: #f0f8f3;
+  border: 1px solid rgba(52, 128, 116, 0.18);
+  border-radius: 8px;
+  color: #225c52;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  max-height: 340px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.9;
+}
+.analysis-break {
+  overflow-wrap: anywhere;
+}
+.analysis-wide {
+  width: 100%;
+  min-width: 0;
+}
+.analysis-main details > summary {
+  color: var(--c-data-accent-hover);
+  cursor: pointer;
+  padding-bottom: 10px;
+  font-size: 13px;
+}
+.analysis-filter-controls {
+  border-bottom: 1px solid #dce9e1;
+  padding: 2px 0 8px;
+}
+.analysis-filter-controls > summary > span {
+  font-size: 11px;
+  margin-left: 8px;
+  color: #82958d;
+}
+.analysis-filter-controls > summary {
+  padding: 3px 0;
+}
+.analysis-section-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 28px 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #d8e7de;
+}
+.analysis-section-caption > span {
+  color: #315e50;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.analysis-section-caption > small {
+  color: #85998e;
+  font-size: 11px;
+}
+.analysis-specialized .analysis-chart-card {
+  background: #fff;
+  box-shadow: 0 5px 18px #264c3410;
+  border-color: #dce8e0;
+}
+.analysis-chart-card h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.analysis-chart-card .analysis-card-heading p {
+  font-size: 11px;
+  color: #7b9186;
+  line-height: 1.75;
+  max-width: 76ch;
+}
+.analysis-chart-notes {
+  padding: 8px 2px 18px;
+  color: #7b9186;
+  font-size: 11px;
+}
+.analysis-chart-notes p {
+  line-height: 1.85;
+  margin: 4px 0;
+}
+.analysis-atlas-switch {
+  display: flex;
+  justify-content: flex-end;
+  margin: 20px 0 12px;
+}
+.analysis-genome-atlas {
+  background: #fff;
+}
+.analysis-atlas-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 175px;
+  align-items: center;
+  gap: 20px;
+}
+.analysis-genome-circle {
+  width: 100%;
+  max-height: 660px;
+  display: block;
+}
+.analysis-circle-chromosome {
+  cursor: pointer;
+}
+.analysis-circle-chromosome:hover > path,
+.analysis-circle-chromosome:focus-visible > path {
+  stroke: #225c52;
+  stroke-width: 2.5px;
+}
+.analysis-atlas-key {
+  padding-left: 18px;
+  border-left: 1px solid #e0ebe3;
+  color: #567667;
+}
+.analysis-atlas-key > div {
+  padding: 12px 0;
+}
+.analysis-atlas-key strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.analysis-atlas-key i {
+  display: inline-block;
+  width: 24px;
+  height: 7px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+.analysis-atlas-key p,
+.analysis-atlas-key > span {
+  font-size: 11px;
+  color: #82958a;
+}
+@media (max-width: 1100px) {
+  .analysis-atlas-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .analysis-atlas-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    border: 0;
+    padding: 0;
+  }
+  .analysis-atlas-key > div {
+    flex: 1 1 145px;
+  }
+  .analysis-atlas-key > span {
+    flex-basis: 100%;
+  }
+}
+@media (max-width: 650px) {
+  .analysis-card-heading {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .analysis-main .analysis-toolbar > .ant-btn {
+    max-width: 100%;
+  }
+}
+.analysis-main .ant-alert {
+  margin: 12px 0;
+}
+.analysis-main .ant-alert-info {
+  background: #e8f4ed;
+  border-color: #c9dfd3;
+}
+.analysis-main .ant-table-wrapper {
+  min-width: 0;
+  max-width: 100%;
+}
+.analysis-main .ant-empty {
+  margin: 50px 0;
+}
+.analysis-main .ant-form-item-label > label {
+  color: var(--c-data-text);
+}
+.analysis-main .ant-tabs-tab {
+  font-size: 13px;
+}
+.analysis-main .ant-space-item {
+  max-width: 100%;
+  min-width: 0;
+}
+.analysis-genome .ant-space .ant-btn {
+  height: auto;
+  min-height: 32px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  padding-block: 6px;
+}
+.analysis-import input[type="file"] {
+  max-width: 100%;
+  font-size: 12px;
+}
+@media (max-width: 1200px) {
+  .analysis-shell {
+    grid-template-columns: 230px minmax(0, 1fr);
+  }
+  .analysis-sidebar {
+    padding-inline: 12px;
+  }
+  .analysis-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 950px) {
+  .analysis-chart-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .analysis-shell {
+    grid-template-columns: 210px minmax(0, 1fr);
+  }
+  .analysis-main {
+    padding-inline: 16px;
+  }
+}
+@media (max-width: 650px) {
+  .analysis-workspace .workspace-header .brand-block {
+    flex: 0 0 32px;
+    min-width: 32px;
+    max-width: 32px;
+  }
+  .analysis-shell {
+    display: block;
+    overflow-y: auto;
+  }
+  .analysis-sidebar {
+    overflow: visible;
+    padding: 16px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(52, 128, 116, 0.18);
+  }
+  .analysis-sidebar-brand {
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .analysis-sidebar-brand h2 {
+    font-size: 16px;
+    margin: 4px 0;
+  }
+  .analysis-sidebar-brand > span {
+    display: none;
+  }
+  .analysis-mobile-menu-toggle {
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+  .analysis-sidebar-content {
+    display: none;
+  }
+  .analysis-sidebar-content.is-open {
+    display: block;
+    padding-top: 18px;
+  }
+  .analysis-sidebar-brand p {
+    display: none;
+  }
+  .analysis-sidebar nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .analysis-nav-item {
+    padding: 10px;
+    margin: 0;
+  }
+  .analysis-nav-item small {
+    display: none;
+  }
+  .analysis-nav-item strong {
+    font-size: 12px;
+  }
+  .analysis-sidebar-section {
+    margin-top: 14px;
+    padding-top: 12px;
+  }
+  .analysis-resource-list {
+    max-height: 160px;
+  }
+  .analysis-main {
+    overflow: visible;
+    padding: 22px 12px 36px;
+  }
+  .analysis-page-heading h1 {
+    font-size: 23px;
+  }
+  .analysis-card {
+    padding: 14px;
+  }
+  .analysis-metrics {
+    gap: 8px;
+  }
+  .analysis-metric {
+    padding: 12px;
+  }
+  .analysis-metric > strong {
+    font-size: 18px;
+  }
+  .analysis-toolbar {
+    gap: 8px;
+  }
+  .analysis-toolbar > .ant-select {
+    flex-basis: 160px;
+  }
+  .analysis-toolbar > .ant-input-search {
+    max-width: 100%;
+  }
+}
+
+.analysis-metric {
+  background: linear-gradient(
+    135deg,
+    rgba(223, 247, 237, 0.9),
+    rgba(255, 255, 255, 0.94)
+  );
+  border-top: 2px solid rgba(22, 184, 169, 0.42);
+}
+.analysis-nav-item:focus-visible,
+.analysis-resource:focus-visible,
+.analysis-saved:focus-visible {
+  outline: 2px solid var(--c-data-accent);
+  outline-offset: 2px;
+}
+@media (max-width: 650px) {
+  .analysis-shell {
+    inset: 72px 6px 6px;
+  }
+}

@@ -52,6 +52,543 @@ tags:
     description: Ant Design Pro 管理后台用户、用户组、权限偏好和用户可配置设置接口
 
 paths:
+  /api/analysis/templates/:
+    get:
+      tags:
+      - 数据目录
+      summary: 获取版本化专业导入模板
+      description: 获取版本化专业导入模板。需要 core.browse_data。
+      operationId: getAnalysisTemplates
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: 请求成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisTemplateCatalog'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/analysis/templates/{kind}/file/:
+    get:
+      tags:
+      - 数据目录
+      summary: 下载空模板或合成示例
+      description: 下载空模板或合成示例。需要 core.browse_data；ZIP不自动解压。
+      operationId: downloadAnalysisTemplate
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: 请求成功
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+                description: 下载文件
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - name: kind
+        in: path
+        required: true
+        description: 模板类型
+        schema:
+          type: string
+      - name: example
+        in: query
+        required: false
+        description: 是否包含合成示例
+        schema:
+          type: boolean
+      - name: format
+        in: query
+        required: false
+        description: csv/xlsx/zip
+        schema:
+          type: string
+  /api/analysis/import/:
+    post:
+      tags:
+      - 数据目录
+      summary: 校验并增量导入专业表格
+      description: 统一导入页面使用的专业校验与导入接口。支持CSV、TSV、XLSX，variants另支持VCF/VCF.gz并展开到样品长表；最多16MiB上传、64MiB文本展开、200000行。需要catalog.add_dataresource，校验错误返回400及字段行号。validateOnly成功也返回201。
+      operationId: importAnalysisTable
+      security:
+      - sessionAuth: []
+      responses:
+        '201':
+          description: 请求成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisImportResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      requestBody:
+        required: true
+        description: 已校验的分析参数或上传文件
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              description: 表格导入表单
+              required:
+              - file
+              - kind
+              - name
+              - provenance
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV、TSV、XLSX，或variants的VCF/VCF.gz数据
+                kind:
+                  type: string
+                  description: traits/samples/molecular/expression/function/variants/sequence
+                name:
+                  type: string
+                  description: 新资源名称
+                provenance:
+                  type: string
+                  enum:
+                  - observed
+                  - synthetic
+                  description: 真实或合成来源；必须明确选择
+                validateOnly:
+                  type: boolean
+                  description: true仅校验，不写数据
+                source:
+                  type: string
+                  maxLength: 160
+                  description: 数据来源或提供单位，在资源详情与报告中保留
+                assembly:
+                  type: string
+                  description: VCF导入时的精确参考组装编号，不能以染色体名称代替
+  /api/analysis/resources/{id}/query/:
+    post:
+      tags:
+      - 数据目录
+      summary: 全量筛选分析与分页
+      description: 全量筛选分析与分页。需要 core.query_data 和资源授权；导出另需 catalog.export_dataresource；最多200000行，超限明确报错。
+      operationId: queryAnalysisResource
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: 请求成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters: &id001
+      - &id002
+        name: id
+        in: path
+        required: true
+        description: 资源或组装数据库ID
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        description: 已校验的分析参数或上传文件
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalysisQuery'
+  /api/analysis/resources/{id}/export/:
+    post:
+      tags:
+      - 数据目录
+      summary: 按相同筛选导出CSV
+      description: 按相同筛选导出CSV。需要 core.query_data、catalog.export_dataresource和资源授权；审计导出；防止CSV公式执行。
+      operationId: exportAnalysisResource
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: 请求成功
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+                description: 下载文件
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters: *id001
+      requestBody:
+        required: true
+        description: 已校验的分析参数或上传文件
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalysisQuery'
+  /api/analysis/views/:
+    get:
+      tags:
+      - 数据目录
+      summary: 列出当前用户保存的分析视图
+      description: 列出当前用户保存的分析视图。需要 core.query_data；重新检查源资源访问权限。
+      operationId: listAnalysisViews
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: 请求成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisViewList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+      - 数据目录
+      summary: 保存分析条件
+      description: 保存分析条件。需要 core.query_data和源资源授权；同用户同名视图更新；不复制原始结果。
+      operationId: saveAnalysisView
+      security:
+      - sessionAuth: []
+      responses:
+        '201':
+          description: 请求成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisSavedView'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      requestBody:
+        required: true
+        description: 已校验的分析参数或上传文件
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalysisViewCreate'
+  /api/omics/assemblies/:
+    get:
+      tags:
+      - 数据目录
+      summary: 列出已授权、已完成索引的基因组
+      description: 列出已授权、已完成索引的基因组。需要 core.browse_data。
+      operationId: listGenomeAssemblies
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: 请求成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenomeAssemblyList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/omics/assemblies/{id}/summary/:
+    get:
+      tags:
+      - 数据目录
+      summary: 读取全量预计算摘要
+      description: 读取全量预计算摘要。需要 core.query_data及资源授权；FASTA序列N50不称contig N50。
+      operationId: getGenomeSummary
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: 请求成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenomeSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters: *id001
+  /api/omics/assemblies/{id}/genes/:
+    get:
+      tags:
+      - 数据目录
+      summary: 通过原始/GWH/转录本/蛋白编号或1-based闭区间检索
+      description: 通过原始/GWH/转录本/蛋白编号或1-based闭区间检索。需要 core.query_data及资源授权；seqid可用原始别名；分页不超过500。
+      operationId: searchGenomeGenes
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: 请求成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenomeGeneList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - *id002
+      - name: q
+        in: query
+        required: false
+        description: 最长150字符；优先精确匹配原始/GWH/转录本/蛋白编号，未命中再执行不区分大小写的包含检索
+        schema:
+          type: string
+      - name: seqid
+        in: query
+        required: false
+        description: FASTA ID或染色体别名
+        schema:
+          type: string
+      - name: start
+        in: query
+        required: false
+        description: 1-based起点
+        schema:
+          type: integer
+      - name: end
+        in: query
+        required: false
+        description: 闭区间终点
+        schema:
+          type: integer
+      - name: offset
+        in: query
+        required: false
+        description: 分页偏移
+        schema:
+          type: integer
+      - name: limit
+        in: query
+        required: false
+        description: 页大小
+        schema:
+          type: integer
+  /api/omics/assemblies/{id}/genes/{geneId}/:
+    get:
+      tags:
+      - 数据目录
+      summary: 获取完整模型与编号关联序列
+      description: 获取完整模型与编号关联序列。需要 core.query_data及资源授权。
+      operationId: getGenomeGene
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: 请求成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenomeGeneDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - *id002
+      - name: geneId
+        in: path
+        required: true
+        description: 原始或外部基因编号
+        schema:
+          type: string
+  /api/omics/assemblies/{id}/sequence/:
+    get:
+      tags:
+      - 数据目录
+      summary: 读取最多100000字符DNA、RNA、CDS或蛋白
+      description: 读取最多100000字符DNA、RNA、CDS或蛋白。负链DNA返回反向互补；需要 core.query_data及资源授权。
+      operationId: getGenomeSequence
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: 请求成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenomeSequenceResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      parameters:
+      - *id002
+      - name: role
+        in: query
+        required: false
+        description: genome/protein/rna/cds
+        schema:
+          type: string
+      - name: seqid
+        in: query
+        required: false
+        description: 序列编号或染色体别名
+        schema:
+          type: string
+      - name: start
+        in: query
+        required: false
+        description: 1-based起点
+        schema:
+          type: integer
+      - name: end
+        in: query
+        required: false
+        description: 闭区间终点
+        schema:
+          type: integer
+      - name: strand
+        in: query
+        required: false
+        description: +或-；蛋白只能+
+        schema:
+          type: string
+  /api/omics/import/:
+    post:
+      tags:
+      - 数据目录
+      summary: 导入基因组配套文件并发布完整索引
+      description: 统一导入页面支持FASTA/FA/FNA、GFF/GFF3、FAA、RNA/CDS FASTA及其gzip压缩文件。需要catalog.add_dataresource；上传合计最多512MiB，流式展开预算4GiB。同步处理可能持续数分钟，失败不发布。
+      operationId: importGenomeFiles
+      security:
+      - sessionAuth: []
+      responses:
+        '201':
+          description: 请求成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenomeSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      requestBody:
+        required: true
+        description: 已校验的分析参数或上传文件
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              description: 基因组配套文件
+              required:
+              - name
+              - code
+              - provenance
+              - genome
+              - gff
+              properties:
+                name:
+                  type: string
+                  description: 组装名称
+                code:
+                  type: string
+                  description: 唯一组装编号
+                sex:
+                  type: string
+                  description: female/male/unknown
+                provenance:
+                  type: string
+                  enum:
+                  - observed
+                  - synthetic
+                  description: 必须明确来源
+                sourceUrl:
+                  type: string
+                  maxLength: 2000
+                  description: 可选的原始数据库网址或资料来源，随组装保留
+                genome:
+                  type: string
+                  format: binary
+                  description: genome文件；支持gzip
+                gff:
+                  type: string
+                  format: binary
+                  description: gff文件；支持gzip
+                protein:
+                  type: string
+                  format: binary
+                  description: protein文件；支持gzip
+                rna:
+                  type: string
+                  format: binary
+                  description: rna文件；支持gzip
+                cds:
+                  type: string
+                  format: binary
+                  description: cds文件；支持gzip
   /api/bootstrap/:
     get:
       tags: [公共接口]
@@ -3626,6 +4163,1121 @@ components:
             detail: 查询任务繁忙，请稍后重试
 
   schemas:
+    AnalysisTemplateColumn:
+      type: object
+      description: 模板字段
+      required:
+      - name
+      - required
+      - numeric
+      - description
+      properties:
+        name:
+          type: string
+          description: 字段名
+        required:
+          type: boolean
+          description: 是否必填
+        numeric:
+          type: boolean
+          description: 是否数值
+        description:
+          type: string
+          description: 语义与单位
+    AnalysisTemplate:
+      type: object
+      description: 数据导入模板
+      required:
+      - kind
+      - name
+      - unit
+      - columns
+      - uniqueKey
+      - formats
+      properties:
+        kind:
+          type: string
+          description: 模板类型
+        name:
+          type: string
+          description: 中文名称
+        unit:
+          type: string
+          description: 统计对象
+        columns:
+          type: array
+          description: 字段
+          items:
+            $ref: '#/components/schemas/AnalysisTemplateColumn'
+        uniqueKey:
+          type: array
+          description: 联合唯一键
+          items:
+            type: string
+            description: 字段名
+        formats:
+          type: array
+          description: 可下载格式
+          items:
+            type: string
+            description: 格式
+    AnalysisTemplateCatalog:
+      type: object
+      description: 版本化模板目录
+      required:
+      - version
+      - items
+      properties:
+        version:
+          type: string
+          description: 模板版本
+        items:
+          type: array
+          description: 模板列表
+          items:
+            $ref: '#/components/schemas/AnalysisTemplate'
+    AnalysisFilter:
+      type: object
+      description: 单个筛选条件
+      required:
+      - field
+      - op
+      - value
+      properties:
+        field:
+          type: string
+          description: 允许的字段名
+        op:
+          type: string
+          enum:
+          - eq
+          - contains
+          - gte
+          - lte
+          - missing
+          description: 类型化筛选操作
+        value:
+          type: string
+          description: 比较值；missing时忽略
+    AnalysisQuery:
+      type: object
+      description: 统一分析与导出条件
+      required: []
+      properties:
+        keyword:
+          type: string
+          description: 跨列关键词
+        groupBy:
+          type: string
+          description: 分类字段
+        metric:
+          type: string
+          description: 数值字段
+        xField:
+          type: string
+          description: 相关性X字段
+        yField:
+          type: string
+          description: 相关性Y字段
+        filters:
+          type: array
+          description: 最多8项AND条件
+          items:
+            $ref: '#/components/schemas/AnalysisFilter'
+        offset:
+          type: integer
+          description: 分页起点，0开始
+        limit:
+          type: integer
+          description: 分页大小1–500
+    AnalysisField:
+      type: object
+      description: 筛选后全量字段画像
+      required:
+      - name
+      - numeric
+      - missing
+      - n
+      - min
+      - max
+      - mean
+      - median
+      - q1
+      - q3
+      properties:
+        name:
+          type: string
+          description: 字段名
+        numeric:
+          type: boolean
+          description: 数值类型
+        missing:
+          type: integer
+          description: 缺失或非有限值数
+        n:
+          type: integer
+          description: 有效值数
+        min:
+          type:
+          - number
+          - 'null'
+          description: 最小值
+        max:
+          type:
+          - number
+          - 'null'
+          description: 最大值
+        mean:
+          type:
+          - number
+          - 'null'
+          description: 均值
+        median:
+          type:
+          - number
+          - 'null'
+          description: 中位数
+        q1:
+          type:
+          - number
+          - 'null'
+          description: 25%分位数
+        q3:
+          type:
+          - number
+          - 'null'
+          description: 75%分位数
+    AnalysisCategory:
+      type: object
+      description: 分类统计
+      required:
+      - label
+      - count
+      - value
+      properties:
+        label:
+          type: string
+          description: 分类标签
+        count:
+          type: integer
+          description: 记录数；功能表为去重基因数
+        value:
+          type:
+          - number
+          - 'null'
+          description: 所选数值字段均值；未指定则为计数
+    AnalysisHistogramBin:
+      type: object
+      description: 直方图区间
+      required:
+      - start
+      - end
+      - count
+      properties:
+        start:
+          type:
+          - number
+          - 'null'
+          description: 左端点
+        end:
+          type:
+          - number
+          - 'null'
+          description: 右端点；最后一箱含右界
+        count:
+          type: integer
+          description: 记录数
+    AnalysisPoint:
+      type: object
+      description: 散点
+      required:
+      - x
+      - y
+      - label
+      properties:
+        x:
+          type:
+          - number
+          - 'null'
+          description: X值
+        y:
+          type:
+          - number
+          - 'null'
+          description: Y值
+        label:
+          type: string
+          description: 对象标识
+    AnalysisHeatCell:
+      type: object
+      description: 热图单元
+      required:
+      - x
+      - y
+      - value
+      properties:
+        x:
+          type: string
+          description: 列标签
+        y:
+          type: string
+          description: 行标签
+        value:
+          type:
+          - number
+          - 'null'
+          description: 表达log2(value+1)，功能为去重基因数
+    AnalysisVisualMetric:
+      type: object
+      description: 专业数据的摘要指标；统计范围为全部筛选记录
+      required:
+      - label
+      - value
+      - note
+      properties:
+        label:
+          type: string
+          description: 指标名称
+        value:
+          type: string
+          description: 可读指标值
+        note:
+          type: string
+          description: 统计对象及口径
+    AnalysisBox:
+      type: object
+      description: 按组的五数分布；须同指标同单位，最多18组，须用有效值全量计算
+      required:
+      - label
+      - field
+      - n
+      - min
+      - q1
+      - median
+      - q3
+      - max
+      properties:
+        label:
+          type: string
+          description: 分组标签
+        field:
+          type: string
+          description: 数值字段
+        n:
+          type: integer
+          description: 有效值数量
+        min:
+          type: number
+          description: 最小值
+        q1:
+          type: number
+          description: 25%分位数
+        median:
+          type: number
+          description: 中位数
+        q3:
+          type: number
+          description: 75%分位数
+        max:
+          type: number
+          description: 最大值
+    AnalysisMatrixCell:
+      type: object
+      description: 矩阵单元；缺失及无法计算的相关性为null
+      required:
+      - x
+      - y
+      - value
+      - n
+      properties:
+        x:
+          type: string
+          description: 列标签
+        y:
+          type: string
+          description: 行标签
+        value:
+          type:
+          - number
+          - 'null'
+          description: 矩阵值
+        n:
+          type: integer
+          description: 有效记录或有效配对数
+    AnalysisMatrix:
+      type: object
+      description: 专业矩阵，明确计算方法与展示上限
+      required:
+      - id
+      - title
+      - method
+      - cells
+      properties:
+        id:
+          type: string
+          description: community或sampleCorrelation
+        title:
+          type: string
+          description: 图名
+        method:
+          type: string
+          description: 变换、分母、展示限制
+        cells:
+          type: array
+          description: 矩阵单元，最多24×24
+          items:
+            $ref: '#/components/schemas/AnalysisMatrixCell'
+    AnalysisDot:
+      type: object
+      description: 基因与样本组表达气泡；取前24基因×前12组
+      required:
+      - x
+      - y
+      - value
+      - fraction
+      - n
+      properties:
+        x:
+          type: string
+          description: 样本组
+        y:
+          type: string
+          description: 基因编号
+        value:
+          type: number
+          description: log2(组内有效值均值+1)
+        fraction:
+          type: number
+          description: 有效值中严格大于0的比例，0到1；不含缺失
+        n:
+          type: integer
+          description: 有效样本数
+    AnalysisFlow:
+      type: object
+      description: 样品的相邻分类流向；每一阶段均覆盖全部筛选样品，尾类合为其他
+      required:
+      - source
+      - target
+      - value
+      properties:
+        source:
+          type: string
+          description: 含分类阶段前缀的起点
+        target:
+          type: string
+          description: 含分类阶段前缀的终点
+        value:
+          type: integer
+          description: 样品记录数
+    AnalysisNetworkNode:
+      type: object
+      description: 功能条目节点，最多20个；按去重基因数排序
+      required:
+      - id
+      - label
+      - value
+      - category
+      properties:
+        id:
+          type: string
+          description: 数据库与条目编号联合键
+        label:
+          type: string
+          description: 功能条目名称
+        value:
+          type: integer
+          description: 去重基因数
+        category:
+          type: string
+          description: 注释数据库
+    AnalysisNetworkEdge:
+      type: object
+      description: 功能共注释关系，仅描述同基因拥有两个注释；不是蛋白互作或富集
+      required:
+      - source
+      - target
+      - value
+      - score
+      properties:
+        source:
+          type: string
+          description: 起点条目ID
+        target:
+          type: string
+          description: 终点条目ID
+        value:
+          type: integer
+          description: 共同基因数
+        score:
+          type: number
+          description: Jaccard共同基因数/基因并集数
+    AnalysisVariantBin:
+      type: object
+      description: 按染色体分别分箱的变异记录位置；不推断参考染色体全长
+      required:
+      - chromosome
+      - start
+      - end
+      - count
+      properties:
+        chromosome:
+          type: string
+          description: 染色体名
+        start:
+          type: integer
+          description: 1-based起点
+        end:
+          type: integer
+          description: 包含终点
+        count:
+          type: integer
+          description: 此箱记录数
+    AnalysisVisuals:
+      type: object
+      description: 以全量筛选数据生成的专业可视化载荷；只限制展示维度，不使用分页明细计算
+      required:
+      - metrics
+      - boxes
+      - matrices
+      - dots
+      - flows
+      - nodes
+      - edges
+      - variantBins
+      - variantClasses
+      - notes
+      properties:
+        metrics:
+          type: array
+          description: 专业摘要，最多4项
+          items:
+            $ref: '#/components/schemas/AnalysisVisualMetric'
+        boxes:
+          type: array
+          description: 分组五数分布
+          items:
+            $ref: '#/components/schemas/AnalysisBox'
+        matrices:
+          type: array
+          description: 群落或样品相关矩阵
+          items:
+            $ref: '#/components/schemas/AnalysisMatrix'
+        dots:
+          type: array
+          description: 基因分组表达气泡
+          items:
+            $ref: '#/components/schemas/AnalysisDot'
+        flows:
+          type: array
+          description: 样品来源、性别、材料类型流向
+          items:
+            $ref: '#/components/schemas/AnalysisFlow'
+        nodes:
+          type: array
+          description: 功能图节点
+          items:
+            $ref: '#/components/schemas/AnalysisNetworkNode'
+        edges:
+          type: array
+          description: 功能共注释边，最多190条
+          items:
+            $ref: '#/components/schemas/AnalysisNetworkEdge'
+        variantBins:
+          type: array
+          description: 最多24条染色体，每条最多30箱
+          items:
+            $ref: '#/components/schemas/AnalysisVariantBin'
+        variantClasses:
+          type: array
+          description: SNV替换/插入/缺失/复杂变异记录数
+          items:
+            $ref: '#/components/schemas/AnalysisCategory'
+        notes:
+          type: array
+          description: 专业统计与显示限制，前端必须展示
+          items:
+            type: string
+            description: 说明
+    AnalysisResult:
+      type: object
+      description: 可复现的全量分析结果
+      required:
+      - resourceId
+      - resourceName
+      - kind
+      - provenance
+      - unit
+      - total
+      - filteredCount
+      - offset
+      - rows
+      - fields
+      - categories
+      - histogram
+      - scatter
+      - pairedCount
+      - correlation
+      - heatmap
+      - visuals
+      - warnings
+      - query
+      - generatedAt
+      - scope
+      properties:
+        resourceId:
+          type: integer
+          description: 来源资源
+        resourceName:
+          type: string
+          description: 资源名
+        kind:
+          type: string
+          description: 专业数据类型
+        provenance:
+          type: string
+          description: observed或synthetic
+        unit:
+          type: string
+          description: 统计单位
+        measurementUnit:
+          type: string
+          description: 当前筛选的测量单位；无单位时为空，混合单位时明确提示先筛选
+        total:
+          type: integer
+          description: 资源总行数
+        filteredCount:
+          type: integer
+          description: 筛选后全量行数
+        offset:
+          type: integer
+          description: 页起点
+        rows:
+          type: array
+          description: 当前页明细
+          items:
+            type: object
+            description: 字段名到原始标量值的映射
+            additionalProperties:
+              type:
+              - string
+              - number
+              - boolean
+              - 'null'
+              description: 原始单元格值
+        fields:
+          type: array
+          description: 全量字段画像
+          items:
+            $ref: '#/components/schemas/AnalysisField'
+        categories:
+          type: array
+          description: 前30个分类，其余单列
+          items:
+            $ref: '#/components/schemas/AnalysisCategory'
+        histogram:
+          type: array
+          description: 所选指标10箱
+          items:
+            $ref: '#/components/schemas/AnalysisHistogramBin'
+        scatter:
+          type: array
+          description: 最多1000个等距展示点，相关性使用全部有效对
+          items:
+            $ref: '#/components/schemas/AnalysisPoint'
+        pairedCount:
+          type: integer
+          description: 相关性有效配对总数
+        correlation:
+          type:
+          - number
+          - 'null'
+          description: Pearson r；常数或少于3对时null
+        heatmap:
+          type: array
+          description: 最多40基因×24样本的表达图，或功能分组图
+          items:
+            $ref: '#/components/schemas/AnalysisHeatCell'
+        visuals:
+          $ref: '#/components/schemas/AnalysisVisuals'
+        warnings:
+          type: array
+          description: 语义和范围说明
+          items:
+            type: string
+            description: 质量提示
+        query:
+          $ref: '#/components/schemas/AnalysisQuery'
+        generatedAt:
+          type: string
+          description: ISO生成时间
+        scope:
+          type: string
+          description: 统计范围full或filtered；散点/热图另有限制
+    AnalysisImportResult:
+      type: object
+      description: 专业导入校验结果
+      required:
+      - valid
+      - resourceId
+      - rowCount
+      - issues
+      - warnings
+      properties:
+        valid:
+          type: boolean
+          description: 是否通过校验
+        resourceId:
+          type:
+          - integer
+          - 'null'
+          description: 校验时null，成功导入后资源ID
+        rowCount:
+          type: integer
+          description: 输入记录数
+        issues:
+          type: array
+          description: 阻断问题
+          items:
+            type: string
+            description: 错误定位
+        warnings:
+          type: array
+          description: 非阻断质量提示
+          items:
+            type: string
+            description: 提示
+    AnalysisSavedView:
+      type: object
+      description: 按用户隔离的分析视图
+      required:
+      - id
+      - name
+      - resourceId
+      - query
+      - updatedAt
+      properties:
+        id:
+          type: integer
+          description: 视图ID
+        name:
+          type: string
+          description: 视图名
+        resourceId:
+          type: integer
+          description: 资源ID
+        query:
+          $ref: '#/components/schemas/AnalysisQuery'
+        updatedAt:
+          type: string
+          description: 更新时间
+    AnalysisViewCreate:
+      type: object
+      description: 保存分析参数，不存储原始数据
+      required:
+      - name
+      - resourceId
+      - query
+      properties:
+        name:
+          type: string
+          description: 视图名，1–120字符
+        resourceId:
+          type: integer
+          description: 资源ID
+        query:
+          $ref: '#/components/schemas/AnalysisQuery'
+    AnalysisViewList:
+      type: object
+      description: 视图目录
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          description: 当前用户可访问视图
+          items:
+            $ref: '#/components/schemas/AnalysisSavedView'
+    GenomeBin:
+      type: object
+      description: 1Mb摘要窗口
+      required:
+      - start
+      - end
+      - gc
+      - geneCount
+      properties:
+        start:
+          type: integer
+          description: 1-based窗口起点
+        end:
+          type: integer
+          description: 闭区间终点
+        gc:
+          type:
+          - number
+          - 'null'
+          description: GC/ACGT比值
+        geneCount:
+          type: integer
+          description: 起点落入窗口的基因数
+    GenomeIndexedSequence:
+      type: object
+      description: 索引序列
+      required:
+      - id
+      - name
+      - length
+      - gc
+      - n
+      - geneCount
+      - bins
+      properties:
+        id:
+          type: string
+          description: FASTA编号
+        name:
+          type: string
+          description: 原始序列别名
+        length:
+          type: integer
+          description: 长度bp
+        gc:
+          type:
+          - number
+          - 'null'
+          description: GC/ACGT
+        n:
+          type: integer
+          description: N碱基数
+        geneCount:
+          type: integer
+          description: 基因数
+        bins:
+          type: array
+          description: 全序列摘要
+          items:
+            $ref: '#/components/schemas/GenomeBin'
+    GenomeAssemblyItem:
+      type: object
+      description: 可访问的参考组装
+      required:
+      - id
+      - resourceId
+      - code
+      - name
+      - version
+      - sex
+      - provenance
+      - status
+      - totalBp
+      - geneCount
+      properties:
+        id:
+          type: integer
+          description: 组装数据库ID
+        resourceId:
+          type: integer
+          description: 受控资源ID
+        code:
+          type: string
+          description: 组装编号
+        name:
+          type: string
+          description: 名称
+        version:
+          type: string
+          description: 版本
+        sex:
+          type: string
+          description: female/male/unknown
+        provenance:
+          type: string
+          description: observed/synthetic
+        status:
+          type: string
+          description: 索引状态
+        totalBp:
+          type: integer
+          description: 组装长度bp
+        geneCount:
+          type: integer
+          description: 基因模型数
+    GenomeAssemblyList:
+      type: object
+      description: 组装列表
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          description: 已授权组装
+          items:
+            $ref: '#/components/schemas/GenomeAssemblyItem'
+    GenomeFileManifest:
+      type: object
+      description: 输入文件指纹
+      required:
+      - role
+      - name
+      - sha256
+      - size
+      properties:
+        role:
+          type: string
+          description: 文件角色
+        name:
+          type: string
+          description: 原文件名
+        sha256:
+          type: string
+          description: 完整原件校验值
+        size:
+          type: integer
+          description: 压缩或原文件字节数
+    GenomeSummary:
+      type: object
+      description: 全量预计算基因组摘要
+      required:
+      - assembly
+      - totalBp
+      - sequenceCount
+      - chromosomeCount
+      - sequenceN50
+      - gc
+      - nCount
+      - geneCount
+      - transcriptCount
+      - proteinCount
+      - sequences
+      - files
+      - warnings
+      - coordinateSystem
+      - sourceUrl
+      properties:
+        assembly:
+          $ref: '#/components/schemas/GenomeAssemblyItem'
+        totalBp:
+          type: integer
+          description: 所有FASTA序列总长
+        sequenceCount:
+          type: integer
+          description: 全部序列数
+        chromosomeCount:
+          type: integer
+          description: 命名染色体数
+        sequenceN50:
+          type: integer
+          description: FASTA序列N50，非contig N50
+        gc:
+          type:
+          - number
+          - 'null'
+          description: GC/ACGT
+        nCount:
+          type: integer
+          description: N数
+        geneCount:
+          type: integer
+          description: 基因数
+        transcriptCount:
+          type: integer
+          description: 转录本数
+        proteinCount:
+          type: integer
+          description: 蛋白条目数
+        sequences:
+          type: array
+          description: 全部序列与摘要
+          items:
+            $ref: '#/components/schemas/GenomeIndexedSequence'
+        files:
+          type: array
+          description: 原件角色与hash
+          items:
+            $ref: '#/components/schemas/GenomeFileManifest'
+        warnings:
+          type: array
+          description: 缺失关系等信息
+          items:
+            type: string
+            description: 质量提示
+        coordinateSystem:
+          type: string
+          description: 1-based-closed
+        sourceUrl:
+          type: string
+          description: 原始数据来源URL或说明
+    GenomeGene:
+      type: object
+      description: 基因索引
+      required:
+      - id
+      - accession
+      - seqid
+      - start
+      - end
+      - strand
+      - proteinCount
+      properties:
+        id:
+          type: string
+          description: 原始基因编号
+        accession:
+          type: string
+          description: 外部编号
+        seqid:
+          type: string
+          description: 所属序列
+        start:
+          type: integer
+          description: 1-based起点
+        end:
+          type: integer
+          description: 闭区间终点
+        strand:
+          type: string
+          description: 链向
+        proteinCount:
+          type: integer
+          description: 关联蛋白数
+    GenomeGeneList:
+      type: object
+      description: 分页检索与精确区间交集
+      required:
+      - items
+      - total
+      - offset
+      - coordinateSystem
+      properties:
+        items:
+          type: array
+          description: 命中基因
+          items:
+            $ref: '#/components/schemas/GenomeGene'
+        total:
+          type: integer
+          description: 命中总数
+        offset:
+          type: integer
+          description: 偏移
+        coordinateSystem:
+          type: string
+          description: 1-based-closed
+    GenomeFeature:
+      type: object
+      description: 结构注释轨道
+      required:
+      - id
+      - parent
+      - type
+      - start
+      - end
+      - strand
+      - phase
+      properties:
+        id:
+          type: string
+          description: 特征编号，允许空
+        parent:
+          type: string
+          description: 父特征编号
+        type:
+          type: string
+          description: GFF特征类型
+        start:
+          type: integer
+          description: 1-based起点
+        end:
+          type: integer
+          description: 闭区间终点
+        strand:
+          type: string
+          description: 链向
+        phase:
+          type: string
+          description: 原始GFF phase
+    GenomeSequenceLink:
+      type: object
+      description: 基因关联序列
+      required:
+      - id
+      - role
+      - length
+      - transcriptId
+      properties:
+        id:
+          type: string
+          description: 序列编号
+        role:
+          type: string
+          description: protein/rna/cds
+        length:
+          type: integer
+          description: aa或nt长度
+        transcriptId:
+          type: string
+          description: 转录本关联
+    GenomeGeneDetail:
+      type: object
+      description: 完整基因模型
+      required:
+      - gene
+      - features
+      - sequences
+      - coordinateSystem
+      properties:
+        gene:
+          $ref: '#/components/schemas/GenomeGene'
+        features:
+          type: array
+          description: 基因及全部直接/转录本子特征
+          items:
+            $ref: '#/components/schemas/GenomeFeature'
+        sequences:
+          type: array
+          description: 所有编号关联序列
+          items:
+            $ref: '#/components/schemas/GenomeSequenceLink'
+        coordinateSystem:
+          type: string
+          description: 1-based-closed
+    GenomeSequenceResult:
+      type: object
+      description: 有界序列读取
+      required:
+      - id
+      - role
+      - start
+      - end
+      - strand
+      - sequence
+      - length
+      - coordinateSystem
+      properties:
+        id:
+          type: string
+          description: 序列编号
+        role:
+          type: string
+          description: 角色
+        start:
+          type: integer
+          description: 返回起点
+        end:
+          type: integer
+          description: 返回闭区间终点
+        strand:
+          type: string
+          description: 链向
+        sequence:
+          type: string
+          description: DNA/RNA或蛋白序列；最多100000字符
+        length:
+          type: integer
+          description: 原记录全长
+        coordinateSystem:
+          type: string
+          description: 1-based-closed
     ErrorResponse:
       type: object
       required: [detail]
@@ -6355,6 +8007,12 @@ components:
         - isRenderable
         - updatedAt
       properties:
+        analysisKind:
+          type: [string, "null"]
+          description: 专业分析类型；未按专业模板登记时为null
+        provenance:
+          type: string
+          description: observed真实来源或synthetic合成演示；页面须持续显示
         id:
           type: integer
           description: 数据资源 ID

@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 
 from apps.catalog.models import DataResource
 from apps.ecology.models import (
@@ -58,7 +59,9 @@ class BiologicalSample(models.Model):
     collected_at = models.DateTimeField(null=True, blank=True, verbose_name="采集时间")
     collector = models.CharField(max_length=120, blank=True, verbose_name="采集人")
     raw_location = models.TextField(blank=True, verbose_name="原始地点")
-    raw_longitude = models.CharField(max_length=120, blank=True, verbose_name="原始经度")
+    raw_longitude = models.CharField(
+        max_length=120, blank=True, verbose_name="原始经度"
+    )
     raw_latitude = models.CharField(max_length=120, blank=True, verbose_name="原始纬度")
     longitude = models.FloatField(null=True, blank=True, verbose_name="经度")
     latitude = models.FloatField(null=True, blank=True, verbose_name="纬度")
@@ -126,14 +129,18 @@ class GermplasmAccession(models.Model):
         verbose_name="采集地点",
     )
     material_type = models.CharField(max_length=80, blank=True, verbose_name="材料类型")
-    resource_type = models.CharField(max_length=120, blank=True, verbose_name="资源类型")
+    resource_type = models.CharField(
+        max_length=120, blank=True, verbose_name="资源类型"
+    )
     sex = models.CharField(max_length=40, blank=True, verbose_name="性别")
     is_core = models.BooleanField(default=False, verbose_name="核心种质资源")
     storage_status = models.CharField(
         max_length=120, blank=True, verbose_name="保存状态"
     )
     raw_location = models.TextField(blank=True, verbose_name="原始地点")
-    raw_longitude = models.CharField(max_length=120, blank=True, verbose_name="原始经度")
+    raw_longitude = models.CharField(
+        max_length=120, blank=True, verbose_name="原始经度"
+    )
     raw_latitude = models.CharField(max_length=120, blank=True, verbose_name="原始纬度")
     longitude = models.FloatField(null=True, blank=True, verbose_name="经度")
     latitude = models.FloatField(null=True, blank=True, verbose_name="纬度")
@@ -378,7 +385,9 @@ class GenomeDataset(models.Model):
 
 
 class SequencingRun(models.Model):
-    run_code = models.CharField(max_length=120, unique=True, verbose_name="测序批次编号")
+    run_code = models.CharField(
+        max_length=120, unique=True, verbose_name="测序批次编号"
+    )
     genome_dataset = models.ForeignKey(
         GenomeDataset,
         null=True,
@@ -466,7 +475,9 @@ class GenomeSequenceFile(models.Model):
 
 
 class GenomeAssembly(models.Model):
-    assembly_code = models.CharField(max_length=120, unique=True, verbose_name="组装编号")
+    assembly_code = models.CharField(
+        max_length=120, unique=True, verbose_name="组装编号"
+    )
     genome_dataset = models.ForeignKey(
         GenomeDataset,
         null=True,
@@ -476,7 +487,9 @@ class GenomeAssembly(models.Model):
         verbose_name="基因组数据集",
     )
     version = models.CharField(max_length=80, blank=True, verbose_name="版本")
-    assembly_level = models.CharField(max_length=80, blank=True, verbose_name="组装级别")
+    assembly_level = models.CharField(
+        max_length=80, blank=True, verbose_name="组装级别"
+    )
     genome_size = models.PositiveBigIntegerField(default=0, verbose_name="基因组大小")
     contig_n50 = models.PositiveBigIntegerField(default=0, verbose_name="Contig N50")
     scaffold_n50 = models.PositiveBigIntegerField(
@@ -502,7 +515,9 @@ class GenomeAssembly(models.Model):
 
 
 class VariantDataset(models.Model):
-    variant_code = models.CharField(max_length=120, unique=True, verbose_name="变异集编号")
+    variant_code = models.CharField(
+        max_length=120, unique=True, verbose_name="变异集编号"
+    )
     genome_dataset = models.ForeignKey(
         GenomeDataset,
         null=True,
@@ -548,7 +563,9 @@ class GenomeAnnotation(models.Model):
         related_name="annotations",
         verbose_name="基因组数据集",
     )
-    annotation_type = models.CharField(max_length=80, blank=True, verbose_name="注释类型")
+    annotation_type = models.CharField(
+        max_length=80, blank=True, verbose_name="注释类型"
+    )
     reference_version = models.CharField(
         max_length=120, blank=True, verbose_name="参考版本"
     )
@@ -571,3 +588,38 @@ class GenomeAnnotation(models.Model):
 
     def __str__(self) -> str:
         return self.annotation_code
+
+
+class GenomeIndex(models.Model):
+    """A published index belongs to exactly one resource-controlled assembly."""
+
+    assembly = models.OneToOneField(
+        GenomeAssembly, on_delete=models.CASCADE, related_name="analysis_index"
+    )
+    annotation = models.ForeignKey(
+        GenomeAnnotation, null=True, on_delete=models.SET_NULL
+    )
+    status = models.CharField(max_length=24, default="indexing")
+    index_path = models.CharField(max_length=500)
+    provenance = models.CharField(max_length=16)
+    sex = models.CharField(max_length=16, default="unknown")
+    source_url = models.TextField(blank=True)
+    summary = models.JSONField(default=dict)
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class AnalysisView(models.Model):
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    resource = models.ForeignKey(DataResource, on_delete=models.CASCADE)
+    name = models.CharField(max_length=120)
+    query = models.JSONField(default=dict)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("owner", "name"), name="uniq_analysis_view_owner_name"
+            )
+        ]

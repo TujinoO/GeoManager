@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { CommitVectorImportData, CommitVectorImportErrors, CommitVectorImportResponses, CreateAdminBackupRunData, CreateAdminBackupRunErrors, CreateAdminBackupRunResponses, CreateAdminDataResourceGroupData, CreateAdminDataResourceGroupErrors, CreateAdminDataResourceGroupResponses, CreateCatalogWorkspaceData, CreateCatalogWorkspaceErrors, CreateCatalogWorkspaceResponses, CreateGroupData, CreateGroupErrors, CreateGroupResponses, CreateMapCompositionData, CreateMapCompositionErrors, CreateMapCompositionResponses, CreateMapCompositionVersionData, CreateMapCompositionVersionErrors, CreateMapCompositionVersionResponses, CreateResultArtifactData, CreateResultArtifactErrors, CreateResultArtifactResponses, CreateUserData, CreateUserErrors, CreateUserResponses, DownloadAdminBackupRunData, DownloadAdminBackupRunErrors, DownloadAdminBackupRunResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, DownloadMapCompositionVersionData, DownloadMapCompositionVersionErrors, DownloadMapCompositionVersionResponses, DownloadResultArtifactData, DownloadResultArtifactErrors, DownloadResultArtifactResponses, ExportAdminDataResourcesData, ExportAdminDataResourcesErrors, ExportAdminDataResourcesResponses, ExportLayersAsyncData, ExportLayersAsyncErrors, ExportLayersAsyncResponses, ExportLayersData, ExportLayersErrors, ExportLayersResponses, GetAdminBackupOverviewData, GetAdminBackupOverviewErrors, GetAdminBackupOverviewResponses, GetAdminBackupRunData, GetAdminBackupRunErrors, GetAdminBackupRunResponses, GetAdminBackupSettingsData, GetAdminBackupSettingsErrors, GetAdminBackupSettingsResponses, GetAdminDashboardData, GetAdminDashboardErrors, GetAdminDashboardResponses, GetAdminDashboardServerData, GetAdminDashboardServerErrors, GetAdminDashboardServerResponses, GetAdminProfileData, GetAdminProfileErrors, GetAdminProfileResponses, GetAdminSettingsData, GetAdminSettingsErrors, GetAdminSettingsResponses, GetBootstrapData, GetBootstrapErrors, GetBootstrapResponses, GetCatalogWorkspaceData, GetCatalogWorkspaceErrors, GetCatalogWorkspaceResponses, GetCsrfCookieData, GetCsrfCookieErrors, GetCsrfCookieResponses, GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetDataSchemaSummaryData, GetDataSchemaSummaryErrors, GetDataSchemaSummaryResponses, GetDirectoriesData, GetDirectoriesErrors, GetDirectoriesResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetJobStatusData, GetJobStatusErrors, GetJobStatusResponses, GetLayersData, GetLayersErrors, GetLayersResponses, GetLoginOverviewData, GetLoginOverviewErrors, GetLoginOverviewResponses, GetMapCompositionData, GetMapCompositionErrors, GetMapCompositionResponses, GetMapThumbnailTileData, GetMapThumbnailTileErrors, GetMapThumbnailTileResponses, GetRasterDatasetsData, GetRasterDatasetsErrors, GetRasterDatasetsResponses, GetResourceNonGeoAnalysisData, GetResourceNonGeoAnalysisErrors, GetResourceNonGeoAnalysisResponses, GetResourceProfileData, GetResourceProfileErrors, GetResourceProfileResponses, GetResourcesData, GetResourcesErrors, GetResourcesResponses, GetResourceVisualizationSummaryData, GetResourceVisualizationSummaryErrors, GetResourceVisualizationSummaryResponses, GetResultArtifactData, GetResultArtifactErrors, GetResultArtifactResponses, GetTileData, GetTileErrors, GetTileResponses, GetUniqueValuesData, GetUniqueValuesErrors, GetUniqueValuesResponses, GetUserAvatarData, GetUserAvatarErrors, GetUserAvatarResponses, GuestLoginData, GuestLoginErrors, GuestLoginResponses, ImportCommitData, ImportCommitErrors, ImportCommitResponses, ImportPreviewData, ImportPreviewErrors, ImportPreviewResponses, ImportRasterData, ImportRasterErrors, ImportRasterResponses, ImportValidateData, ImportValidateErrors, ImportValidateResponses, ListAdminBackupRunsData, ListAdminBackupRunsErrors, ListAdminBackupRunsResponses, ListAdminDataResourcesData, ListAdminDataResourcesErrors, ListAdminDataResourcesResponses, ListAdminOperationLogsData, ListAdminOperationLogsErrors, ListAdminOperationLogsResponses, ListAdminSystemLogsData, ListAdminSystemLogsErrors, ListAdminSystemLogsResponses, ListAdminWorkspacesData, ListAdminWorkspacesErrors, ListAdminWorkspacesResponses, ListCatalogWorkspacesData, ListCatalogWorkspacesErrors, ListCatalogWorkspacesResponses, ListGermplasmAccessionsData, ListGermplasmAccessionsErrors, ListGermplasmAccessionsResponses, ListGroupsData, ListGroupsErrors, ListGroupsResponses, ListMapCompositionsData, ListMapCompositionsErrors, ListMapCompositionsResponses, ListResultArtifactsData, ListResultArtifactsErrors, ListResultArtifactsResponses, ListRoleApplicationsData, ListRoleApplicationsErrors, ListRoleApplicationsResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, PreviewRasterImportData, PreviewRasterImportErrors, PreviewRasterImportResponses, PreviewVectorImportData, PreviewVectorImportErrors, PreviewVectorImportResponses, PublishMapCompositionData, PublishMapCompositionErrors, PublishMapCompositionResponses, QueryResourceData, QueryResourceErrors, QueryResourceNonGeoTableData, QueryResourceNonGeoTableErrors, QueryResourceNonGeoTableResponses, QueryResourceResponses, RegisterData, RegisterErrors, RegisterResponses, RenderRasterAsyncData, RenderRasterAsyncErrors, RenderRasterAsyncResponses, RenderRasterData, RenderRasterErrors, RenderRasterResponses, ResetUserPasswordData, ResetUserPasswordErrors, ResetUserPasswordResponses, RestoreMapCompositionProjectData, RestoreMapCompositionProjectErrors, RestoreMapCompositionProjectResponses, ReviewRoleApplicationData, ReviewRoleApplicationErrors, ReviewRoleApplicationResponses, ScanCatalogSourcesData, ScanCatalogSourcesErrors, ScanCatalogSourcesResponses, ScanRasterSourcesData, ScanRasterSourcesErrors, ScanRasterSourcesResponses, SearchData, SearchErrors, SearchResponses, TestAdminBackupTargetData, TestAdminBackupTargetErrors, TestAdminBackupTargetResponses, UnpublishMapCompositionData, UnpublishMapCompositionErrors, UnpublishMapCompositionResponses, UpdateAdminBackupSettingsData, UpdateAdminBackupSettingsErrors, UpdateAdminBackupSettingsResponses, UpdateAdminDataResourceData, UpdateAdminDataResourceErrors, UpdateAdminDataResourceGroupData, UpdateAdminDataResourceGroupErrors, UpdateAdminDataResourceGroupResponses, UpdateAdminDataResourceResponses, UpdateAdminProfileData, UpdateAdminProfileErrors, UpdateAdminProfilePasswordData, UpdateAdminProfilePasswordErrors, UpdateAdminProfilePasswordResponses, UpdateAdminProfilePermissionsData, UpdateAdminProfilePermissionsErrors, UpdateAdminProfilePermissionsResponses, UpdateAdminProfileResponses, UpdateAdminSettingsData, UpdateAdminSettingsErrors, UpdateAdminSettingsResponses, UpdateAdminWorkspaceData, UpdateAdminWorkspaceErrors, UpdateAdminWorkspaceResponses, UpdateCatalogWorkspaceData, UpdateCatalogWorkspaceErrors, UpdateCatalogWorkspaceResponses, UpdateMapCompositionData, UpdateMapCompositionErrors, UpdateMapCompositionResponses, UpdateOrDeleteGroupData, UpdateOrDeleteGroupErrors, UpdateOrDeleteGroupResponses, UpdateResultArtifactData, UpdateResultArtifactErrors, UpdateResultArtifactResponses, UpdateUserGroupsData, UpdateUserGroupsErrors, UpdateUserGroupsResponses, UpdateUserOrDeleteData, UpdateUserOrDeleteErrors, UpdateUserOrDeleteResponses, UpdateUserPermissionsData, UpdateUserPermissionsErrors, UpdateUserPermissionsResponses, UploadAdminProfileAvatarData, UploadAdminProfileAvatarErrors, UploadAdminProfileAvatarResponses, ValidateVectorImportData, ValidateVectorImportErrors, ValidateVectorImportResponses } from './types.gen';
+import type { CommitVectorImportData, CommitVectorImportErrors, CommitVectorImportResponses, CreateAdminBackupRunData, CreateAdminBackupRunErrors, CreateAdminBackupRunResponses, CreateAdminDataResourceGroupData, CreateAdminDataResourceGroupErrors, CreateAdminDataResourceGroupResponses, CreateCatalogWorkspaceData, CreateCatalogWorkspaceErrors, CreateCatalogWorkspaceResponses, CreateGroupData, CreateGroupErrors, CreateGroupResponses, CreateMapCompositionData, CreateMapCompositionErrors, CreateMapCompositionResponses, CreateMapCompositionVersionData, CreateMapCompositionVersionErrors, CreateMapCompositionVersionResponses, CreateResultArtifactData, CreateResultArtifactErrors, CreateResultArtifactResponses, CreateUserData, CreateUserErrors, CreateUserResponses, DownloadAdminBackupRunData, DownloadAdminBackupRunErrors, DownloadAdminBackupRunResponses, DownloadAnalysisTemplateData, DownloadAnalysisTemplateErrors, DownloadAnalysisTemplateResponses, DownloadExportData, DownloadExportErrors, DownloadExportResponses, DownloadMapCompositionVersionData, DownloadMapCompositionVersionErrors, DownloadMapCompositionVersionResponses, DownloadResultArtifactData, DownloadResultArtifactErrors, DownloadResultArtifactResponses, ExportAdminDataResourcesData, ExportAdminDataResourcesErrors, ExportAdminDataResourcesResponses, ExportAnalysisResourceData, ExportAnalysisResourceErrors, ExportAnalysisResourceResponses, ExportLayersAsyncData, ExportLayersAsyncErrors, ExportLayersAsyncResponses, ExportLayersData, ExportLayersErrors, ExportLayersResponses, GetAdminBackupOverviewData, GetAdminBackupOverviewErrors, GetAdminBackupOverviewResponses, GetAdminBackupRunData, GetAdminBackupRunErrors, GetAdminBackupRunResponses, GetAdminBackupSettingsData, GetAdminBackupSettingsErrors, GetAdminBackupSettingsResponses, GetAdminDashboardData, GetAdminDashboardErrors, GetAdminDashboardResponses, GetAdminDashboardServerData, GetAdminDashboardServerErrors, GetAdminDashboardServerResponses, GetAdminProfileData, GetAdminProfileErrors, GetAdminProfileResponses, GetAdminSettingsData, GetAdminSettingsErrors, GetAdminSettingsResponses, GetAnalysisTemplatesData, GetAnalysisTemplatesErrors, GetAnalysisTemplatesResponses, GetBootstrapData, GetBootstrapErrors, GetBootstrapResponses, GetCatalogWorkspaceData, GetCatalogWorkspaceErrors, GetCatalogWorkspaceResponses, GetCsrfCookieData, GetCsrfCookieErrors, GetCsrfCookieResponses, GetCurrentUserData, GetCurrentUserErrors, GetCurrentUserResponses, GetDataSchemaSummaryData, GetDataSchemaSummaryErrors, GetDataSchemaSummaryResponses, GetDirectoriesData, GetDirectoriesErrors, GetDirectoriesResponses, GetGenomeGeneData, GetGenomeGeneErrors, GetGenomeGeneResponses, GetGenomeSequenceData, GetGenomeSequenceErrors, GetGenomeSequenceResponses, GetGenomeSummaryData, GetGenomeSummaryErrors, GetGenomeSummaryResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetJobStatusData, GetJobStatusErrors, GetJobStatusResponses, GetLayersData, GetLayersErrors, GetLayersResponses, GetLoginOverviewData, GetLoginOverviewErrors, GetLoginOverviewResponses, GetMapCompositionData, GetMapCompositionErrors, GetMapCompositionResponses, GetMapThumbnailTileData, GetMapThumbnailTileErrors, GetMapThumbnailTileResponses, GetRasterDatasetsData, GetRasterDatasetsErrors, GetRasterDatasetsResponses, GetResourceNonGeoAnalysisData, GetResourceNonGeoAnalysisErrors, GetResourceNonGeoAnalysisResponses, GetResourceProfileData, GetResourceProfileErrors, GetResourceProfileResponses, GetResourcesData, GetResourcesErrors, GetResourcesResponses, GetResourceVisualizationSummaryData, GetResourceVisualizationSummaryErrors, GetResourceVisualizationSummaryResponses, GetResultArtifactData, GetResultArtifactErrors, GetResultArtifactResponses, GetTileData, GetTileErrors, GetTileResponses, GetUniqueValuesData, GetUniqueValuesErrors, GetUniqueValuesResponses, GetUserAvatarData, GetUserAvatarErrors, GetUserAvatarResponses, GuestLoginData, GuestLoginErrors, GuestLoginResponses, ImportAnalysisTableData, ImportAnalysisTableErrors, ImportAnalysisTableResponses, ImportCommitData, ImportCommitErrors, ImportCommitResponses, ImportGenomeFilesData, ImportGenomeFilesErrors, ImportGenomeFilesResponses, ImportPreviewData, ImportPreviewErrors, ImportPreviewResponses, ImportRasterData, ImportRasterErrors, ImportRasterResponses, ImportValidateData, ImportValidateErrors, ImportValidateResponses, ListAdminBackupRunsData, ListAdminBackupRunsErrors, ListAdminBackupRunsResponses, ListAdminDataResourcesData, ListAdminDataResourcesErrors, ListAdminDataResourcesResponses, ListAdminOperationLogsData, ListAdminOperationLogsErrors, ListAdminOperationLogsResponses, ListAdminSystemLogsData, ListAdminSystemLogsErrors, ListAdminSystemLogsResponses, ListAdminWorkspacesData, ListAdminWorkspacesErrors, ListAdminWorkspacesResponses, ListAnalysisViewsData, ListAnalysisViewsErrors, ListAnalysisViewsResponses, ListCatalogWorkspacesData, ListCatalogWorkspacesErrors, ListCatalogWorkspacesResponses, ListGenomeAssembliesData, ListGenomeAssembliesErrors, ListGenomeAssembliesResponses, ListGermplasmAccessionsData, ListGermplasmAccessionsErrors, ListGermplasmAccessionsResponses, ListGroupsData, ListGroupsErrors, ListGroupsResponses, ListMapCompositionsData, ListMapCompositionsErrors, ListMapCompositionsResponses, ListResultArtifactsData, ListResultArtifactsErrors, ListResultArtifactsResponses, ListRoleApplicationsData, ListRoleApplicationsErrors, ListRoleApplicationsResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, PreviewRasterImportData, PreviewRasterImportErrors, PreviewRasterImportResponses, PreviewVectorImportData, PreviewVectorImportErrors, PreviewVectorImportResponses, PublishMapCompositionData, PublishMapCompositionErrors, PublishMapCompositionResponses, QueryAnalysisResourceData, QueryAnalysisResourceErrors, QueryAnalysisResourceResponses, QueryResourceData, QueryResourceErrors, QueryResourceNonGeoTableData, QueryResourceNonGeoTableErrors, QueryResourceNonGeoTableResponses, QueryResourceResponses, RegisterData, RegisterErrors, RegisterResponses, RenderRasterAsyncData, RenderRasterAsyncErrors, RenderRasterAsyncResponses, RenderRasterData, RenderRasterErrors, RenderRasterResponses, ResetUserPasswordData, ResetUserPasswordErrors, ResetUserPasswordResponses, RestoreMapCompositionProjectData, RestoreMapCompositionProjectErrors, RestoreMapCompositionProjectResponses, ReviewRoleApplicationData, ReviewRoleApplicationErrors, ReviewRoleApplicationResponses, SaveAnalysisViewData, SaveAnalysisViewErrors, SaveAnalysisViewResponses, ScanCatalogSourcesData, ScanCatalogSourcesErrors, ScanCatalogSourcesResponses, ScanRasterSourcesData, ScanRasterSourcesErrors, ScanRasterSourcesResponses, SearchData, SearchErrors, SearchGenomeGenesData, SearchGenomeGenesErrors, SearchGenomeGenesResponses, SearchResponses, TestAdminBackupTargetData, TestAdminBackupTargetErrors, TestAdminBackupTargetResponses, UnpublishMapCompositionData, UnpublishMapCompositionErrors, UnpublishMapCompositionResponses, UpdateAdminBackupSettingsData, UpdateAdminBackupSettingsErrors, UpdateAdminBackupSettingsResponses, UpdateAdminDataResourceData, UpdateAdminDataResourceErrors, UpdateAdminDataResourceGroupData, UpdateAdminDataResourceGroupErrors, UpdateAdminDataResourceGroupResponses, UpdateAdminDataResourceResponses, UpdateAdminProfileData, UpdateAdminProfileErrors, UpdateAdminProfilePasswordData, UpdateAdminProfilePasswordErrors, UpdateAdminProfilePasswordResponses, UpdateAdminProfilePermissionsData, UpdateAdminProfilePermissionsErrors, UpdateAdminProfilePermissionsResponses, UpdateAdminProfileResponses, UpdateAdminSettingsData, UpdateAdminSettingsErrors, UpdateAdminSettingsResponses, UpdateAdminWorkspaceData, UpdateAdminWorkspaceErrors, UpdateAdminWorkspaceResponses, UpdateCatalogWorkspaceData, UpdateCatalogWorkspaceErrors, UpdateCatalogWorkspaceResponses, UpdateMapCompositionData, UpdateMapCompositionErrors, UpdateMapCompositionResponses, UpdateOrDeleteGroupData, UpdateOrDeleteGroupErrors, UpdateOrDeleteGroupResponses, UpdateResultArtifactData, UpdateResultArtifactErrors, UpdateResultArtifactResponses, UpdateUserGroupsData, UpdateUserGroupsErrors, UpdateUserGroupsResponses, UpdateUserOrDeleteData, UpdateUserOrDeleteErrors, UpdateUserOrDeleteResponses, UpdateUserPermissionsData, UpdateUserPermissionsErrors, UpdateUserPermissionsResponses, UploadAdminProfileAvatarData, UploadAdminProfileAvatarErrors, UploadAdminProfileAvatarResponses, ValidateVectorImportData, ValidateVectorImportErrors, ValidateVectorImportResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -17,6 +17,223 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
      */
     meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
+
+/**
+ * 获取版本化专业导入模板
+ *
+ * 获取版本化专业导入模板。需要 core.browse_data。
+ */
+export const getAnalysisTemplates = <ThrowOnError extends boolean = false>(options?: Options<GetAnalysisTemplatesData, ThrowOnError>): RequestResult<GetAnalysisTemplatesResponses, GetAnalysisTemplatesErrors, ThrowOnError> => (options?.client ?? client).get<GetAnalysisTemplatesResponses, GetAnalysisTemplatesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/analysis/templates/',
+    ...options
+});
+
+/**
+ * 下载空模板或合成示例
+ *
+ * 下载空模板或合成示例。需要 core.browse_data；ZIP不自动解压。
+ */
+export const downloadAnalysisTemplate = <ThrowOnError extends boolean = false>(options: Options<DownloadAnalysisTemplateData, ThrowOnError>): RequestResult<DownloadAnalysisTemplateResponses, DownloadAnalysisTemplateErrors, ThrowOnError> => (options.client ?? client).get<DownloadAnalysisTemplateResponses, DownloadAnalysisTemplateErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/analysis/templates/{kind}/file/',
+    ...options
+});
+
+/**
+ * 校验并增量导入专业表格
+ *
+ * 统一导入页面使用的专业校验与导入接口。支持CSV、TSV、XLSX，variants另支持VCF/VCF.gz并展开到样品长表；最多16MiB上传、64MiB文本展开、200000行。需要catalog.add_dataresource，校验错误返回400及字段行号。validateOnly成功也返回201。
+ */
+export const importAnalysisTable = <ThrowOnError extends boolean = false>(options: Options<ImportAnalysisTableData, ThrowOnError>): RequestResult<ImportAnalysisTableResponses, ImportAnalysisTableErrors, ThrowOnError> => (options.client ?? client).post<ImportAnalysisTableResponses, ImportAnalysisTableErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/analysis/import/',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
+
+/**
+ * 全量筛选分析与分页
+ *
+ * 全量筛选分析与分页。需要 core.query_data 和资源授权；导出另需 catalog.export_dataresource；最多200000行，超限明确报错。
+ */
+export const queryAnalysisResource = <ThrowOnError extends boolean = false>(options: Options<QueryAnalysisResourceData, ThrowOnError>): RequestResult<QueryAnalysisResourceResponses, QueryAnalysisResourceErrors, ThrowOnError> => (options.client ?? client).post<QueryAnalysisResourceResponses, QueryAnalysisResourceErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/analysis/resources/{id}/query/',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * 按相同筛选导出CSV
+ *
+ * 按相同筛选导出CSV。需要 core.query_data、catalog.export_dataresource和资源授权；审计导出；防止CSV公式执行。
+ */
+export const exportAnalysisResource = <ThrowOnError extends boolean = false>(options: Options<ExportAnalysisResourceData, ThrowOnError>): RequestResult<ExportAnalysisResourceResponses, ExportAnalysisResourceErrors, ThrowOnError> => (options.client ?? client).post<ExportAnalysisResourceResponses, ExportAnalysisResourceErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/analysis/resources/{id}/export/',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * 列出当前用户保存的分析视图
+ *
+ * 列出当前用户保存的分析视图。需要 core.query_data；重新检查源资源访问权限。
+ */
+export const listAnalysisViews = <ThrowOnError extends boolean = false>(options?: Options<ListAnalysisViewsData, ThrowOnError>): RequestResult<ListAnalysisViewsResponses, ListAnalysisViewsErrors, ThrowOnError> => (options?.client ?? client).get<ListAnalysisViewsResponses, ListAnalysisViewsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/analysis/views/',
+    ...options
+});
+
+/**
+ * 保存分析条件
+ *
+ * 保存分析条件。需要 core.query_data和源资源授权；同用户同名视图更新；不复制原始结果。
+ */
+export const saveAnalysisView = <ThrowOnError extends boolean = false>(options: Options<SaveAnalysisViewData, ThrowOnError>): RequestResult<SaveAnalysisViewResponses, SaveAnalysisViewErrors, ThrowOnError> => (options.client ?? client).post<SaveAnalysisViewResponses, SaveAnalysisViewErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/analysis/views/',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * 列出已授权、已完成索引的基因组
+ *
+ * 列出已授权、已完成索引的基因组。需要 core.browse_data。
+ */
+export const listGenomeAssemblies = <ThrowOnError extends boolean = false>(options?: Options<ListGenomeAssembliesData, ThrowOnError>): RequestResult<ListGenomeAssembliesResponses, ListGenomeAssembliesErrors, ThrowOnError> => (options?.client ?? client).get<ListGenomeAssembliesResponses, ListGenomeAssembliesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/omics/assemblies/',
+    ...options
+});
+
+/**
+ * 读取全量预计算摘要
+ *
+ * 读取全量预计算摘要。需要 core.query_data及资源授权；FASTA序列N50不称contig N50。
+ */
+export const getGenomeSummary = <ThrowOnError extends boolean = false>(options: Options<GetGenomeSummaryData, ThrowOnError>): RequestResult<GetGenomeSummaryResponses, GetGenomeSummaryErrors, ThrowOnError> => (options.client ?? client).get<GetGenomeSummaryResponses, GetGenomeSummaryErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/omics/assemblies/{id}/summary/',
+    ...options
+});
+
+/**
+ * 通过原始/GWH/转录本/蛋白编号或1-based闭区间检索
+ *
+ * 通过原始/GWH/转录本/蛋白编号或1-based闭区间检索。需要 core.query_data及资源授权；seqid可用原始别名；分页不超过500。
+ */
+export const searchGenomeGenes = <ThrowOnError extends boolean = false>(options: Options<SearchGenomeGenesData, ThrowOnError>): RequestResult<SearchGenomeGenesResponses, SearchGenomeGenesErrors, ThrowOnError> => (options.client ?? client).get<SearchGenomeGenesResponses, SearchGenomeGenesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/omics/assemblies/{id}/genes/',
+    ...options
+});
+
+/**
+ * 获取完整模型与编号关联序列
+ *
+ * 获取完整模型与编号关联序列。需要 core.query_data及资源授权。
+ */
+export const getGenomeGene = <ThrowOnError extends boolean = false>(options: Options<GetGenomeGeneData, ThrowOnError>): RequestResult<GetGenomeGeneResponses, GetGenomeGeneErrors, ThrowOnError> => (options.client ?? client).get<GetGenomeGeneResponses, GetGenomeGeneErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/omics/assemblies/{id}/genes/{geneId}/',
+    ...options
+});
+
+/**
+ * 读取最多100000字符DNA、RNA、CDS或蛋白
+ *
+ * 读取最多100000字符DNA、RNA、CDS或蛋白。负链DNA返回反向互补；需要 core.query_data及资源授权。
+ */
+export const getGenomeSequence = <ThrowOnError extends boolean = false>(options: Options<GetGenomeSequenceData, ThrowOnError>): RequestResult<GetGenomeSequenceResponses, GetGenomeSequenceErrors, ThrowOnError> => (options.client ?? client).get<GetGenomeSequenceResponses, GetGenomeSequenceErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/omics/assemblies/{id}/sequence/',
+    ...options
+});
+
+/**
+ * 导入基因组配套文件并发布完整索引
+ *
+ * 统一导入页面支持FASTA/FA/FNA、GFF/GFF3、FAA、RNA/CDS FASTA及其gzip压缩文件。需要catalog.add_dataresource；上传合计最多512MiB，流式展开预算4GiB。同步处理可能持续数分钟，失败不发布。
+ */
+export const importGenomeFiles = <ThrowOnError extends boolean = false>(options: Options<ImportGenomeFilesData, ThrowOnError>): RequestResult<ImportGenomeFilesResponses, ImportGenomeFilesErrors, ThrowOnError> => (options.client ?? client).post<ImportGenomeFilesResponses, ImportGenomeFilesErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    security: [{
+            in: 'cookie',
+            name: 'sessionid',
+            type: 'apiKey'
+        }],
+    url: '/api/omics/import/',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
 
 /**
  * 获取系统启动配置

@@ -53,7 +53,7 @@ const LoginPage = lazy(() => import("./pages/LoginPage"));
 const DataCatalogPage = lazy(() => import("./pages/DataCatalogPage"));
 const KnowledgePage = lazy(() => import("./pages/KnowledgePage"));
 const MapPage = lazy(() => import("./pages/MapPage"));
-const NonGeoPage = lazy(() => import("./pages/NonGeoPage"));
+const NonGeoPage = lazy(() => import("./pages/AnalysisPage"));
 const ResultsPage = lazy(() => import("./pages/ResultsPage"));
 const WarningPage = lazy(() => import("./pages/WarningPage"));
 const ResourceLayout = lazy(() => import("./resource/ResourceLayout"));

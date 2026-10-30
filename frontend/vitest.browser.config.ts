@@ -3,7 +3,8 @@ import { playwright } from "@vitest/browser-playwright";
 import { existsSync } from "node:fs";
 import { defineConfig } from "vitest/config";
 
-const windowsChromePath = "C:/Program Files/Google/Chrome/Application/chrome.exe";
+const windowsChromePath =
+  "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const localLaunchOptions =
   process.platform === "win32" && existsSync(windowsChromePath)
     ? { executablePath: windowsChromePath }
@@ -22,6 +23,13 @@ export default defineConfig({
       "antd",
       "@ant-design/icons",
       "@ant-design/pro-components",
+      "antd/locale/en_US",
+      "antd/locale/zh_CN",
+      "dayjs",
+      "dayjs/locale/en",
+      "dayjs/locale/zh-cn",
+      "react",
+      "react-dom/client",
     ],
   },
   test: {
