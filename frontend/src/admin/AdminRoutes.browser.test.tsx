@@ -2090,6 +2090,119 @@ describe("admin routes", () => {
     }
   }, 30000);
 
+  it.each([
+    ["analysis", "cancel-analysis.csv"],
+    ["result", "cancel-result.pdf"],
+  ])(
+    "can leave an unfinished %s import after confirmation",
+    async (target, filename) => {
+      renderAdminRoute(`/resources/data/import?target=${target}`);
+      const input = document.querySelector(
+        "input[type='file']",
+      ) as HTMLInputElement;
+      fireEvent.change(input, {
+        target: { files: [new File(["test"], filename)] },
+      });
+      await screen.findByText(filename);
+      fireEvent.click(screen.getByRole("link", { name: /存量数据/ }));
+      expect(await screen.findByText("当前导入尚未完成")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "继续导入" }));
+      expect(screen.getByText(filename)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "取消导入" }));
+      await screen.findByText("当前导入尚未完成");
+      fireEvent.click(screen.getByRole("button", { name: "确认离开" }));
+      expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
+    },
+  );
+
+  it("clears a non-geographic import and releases navigation and unload guards", async () => {
+    renderAdminRoute("/resources/data/import?target=analysis");
+    const input = document.querySelector(
+      "input[type='file']",
+    ) as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: [new File(["sample,value\nA,1"], "discard-me.csv")] },
+    });
+    await screen.findByText("discard-me.csv");
+    fireEvent.click(screen.getByRole("button", { name: "清空当前导入" }));
+    fireEvent.click(await screen.findByRole("button", { name: "确认清空" }));
+    await waitFor(() =>
+      expect(screen.queryByText("discard-me.csv")).not.toBeInTheDocument(),
+    );
+    const unloadEvent = new Event("beforeunload", { cancelable: true });
+    expect(window.dispatchEvent(unloadEvent)).toBe(true);
+    fireEvent.click(
+      screen.getByRole("radio", { name: "地理数据", exact: true }),
+    );
+    expect(await screen.findByText("尚未选择文件")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: /存量数据/ }));
+    expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
+    expect(screen.queryByText("当前导入尚未完成")).not.toBeInTheDocument();
+  });
+
+  it("does not block leaving an empty non-geographic import", async () => {
+    renderAdminRoute("/resources/data/import?target=analysis");
+    fireEvent.click(screen.getByRole("link", { name: /存量数据/ }));
+    expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
+    expect(screen.queryByText("当前导入尚未完成")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["resource", "discard-selection.csv"],
+    ["result", "discard-selection.pdf"],
+  ])("clears a %s import only after confirmation", async (target, filename) => {
+    renderAdminRoute(`/resources/data/import?target=${target}`);
+    const input = document.querySelector(
+      "input[type='file']",
+    ) as HTMLInputElement;
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(["plot_id,longitude,latitude\nP001,87.6,41.7"], filename),
+        ],
+      },
+    });
+    if (target === "resource") await screen.findByText("导入配置");
+    else await screen.findByText(filename);
+    fireEvent.click(screen.getByRole("button", { name: "清空当前导入" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "清空当前导入？",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "继续导入" }));
+    fireEvent.click(screen.getByRole("button", { name: "清空当前导入" }));
+    fireEvent.click(await screen.findByRole("button", { name: "确认清空" }));
+    await waitFor(() =>
+      expect(screen.queryByText(filename)).not.toBeInTheDocument(),
+    );
+    const unloadEvent = new Event("beforeunload", { cancelable: true });
+    expect(window.dispatchEvent(unloadEvent)).toBe(true);
+    fireEvent.click(screen.getByRole("link", { name: /存量数据/ }));
+    expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
+    expect(screen.queryByText("当前导入尚未完成")).not.toBeInTheDocument();
+  });
+
+  it("keeps button-driven navigation on the import page until the user decides", async () => {
+    renderAdminRoute("/resources/data/import");
+    const input = document.querySelector(
+      "input[type='file']",
+    ) as HTMLInputElement;
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(
+            ["plot_id,longitude,latitude\nP001,87.6,41.7"],
+            "guarded.csv",
+          ),
+        ],
+      },
+    });
+    await screen.findByText("导入配置");
+    fireEvent.click(screen.getByRole("button", { name: "返回数据资源总目录" }));
+    expect(await screen.findByText("当前导入尚未完成")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "继续导入" }));
+    expect(screen.getByText("导入配置")).toBeInTheDocument();
+  });
+
   it("warns before leaving an unfinished data import", async () => {
     renderAdminRoute("/resources/data/import");
 

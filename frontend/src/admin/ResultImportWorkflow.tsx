@@ -47,6 +47,7 @@ interface ResultImportWorkflowProps {
   accessGroups: AdminDataResourceAccessGroup[];
   uploadMaxMb: number;
   onDirtyChange?: (dirty: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 export default function ResultImportWorkflow({
@@ -54,6 +55,7 @@ export default function ResultImportWorkflow({
   accessGroups,
   uploadMaxMb,
   onDirtyChange,
+  onBusyChange,
 }: ResultImportWorkflowProps) {
   const { message } = App.useApp();
   const { i18n } = useTranslation();
@@ -75,6 +77,10 @@ export default function ResultImportWorkflow({
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<ResultArtifact | null>(null);
   const [nongeoReport, setNongeoReport] = useState(false);
+  useEffect(() => {
+    onBusyChange?.(submitting);
+    return () => onBusyChange?.(false);
+  }, [submitting, onBusyChange]);
   const selectedGroupIds = Form.useWatch("accessGroupIds", form) ?? [];
   const hasGuestAudience = useMemo(
     () =>

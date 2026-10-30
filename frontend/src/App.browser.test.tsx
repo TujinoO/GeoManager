@@ -1126,6 +1126,7 @@ describe("application critical flows", () => {
     });
     analysisMocks.importTable
       .mockResolvedValueOnce({
+        resolvedKind: "individual",
         valid: true,
         resourceId: null,
         rowCount: 1,
@@ -1133,6 +1134,7 @@ describe("application critical flows", () => {
         warnings: [],
       })
       .mockResolvedValue({
+        resolvedKind: "individual",
         valid: true,
         resourceId: 88,
         rowCount: 1,
@@ -1186,7 +1188,7 @@ describe("application critical flows", () => {
       expect(analysisMocks.importTable).toHaveBeenCalledTimes(2),
     );
     const body = analysisMocks.importTable.mock.calls[1]![0] as FormData;
-    expect(body.get("kind")).toBe("individual");
+    expect(body.get("kind")).toBe("auto");
     expect(body.get("provenance")).toBe("observed");
     expect(body.get("validateOnly")).toBe("false");
     expect(await screen.findByText("入库完成")).toBeInTheDocument();

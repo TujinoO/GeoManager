@@ -21,6 +21,7 @@ from apps.omics.genome_index import (
     summary_payload,
 )
 from apps.omics.models import GenomeIndex
+from apps.omics.upload_matching import match_genome_uploads
 
 
 def authorized_index(request, id):
@@ -108,16 +109,29 @@ def sequence(request, id):
 def genome_import(request):
     if not has_feature_perm(request.user, "catalog.add_dataresource"):
         return feature_denied_response(request.user)
-    if sum(f.size for f in request.FILES.values()) > 512 * 1024 * 1024:
+    all_files = [f for _, items in request.FILES.lists() for f in items]
+    if sum(f.size for f in all_files) > 512 * 1024 * 1024:
         return JsonResponse(
             {
                 "detail": "配套上传文件合计不得超过512MiB；更大数据请使用管理命令流式接入"
             },
             status=400,
         )
-    # Only explicitly named role files are accepted. Original archive paths are never extracted.
-    if not {"genome", "gff"} <= set(request.FILES):
-        return JsonResponse({"detail": "必须选择genome和gff配套文件"}, status=400)
+    try:
+        if "files" in request.FILES:
+            if set(request.FILES) != {"files"}:
+                raise GenomeError("整组选择文件不能与单独指定用途的文件同时提交")
+            selected = match_genome_uploads(request.FILES.getlist("files"))
+        else:
+            selected = {role: request.FILES[role] for role in request.FILES}
+            if set(selected) - {"genome", "gff", "protein", "rna", "cds"} or any(
+                len(items) != 1 for _, items in request.FILES.lists()
+            ):
+                raise GenomeError("文件用途无效或重复，请重新选择配套文件")
+            if not {"genome", "gff"} <= set(selected):
+                raise GenomeError("必须选择基因组序列和GFF注释配套文件")
+    except GenomeError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
     source_url = request.POST.get("sourceUrl", "").strip()
     if len(source_url) > 2000:
         return JsonResponse({"detail": "来源说明不能超过2000字"}, status=400)
@@ -127,7 +141,7 @@ def genome_import(request):
     root = Path(tempfile.mkdtemp(prefix="gpedsp-genome-"))
     try:
         for role in ["genome", "gff", "protein", "rna", "cds"]:
-            file = request.FILES.get(role)
+            file = selected.get(role)
             if file is None:
                 continue
             path = root / (
@@ -150,6 +164,9 @@ def genome_import(request):
             validate_only=validate_only,
         )
         if validate_only:
+            index["matchedFiles"] = [
+                {"role": role, "name": file.name} for role, file in selected.items()
+            ]
             return JsonResponse(index)
         log_operation(
             request.user,

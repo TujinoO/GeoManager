@@ -61,6 +61,7 @@ export default function VectorImportWorkflow({
   availableAccessGroups,
   onReset,
   onCompleted,
+  onBusyChange,
 }: {
   file: File;
   domainDefinitions: DomainDefinition[];
@@ -68,6 +69,7 @@ export default function VectorImportWorkflow({
   availableAccessGroups: AccessGroup[];
   onReset: () => void;
   onCompleted: (result: VectorImportCommitResult) => void;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const { message } = AntApp.useApp();
   const { i18n } = useTranslation();
@@ -86,6 +88,10 @@ export default function VectorImportWorkflow({
   const [previewing, setPreviewing] = useState(true);
   const [validating, setValidating] = useState(false);
   const [importing, setImporting] = useState(false);
+  useEffect(() => {
+    onBusyChange?.(previewing || validating || importing);
+    return () => onBusyChange?.(false);
+  }, [previewing, validating, importing, onBusyChange]);
   const selectedLayerName = Form.useWatch("sourceLayerName", form);
   const selectedLayer = useMemo(
     () =>

@@ -2460,3 +2460,9 @@ POST /api/analysis/reports/及GET/POST /api/analysis/reports/{id}/接收Analysis
 ### 2026-10-30 非地理导入三步流程
 
 表格导入支持CSV、TSV、分隔文本TXT、XLS、XLSX及文本gzip；sheetName可指定Excel工作表，默认第一张。校验返回columns与最多八行rows预览，不写业务数据。基因组POST /api/omics/import/增加validateOnly=true，200返回AnalysisImportResult，复用FASTA/GFF解析核查配套关系，不创建资源、组装或业务索引记录；正式导入保持201返回GenomeSummary。两种导入都需要catalog.add_dataresource，正式入库重新校验。可选字段允许省略或缺测，坐标不必填。
+
+## 2026-10-30 导入类型识别与整组基因文件
+
+POST /api/analysis/import/ 支持kind=auto及ecology：ecology仅识别生态观测子类；仅根据原始表头的专业特征唯一识别当前七类表格，返回resolvedKind；未知或歧义需手动选择。明确选错类型且校验不通过时给出正确类型建议，不静默改类。正式入库仍重新识别及校验，不放宽必填规则。
+
+POST /api/omics/import/ 支持multipart重复files字段一次提交2–5个配套文件，与明确用途字段互斥。识别genome/GFF/Protein/RNA/CDS文件名和专用扩展名；重复用途、混合GWH组装、未知用途阻断，无法从通用FASTA推断RNA/CDS时提示使用原始文件名。成功预检查返回matchedFiles；仍复用完整内容解析及配套校验，保留原权限、512MiB/4GiB限制和200预检查/201正式入库响应。

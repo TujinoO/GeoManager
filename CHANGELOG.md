@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve unsaved map-composition edits when the live map view or source summary changes
 - Recommend usable geographic and Web Mercator grid intervals for both local and regional extents
 
+## [V3.27] - 2026-10-30
+
+- 修复群落、种群、种质及分子模板被默认按个体类型校验的问题，支持按原始表头识别及明确选错类型的中文提示。
+- 导入类型按生态观测、种质、分子、基因四类简化；生态观测保留个体、种群、群落和功能性状选择。
+- 基因组可一次多选或拖拽整组2–5个文件，自动匹配基因组、GFF、蛋白、RNA和CDS，检查重复用途、混组与配套内容。
+- 修复未完成导入无法确认离开的问题，增加清空和取消入口，校验上传期间防止误清空。
+- 更新在线帮助、18页帮助PDF、API合同和生成客户端；无需数据库迁移，权限、数据根目录及栅格渲染保持原设计。
+
 ## [V3.26] - 2026-10-30
 
 - 非地理数据导入改为选择数据、核查校验、确认入库三步，支持原始生态模板、Excel 工作表及基因配套预检查。

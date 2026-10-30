@@ -5,7 +5,6 @@ import {
   Descriptions,
   Form,
   Input,
-  Radio,
   Select,
   Space,
   Steps,
@@ -35,14 +34,19 @@ const roles = [
   { key: "rna", label: "转录本序列", format: "FASTA", required: false },
   { key: "cds", label: "编码序列", format: "FASTA", required: false },
 ];
-const publicKinds = [
-  "individual",
-  "population",
-  "community",
-  "traits",
-  "samples",
-  "molecular",
-  "sequence",
+const categories = [
+  { value: "auto", label: "自动识别" },
+  { value: "ecology", label: "生态观测数据" },
+  { value: "samples", label: "种质数据" },
+  { value: "molecular", label: "分子数据" },
+  { value: "genome", label: "基因数据" },
+];
+const ecologyKinds = [
+  { value: "ecology", label: "自动识别观测类型" },
+  { value: "individual", label: "个体" },
+  { value: "population", label: "种群" },
+  { value: "community", label: "群落" },
+  { value: "traits", label: "功能性状" },
 ];
 const origins = [
   { value: "observed", label: "观测、实验或公开资料" },
@@ -54,23 +58,25 @@ export default function AnalysisImportPanel({
   onImported,
   onOpen,
   onDirtyChange,
+  onBusyChange,
 }: {
   canImport: boolean;
   onDirtyChange?: (dirty: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
   onImported: (resourceId: number, genome?: boolean) => void;
   onOpen: (resourceId: number, kind: string) => void;
 }) {
   const { message } = App.useApp();
   const [catalog, setCatalog] = useState<AnalysisTemplateCatalog>();
-  const [mode, setMode] = useState("table");
+  const [mode, setMode] = useState("auto");
   const [step, setStep] = useState(0);
-  const [kind, setKind] = useState("individual");
+  const [kind, setKind] = useState("auto");
   const [name, setName] = useState("");
   const [source, setSource] = useState("");
   const [provenance, setProvenance] = useState("observed");
   const [sheet, setSheet] = useState("");
   const [file, setFile] = useState<File>();
-  const [files, setFiles] = useState<Record<string, File>>({});
+  const [files, setFiles] = useState<File[]>([]);
   const [code, setCode] = useState("");
   const [sex, setSex] = useState("unknown");
   const [result, setResult] = useState<AnalysisImportResult>();
@@ -78,7 +84,7 @@ export default function AnalysisImportPanel({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const genome = mode === "genome";
-  const hasFiles = genome ? Boolean(files.genome && files.gff) : Boolean(file);
+  const hasFiles = genome ? files.length >= 2 : Boolean(file);
   useEffect(() => {
     let ignore = false;
     analysisApi
@@ -95,8 +101,12 @@ export default function AnalysisImportPanel({
     };
   }, []);
   useEffect(() => {
-    onDirtyChange?.(!imported && Boolean(file || Object.keys(files).length));
+    onDirtyChange?.(!imported && Boolean(file || files.length));
   }, [file, files, imported, onDirtyChange]);
+  useEffect(() => {
+    onBusyChange?.(busy);
+    return () => onBusyChange?.(false);
+  }, [busy, onBusyChange]);
   function invalidate() {
     setResult(undefined);
     setError("");
@@ -104,7 +114,11 @@ export default function AnalysisImportPanel({
   }
   function reset() {
     setFile(undefined);
-    setFiles({});
+    setFiles([]);
+    setKind("auto");
+    setMode("auto");
+    setSex("unknown");
+    setProvenance("observed");
     setName("");
     setCode("");
     setSheet("");
@@ -112,6 +126,21 @@ export default function AnalysisImportPanel({
     setStep(0);
     invalidate();
   }
+  function selectCategory(value: string) {
+    setMode(value);
+    setKind(value === "genome" ? "auto" : value);
+    if (value === "genome") setStep(0);
+    invalidate();
+  }
+  const categorySelect = (
+    <Select
+      aria-label="数据类型"
+      disabled={busy}
+      value={mode}
+      options={categories}
+      onChange={selectCategory}
+    />
+  );
   async function submit(validateOnly: boolean) {
     if (
       !canImport ||
@@ -132,7 +161,7 @@ export default function AnalysisImportPanel({
       body.set("code", code.trim());
       body.set("sex", sex);
       body.set("sourceUrl", source);
-      Object.entries(files).forEach(([role, f]) => body.set(role, f));
+      files.forEach((f) => body.append("files", f));
     } else {
       body.set("file", file!);
       body.set("kind", kind);
@@ -164,16 +193,20 @@ export default function AnalysisImportPanel({
         typeof e.data === "object" &&
         e.data !== null &&
         "issues" in e.data
-      )
+      ) {
         setResult(e.data as AnalysisImportResult);
+        setError("");
+      }
     } finally {
       setBusy(false);
     }
   }
+  const resolvedKind = result?.resolvedKind ?? kind;
   const kindName = genome
     ? "参考基因组"
-    : (catalog?.items.find((t) => t.kind === kind)?.name ?? kind);
-  const selectedFiles = genome ? Object.values(files) : file ? [file] : [];
+    : (catalog?.items.find((t) => t.kind === resolvedKind)?.name ??
+      resolvedKind);
+  const selectedFiles = genome ? files : file ? [file] : [];
   return (
     <div className="analysis-import nongeo-import-workflow">
       <Steps
@@ -193,20 +226,9 @@ export default function AnalysisImportPanel({
       )}
       {step === 0 && (
         <section className="import-step-pane">
-          <Radio.Group
-            disabled={busy}
-            value={mode}
-            optionType="button"
-            buttonStyle="solid"
-            onChange={(e) => {
-              setMode(e.target.value);
-              invalidate();
-            }}
-            options={[
-              { value: "table", label: "生态观测、种质与分子表格" },
-              { value: "genome", label: "基因组配套文件" },
-            ]}
-          />
+          <Form layout="vertical" className="nongeo-import-fields">
+            <Form.Item label="数据类型">{categorySelect}</Form.Item>
+          </Form>
           {!genome ? (
             <Upload.Dragger
               disabled={busy}
@@ -219,6 +241,7 @@ export default function AnalysisImportPanel({
                   return false;
                 }
                 setFile(f);
+                setSheet("");
                 setName(
                   f.name
                     .replace(/\.(csv|tsv|txt|xls|xlsx)(\.gz)?$/i, "")
@@ -240,64 +263,66 @@ export default function AnalysisImportPanel({
             </Upload.Dragger>
           ) : (
             <>
-              <Typography.Paragraph type="secondary">
-                选择同一版本的序列与结构注释。支持 gzip
-                压缩，文件合计不超过512MiB。
-              </Typography.Paragraph>
-              <div className="nongeo-genome-files">
-                {roles.map((role) => (
-                  <Upload.Dragger
-                    key={role.key}
-                    disabled={busy}
-                    maxCount={1}
-                    showUploadList={false}
-                    accept={
-                      role.key === "gff"
-                        ? ".gff,.gff3,.gz"
-                        : ".fa,.fna,.fasta,.faa,.gz"
-                    }
-                    beforeUpload={(f) => {
-                      const next = { ...files, [role.key]: f };
-                      if (
-                        Object.values(next).reduce(
-                          (sum, item) => sum + item.size,
-                          0,
-                        ) >
-                        512 * 1024 * 1024
-                      ) {
-                        setError("配套文件合计不能超过512MiB");
-                        return false;
-                      }
-                      setFiles(next);
-                      invalidate();
-                      return false;
-                    }}
-                  >
-                    <FileOutlined />
-                    <strong>
-                      {role.label} {role.required ? "· 必选" : "· 可选"}
-                    </strong>
-                    <span>{files[role.key]?.name ?? role.format}</span>
-                    {files[role.key] && (
+              <Upload.Dragger
+                disabled={busy}
+                multiple
+                showUploadList={false}
+                accept=".fa,.fna,.fasta,.faa,.gff,.gff3,.gz"
+                beforeUpload={(f, batch) => {
+                  if (f !== batch[0]) return false;
+                  if (
+                    batch.length > 5 ||
+                    batch.reduce((sum, item) => sum + item.size, 0) >
+                      512 * 1024 * 1024
+                  ) {
+                    setError("每次最多选择5个配套文件，合计不能超过512MiB");
+                    return false;
+                  }
+                  setFiles(batch);
+                  const base = (batch.find((item) =>
+                    /[._-]genome[._-]/i.test(item.name),
+                  ) ?? batch[0])!.name
+                    .replace(/\.(gz)$/i, "")
+                    .replace(/\.(fasta|fa|fna|faa|gff3?)$/i, "")
+                    .replace(/[._-](genome|protein|rna|cds)$/i, "");
+                  setName(base.slice(0, 160));
+                  setCode(/^[a-z0-9_.-]{1,100}$/i.test(base) ? base : "");
+                  invalidate();
+                  return false;
+                }}
+              >
+                <CloudUploadOutlined style={{ fontSize: 34 }} />
+                <Typography.Title level={4}>
+                  一次选择或拖入整组基因文件
+                </Typography.Title>
+                <Typography.Paragraph type="secondary">
+                  自动匹配基因组、GFF注释、蛋白、RNA与CDS。至少选择基因组和注释文件，支持gzip压缩，合计不超过512MiB。
+                </Typography.Paragraph>
+                <Typography.Text type="secondary">
+                  请选择同一组装的原始文件；重新选择将替换当前整组。
+                </Typography.Text>
+              </Upload.Dragger>
+              {files.length > 0 && (
+                <div className="nongeo-genome-selection">
+                  {files.map((f) => (
+                    <div key={f.name} className="nongeo-import-fileline">
+                      <FileOutlined />
+                      <span>{f.name}</span>
                       <Button
                         type="text"
                         size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFiles((prev) => {
-                            const next = { ...prev };
-                            delete next[role.key];
-                            return next;
-                          });
+                        disabled={busy}
+                        onClick={() => {
+                          setFiles((prev) => prev.filter((item) => item !== f));
                           invalidate();
                         }}
                       >
                         移除
                       </Button>
-                    )}
-                  </Upload.Dragger>
-                ))}
-              </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
           <Space wrap className="import-actions">
@@ -337,19 +362,20 @@ export default function AnalysisImportPanel({
             </Button>
           </div>
           <Form layout="vertical" className="nongeo-import-fields">
-            {!genome && (
-              <Form.Item label="数据类型" required>
+            <Form.Item label="数据类型">
+              {genome ? <Input value="基因数据" disabled /> : categorySelect}
+            </Form.Item>
+            {mode === "ecology" && (
+              <Form.Item label="观测类型">
                 <Select
-                  aria-label="模板类型"
+                  aria-label="观测类型"
                   disabled={busy}
                   value={kind}
-                  onChange={(v) => {
-                    setKind(v);
+                  options={ecologyKinds}
+                  onChange={(value) => {
+                    setKind(value);
                     invalidate();
                   }}
-                  options={(catalog?.items ?? [])
-                    .filter((t) => publicKinds.includes(t.kind))
-                    .map((t) => ({ value: t.kind, label: t.name }))}
                 />
               </Form.Item>
             )}
@@ -475,6 +501,25 @@ export default function AnalysisImportPanel({
               }
             />
           )}
+          {result?.resolvedKind && (
+            <Typography.Paragraph>
+              数据类型：<Tag color="green">{kindName}</Tag>
+            </Typography.Paragraph>
+          )}
+          {result?.matchedFiles && (
+            <Descriptions
+              bordered
+              column={1}
+              title="文件匹配结果"
+              items={result.matchedFiles.map((item) => ({
+                key: item.role,
+                label:
+                  roles.find((role) => role.key === item.role)?.label ??
+                  item.role,
+                children: item.name,
+              }))}
+            />
+          )}
           {result?.columns && result.rows && (
             <div className="nongeo-import-preview">
               <Typography.Title level={5}>
@@ -533,7 +578,9 @@ export default function AnalysisImportPanel({
                 <Space wrap>
                   <Button
                     type="primary"
-                    onClick={() => onOpen(imported, genome ? "genome" : kind)}
+                    onClick={() =>
+                      onOpen(imported, genome ? "genome" : resolvedKind)
+                    }
                   >
                     打开数据分析
                   </Button>

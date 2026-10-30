@@ -18,6 +18,7 @@ from apps.audit.service import log_operation
 from apps.catalog.analysis_templates import TEMPLATES, template_bytes, template_catalog
 from apps.catalog.analysis_visuals import build_visuals
 from apps.catalog.ecology_contracts import normalize_analysis_table
+from apps.catalog.analysis_detection import detect_table_kinds
 from apps.catalog.taxonomy import resolve_data_category
 from apps.catalog.analysis_readers import read_analysis_upload
 from apps.catalog.importer import (
@@ -262,7 +263,7 @@ def table_import(request):
         request.POST.get("provenance"),
     )
     if (
-        kind not in TEMPLATES
+        (kind not in TEMPLATES and kind not in {"auto", "ecology"})
         or not 1 <= len(name) <= 160
         or provenance not in {"observed", "synthetic"}
     ):
@@ -284,6 +285,25 @@ def table_import(request):
             request.POST.get("assembly", ""),
             request.POST.get("sheetName"),
         )
+        candidates = detect_table_kinds(df)
+        if kind in {"auto", "ecology"}:
+            if len(candidates) != 1:
+                hint = "、".join(TEMPLATES[k]["name"] for k in candidates)
+                raise ValueError(
+                    f"表头同时符合{hint}，请手动选择数据类型后校验"
+                    if candidates
+                    else "未能从表头识别数据类型，请手动选择数据类型后校验"
+                )
+            if kind == "ecology" and candidates[0] not in {
+                "individual",
+                "population",
+                "community",
+                "traits",
+            }:
+                raise ValueError(
+                    f"此文件字段符合{TEMPLATES[candidates[0]]['name']}，请选择对应的数据类型后校验"
+                )
+            kind = candidates[0]
         df = normalize_analysis_table(df, kind)
         if kind in {
             "individual",
@@ -298,7 +318,13 @@ def table_import(request):
                 if field not in df and field not in TEMPLATES[kind]["required"]:
                     df[field] = ""
         issues, warnings = validate_table(df, kind)
+        if len(candidates) == 1 and candidates[0] != kind:
+            issues.insert(
+                0,
+                f"此文件字段符合{TEMPLATES[candidates[0]]['name']}，当前选择{TEMPLATES[kind]['name']}，请更改数据类型后重新校验",
+            )
         response = {
+            "resolvedKind": kind,
             "valid": not issues,
             "resourceId": None,
             "rowCount": len(df),

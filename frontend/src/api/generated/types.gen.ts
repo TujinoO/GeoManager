@@ -643,6 +643,23 @@ export type AnalysisResult = {
  */
 export type AnalysisImportResult = {
     /**
+     * 表头识别或手动选择后实际校验的数据类型；表格响应提供，基因文件可省略
+     */
+    resolvedKind?: string;
+    /**
+     * 基因预检查成功时的用途匹配清单；表格可省略
+     */
+    matchedFiles?: Array<{
+        /**
+         * 匹配后的用途
+         */
+        role: 'genome' | 'gff' | 'protein' | 'rna' | 'cds';
+        /**
+         * 原始上传文件名
+         */
+        name: string;
+    }>;
+    /**
      * 规范化后的预览列名；基因文件核查可省略
      */
     columns?: Array<string>;
@@ -6943,7 +6960,7 @@ export type ImportAnalysisTableData = {
          */
         file: Blob | File;
         /**
-         * individual/population/community/traits/samples/molecular/expression/function/variants/sequence；支持甲方原中文表头，保留附加字段
+         * auto按表头识别individual/population/community/traits/samples/molecular/sequence，ecology仅识别个体/种群/群落/性状；无法唯一识别时要求手选。也支持明确指定这些类型及历史expression/function/variants。支持甲方原中文表头，保留附加字段
          */
         kind: string;
         /**
@@ -7434,6 +7451,10 @@ export type ImportGenomeFilesData = {
      */
     body: {
         /**
+         * 一次上传同一组装的2至5个文件，按文件名中的genome、GFF、Protein、RNA、CDS及专用扩展名自动匹配；重复、混组或无法识别时拒绝。与下方明确指定用途的字段互斥；必须包含基因组和注释文件
+         */
+        files?: Array<Blob | File>;
+        /**
          * true仅解析检查配套文件和编号，不创建业务记录；确认入库重新执行完整检查
          */
         validateOnly?: boolean;
@@ -7460,11 +7481,11 @@ export type ImportGenomeFilesData = {
         /**
          * genome文件；支持gzip
          */
-        genome: Blob | File;
+        genome?: Blob | File;
         /**
          * gff文件；支持gzip
          */
-        gff: Blob | File;
+        gff?: Blob | File;
         /**
          * protein文件；支持gzip
          */

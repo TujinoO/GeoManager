@@ -248,6 +248,123 @@ class AnalysisWorkspaceTests(TestCase):
                 self.assertEqual(result["provenance"], "synthetic")
                 self.assertEqual(result["scope"], "full")
 
+    def test_auto_detects_public_templates_and_preserves_import_kind(self):
+        from apps.catalog.analysis_detection import PUBLIC_KINDS
+
+        for kind in PUBLIC_KINDS:
+            with self.subTest(kind=kind):
+                raw, _, _ = template_bytes(kind, example=True)
+                response = self.client.post(
+                    "/api/analysis/import/",
+                    {
+                        "kind": "auto",
+                        "name": kind,
+                        "provenance": "synthetic",
+                        "file": SimpleUploadedFile("unrelated-name.csv", raw),
+                    },
+                )
+                self.assertEqual(response.status_code, 201, response.content)
+                self.assertEqual(response.json()["resolvedKind"], kind)
+                resource = DataResource.objects.get(pk=response.json()["resourceId"])
+                self.assertEqual(resource.default_visualization["analysisKind"], kind)
+                self.assertEqual(
+                    self.post_query(resource.pk).json()["total"],
+                    len(example_rows(kind)),
+                )
+
+    def test_source_headers_auto_detect_and_wrong_type_suggests_correction(self):
+        cases = [
+            ("population", "地点（样方）,种,株数（数量）\nP1,胡杨,4\n"),
+            ("community", "Sample,FRic,Shannon\nP1,1.2,0.8\n"),
+            ("samples", "DNA样本编号,性别,采集地点\nS1,雌株,塔里木\n"),
+            (
+                "molecular",
+                "result_id,sample_code,marker,unit,value\nR1,S1,DNA,ng/uL,0\n",
+            ),
+        ]
+        before = DataResource.objects.count()
+        for expected, text in cases:
+            for chosen in ["auto", "individual"]:
+                response = self.client.post(
+                    "/api/analysis/import/",
+                    {
+                        "kind": chosen,
+                        "name": "source",
+                        "provenance": "observed",
+                        "validateOnly": "true",
+                        "file": SimpleUploadedFile("data.csv", text.encode()),
+                    },
+                )
+                if chosen == "auto":
+                    self.assertEqual(response.status_code, 201, response.content)
+                    self.assertEqual(response.json()["resolvedKind"], expected)
+                else:
+                    self.assertEqual(response.status_code, 400)
+                    self.assertIn(
+                        TEMPLATES[expected]["name"], response.json()["issues"][0]
+                    )
+        self.assertEqual(before, DataResource.objects.count())
+
+    def test_auto_rejects_unknown_and_ambiguous_headers(self):
+        for text in [
+            "name,value\na,1\n",
+            "collection_code,species,sample_code\nC1,胡杨,S1\n",
+        ]:
+            response = self.client.post(
+                "/api/analysis/import/",
+                {
+                    "kind": "auto",
+                    "name": "unknown",
+                    "provenance": "observed",
+                    "file": SimpleUploadedFile("个体数据.csv", text.encode()),
+                },
+            )
+            self.assertEqual(response.status_code, 400)
+            self.assertIn("手动选择", response.json()["detail"])
+
+    def test_ecology_group_recognizes_subtype_and_rejects_other_domains(self):
+        for expected in [
+            "individual",
+            "population",
+            "community",
+            "traits",
+            "molecular",
+        ]:
+            raw, _, _ = template_bytes(expected, example=True)
+            response = self.client.post(
+                "/api/analysis/import/",
+                {
+                    "kind": "ecology",
+                    "name": "ecology",
+                    "provenance": "synthetic",
+                    "validateOnly": "true",
+                    "file": SimpleUploadedFile("table.csv", raw),
+                },
+            )
+            self.assertEqual(
+                response.status_code,
+                400 if expected == "molecular" else 201,
+                response.content,
+            )
+            if expected != "molecular":
+                self.assertEqual(response.json()["resolvedKind"], expected)
+
+    def test_molecular_cannot_be_misclassified_as_samples_even_with_unique_sample(self):
+        response = self.client.post(
+            "/api/analysis/import/",
+            {
+                "kind": "samples",
+                "name": "wrong",
+                "provenance": "observed",
+                "file": SimpleUploadedFile(
+                    "sample.csv",
+                    b"result_id,sample_code,marker,unit,value\nR1,S1,DNA,ng/uL,0\n",
+                ),
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("分子", response.json()["issues"][0])
+
     def test_template_xlsx_dictionary_and_empty_csv(self):
         from openpyxl import load_workbook
 
@@ -608,6 +725,63 @@ class AnalysisWorkspaceTests(TestCase):
         final = payload()
         final["validateOnly"] = "false"
         self.assertEqual(self.client.post("/api/omics/import/", final).status_code, 201)
+
+    def test_batch_genome_matching_gzip_validation_and_final_import(self):
+        def payload(validate_only):
+            with zipfile.ZipFile(io.BytesIO(genome_example())) as z:
+                uploads = [
+                    SimpleUploadedFile(
+                        "GWHDEMO0001." + label + ".gz", gzip.compress(z.read(source))
+                    )
+                    for label, source in [
+                        ("RNA.fasta", "rna.fasta"),
+                        ("CDS.fasta", "cds.fasta"),
+                        ("gff", "annotation.gff3"),
+                        ("genome.fasta", "genome.fasta"),
+                        ("Protein.faa", "protein.faa"),
+                    ]
+                ]
+            return {
+                "code": "BATCH",
+                "name": "Batch",
+                "provenance": "synthetic",
+                "validateOnly": str(validate_only).lower(),
+                "files": uploads,
+            }
+
+        before = DataResource.objects.count()
+        response = self.client.post("/api/omics/import/", payload(True))
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["rowCount"], 60)
+        self.assertEqual(
+            {x["role"] for x in response.json()["matchedFiles"]},
+            {"genome", "gff", "protein", "rna", "cds"},
+        )
+        self.assertEqual(DataResource.objects.count(), before)
+        response = self.client.post("/api/omics/import/", payload(False))
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()["geneCount"], 60)
+
+    def test_batch_genome_rejects_duplicate_unknown_mixed_and_invalid_content(self):
+        for names, message in [
+            (["FG.genome.fa", "FG.gff", "FG.genome.fasta"], "重复"),
+            (["unknown.fasta", "FG.gff"], "无法明确识别"),
+            (["GWHAAAA0001.genome.fa", "GWHBBBB0001.gff"], "不同GWH"),
+            (["FG.genome.fa", "FG.RNA.fasta"], "缺少"),
+            (["FG.genome.fa", "FG.gff"], "FASTA"),
+        ]:
+            response = self.client.post(
+                "/api/omics/import/",
+                {
+                    "code": "BAD-BATCH",
+                    "name": "bad",
+                    "provenance": "observed",
+                    "validateOnly": "true",
+                    "files": [SimpleUploadedFile(name, b"invalid") for name in names],
+                },
+            )
+            self.assertEqual(response.status_code, 400, response.content)
+            self.assertIn(message, response.json()["detail"])
 
     def test_sparse_molecular_preflight_preview_and_commit_revalidation(self):
         raw = b"result_id,sample_code,marker,unit,value\nR1,001,DNA,ng/uL,0\nR2,002,DNA,ng/uL,\n"

@@ -28,8 +28,14 @@ import {
   Typography,
   Upload,
 } from "antd";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createPath,
+  Navigate,
+  UNSAFE_NavigationContext,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { ApiError, api } from "../api/client";
 import { useAppContext } from "../contexts/AppContext";
 import { localText, useEnglishLanguage } from "../i18n/useEnglishLanguage";
@@ -360,12 +366,13 @@ const domainFieldHints: Record<DataDomainType, string[]> = {
 };
 
 export default function AdminDataImportPage() {
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
   const english = useEnglishLanguage();
   const l = (zh: string, en: string) => localText(english, zh, en);
   const { bootstrap, setBootstrap, user } = useAppContext();
   const location = useLocation();
   const navigate = useNavigate();
+  const { navigator } = useContext(UNSAFE_NavigationContext);
   const allowNavigationRef = useRef(false);
   const currentPathRef = useRef("");
   const rasterPreviewRequestRef = useRef(0);
@@ -389,6 +396,8 @@ export default function AdminDataImportPage() {
       : "geographic",
   );
   const [resultImportDirty, setResultImportDirty] = useState(false);
+  const [workflowVersion, setWorkflowVersion] = useState(0);
+  const [workflowBusy, setWorkflowBusy] = useState(false);
   const [schema, setSchema] = useState<DataSchemaSummary | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [importKind, setImportKind] = useState<ImportKind | null>(null);
@@ -666,6 +675,8 @@ export default function AdminDataImportPage() {
     }
     const originalPushState = window.history.pushState;
     const originalReplaceState = window.history.replaceState;
+    const originalPush = navigator.push;
+    const originalReplace = navigator.replace;
 
     function shouldBlockUrl(url?: string | URL | null) {
       if (allowNavigationRef.current || url == null) {
@@ -689,6 +700,16 @@ export default function AdminDataImportPage() {
         return;
       }
       return originalPushState.call(this, data, unused, url);
+    };
+
+    // Intercept before the router changes location, including navigation buttons.
+    navigator.push = function push(to, state, options) {
+      if (shouldBlockUrl(typeof to === "string" ? to : createPath(to))) return;
+      return originalPush.call(this, to, state, options);
+    };
+    navigator.replace = function replace(to, state, options) {
+      if (shouldBlockUrl(typeof to === "string" ? to : createPath(to))) return;
+      return originalReplace.call(this, to, state, options);
     };
 
     window.history.replaceState = function replaceState(data, unused, url) {
@@ -757,10 +778,18 @@ export default function AdminDataImportPage() {
     return () => {
       window.history.pushState = originalPushState;
       window.history.replaceState = originalReplaceState;
+      navigator.push = originalPush;
+      navigator.replace = originalReplace;
       window.removeEventListener("popstate", handlePopState, { capture: true });
       document.removeEventListener("click", handleDocumentClick, true);
     };
-  }, [hasPendingImport, location.hash, location.pathname, location.search]);
+  }, [
+    hasPendingImport,
+    location.hash,
+    location.pathname,
+    location.search,
+    navigator,
+  ]);
 
   const activeRasterJobId =
     rasterJob && isActiveRasterJob(rasterJob) ? rasterJob.id : null;
@@ -803,14 +832,77 @@ export default function AdminDataImportPage() {
     if (hasPendingImport) {
       message.warning(
         l(
-          "请先完成当前导入或点击重新选择清空内容，再切换导入目标",
-          "Finish the current import or clear it with Choose another file before switching import targets",
+          "请先完成当前导入，或点击上方“清空当前导入”后切换导入目标",
+          "Finish the import or select Clear current import above before switching targets",
         ),
       );
       return;
     }
     setImportTarget(nextTarget);
   }
+
+  const importBusy =
+    previewing ||
+    validating ||
+    importing ||
+    rasterInspecting ||
+    rasterUploading ||
+    workflowBusy;
+  const cancelDestination = user?.permissions.canViewDataResources
+    ? "/resources/data/inventory"
+    : "/resources/dashboard";
+
+  function clearCurrentImport() {
+    const clear = () => {
+      resetImportState();
+      setResultImportDirty(false);
+      setWorkflowVersion((version) => version + 1);
+    };
+    if (!hasPendingImport) {
+      clear();
+      return;
+    }
+    modal.confirm({
+      title: l("清空当前导入？", "Clear the current import?"),
+      content: l(
+        "将清除本次选择的文件、配置和校验结果。已提交的后台任务会继续执行，已入库的数据不受影响。",
+        "Discard the selected files, settings, and validation results. Submitted background jobs continue and previously imported data is unaffected.",
+      ),
+      okText: l("确认清空", "Clear import"),
+      cancelText: l("继续导入", "Continue importing"),
+      okButtonProps: { danger: true },
+      onOk: clear,
+    });
+  }
+
+  const leaveImportModal = (
+    <Modal
+      title={l("离开数据导入页面？", "Leave the data-import page?")}
+      open={pendingNavigationPath !== null}
+      okText={l("确认离开", "Leave")}
+      cancelText={l("继续导入", "Continue importing")}
+      okType="danger"
+      onOk={() => {
+        const nextPath = pendingNavigationPath;
+        setPendingNavigationPath(null);
+        if (nextPath) {
+          allowNavigationRef.current = true;
+          navigate(nextPath);
+        }
+      }}
+      onCancel={() => setPendingNavigationPath(null)}
+    >
+      <Alert
+        type="warning"
+        showIcon
+        title={l("当前导入尚未完成", "The current import is not complete")}
+        description={l(
+          `${unfinishedImportWarning}已提交的后台任务会继续执行，已入库的数据不受影响。`,
+          "Leaving discards the current import progress. Submitted background jobs continue and previously imported data is unaffected.",
+        )}
+      />
+    </Modal>
+  );
 
   const importTargetSelector = (
     <ProCard className="admin-section-card import-target-card">
@@ -853,6 +945,19 @@ export default function AdminDataImportPage() {
           ]}
         />
       </div>
+      <Space wrap style={{ marginTop: 12 }}>
+        <Button disabled={importBusy} onClick={clearCurrentImport}>
+          {l("清空当前导入", "Clear current import")}
+        </Button>
+        <Button
+          onClick={() => {
+            if (hasPendingImport) setPendingNavigationPath(cancelDestination);
+            else navigate(cancelDestination);
+          }}
+        >
+          {l("取消导入", "Cancel import")}
+        </Button>
+      </Space>
       {importTarget === "resource" && (
         <div style={{ marginTop: 20 }}>
           <Radio.Group
@@ -862,7 +967,12 @@ export default function AdminDataImportPage() {
             value={resourceMode}
             onChange={(event) => {
               if (hasPendingImport) {
-                message.warning("请先完成或清空当前导入");
+                message.warning(
+                  l(
+                    "请先完成当前导入，或点击上方“清空当前导入”后切换数据类型",
+                    "Finish the import or select Clear current import above before switching data types",
+                  ),
+                );
                 return;
               }
               setResourceMode(event.target.value);
@@ -890,8 +1000,10 @@ export default function AdminDataImportPage() {
       <div className="admin-page-stack admin-import-page">
         {importTargetSelector}
         <AnalysisImportPanel
+          key={workflowVersion}
           canImport={Boolean(user?.permissions.canCreateDataResources)}
           onDirtyChange={setResultImportDirty}
+          onBusyChange={setWorkflowBusy}
           onImported={() => setResultImportDirty(false)}
           onOpen={(id, kind) => {
             allowNavigationRef.current = true;
@@ -900,6 +1012,7 @@ export default function AdminDataImportPage() {
             );
           }}
         />
+        {leaveImportModal}
       </div>
     );
   }
@@ -908,11 +1021,14 @@ export default function AdminDataImportPage() {
       <div className="admin-page-stack admin-import-page">
         {importTargetSelector}
         <ResultImportWorkflow
+          key={workflowVersion}
           categoryOptions={categoryOptions}
           accessGroups={availableAccessGroups}
           uploadMaxMb={bootstrap.limits.uploadMaxMb}
           onDirtyChange={setResultImportDirty}
+          onBusyChange={setWorkflowBusy}
         />
+        {leaveImportModal}
       </div>
     );
   }
@@ -955,7 +1071,9 @@ export default function AdminDataImportPage() {
     setVectorResult(null);
     setUnsupportedFile(null);
     setCurrentStep(0);
-    form.resetFields();
+    if (importTarget === "resource" && resourceMode === "geographic") {
+      form.resetFields();
+    }
   }
 
   async function previewRasterFiles(
@@ -2340,6 +2458,7 @@ export default function AdminDataImportPage() {
               availableAccessGroups={availableAccessGroups}
               onReset={resetImportState}
               onCompleted={setVectorResult}
+              onBusyChange={setWorkflowBusy}
             />
           )}
 
@@ -2767,32 +2886,7 @@ export default function AdminDataImportPage() {
           />
         )}
       </Modal>
-      <Modal
-        title={l("离开数据导入页面？", "Leave the data-import page?")}
-        open={pendingNavigationPath !== null}
-        okText={l("确认离开", "Leave")}
-        cancelText={l("继续导入", "Continue importing")}
-        okType="danger"
-        onOk={() => {
-          const nextPath = pendingNavigationPath;
-          setPendingNavigationPath(null);
-          if (nextPath) {
-            allowNavigationRef.current = true;
-            navigate(nextPath);
-          }
-        }}
-        onCancel={() => setPendingNavigationPath(null)}
-      >
-        <Alert
-          type="warning"
-          showIcon
-          title={l("当前导入尚未完成", "The current import is not complete")}
-          description={l(
-            unfinishedImportWarning,
-            "Leaving now will discard the current import progress.",
-          )}
-        />
-      </Modal>
+      {leaveImportModal}
     </div>
   );
 }

@@ -869,6 +869,16 @@
   flex-shrink: 0;
   margin-left: auto;
 }
+.nongeo-genome-selection {
+  display: grid;
+  gap: 8px;
+}
+.nongeo-genome-selection .nongeo-import-fileline {
+  padding: 10px 12px;
+  border: 1px solid #dbe7e1;
+  border-radius: 8px;
+  background: #f7faf8;
+}
 .nongeo-genome-files {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

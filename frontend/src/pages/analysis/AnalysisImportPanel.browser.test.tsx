@@ -18,6 +18,7 @@ vi.mock("../../api/analysis", async (importOriginal) => ({
   analysisApi: mocks,
 }));
 const checked = {
+  resolvedKind: "individual",
   valid: true,
   resourceId: null,
   rowCount: 2,
@@ -44,6 +45,21 @@ function mount() {
     </App>,
   );
   return { ...view, onImported, onOpen, onDirtyChange };
+}
+async function category(label: string) {
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "数据类型" }));
+  fireEvent.click(
+    await screen.findByText(label, {
+      selector: ".ant-select-item-option-content",
+    }),
+  );
+  await waitFor(() =>
+    expect(
+      document.querySelector(
+        ".ant-select-dropdown:not(.ant-select-dropdown-hidden)",
+      ),
+    ).toBeNull(),
+  );
 }
 async function choose(view: ReturnType<typeof mount>, file: File, index = 0) {
   const input = view.container.querySelectorAll('input[type="file"]')[index];
@@ -76,6 +92,11 @@ beforeEach(() => {
   mocks.validateGenome.mockResolvedValue({
     ...checked,
     rowCount: 60,
+    resolvedKind: undefined,
+    matchedFiles: [
+      { role: "genome", name: "FG.genome.fasta.gz" },
+      { role: "gff", name: "FG.gff.gz" },
+    ],
     columns: undefined,
     rows: undefined,
   });
@@ -141,15 +162,35 @@ describe("nongeographic staged import", () => {
 
   it("validates required genome roles before a separate final import", async () => {
     const view = mount();
-    fireEvent.click(screen.getByRole("radio", { name: "基因组配套文件" }));
-    const inputs = view.container.querySelectorAll('input[type="file"]');
-    fireEvent.change(inputs[0]!, {
-      target: { files: [new File([">chr1\nACGT"], "FG.fa")] },
+    await category("基因数据");
+    const input = view.container.querySelector('input[type="file"]')!;
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File([">chr1\nACGT"], "FG.genome.fasta.gz"),
+          new File(["gff"], "FG.gff.gz"),
+          new File([">p1\nMK"], "FG.Protein.faa.gz"),
+          new File([">r1\nACGT"], "FG.RNA.fasta.gz"),
+          new File([">r1\nACGT"], "FG.CDS.fasta.gz"),
+        ],
+      },
     });
-    expect(
-      screen.getByRole("button", { name: "下一步：核查校验" }),
-    ).toBeDisabled();
-    await choose(view, new File(["gff"], "FG.gff3"), 1);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "下一步：核查校验" }),
+      ).toBeEnabled(),
+    );
+    await page.viewport(390, 844);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+      window.innerWidth + 1,
+    );
+    await page.screenshot({
+      path: "../../../output/playwright/genome-batch-selection-mobile.png",
+    });
+    await page.viewport(1440, 900);
+    await page.screenshot({
+      path: "../../../output/playwright/genome-batch-selection-desktop.png",
+    });
     fireEvent.click(screen.getByRole("button", { name: "下一步：核查校验" }));
     fireEvent.change(screen.getByRole("textbox", { name: "导入数据名称" }), {
       target: { value: "雌株组装" },
@@ -160,6 +201,9 @@ describe("nongeographic staged import", () => {
     fireEvent.click(screen.getByRole("button", { name: /检查文件与配套关系/ }));
     await screen.findByText("校验通过 · 60条基因");
     expect(mocks.importGenome).not.toHaveBeenCalled();
+    expect(mocks.validateGenome.mock.calls[0][0].getAll("files")).toHaveLength(
+      5,
+    );
     expect(mocks.validateGenome.mock.calls[0][0].get("validateOnly")).toBe(
       "true",
     );
@@ -170,6 +214,31 @@ describe("nongeographic staged import", () => {
     expect(mocks.importGenome.mock.calls[0][0].get("validateOnly")).toBe(
       "false",
     );
+  });
+
+  it("keeps four clear categories, supports ecology subtypes, and opens the detected resource", async () => {
+    const view = mount();
+    await category("生态观测数据");
+    await choose(view, new File(["x"], "群落.xlsx"));
+    fireEvent.click(screen.getByRole("button", { name: "下一步：核查校验" }));
+    expect(
+      screen.getByRole("combobox", { name: "观测类型" }),
+    ).toBeInTheDocument();
+    mocks.importTable.mockImplementation(async (body: FormData) => ({
+      ...checked,
+      resolvedKind: "community",
+      resourceId: body.get("validateOnly") === "true" ? null : 130,
+    }));
+    fireEvent.click(screen.getByRole("button", { name: /开始校验/ }));
+    await screen.findByText("校验通过 · 2条记录");
+    expect(mocks.importTable.mock.calls[0][0].get("kind")).toBe("ecology");
+    fireEvent.click(screen.getByRole("button", { name: "下一步：确认入库" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认入库" }));
+    await screen.findByText("入库完成");
+    fireEvent.click(screen.getByRole("button", { name: "打开数据分析" }));
+    expect(view.onOpen).toHaveBeenCalledWith(130, "community");
+    fireEvent.click(screen.getByRole("button", { name: "继续导入" }));
+    expect(screen.getByText("自动识别")).toBeInTheDocument();
   });
 
   it("fits mobile selection and validation layouts and only exposes supported genome pages", async () => {
