@@ -177,6 +177,37 @@ describe("analysis panel workflows", () => {
     expect(mockApi.query).toHaveBeenCalledTimes(2);
   });
 
+  it("renders records without randomUUID on a public HTTP origin", async () => {
+    const uuid = vi.spyOn(crypto, "randomUUID");
+    Object.defineProperty(crypto, "randomUUID", {
+      value: undefined,
+      configurable: true,
+    });
+    mockApi.query.mockResolvedValue({
+      ...result,
+      rows: [{ height_m: 0 }, { height_m: 0 }, { height_m: 12 }],
+    });
+    try {
+      render(table());
+      expect(await screen.findByText("结果概述")).toBeVisible();
+      fireEvent.click(screen.getByRole("tab", { name: "数据明细" }));
+      const rows = document.querySelectorAll("tr[data-row-key]");
+      expect(rows).toHaveLength(3);
+      const keys = [...rows].map((row) => row.getAttribute("data-row-key"));
+      expect(new Set(keys).size).toBe(3);
+      fireEvent.change(screen.getByLabelText("分析关键词"), {
+        target: { value: "胡杨" },
+      });
+      expect(
+        [...document.querySelectorAll("tr[data-row-key]")].map((row) =>
+          row.getAttribute("data-row-key"),
+        ),
+      ).toEqual(keys);
+    } finally {
+      uuid.mockRestore();
+    }
+  });
+
   it("does not overwrite a new resource with an older asynchronous result", async () => {
     let finishOld: (value: AnalysisResult) => void = () => undefined;
     mockApi.query.mockImplementationOnce(

@@ -106,7 +106,8 @@ export default function TableAnalysisPanel({
     () =>
       (result?.rows ?? []).map((row) => ({
         ...row,
-        _analysisRowKey: crypto.randomUUID(),
+        // getRandomValues also works on public HTTP origins, unlike randomUUID.
+        _analysisRowKey: crypto.getRandomValues(new Uint32Array(4)).join("-"),
       })),
     [result?.rows],
   );

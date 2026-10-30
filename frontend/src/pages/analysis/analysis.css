@@ -421,6 +421,12 @@
   display: grid;
   place-items: center;
 }
+.analysis-loading > .ant-spin-nested-loading {
+  width: 100%;
+}
+.analysis-loading .ant-spin-container {
+  min-height: 240px;
+}
 .analysis-karyotype-scroll,
 .analysis-gene-scroll {
   max-width: 100%;

@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve unsaved map-composition edits when the live map view or source summary changes
 - Recommend usable geographic and Web Mercator grid intervals for both local and regional extents
 
+## [V3.25] - 2026-10-30
+
+- 修复公网 HTTP 访问生态观测等表格分析页面时，数据返回后因 `crypto.randomUUID()` 不可用而白屏的问题。
+- 修正全量统计加载提示被挤成竖排的布局，补充不提供 `randomUUID` 时的数据展示、重复记录唯一行标识与重渲染稳定性回归测试。
+- 无 API、权限、数据路径或数据库迁移变更。
+
 ## [V3.24] - 2026-10-30
 
 - 新增生态观测、种质样本、分子实验及基因组数据分析工作台，支持筛选统计、图表、CSV/报告导出和个人视图保存。
