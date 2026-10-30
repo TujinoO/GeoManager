@@ -62,6 +62,135 @@
     }
   ],
   "paths": {
+    "/api/analysis/reports/": {
+      "post": {
+        "tags": [
+          "数据目录"
+        ],
+        "summary": "保存单份数据的分析报告PDF草稿",
+        "description": "需要数据查询、导出和成果导入权限，验证源资源访问权限。接收编辑内容及浏览器生成的高清PNG页面，服务端合成为PDF，保存为待审核草稿，不直接发布。",
+        "operationId": "createAnalysisReport",
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/AnalysisReportUpload"
+        },
+        "responses": {
+          "201": {
+            "description": "已保存PDF报告草稿",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultArtifact"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/analysis/reports/{id}/": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "description": "分析报告成果编号",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "数据目录"
+        ],
+        "summary": "读取报告编辑内容",
+        "description": "需要成果查看权限，遵守成果可见范围；仅返回分析报告。图表和文字随草稿持久化。",
+        "operationId": "getAnalysisReport",
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "报告及编辑内容",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultArtifact"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "数据目录"
+        ],
+        "summary": "更新未发布分析报告",
+        "description": "需要原数据查询与导出权限、成果导入权限及报告管理权限。已发布报告不可覆盖；待审核报告编辑后回到草稿，需要重新提交审核。",
+        "operationId": "updateAnalysisReport",
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "requestBody": {
+          "$ref": "#/components/requestBodies/AnalysisReportUpload"
+        },
+        "responses": {
+          "200": {
+            "description": "更新后的PDF草稿",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultArtifact"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/api/analysis/templates/": {
       "get": {
         "tags": [
@@ -576,7 +705,7 @@
           "数据目录"
         ],
         "summary": "校验并增量导入专业表格",
-        "description": "统一导入页面使用的专业校验与导入接口。支持CSV、TSV、XLSX，variants另支持VCF/VCF.gz并展开到样品长表；最多16MiB上传、64MiB文本展开、200000行。需要catalog.add_dataresource，校验错误返回400及字段行号。validateOnly成功也返回201。",
+        "description": "统一导入页面使用的专业校验与导入接口。支持CSV、TSV、分隔文本TXT、XLS、XLSX和CSV/TSV/TXT的gzip压缩；保留历史variants接口的VCF支持。最多16MiB上传、64MiB文本展开、200000行。需要catalog.add_dataresource，校验错误返回400及字段行号；validateOnly成功返回201，不创建资源。确认入库再次校验同一文件与参数。",
         "operationId": "importAnalysisTable",
         "security": [
           {
@@ -625,11 +754,11 @@
                   "file": {
                     "type": "string",
                     "format": "binary",
-                    "description": "CSV、TSV、XLSX，或variants的VCF/VCF.gz数据"
+                    "description": "CSV、TSV、TXT、XLS、XLSX、CSV.gz、TSV.gz、TXT.gz；历史variants另支持VCF/VCF.gz"
                   },
                   "kind": {
                     "type": "string",
-                    "description": "traits/samples/molecular/expression/function/variants/sequence"
+                    "description": "individual/population/community/traits/samples/molecular/expression/function/variants/sequence；支持甲方原中文表头，保留附加字段"
                   },
                   "name": {
                     "type": "string",
@@ -646,6 +775,10 @@
                   "validateOnly": {
                     "type": "boolean",
                     "description": "true仅校验，不写数据"
+                  },
+                  "sheetName": {
+                    "type": "string",
+                    "description": "Excel工作表名称；省略时读取第一张工作表，不合并其他工作表"
                   },
                   "source": {
                     "type": "string",
@@ -6949,6 +7082,16 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "配套文件内容校验通过，未创建资源、组装或业务索引记录；rowCount为基因数量",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisImportResult"
+                }
+              }
+            }
+          },
           "201": {
             "description": "请求成功",
             "content": {
@@ -6988,6 +7131,10 @@
                   "gff"
                 ],
                 "properties": {
+                  "validateOnly": {
+                    "type": "boolean",
+                    "description": "true仅解析检查配套文件和编号，不创建业务记录；确认入库重新执行完整检查"
+                  },
                   "name": {
                     "type": "string",
                     "description": "组装名称"
@@ -19443,6 +19590,44 @@
     }
   },
   "components": {
+    "requestBodies": {
+      "AnalysisReportUpload": {
+        "required": true,
+        "description": "报告编辑内容与最多20页高清PNG，PNG长边不超过3600像素，总像素不超过一亿",
+        "content": {
+          "multipart/form-data": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "resourceId",
+                "document",
+                "pages"
+              ],
+              "properties": {
+                "resourceId": {
+                  "type": "integer",
+                  "description": "有权访问的原始数据资源编号"
+                },
+                "document": {
+                  "type": "string",
+                  "description": "AnalysisReportDocument序列化内容，最多6MiB"
+                },
+                "pages": {
+                  "type": "array",
+                  "maxItems": 20,
+                  "description": "与预览一致的PNG页面，按顺序合成PDF",
+                  "items": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "PNG页面文件"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "securitySchemes": {
       "sessionAuth": {
         "type": "apiKey",
@@ -19647,6 +19832,81 @@
             "items": {
               "type": "string",
               "description": "格式"
+            }
+          }
+        }
+      },
+      "AnalysisReportFigure": {
+        "type": "object",
+        "description": "可选择、排序和编辑说明的高清图表",
+        "required": [
+          "id",
+          "title",
+          "caption",
+          "imageData",
+          "included"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "图表稳定标识"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "图表标题"
+          },
+          "caption": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "图表说明和分析"
+          },
+          "imageData": {
+            "type": "string",
+            "description": "PNG图表data URL，禁止外部图片地址"
+          },
+          "included": {
+            "type": "boolean",
+            "description": "是否纳入报告"
+          }
+        }
+      },
+      "AnalysisReportDocument": {
+        "type": "object",
+        "description": "原始数据为单位的报告编辑内容，保留图表和简要分析",
+        "required": [
+          "title",
+          "source",
+          "paragraphs",
+          "figures"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 160,
+            "description": "报告标题"
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "原始数据来源及筛选说明"
+          },
+          "paragraphs": {
+            "type": "array",
+            "maxItems": 40,
+            "description": "可编辑、增删和排序的分析段落",
+            "items": {
+              "type": "string",
+              "maxLength": 4000,
+              "description": "分析段落"
+            }
+          },
+          "figures": {
+            "type": "array",
+            "maxItems": 30,
+            "description": "可选图表，数组顺序为报告顺序",
+            "items": {
+              "$ref": "#/components/schemas/AnalysisReportFigure"
             }
           }
         }
@@ -20453,6 +20713,26 @@
           "warnings"
         ],
         "properties": {
+          "columns": {
+            "type": "array",
+            "description": "规范化后的预览列名；基因文件核查可省略",
+            "items": {
+              "type": "string",
+              "description": "列名"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "description": "前八条预览记录，全部单元格为文本，缺测为空；基因文件核查可省略",
+            "items": {
+              "type": "array",
+              "description": "与columns同序的单元格",
+              "items": {
+                "type": "string",
+                "description": "单元格文本"
+              }
+            }
+          },
           "valid": {
             "type": "boolean",
             "description": "是否通过校验"
@@ -24845,9 +25125,10 @@
         "type": "string",
         "enum": [
           "draft",
+          "in_review",
           "published"
         ],
-        "description": "草稿仅创建者和管理员可见，已发布成果按访问角色共享；游客角色表示公开成果，游客及其他已登录角色均可见"
+        "description": "非地理报告需先提交审核，再由有发布权限的用户审核发布。草稿仅创建者和管理员可见，已发布成果按访问角色共享；游客角色表示公开成果，游客及其他已登录角色均可见"
       },
       "ResultArtifactCreatePayload": {
         "type": "object",
@@ -24877,6 +25158,17 @@
             "type": "string",
             "description": "四大权威业务分类叶节点编码"
           },
+          "reportKind": {
+            "type": "string",
+            "enum": [
+              "nongeo"
+            ],
+            "description": "非地理分析PDF报告，必须保存为草稿并审核发布"
+          },
+          "publish": {
+            "type": "boolean",
+            "description": "非地理报告固定false；其他成果沿用直接发布"
+          },
           "provider": {
             "type": "string",
             "description": "成果提供单位或团队"
@@ -24902,9 +25194,16 @@
             "enum": [
               "publish",
               "unpublish",
-              "delete"
+              "delete",
+              "submit_review",
+              "reject"
             ],
-            "description": "publish 发布或更新访问范围；unpublish 下架为仅管理主体可见；delete 永久删除记录和文件"
+            "description": "submit_review提交报告审核；reject退回草稿并填写reviewNote；需审核报告仅在in_review时可publish。publish更新发布范围；unpublish下架；delete删除"
+          },
+          "reviewNote": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "审核意见，退回时必填"
           },
           "accessGroupIds": {
             "type": "array",
@@ -24999,6 +25298,32 @@
             "items": {
               "$ref": "#/components/schemas/DataCategoryPathItem"
             }
+          },
+          "sourceResourceId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "单份原始数据资源编号；外部PDF可为空"
+          },
+          "canEditReport": {
+            "type": "boolean",
+            "description": "当前用户是否可编辑此报告草稿。"
+          },
+          "canSubmitReview": {
+            "type": "boolean",
+            "description": "当前用户是否可提交此报告草稿审核，与删除权限无关。"
+          },
+          "requiresReview": {
+            "type": "boolean",
+            "description": "是否必须经过提交审核再发布"
+          },
+          "reviewNote": {
+            "type": "string",
+            "description": "最近审核退回意见"
+          },
+          "reportDocument": {
+            "$ref": "#/components/schemas/AnalysisReportDocument"
           },
           "provider": {
             "type": "string",

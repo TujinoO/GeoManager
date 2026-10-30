@@ -44,6 +44,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../api/client";
 import resultsPoplarReflectionImage from "../assets/portal/results-poplar-reflection.png";
 import WorkspaceHeader from "../components/WorkspaceHeader";
+import PdfPreview from "../components/PdfPreview";
 import { useAppContext } from "../contexts/AppContext";
 import type { MapComposition, ResultArtifact } from "../types";
 import { downloadBlob } from "../utils/download";
@@ -797,11 +798,7 @@ function ResultDetail({ item }: { item: PublishedResult }) {
         />
       )}
       {previewUrl && !imagePreview && format === "pdf" && (
-        <iframe
-          className="result-pdf-preview"
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          sandbox=""
+        <PdfPreview
           src={previewUrl}
           title={t("results.pdfPreview", { name: resultName(item) })}
         />
@@ -813,6 +810,20 @@ function ResultDetail({ item }: { item: PublishedResult }) {
           title={t("results.previewUnsupported")}
           description={t("results.previewUnsupportedDescription")}
         />
+      )}
+      {item.kind === "artifact" && item.item.requiresReview && (
+        <Tag color="cyan">非地理数据分析报告 · 已审核</Tag>
+      )}
+      {item.kind === "artifact" && item.item.sourceResourceId && (
+        <Button
+          onClick={() => {
+            window.location.assign(
+              `/nongeo?resourceId=${item.item.sourceResourceId}`,
+            );
+          }}
+        >
+          查看关联原始数据
+        </Button>
       )}
       <Typography.Paragraph>
         {resultDescription(item) || t("results.noDescription")}

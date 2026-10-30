@@ -137,6 +137,7 @@ def genome_import(request):
                 for chunk in file.chunks():
                     handle.write(chunk)
             paths[role] = path
+        validate_only = request.POST.get("validateOnly") == "true"
         index = build_index(
             files=paths,
             code=request.POST.get("code", "").strip(),
@@ -146,7 +147,10 @@ def genome_import(request):
             sex=request.POST.get("sex", "unknown"),
             source_url=source_url,
             max_expanded=4 * 1024 * 1024 * 1024,
+            validate_only=validate_only,
         )
+        if validate_only:
+            return JsonResponse(index)
         log_operation(
             request.user,
             "数据分析",

@@ -17592,6 +17592,10 @@ body:has(.login-shell),
     #f3f7f5;
 }
 
+.data-catalog-shell > .workspace-header {
+  position: fixed;
+}
+
 .data-catalog-page {
   width: min(1760px, calc(100% - 32px));
   margin: 16px auto 48px;
@@ -18113,6 +18117,7 @@ body:has(.login-shell),
 }
 
 .data-catalog-toolbar {
+  scroll-margin-top: var(--data-catalog-header-safe-area);
   display: grid;
   grid-template-columns: minmax(280px, 1fr) 190px 160px auto;
   gap: 12px;

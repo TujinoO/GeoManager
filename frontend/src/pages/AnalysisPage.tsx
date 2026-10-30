@@ -35,6 +35,7 @@ import TableAnalysisPanel from "./analysis/TableAnalysisPanel";
 import GenomeAnalysisPanel, {
   GenomeComparison,
 } from "./analysis/GenomeAnalysisPanel";
+import AnalysisReportEditor from "./analysis/AnalysisReportEditor";
 import {
   analysisTypes,
   genomeViews,
@@ -61,6 +62,7 @@ export default function AnalysisPage() {
   const [loaded, setLoaded] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [keyword, setKeyword] = useState("");
+  const [ecologyKind, setEcologyKind] = useState("all");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [resourceId, setResourceId] = useState<number>();
   const [assemblyId, setAssemblyId] = useState<number>();
@@ -71,7 +73,15 @@ export default function AnalysisPage() {
       r.id === Number(params.get("resourceId")) ||
       (params.get("resourceQ") && r.name === params.get("resourceQ")),
   );
-  const rawView = params.get("view") ?? params.get("domainType") ?? "ecology";
+  const rawView =
+    params.get("view") ??
+    params.get("domainType") ??
+    (requested
+      ? new URLSearchParams(analysisResourceUrl(requested).split("?")[1]).get(
+          "view",
+        )
+      : null) ??
+    "ecology";
   const view = ["browser", "comparison", "omics"].includes(rawView)
     ? "genome"
     : analysisTypes.some((p) => p.id === rawView)
@@ -83,10 +93,7 @@ export default function AnalysisPage() {
     params.get("section") ??
     (rawView === "browser" || rawView === "comparison"
       ? rawView
-      : requested?.analysisKind &&
-          ["expression", "function", "variants", "sequence"].includes(
-            requested.analysisKind,
-          )
+      : requested?.analysisKind && ["sequence"].includes(requested.analysisKind)
         ? requested.analysisKind
         : "overview");
   const section = genomeViews.some((v) => v.value === candidateSection)
@@ -144,13 +151,22 @@ export default function AnalysisPage() {
                   (!kind && r.domainType === "molecular")
                 : view === "genome"
                   ? kind === section
-                  : kind === "traits" ||
+                  : [
+                      "traits",
+                      "individual",
+                      "population",
+                      "community",
+                    ].includes(kind ?? "") ||
                     (!kind &&
                       !["genome", "molecular", "germplasm"].includes(
                         r.domainType ?? "",
                       ));
           return (
             match &&
+            (view !== "ecology" ||
+              ecologyKind === "all" ||
+              r.analysisKind === ecologyKind ||
+              (!r.analysisKind && r.domainType === ecologyKind)) &&
             (!keyword ||
               `${r.name} ${r.code} ${r.source}`
                 .toLowerCase()
@@ -161,7 +177,7 @@ export default function AnalysisPage() {
           (a, b) =>
             Number(Boolean(b.analysisKind)) - Number(Boolean(a.analysisKind)),
         ),
-    [resources, view, section, keyword],
+    [resources, view, section, keyword, ecologyKind],
   );
   useEffect(() => {
     const wanted = visibleTables.find((r) => r.id === requested?.id);
@@ -224,6 +240,17 @@ export default function AnalysisPage() {
       }}
     >
       <Layout className="workspace analysis-workspace">
+        <AnalysisReportEditor
+          open={Boolean(params.get("reportId"))}
+          initialReportId={
+            params.get("reportId") ? Number(params.get("reportId")) : undefined
+          }
+          onClose={() => {
+            const next = new URLSearchParams(params);
+            next.delete("reportId");
+            setParams(next);
+          }}
+        />
         <WorkspaceHeader
           activeTab="nongeo"
           canBrowseData={Boolean(permissions?.canBrowseData)}
@@ -282,6 +309,21 @@ export default function AnalysisPage() {
                   allowClear
                   onChange={(e) => setKeyword(e.target.value)}
                 />
+                {view === "ecology" && (
+                  <Select
+                    className="analysis-wide analysis-resource-kind"
+                    aria-label="生态观测类型"
+                    value={ecologyKind}
+                    onChange={setEcologyKind}
+                    options={[
+                      { value: "all", label: "全部生态观测" },
+                      { value: "individual", label: "个体调查" },
+                      { value: "population", label: "种群调查" },
+                      { value: "community", label: "群落观测" },
+                      { value: "traits", label: "物种功能性状" },
+                    ]}
+                  />
+                )}
                 {view === "genome" && (
                   <Select
                     className="analysis-wide analysis-resource-kind"

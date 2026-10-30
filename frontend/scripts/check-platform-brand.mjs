@@ -1,9 +1,14 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 const canonicalName = "全球胡杨林生态系统保护数据共享平台";
 const legacyNames = [
   "干旱区胡杨林生态智慧监测平台",
+  "干旱区胡杨生态智慧监测",
+  "Intelligent Monitoring of Arid-region Poplar Ecosystems",
+  "Arid-region Poplar Forest Ecological Intelligent Monitoring Platform",
+  "APF-EIMP",
+  "WebGIS Monitoring Edition",
   "中亚胡杨林生态系统保护数据共享平台",
   "中亚胡杨林生态保护数据共享平台",
   "中亚胡杨林生态数据共享平台",
@@ -22,14 +27,39 @@ const requiredFiles = [
   ],
 ];
 
+async function frontendDisplayFiles(directory) {
+  const entries = await readdir(join(process.cwd(), directory), {
+    withFileTypes: true,
+  });
+  const groups = await Promise.all(
+    entries.map(async (entry) => {
+      const relativePath = `${directory}/${entry.name}`;
+      if (entry.isDirectory()) {
+        return ["generated", "test", "__snapshots__"].includes(entry.name)
+          ? []
+          : frontendDisplayFiles(relativePath);
+      }
+      // Compatibility aliases and regression fixtures intentionally retain old names.
+      if (
+        relativePath === "src/config/platformBrand.ts" ||
+        /\.(test|spec)\./.test(entry.name) ||
+        entry.name.endsWith(".d.ts")
+      ) {
+        return [];
+      }
+      return /\.(ts|tsx|css|svg|html|json)$/.test(entry.name)
+        ? [relativePath]
+        : [];
+    }),
+  );
+  return groups.flat();
+}
+
 const activeFiles = [
   "index.html",
   "../config/app.example.toml",
   "../config/app.docker.toml",
-  "src/App.tsx",
-  "src/admin/AdminDataImportPage.tsx",
-  "src/admin/AdminSystemSettingsPage.tsx",
-  "src/components/WorkspaceHeader.tsx",
+  ...(await frontendDisplayFiles("src")),
   "../backend/apps/core/views.py",
   "../backend/apps/core/admin_api.py",
   "../backend/apps/core/backup_service.py",

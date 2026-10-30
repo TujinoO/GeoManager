@@ -683,30 +683,27 @@ export default function WorkspaceHeader({
       { type: "divider" },
       {
         key: "analysis-ecology",
-        label: "生态观测与性状",
+        label: "生态观测数据",
         onClick: () => navigateFromHeader("/nongeo?view=ecology"),
       },
       {
         key: "analysis-samples",
-        label: "样品与种质",
+        label: "种质数据",
         onClick: () => navigateFromHeader("/nongeo?view=samples"),
       },
       {
         key: "analysis-molecular",
-        label: "分子实验",
+        label: "分子数据",
         onClick: () => navigateFromHeader("/nongeo?view=molecular"),
       },
       {
         key: "analysis-genome",
-        label: "基因组与组学",
+        label: "基因数据",
         children: [
           ["overview", "参考基因组"],
           ["browser", "基因结构与序列"],
           ["comparison", "参考组装比较"],
           ["sequence", "序列统计"],
-          ["expression", "基因表达"],
-          ["function", "功能注释"],
-          ["variants", "遗传变异"],
         ].map(([section, label]) => ({
           key: `analysis-${section}`,
           label,

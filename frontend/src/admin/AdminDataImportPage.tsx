@@ -64,7 +64,7 @@ import ResultImportWorkflow from "./ResultImportWorkflow";
 import { taxonomyLeafOptions } from "../utils/taxonomy";
 
 type IssueAction = "continue" | "import";
-type ImportTarget = "resource" | "result" | "analysis";
+type ImportTarget = "resource" | "result";
 type ImportKind = "tabular" | "raster" | "vector" | "unsupported";
 type ImportStorageMode = ImportFormValues["importMode"] | "raster";
 type DomainDefinition = DataSchemaSummary["domains"][number];
@@ -373,18 +373,20 @@ export default function AdminDataImportPage() {
   const canImportResources = Boolean(user?.permissions.canUploadData);
   const canImportResults = Boolean(
     user?.permissions.canViewResultArtifacts &&
-    user.permissions.canImportResultArtifacts &&
-    user.permissions.canPublishResultArtifacts,
+    user.permissions.canImportResultArtifacts,
   );
   const [importTarget, setImportTarget] = useState<ImportTarget>(() =>
-    new URLSearchParams(location.search).get("target") === "analysis" &&
-    canImportResources
-      ? "analysis"
-      : (new URLSearchParams(location.search).get("target") === "result" &&
-            canImportResults) ||
-          !canImportResources
-        ? "result"
-        : "resource",
+    new URLSearchParams(location.search).get("target") === "result" ||
+    !canImportResources
+      ? "result"
+      : "resource",
+  );
+  const [resourceMode, setResourceMode] = useState<
+    "geographic" | "non_geographic"
+  >(() =>
+    new URLSearchParams(location.search).get("target") === "analysis"
+      ? "non_geographic"
+      : "geographic",
   );
   const [resultImportDirty, setResultImportDirty] = useState(false);
   const [schema, setSchema] = useState<DataSchemaSummary | null>(null);
@@ -835,14 +837,7 @@ export default function AdminDataImportPage() {
             ...(canImportResources
               ? [
                   {
-                    label: l(
-                      "非地理与基因数据",
-                      "Non-geographic and genomic data",
-                    ),
-                    value: "analysis" as const,
-                  },
-                  {
-                    label: l("导入为数据资源", "Import as data resource"),
+                    label: l("导入数据资源", "Import data resources"),
                     value: "resource" as const,
                   },
                 ]
@@ -850,7 +845,7 @@ export default function AdminDataImportPage() {
             ...(canImportResults
               ? [
                   {
-                    label: l("导入并发布成果", "Import and publish result"),
+                    label: l("导入成果", "Import results"),
                     value: "result" as const,
                   },
                 ]
@@ -858,10 +853,39 @@ export default function AdminDataImportPage() {
           ]}
         />
       </div>
+      {importTarget === "resource" && (
+        <div style={{ marginTop: 20 }}>
+          <Radio.Group
+            aria-label="数据资源类型"
+            optionType="button"
+            buttonStyle="solid"
+            value={resourceMode}
+            onChange={(event) => {
+              if (hasPendingImport) {
+                message.warning("请先完成或清空当前导入");
+                return;
+              }
+              setResourceMode(event.target.value);
+            }}
+            options={[
+              { value: "geographic", label: "地理数据" },
+              { value: "non_geographic", label: "非地理数据" },
+            ]}
+          />
+          <Typography.Paragraph
+            type="secondary"
+            style={{ marginTop: 10, marginBottom: 0 }}
+          >
+            {resourceMode === "non_geographic"
+              ? "生态观测（个体、种群、群落）、种质、分子与基因数据；坐标可选，以属性关系和指标分析为主。"
+              : "栅格、矢量和含空间坐标的调查资料，用于地理工作台展示与空间分析。"}
+          </Typography.Paragraph>
+        </div>
+      )}
     </ProCard>
   );
 
-  if (importTarget === "analysis") {
+  if (importTarget === "resource" && resourceMode === "non_geographic") {
     return (
       <div className="admin-page-stack admin-import-page">
         {importTargetSelector}
@@ -872,7 +896,7 @@ export default function AdminDataImportPage() {
           onOpen={(id, kind) => {
             allowNavigationRef.current = true;
             navigate(
-              `/nongeo?resourceId=${id}&view=${kind === "molecular" ? "molecular" : kind === "samples" ? "samples" : ["sequence", "expression", "function", "variants", "genome"].includes(kind) ? "genome" : "ecology"}${["sequence", "expression", "function", "variants"].includes(kind) ? `&section=${kind}` : ""}`,
+              `/nongeo?resourceId=${id}&view=${kind === "molecular" ? "molecular" : kind === "samples" ? "samples" : ["sequence", "genome"].includes(kind) ? "genome" : "ecology"}${kind === "sequence" ? "&section=sequence" : ""}`,
             );
           }}
         />

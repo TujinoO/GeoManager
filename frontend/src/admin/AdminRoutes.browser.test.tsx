@@ -2491,21 +2491,28 @@ describe("admin routes", () => {
     ).toBeChecked();
   });
 
-  it("switches the data import page to the independent result artifact workflow", async () => {
+  it("keeps resource and result import in one entry and explains the PDF review flow", async () => {
     renderAdminRoute("/resources/data/import");
-
     expect(
       await screen.findByRole("heading", { name: "选择导入目标" }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("radio", { name: "导入并发布成果" }));
-
     expect(
-      await screen.findByRole("heading", { name: "导入并加载发布为成果" }),
+      screen.getByRole("radio", { name: "导入数据资源" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("导入完成后直接发布")).toBeInTheDocument();
-    expect(screen.queryByText("保存为草稿")).not.toBeInTheDocument();
     expect(
-      screen.getByText(/历史草稿可在成果管理中发布或删除/),
+      screen.queryByRole("radio", { name: "非地理与基因数据" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "导入成果" }));
+    expect(
+      await screen.findByRole("radio", { name: "非地理分析报告（PDF）" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("radio", { name: "非地理分析报告（PDF）" }),
+    );
+    expect(
+      screen.getByText(
+        "PDF先保存为草稿，再提交审核；审核发布后在成果展示中可见。",
+      ),
     ).toBeInTheDocument();
   });
 

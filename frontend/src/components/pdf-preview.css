@@ -1,0 +1,25 @@
+.pdf-document-preview {
+  width: 100%;
+  min-width: 0;
+}
+.pdf-document-toolbar {
+  display: flex;
+  justify-content: center;
+  padding: 10px;
+  margin-bottom: 12px;
+  border: 1px solid #d9e5df;
+  border-radius: 10px;
+  background: #f3f8f5;
+}
+.pdf-document-sheet {
+  width: 100%;
+  min-height: 180px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 2px 14px #24443b14;
+}
+.pdf-document-sheet canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}

@@ -69,6 +69,7 @@ export default function AnalysisChart({
   useEffect(() => {
     if (!ref.current) return;
     const container = ref.current;
+    container.dataset.analysisReady = "false";
     let chart: ReturnType<typeof echarts.init> | undefined;
     function update() {
       if (!container.clientWidth || !container.clientHeight) return;
@@ -91,6 +92,9 @@ export default function AnalysisChart({
         { renderer: "svg" },
       );
       chartRef.current = chart;
+      chart.on("finished", () => {
+        container.dataset.analysisReady = "true";
+      });
       chart.setOption({
         animation: false,
         color: ["#16b8a9", "#927dd7", "#46a3d8", "#d6a247", "#dc7894"],

@@ -168,7 +168,7 @@ function SystemSection() {
             <small>{platformDisplayName.en}</small>
           </span>
           <Typography.Title level={1}>
-            守护大漠英雄树，共筑生态屏障
+            汇聚共享数据，服务全球胡杨林生态系统保护
           </Typography.Title>
           <Typography.Paragraph>
             以胡杨林生态保护数据为核心，连接遥感影像、野外调查、长期监测和科研成果，构建可浏览、可查询、可追溯的数据共享工作台。
@@ -1092,17 +1092,19 @@ export function DocsSection({ section }: { section: AboutSection }) {
 
         <aside className="about-page-help-side">
           <section className="about-page-help-side-panel about-page-help-download-panel">
-            <FilePdfOutlined />
-            <strong>PDF 帮助文档</strong>
-            <p>{helpDocumentDownload.meta}</p>
+            <DownloadOutlined />
+            <strong>数据资源模板</strong>
+            <p>
+              个体、种群、群落、性状、种质、分子及基因序列统计。每类含空白表和填写示例，基因组另附配套文件清单。
+            </p>
             <Button
-              download={helpDocumentDownload.filename}
-              href={helpDocumentDownload.href}
+              download="数据资源模板.zip"
+              href="/downloads/data-resource-templates.zip"
               icon={<DownloadOutlined />}
               block
               type="primary"
             >
-              下载 PDF
+              下载数据资源模板
             </Button>
           </section>
           <section className="about-page-help-side-panel">

@@ -1,4 +1,4 @@
-﻿# 开发者指南（Developer Guide）
+# 开发者指南（Developer Guide）
 
 > 全球胡杨林生态系统保护数据共享平台
 > 版本：v0.1.0
@@ -2449,3 +2449,14 @@ A: 重新提交相同的任务请求即可。
 合同角色先扩展专业导入：新增sequence（序列测量表），支持TSV及规范双等位VCF/VCF.gz转长表；VCF需assembly，source保留来源。压缩文本展开64MiB、200000行，表格上传16MiB。VCF多等位、结构变异、不合法GT明确拒绝，不推测参考版本。基因配套导入上传512MiB、展开4GiB，流式读取；可能耗时数分钟。权限和原件保留不变。前端随后使用同一接口整合到后台统一导入页，来源信息放资源详情和导出报告。四类分析入口不改变业务数据库分类。
 
 原生基因组导入可选sourceUrl（最多2000字符）；仅作为文字保存和报告显示，不由服务器访问该地址。
+
+### 非地理数据与报告（2026-10-30）
+
+统一数据资源导入按地理/非地理选择。专业表新增individual/population/community，支持CSV/TSV/TXT/XLS/XLSX及甲方原始中文表头；坐标可选，保留附加字段。自动映射对应thematic分类，字段映射定义见ecology_contracts.py。
+
+POST /api/analysis/reports/及GET/POST /api/analysis/reports/{id}/接收AnalysisReportDocument及PNG页面，合成PDF并保存在app数据根exports/results下。创建/编辑需查询、数据导出、成果导入权限及源数据访问权，编辑还需报告管理权；已发布报告不能覆盖。ResultArtifact增加源资源、编辑内容、requiresReview、reviewNote。requiresReview报告需draft→submit_review→in_review→publish；reject回草稿并记录原因。审核需现有成果发布权限，接收审核者可读取待审核报告；公开成果页只展示published。外部非地理PDF通过原成果导入API携带reportKind=nongeo,publish=false走相同流程，其他导入成果仍直接发布。
+
+报告操作权限：canEditReport 仅有源资源的可编辑草稿为真；canSubmitReview 仅有管理权且具成果导入权限的报告草稿为真。待审核报告冻结编辑，退回后再修改。
+### 2026-10-30 非地理导入三步流程
+
+表格导入支持CSV、TSV、分隔文本TXT、XLS、XLSX及文本gzip；sheetName可指定Excel工作表，默认第一张。校验返回columns与最多八行rows预览，不写业务数据。基因组POST /api/omics/import/增加validateOnly=true，200返回AnalysisImportResult，复用FASTA/GFF解析核查配套关系，不创建资源、组装或业务索引记录；正式导入保持201返回GenomeSummary。两种导入都需要catalog.add_dataresource，正式入库重新校验。可选字段允许省略或缺测，坐标不必填。

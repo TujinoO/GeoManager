@@ -15,6 +15,7 @@ from urllib.parse import unquote
 from django.db import transaction
 
 from apps.catalog.models import DataResource
+from apps.catalog.taxonomy import resolve_data_category
 from apps.core.storage import gene_data_path
 from apps.omics.models import (
     GenomeAnnotation,
@@ -108,6 +109,7 @@ def build_index(
     sex="unknown",
     source_url="",
     max_expanded=4 * 1024**3,
+    validate_only=False,
 ):
     if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", code):
         raise GenomeError("组装编号仅支持字母、数字、点、下划线和连字符，最长100字符")
@@ -123,7 +125,7 @@ def build_index(
         raise GenomeError("至少提供genome和gff文件")
     if GenomeAssembly.objects.filter(assembly_code=code).exists():
         raise GenomeError("此组装编号已存在；新版本请使用新的唯一编号")
-    relative = f"analysis/{uuid.uuid4().hex}"
+    relative = f"{'checks' if validate_only else 'analysis'}/{uuid.uuid4().hex}"
     root = gene_data_path(relative)
     root.mkdir(parents=True, exist_ok=False)
     manifest, paths = [], {}
@@ -146,12 +148,29 @@ def build_index(
                 "size": dest.stat().st_size,
             }
         )
+    if validate_only:
+        try:
+            summary = _write_index(root, paths, manifest, max_expanded)
+        except (ValueError, UnicodeError, OSError, EOFError, sqlite3.Error) as exc:
+            raise GenomeError(
+                str(exc)
+                if isinstance(exc, GenomeError)
+                else "文件格式、压缩完整性或配套校验失败"
+            ) from exc
+        return {
+            "valid": True,
+            "resourceId": None,
+            "rowCount": summary["geneCount"],
+            "issues": [],
+            "warnings": summary.get("warnings", []),
+        }
     with transaction.atomic():
         resource = DataResource.objects.create(
             name=name,
             code="genome-" + uuid.uuid4().hex[:24],
             data_type="gene",
             domain_type="genome",
+            category=resolve_data_category("thematic_gene_germplasm"),
             file_format="GENOME_INDEX",
             storage_path=f"gene/{relative}/index.sqlite",
             source=source_url
@@ -221,7 +240,8 @@ def build_index(
         index.status, index.error = "failed", "索引构建失败，请核对文件配套与日志"
         index.save(update_fields=["status", "error", "updated_at"])
         if isinstance(
-            exc, (GenomeError, ValueError, UnicodeError, OSError, sqlite3.Error)
+            exc,
+            (GenomeError, ValueError, UnicodeError, OSError, EOFError, sqlite3.Error),
         ):
             raise GenomeError(
                 str(exc)

@@ -561,6 +561,125 @@ class AnalysisWorkspaceTests(TestCase):
         self.assertEqual(response.status_code, 201, response.content)
         self.assertEqual(response.json()["geneCount"], 60)
 
+    def test_genome_preflight_checks_content_without_creating_business_records(self):
+        from apps.omics.models import (
+            GenomeAssembly,
+            GenomeDataset,
+            GenomeAnnotation,
+            GenomeSequenceFile,
+        )
+
+        models = [
+            DataResource,
+            GenomeAssembly,
+            GenomeDataset,
+            GenomeAnnotation,
+            GenomeIndex,
+            GenomeSequenceFile,
+        ]
+        before = [m.objects.count() for m in models]
+
+        def payload():
+            with zipfile.ZipFile(io.BytesIO(genome_example())) as z:
+                return {
+                    "code": "PREFLIGHT",
+                    "name": "preflight",
+                    "provenance": "synthetic",
+                    "validateOnly": "true",
+                    "genome": SimpleUploadedFile("genome.fa", z.read("genome.fasta")),
+                    "gff": SimpleUploadedFile(
+                        "annotation.gff3", z.read("annotation.gff3")
+                    ),
+                }
+
+        response = self.client.post("/api/omics/import/", payload())
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.json()["valid"])
+        self.assertEqual(response.json()["rowCount"], 60)
+        self.assertEqual([m.objects.count() for m in models], before)
+        invalid = payload()
+        invalid["gff"] = SimpleUploadedFile(
+            "wrong.gff3", b"absent\tx\tgene\t1\t3\t.\t+\t.\tID=x\n"
+        )
+        self.assertEqual(
+            self.client.post("/api/omics/import/", invalid).status_code, 400
+        )
+        self.assertEqual([m.objects.count() for m in models], before)
+        final = payload()
+        final["validateOnly"] = "false"
+        self.assertEqual(self.client.post("/api/omics/import/", final).status_code, 201)
+
+    def test_sparse_molecular_preflight_preview_and_commit_revalidation(self):
+        raw = b"result_id,sample_code,marker,unit,value\nR1,001,DNA,ng/uL,0\nR2,002,DNA,ng/uL,\n"
+        args = {
+            "name": "sparse",
+            "kind": "molecular",
+            "provenance": "observed",
+            "validateOnly": "true",
+        }
+        before = DataResource.objects.count()
+        response = self.client.post(
+            "/api/analysis/import/",
+            {**args, "file": SimpleUploadedFile("data.csv.gz", gzip.compress(raw))},
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        result = response.json()
+        self.assertIsNone(result["resourceId"])
+        self.assertEqual(result["rowCount"], 2)
+        self.assertEqual(
+            result["rows"][0][result["columns"].index("sample_code")], "001"
+        )
+        self.assertEqual(result["rows"][0][result["columns"].index("value")], "0")
+        self.assertEqual(DataResource.objects.count(), before)
+        bad = raw.replace(b"R2,002", b"R1,002")
+        response = self.client.post(
+            "/api/analysis/import/",
+            {
+                **args,
+                "validateOnly": "false",
+                "file": SimpleUploadedFile("data.csv", bad),
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(DataResource.objects.count(), before)
+
+    def test_excel_sheet_selection_and_optional_traits_plot(self):
+        from openpyxl import Workbook
+
+        workbook = Workbook()
+        workbook.active.append(["unrelated"])
+        worksheet = workbook.create_sheet("性状记录")
+        worksheet.append(["species", "height_m"])
+        worksheet.append(["胡杨", 0])
+        stream = io.BytesIO()
+        workbook.save(stream)
+        args = {
+            "name": "sheet",
+            "kind": "traits",
+            "provenance": "observed",
+            "validateOnly": "true",
+        }
+        response = self.client.post(
+            "/api/analysis/import/",
+            {
+                **args,
+                "sheetName": "性状记录",
+                "file": SimpleUploadedFile("data.xlsx", stream.getvalue()),
+            },
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertTrue(response.json()["valid"])
+        self.assertEqual(response.json()["rowCount"], 1)
+        wrong = self.client.post(
+            "/api/analysis/import/",
+            {
+                **args,
+                "sheetName": "不存在",
+                "file": SimpleUploadedFile("data.xlsx", stream.getvalue()),
+            },
+        )
+        self.assertEqual(wrong.status_code, 400)
+
     def test_gzip_input_crc_and_expansion_budget(self):
         genome = self.root / "tiny.fa.gz"
         genome.write_bytes(gzip.compress(b">chr01\nACGTACGT\n"))

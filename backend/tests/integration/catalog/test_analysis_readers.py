@@ -29,6 +29,30 @@ class StandardAnalysisReaderTests(SimpleTestCase):
             [{"record_id": "001", "value": "0"}, {"record_id": "002", "value": ""}],
         )
 
+    def test_compressed_text_and_delimited_txt_preserve_missing_and_zero(self):
+        for name, separator in [
+            ("table.csv.gz", ","),
+            ("table.tsv.gz", "\t"),
+            ("table.txt", ";"),
+            ("table.txt.gz", "|"),
+        ]:
+            with self.subTest(name=name):
+                df = self.upload(
+                    f"sample_code{separator}value\n001{separator}0\n002{separator}\n",
+                    name=name,
+                    kind="molecular",
+                )
+                self.assertEqual(df.sample_code.tolist(), ["001", "002"])
+                self.assertEqual(df.value.tolist(), ["0", ""])
+
+    def test_compressed_text_rejects_duplicate_headers_and_corrupt_gzip(self):
+        with self.assertRaises(ImportDataError):
+            self.upload("sample_code\tsample_code\n001\t002\n", name="table.tsv.gz")
+        with self.assertRaises(ImportDataError):
+            read_analysis_upload(
+                SimpleUploadedFile("table.csv.gz", b"broken gzip"), "samples"
+            )
+
     def test_vcf_expands_samples_preserving_gt_missing_and_zero_quality(self):
         df = self.upload(
             "##fileformat=VCFv4.2\n"

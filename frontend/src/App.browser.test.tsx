@@ -4,6 +4,7 @@ import { App as AntApp, ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { page } from "vitest/browser";
 import App from "./App";
 import { appTheme } from "./theme";
 import type {
@@ -707,7 +708,12 @@ describe("application critical flows", () => {
     renderApp("/");
 
     expect(
-      await screen.findByRole("heading", { name: "用户登录" }),
+      // The first lazy route also compiles its modules in the browser runner.
+      await screen.findByRole(
+        "heading",
+        { name: "用户登录" },
+        { timeout: 10000 },
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
@@ -740,7 +746,7 @@ describe("application critical flows", () => {
     expect(
       await screen.findByRole(
         "heading",
-        { name: "胡杨生态数据资源目录" },
+        { name: "全球胡杨林保护数据资源目录" },
         { timeout: 10000 },
       ),
     ).toBeInTheDocument();
@@ -884,7 +890,7 @@ describe("application critical flows", () => {
     expect(
       await screen.findByRole(
         "heading",
-        { name: "胡杨生态数据资源目录" },
+        { name: "全球胡杨林保护数据资源目录" },
         { timeout: 10000 },
       ),
     ).toBeInTheDocument();
@@ -930,9 +936,9 @@ describe("application critical flows", () => {
         { timeout: 10000 },
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText("干旱区胡杨生态智慧监测")).toBeInTheDocument();
+    expect(screen.getByText("全球胡杨林生态系统保护")).toBeInTheDocument();
     expect(
-      screen.getByText("服务生态保护 · 科学研究 · 数据共享"),
+      screen.getByText("服务生态系统保护 · 科学研究 · 数据共享"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/权威分类版本/)).not.toBeInTheDocument();
     expect(
@@ -1109,8 +1115,8 @@ describe("application critical flows", () => {
       version: "1.0",
       items: [
         {
-          kind: "traits",
-          name: "生态与功能性状",
+          kind: "individual",
+          name: "个体观测",
           unit: "观测记录",
           uniqueKey: ["record_id"],
           columns: [],
@@ -1118,38 +1124,72 @@ describe("application critical flows", () => {
         },
       ],
     });
-    analysisMocks.importTable.mockResolvedValue({
-      valid: true,
-      resourceId: 88,
-      rowCount: 1,
-      issues: [],
-      warnings: [],
-    });
+    analysisMocks.importTable
+      .mockResolvedValueOnce({
+        valid: true,
+        resourceId: null,
+        rowCount: 1,
+        issues: [],
+        warnings: [],
+      })
+      .mockResolvedValue({
+        valid: true,
+        resourceId: 88,
+        rowCount: 1,
+        issues: [],
+        warnings: [],
+      });
     renderApp("/resources/data/import?target=analysis");
-    const input = await screen.findByLabelText("表格数据文件");
-    fireEvent.change(screen.getByLabelText("导入数据名称"), {
-      target: { value: "接口测试资料" },
-    });
-    fireEvent.change(input, {
+    await screen.findByRole("button", { name: "下一步：核查校验" });
+    const input = document.querySelector('input[type="file"]');
+    expect(input).not.toBeNull();
+    fireEvent.change(input!, {
       target: {
         files: [
-          new File(["record_id,plot_code,species\nr1,p1,胡杨"], "test.csv", {
-            type: "text/csv",
-          }),
+          new File(
+            ["record_id,collection_code,species\nr1,p1,胡杨"],
+            "test.csv",
+            {
+              type: "text/csv",
+            },
+          ),
         ],
       },
     });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "下一步：核查校验" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "下一步：核查校验" }));
+    fireEvent.change(screen.getByLabelText("导入数据名称"), {
+      target: { value: "接口测试资料" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /开始校验/ }));
+    await screen.findByText("校验通过 · 1条记录");
+    await page.viewport(390, 844);
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+      window.innerWidth + 1,
+    );
+    await page.screenshot({
+      path: "../../output/playwright/import-validation-mobile.png",
+    });
+    await page.viewport(1440, 900);
+    await page.screenshot({
+      path: "../../output/playwright/import-validation-desktop.png",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "下一步：确认入库" }));
     fireEvent.click(
-      screen.getByRole("button", { name: "校验并导入", exact: true }),
+      screen.getByRole("button", { name: "确认入库", exact: true }),
     );
     await waitFor(() =>
-      expect(analysisMocks.importTable).toHaveBeenCalledTimes(1),
+      expect(analysisMocks.importTable).toHaveBeenCalledTimes(2),
     );
-    const body = analysisMocks.importTable.mock.calls[0]![0] as FormData;
-    expect(body.get("kind")).toBe("traits");
+    const body = analysisMocks.importTable.mock.calls[1]![0] as FormData;
+    expect(body.get("kind")).toBe("individual");
     expect(body.get("provenance")).toBe("observed");
     expect(body.get("validateOnly")).toBe("false");
-    expect((await screen.findAllByText(/已导入/)).length).toBeGreaterThan(0);
+    expect(await screen.findByText("入库完成")).toBeInTheDocument();
   });
 
   it("isolates non-geographic resources and refreshes the real resource list", async () => {
@@ -1427,7 +1467,7 @@ describe("application critical flows", () => {
     expect(
       await screen.findByRole(
         "heading",
-        { name: "胡杨生态数据资源目录" },
+        { name: "全球胡杨林保护数据资源目录" },
         { timeout: 10000 },
       ),
     ).toBeInTheDocument();

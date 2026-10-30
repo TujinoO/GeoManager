@@ -9,10 +9,12 @@ import zipfile
 
 from openpyxl import Workbook
 
+from apps.catalog.ecology_contracts import ecology_templates, TRAITS_EXTRA
+
 
 TEMPLATES = {
     "sequence": {
-        "name": "序列与注释测量表",
+        "name": "基因序列统计",
         "domain": "genome",
         "unit": "序列记录",
         "columns": [
@@ -51,7 +53,7 @@ TEMPLATES = {
             "leaf_water_fraction",
             "survey_date",
         ],
-        "required": ["record_id", "plot_code", "species"],
+        "required": ["record_id", "species"],
         "numeric": ["height_m", "leaf_water_fraction"],
         "unique": ["record_id"],
         "descriptions": {
@@ -77,12 +79,12 @@ TEMPLATES = {
             "longitude",
             "latitude",
         ],
-        "required": ["sample_code", "species"],
+        "required": ["sample_code"],
         "numeric": ["longitude", "latitude"],
         "unique": ["sample_code"],
         "descriptions": {
             "sex": "female / male / unknown；保留未确认值前先复核",
-            "is_core": "true / false；核心子集不另计新样品",
+            "is_core": "true / false；未提供时留空；核心子集不另计新样品",
             "longitude": "WGS84经度 / 度",
             "latitude": "WGS84纬度 / 度",
         },
@@ -101,7 +103,7 @@ TEMPLATES = {
             "batch",
             "quality_flag",
         ],
-        "required": ["result_id", "sample_code", "assay_code", "marker", "unit"],
+        "required": ["result_id", "sample_code", "marker", "unit"],
         "numeric": ["value"],
         "unique": ["result_id"],
         "descriptions": {
@@ -230,6 +232,43 @@ for _spec in TEMPLATES.values():
     }
 
 
+TEMPLATES.update(ecology_templates())
+TEMPLATES["traits"]["name"] = "生态观测—物种功能性状"
+TEMPLATES["samples"]["name"] = "种质数据"
+TEMPLATES["molecular"]["name"] = "分子数据"
+TEMPLATES["traits"]["descriptions"].update(dict(TRAITS_EXTRA))
+TEMPLATES["traits"]["columns"] += [
+    f for f, _ in TRAITS_EXTRA if f not in TEMPLATES["traits"]["columns"]
+]
+TEMPLATES["samples"]["columns"].append("altitude_m")
+TEMPLATES["samples"]["numeric"].append("altitude_m")
+TEMPLATES["samples"]["descriptions"]["altitude_m"] = "海拔（m）；可选"
+TEMPLATES["molecular"]["columns"] += ["treatment", "replicate", "time_h", "method"]
+TEMPLATES["molecular"]["numeric"].append("time_h")
+TEMPLATES["molecular"]["descriptions"].update(
+    {
+        "treatment": "实验处理名称",
+        "replicate": "生物重复编号",
+        "time_h": "处理时间（h）",
+        "method": "实验测定方法",
+    }
+)
+TEMPLATES["traits"]["numeric"] += [
+    f
+    for f, _ in TRAITS_EXTRA
+    if f
+    not in {
+        "locality",
+        "site_number",
+        "family",
+        "genus",
+        "family_latin",
+        "genus_latin",
+        "scientific_name",
+    }
+]
+
+
 def template_catalog():
     return {
         "version": "1.0",
@@ -248,7 +287,7 @@ def template_catalog():
                     for c in v["columns"]
                 ],
                 "uniqueKey": v["unique"],
-                "formats": ["csv", "tsv", "xlsx"]
+                "formats": ["csv", "tsv", "xls", "xlsx"]
                 + (["vcf", "vcf.gz"] if k == "variants" else []),
             }
             for k, v in TEMPLATES.items()
@@ -270,7 +309,26 @@ def example_rows(kind):
     rows = []
     for i in range(1, 49):
         sample = f"DEMO-S{i:03}"
-        if kind == "sequence":
+        if kind in {"individual", "population", "community"}:
+            record = {c: "" for c in TEMPLATES[kind]["columns"]}
+            record.update(
+                {
+                    "record_id": f"DEMO-R{i:03}",
+                    "collection_code": sample,
+                    "species": ["胡杨", "柽柳", "芦苇"][i % 3],
+                    "plot_code": f"DEMO-P{i:03}",
+                    "group": ["A", "B"][i % 2],
+                    "family": "杨柳科",
+                    "genus": "杨属",
+                    "region": "塔里木",
+                    "density": round(0.2 + i / 100, 3),
+                    "shannon": round(0.5 + i / 40, 3),
+                    "soil_ph": round(7 + i / 100, 3),
+                    "altitude_m": 1000 + i,
+                }
+            )
+            rows.append([record[c] for c in TEMPLATES[kind]["columns"]])
+        elif kind == "sequence":
             rows.append(
                 [
                     "DEMO-FG",
@@ -392,7 +450,7 @@ def example_rows(kind):
                     "PASS" if i % 5 else "LowQual",
                 ]
             )
-    return rows
+    return [row + [""] * (len(TEMPLATES[kind]["columns"]) - len(row)) for row in rows]
 
 
 def template_bytes(kind, *, example=False, file_format="csv"):

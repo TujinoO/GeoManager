@@ -35,6 +35,7 @@ import type {
   WorkspaceAccessGroup,
 } from "../types";
 import { downloadBlob } from "../utils/download";
+import PdfPreview from "../components/PdfPreview";
 import {
   isWorkspaceInventoryChange,
   notifyWorkspaceInventoryChanged,
@@ -53,7 +54,8 @@ const statusLabels: Record<
 type StatusFilter = "all" | MapComposition["status"];
 
 const resultStatusLabels = {
-  draft: { text: "已下架/历史草稿", color: "default" },
+  draft: { text: "草稿", color: "default" },
+  in_review: { text: "待审核", color: "gold" },
   published: { text: "已发布", color: "green" },
 } satisfies Record<ResultArtifact["status"], { text: string; color: string }>;
 
@@ -80,7 +82,9 @@ export default function AdminTopicCompositionManagementPage() {
     english
       ? value === "published"
         ? "Published"
-        : "Unpublished / historical draft"
+        : value === "in_review"
+          ? "Awaiting review"
+          : "Draft"
       : resultStatusLabels[value].text;
   const resultTypeText = (value: ResultArtifact["resultType"]) =>
     english
@@ -731,6 +735,81 @@ export default function AdminTopicCompositionManagementPage() {
       width: 340,
       render: (_, record) => (
         <Space wrap>
+          {record.canEditReport && (
+            <Button
+              type="link"
+              onClick={() =>
+                navigate(
+                  `/nongeo?resourceId=${record.sourceResourceId}&reportId=${record.id}`,
+                )
+              }
+            >
+              编辑报告
+            </Button>
+          )}
+          {record.canSubmitReview && (
+            <Button
+              type="link"
+              onClick={async () => {
+                try {
+                  await api.updateResultArtifact(record.id, {
+                    action: "submit_review",
+                  });
+                  await loadItems();
+                  message.success("已提交审核");
+                } catch (error) {
+                  message.error(
+                    error instanceof Error ? error.message : "提交失败",
+                  );
+                }
+              }}
+            >
+              提交审核
+            </Button>
+          )}
+          {record.requiresReview &&
+            record.status === "in_review" &&
+            record.canPublish && (
+              <Button
+                type="link"
+                onClick={() => {
+                  let reason = "";
+                  Modal.confirm({
+                    title: "退回报告修改",
+                    content: (
+                      <Input.TextArea
+                        aria-label="退回意见"
+                        placeholder="请填写修改意见"
+                        onChange={(event) => {
+                          reason = event.target.value;
+                        }}
+                      />
+                    ),
+                    onOk: async () => {
+                      if (!reason.trim()) {
+                        message.warning("请填写退回意见");
+                        throw new Error("请填写退回意见");
+                      }
+                      try {
+                        await api.updateResultArtifact(record.id, {
+                          action: "reject",
+                          reviewNote: reason.trim(),
+                        });
+                        await loadItems();
+                        message.success("已退回修改");
+                      } catch (error) {
+                        message.error(
+                          error instanceof Error ? error.message : "退回失败",
+                        );
+                        throw error;
+                      }
+                    },
+                  });
+                }}
+              >
+                退回修改
+              </Button>
+            )}
           <Button
             type="link"
             icon={<EyeOutlined />}
@@ -754,7 +833,9 @@ export default function AdminTopicCompositionManagementPage() {
           >
             {record.status === "published"
               ? l("更新范围", "Update audience")
-              : l("发布", "Publish")}
+              : record.requiresReview
+                ? l("审核发布", "Approve and publish")
+                : l("发布", "Publish")}
           </Button>
           {record.canUnpublish ? (
             <Button type="link" onClick={() => void unpublishArtifact(record)}>
@@ -946,11 +1027,7 @@ export default function AdminTopicCompositionManagementPage() {
         onCancel={() => setPreviewUrl("")}
       >
         {previewUrl && previewFormat === "pdf" ? (
-          <iframe
-            className="result-pdf-preview"
-            src={previewUrl}
-            title={previewTitle}
-          />
+          <PdfPreview src={previewUrl} title={previewTitle} />
         ) : previewUrl ? (
           <img
             className="map-composition-preview-image"

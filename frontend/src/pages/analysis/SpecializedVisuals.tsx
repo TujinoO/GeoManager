@@ -53,17 +53,19 @@ export function rowStandardize(cells: AnalysisResult["heatmap"]) {
 export function matrixOption(matrix: AnalysisMatrix): EChartsOption {
   const xs = [...new Set(matrix.cells.map((c) => c.x))],
     ys = [...new Set(matrix.cells.map((c) => c.y))];
-  const correlation = matrix.id === "sampleCorrelation";
+  const correlation = ["sampleCorrelation", "fieldCorrelation"].includes(
+    matrix.id,
+  );
   return {
     grid: { left: 108, right: 30, top: 26, bottom: 116 },
     xAxis: {
       type: "category",
-      data: xs,
+      data: xs.map(fieldLabel),
       axisLabel: { ...axisLabel, rotate: 40 },
     },
     yAxis: {
       type: "category",
-      data: ys,
+      data: ys.map(fieldLabel),
       axisLabel,
       splitArea: { show: true, areaStyle: { color: ["#f5f8f6"] } },
     },

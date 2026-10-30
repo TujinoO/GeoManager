@@ -22,7 +22,7 @@ for (const statement of parsed.statements) {
   }
 }
 let markdown =
-  "# 全球胡杨林生态系统保护数据共享平台帮助文档\n\n| 项目 | 内容 |\n| --- | --- |\n| 文档版本 | v3.0 |\n| 更新日期 | 2026-10-30 |\n| 适用平台 | GPEDSP 本地最新开发版 |\n| 适用对象 | 普通用户、科研用户、数据管理员、系统管理员 |\n\n";
+  "# 全球胡杨林生态系统保护数据共享平台帮助文档\n\n| 项目 | 内容 |\n| --- | --- |\n| 文档版本 | v3.1 |\n| 更新日期 | 2026-10-30 |\n| 适用平台 | GPEDSP 本地最新开发版 |\n| 适用对象 | 普通用户、科研用户、数据管理员、系统管理员 |\n\n";
 const categories = ["入门指南", "空间分析", "数据分析", "数据管理", "后台管理"];
 articles.sort(
   (a, b) => categories.indexOf(a.category) - categories.indexOf(b.category),

@@ -529,7 +529,8 @@ function EnglishSystemOverview() {
             <small>{platformBrand.shortName}</small>
           </span>
           <Typography.Title level={1}>
-            An open ecological data foundation for arid-region poplar forests
+            Shared data for global Populus euphratica forest ecosystem
+            conservation
           </Typography.Title>
           <Typography.Paragraph>
             Connect remote-sensing imagery, field surveys, long-term monitoring,
@@ -566,15 +567,16 @@ function EnglishSystemOverview() {
       <section className="about-v2-platform-statement">
         <span className="about-page-kicker">PLATFORM MISSION</span>
         <Typography.Title level={2}>
-          A research service platform led by Tarim University for poplar
-          conservation and scientific collaboration
+          A data-sharing platform led by Tarim University for global Populus
+          euphratica forest ecosystem conservation
         </Typography.Title>
         <Typography.Paragraph>
-          GPEDSP organizes multi-source materials from northwestern China and
-          Central Asian drylands into a durable research workspace. It connects
-          ecological patterns, field observations, sample records, and molecular
-          evidence while preserving source, access scope, quality notes, and
-          accountable ownership.
+          GPEDSP organizes multi-source data to support global Populus
+          euphratica forest ecosystem conservation and scientific collaboration.
+          It connects ecological patterns, field observations, sample records,
+          and molecular evidence while preserving source, access scope, quality
+          notes, and accountable ownership to support data sharing and research
+          reuse.
         </Typography.Paragraph>
       </section>
       <section className="about-v2-section about-v2-service-section">

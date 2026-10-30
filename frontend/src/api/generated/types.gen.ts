@@ -57,6 +57,54 @@ export type AnalysisTemplate = {
 };
 
 /**
+ * 可选择、排序和编辑说明的高清图表
+ */
+export type AnalysisReportFigure = {
+    /**
+     * 图表稳定标识
+     */
+    id: string;
+    /**
+     * 图表标题
+     */
+    title: string;
+    /**
+     * 图表说明和分析
+     */
+    caption: string;
+    /**
+     * PNG图表data URL，禁止外部图片地址
+     */
+    imageData: string;
+    /**
+     * 是否纳入报告
+     */
+    included: boolean;
+};
+
+/**
+ * 原始数据为单位的报告编辑内容，保留图表和简要分析
+ */
+export type AnalysisReportDocument = {
+    /**
+     * 报告标题
+     */
+    title: string;
+    /**
+     * 原始数据来源及筛选说明
+     */
+    source: string;
+    /**
+     * 可编辑、增删和排序的分析段落
+     */
+    paragraphs: Array<string>;
+    /**
+     * 可选图表，数组顺序为报告顺序
+     */
+    figures: Array<AnalysisReportFigure>;
+};
+
+/**
  * 版本化模板目录
  */
 export type AnalysisTemplateCatalog = {
@@ -594,6 +642,14 @@ export type AnalysisResult = {
  * 专业导入校验结果
  */
 export type AnalysisImportResult = {
+    /**
+     * 规范化后的预览列名；基因文件核查可省略
+     */
+    columns?: Array<string>;
+    /**
+     * 前八条预览记录，全部单元格为文本，缺测为空；基因文件核查可省略
+     */
+    rows?: Array<Array<string>>;
     /**
      * 是否通过校验
      */
@@ -3278,9 +3334,9 @@ export type ResultArtifactSourceType = 'analysis' | 'direct_import';
 export type ResultArtifactType = 'map' | 'chart' | 'report' | 'table' | 'image' | 'other';
 
 /**
- * 草稿仅创建者和管理员可见，已发布成果按访问角色共享；游客角色表示公开成果，游客及其他已登录角色均可见
+ * 非地理报告需先提交审核，再由有发布权限的用户审核发布。草稿仅创建者和管理员可见，已发布成果按访问角色共享；游客角色表示公开成果，游客及其他已登录角色均可见
  */
-export type ResultArtifactStatus = 'draft' | 'published';
+export type ResultArtifactStatus = 'draft' | 'in_review' | 'published';
 
 export type ResultArtifactCreatePayload = {
     /**
@@ -3298,6 +3354,14 @@ export type ResultArtifactCreatePayload = {
      */
     categoryCode: string;
     /**
+     * 非地理分析PDF报告，必须保存为草稿并审核发布
+     */
+    reportKind?: 'nongeo';
+    /**
+     * 非地理报告固定false；其他成果沿用直接发布
+     */
+    publish?: boolean;
+    /**
      * 成果提供单位或团队
      */
     provider?: string;
@@ -3309,9 +3373,13 @@ export type ResultArtifactCreatePayload = {
 
 export type ResultArtifactUpdateRequest = {
     /**
-     * publish 发布或更新访问范围；unpublish 下架为仅管理主体可见；delete 永久删除记录和文件
+     * submit_review提交报告审核；reject退回草稿并填写reviewNote；需审核报告仅在in_review时可publish。publish更新发布范围；unpublish下架；delete删除
      */
-    action: 'publish' | 'unpublish' | 'delete';
+    action: 'publish' | 'unpublish' | 'delete' | 'submit_review' | 'reject';
+    /**
+     * 审核意见，退回时必填
+     */
+    reviewNote?: string;
     /**
      * publish 时必填的发布可访问角色 ID
      */
@@ -3354,6 +3422,27 @@ export type ResultArtifact = {
      * 从四大类一级节点到成果主分类的完整路径
      */
     categoryPath: Array<DataCategoryPathItem>;
+    /**
+     * 单份原始数据资源编号；外部PDF可为空
+     */
+    sourceResourceId?: number | null;
+    /**
+     * 当前用户是否可编辑此报告草稿。
+     */
+    canEditReport?: boolean;
+    /**
+     * 当前用户是否可提交此报告草稿审核，与删除权限无关。
+     */
+    canSubmitReview?: boolean;
+    /**
+     * 是否必须经过提交审核再发布
+     */
+    requiresReview?: boolean;
+    /**
+     * 最近审核退回意见
+     */
+    reviewNote?: string;
+    reportDocument?: AnalysisReportDocument;
     /**
      * 成果提供单位或团队
      */
@@ -6615,6 +6704,147 @@ export type ResourceId = number;
  */
 export type JobId = string;
 
+/**
+ * 报告编辑内容与最多20页高清PNG，PNG长边不超过3600像素，总像素不超过一亿
+ */
+export type AnalysisReportUpload = {
+    /**
+     * 有权访问的原始数据资源编号
+     */
+    resourceId: number;
+    /**
+     * AnalysisReportDocument序列化内容，最多6MiB
+     */
+    document: string;
+    /**
+     * 与预览一致的PNG页面，按顺序合成PDF
+     */
+    pages: Array<Blob | File>;
+};
+
+export type CreateAnalysisReportData = {
+    /**
+     * 报告编辑内容与最多20页高清PNG，PNG长边不超过3600像素，总像素不超过一亿
+     */
+    body: AnalysisReportUpload;
+    path?: never;
+    query?: never;
+    url: '/api/analysis/reports/';
+};
+
+export type CreateAnalysisReportErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type CreateAnalysisReportError = CreateAnalysisReportErrors[keyof CreateAnalysisReportErrors];
+
+export type CreateAnalysisReportResponses = {
+    /**
+     * 已保存PDF报告草稿
+     */
+    201: ResultArtifact;
+};
+
+export type CreateAnalysisReportResponse = CreateAnalysisReportResponses[keyof CreateAnalysisReportResponses];
+
+export type GetAnalysisReportData = {
+    body?: never;
+    path: {
+        /**
+         * 分析报告成果编号
+         */
+        id: number;
+    };
+    query?: never;
+    url: '/api/analysis/reports/{id}/';
+};
+
+export type GetAnalysisReportErrors = {
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type GetAnalysisReportError = GetAnalysisReportErrors[keyof GetAnalysisReportErrors];
+
+export type GetAnalysisReportResponses = {
+    /**
+     * 报告及编辑内容
+     */
+    200: ResultArtifact;
+};
+
+export type GetAnalysisReportResponse = GetAnalysisReportResponses[keyof GetAnalysisReportResponses];
+
+export type UpdateAnalysisReportData = {
+    /**
+     * 报告编辑内容与最多20页高清PNG，PNG长边不超过3600像素，总像素不超过一亿
+     */
+    body: AnalysisReportUpload;
+    path: {
+        /**
+         * 分析报告成果编号
+         */
+        id: number;
+    };
+    query?: never;
+    url: '/api/analysis/reports/{id}/';
+};
+
+export type UpdateAnalysisReportErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 资源不存在
+     */
+    404: ErrorResponse;
+};
+
+export type UpdateAnalysisReportError = UpdateAnalysisReportErrors[keyof UpdateAnalysisReportErrors];
+
+export type UpdateAnalysisReportResponses = {
+    /**
+     * 更新后的PDF草稿
+     */
+    200: ResultArtifact;
+};
+
+export type UpdateAnalysisReportResponse = UpdateAnalysisReportResponses[keyof UpdateAnalysisReportResponses];
+
 export type GetAnalysisTemplatesData = {
     body?: never;
     path?: never;
@@ -6709,11 +6939,11 @@ export type ImportAnalysisTableData = {
      */
     body: {
         /**
-         * CSV、TSV、XLSX，或variants的VCF/VCF.gz数据
+         * CSV、TSV、TXT、XLS、XLSX、CSV.gz、TSV.gz、TXT.gz；历史variants另支持VCF/VCF.gz
          */
         file: Blob | File;
         /**
-         * traits/samples/molecular/expression/function/variants/sequence
+         * individual/population/community/traits/samples/molecular/expression/function/variants/sequence；支持甲方原中文表头，保留附加字段
          */
         kind: string;
         /**
@@ -6728,6 +6958,10 @@ export type ImportAnalysisTableData = {
          * true仅校验，不写数据
          */
         validateOnly?: boolean;
+        /**
+         * Excel工作表名称；省略时读取第一张工作表，不合并其他工作表
+         */
+        sheetName?: string;
         /**
          * 数据来源或提供单位，在资源详情与报告中保留
          */
@@ -7200,6 +7434,10 @@ export type ImportGenomeFilesData = {
      */
     body: {
         /**
+         * true仅解析检查配套文件和编号，不创建业务记录；确认入库重新执行完整检查
+         */
+        validateOnly?: boolean;
+        /**
          * 组装名称
          */
         name: string;
@@ -7267,6 +7505,10 @@ export type ImportGenomeFilesErrors = {
 export type ImportGenomeFilesError = ImportGenomeFilesErrors[keyof ImportGenomeFilesErrors];
 
 export type ImportGenomeFilesResponses = {
+    /**
+     * 配套文件内容校验通过，未创建资源、组装或业务索引记录；rowCount为基因数量
+     */
+    200: AnalysisImportResult;
     /**
      * 请求成功
      */

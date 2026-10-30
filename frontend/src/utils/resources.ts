@@ -49,7 +49,6 @@ export function analysisResourceUrl(resource: ResourceListItem) {
       : kind === "samples" || resource.domainType === "germplasm"
         ? "samples"
         : "ecology";
-  const section =
-    genomic && resource.dataType !== "gene" ? `&section=${kind}` : "";
+  const section = genomic && kind === "sequence" ? "&section=sequence" : "";
   return `/nongeo?view=${view}&resourceId=${resource.id}${section}`;
 }

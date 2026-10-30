@@ -10,6 +10,7 @@ import type {
   GenomeGeneList,
   GenomeGeneDetail,
   GenomeSequenceResult,
+  ResultArtifact,
 } from "./generated/types.gen";
 
 export class AnalysisApiError extends Error {
@@ -65,6 +66,13 @@ const params = (values: Record<string, string | number | undefined>) =>
   ).toString();
 
 export const analysisApi = {
+  report: (id: number) =>
+    request<ResultArtifact>(`/api/analysis/reports/${id}/`),
+  saveReport: (body: FormData, id?: number) =>
+    request<ResultArtifact>(
+      id ? `/api/analysis/reports/${id}/` : "/api/analysis/reports/",
+      body,
+    ),
   templates: () => request<AnalysisTemplateCatalog>("/api/analysis/templates/"),
   importTable: (body: FormData) =>
     request<AnalysisImportResult>("/api/analysis/import/", body),
@@ -118,6 +126,8 @@ export const analysisApi = {
     ),
   importGenome: (body: FormData) =>
     request<GenomeSummary>("/api/omics/import/", body),
+  validateGenome: (body: FormData) =>
+    request<AnalysisImportResult>("/api/omics/import/", body),
 };
 
 export function downloadBlob(blob: Blob, filename: string) {

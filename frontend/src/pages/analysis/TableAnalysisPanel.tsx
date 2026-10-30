@@ -148,7 +148,15 @@ export default function TableAnalysisPanel({
           radius: ["42%", "68%"],
           center: ["50%", "43%"],
           label: { show: false },
-          data: categories.map((c) => ({ name: c.label, value: c.count })),
+          data: categories.map((c, i) => ({
+            name: c.label,
+            value: c.count,
+            itemStyle: {
+              color: ["#16b8a9", "#927dd7", "#46a3d8", "#d6a247", "#dc7894"][
+                i % 5
+              ],
+            },
+          })),
         },
       ],
     }),
@@ -238,7 +246,15 @@ export default function TableAnalysisPanel({
           type: "treemap",
           roam: false,
           breadcrumb: { show: false },
-          data: categories.map((c) => ({ name: c.label, value: c.count })),
+          data: categories.map((c, i) => ({
+            name: c.label,
+            value: c.count,
+            itemStyle: {
+              color: ["#16b8a9", "#927dd7", "#46a3d8", "#d6a247", "#dc7894"][
+                i % 5
+              ],
+            },
+          })),
           label: { overflow: "truncate" },
           itemStyle: { borderColor: "#ffffff", borderWidth: 4 },
         },
@@ -565,6 +581,23 @@ export default function TableAnalysisPanel({
           保存视图
         </Button>
         <AnalysisDownloads
+          resourceId={resourceId}
+          reportCharts={
+            result ? (
+              <>
+                {charts}
+                {composition}
+                <SpecializedVisuals result={result} canExport={false} />
+                {result.pairedCount > 0 && (
+                  <AnalysisChart
+                    title="双指标关系"
+                    subtitle={`${fieldLabel(result.query.xField)}与${fieldLabel(result.query.yField)}`}
+                    option={scatterOption}
+                  />
+                )}
+              </>
+            ) : undefined
+          }
           title={resourceTitle(result?.resourceName ?? "数据分析")}
           paragraphs={result ? resultSummary(result) : []}
           source={
@@ -646,9 +679,8 @@ export default function TableAnalysisPanel({
         />
       ) : loading ? (
         <div className="analysis-loading">
-          <Spin description="正在计算筛选后的全量统计">
-            <div />
-          </Spin>
+          <Spin size="large" />
+          <p role="status">正在计算筛选后的全量统计</p>
         </div>
       ) : result ? (
         <>

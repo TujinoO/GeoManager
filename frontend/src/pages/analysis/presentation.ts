@@ -1,6 +1,9 @@
 import type { AnalysisResult } from "../../api/generated/types.gen";
 
+import { ecologyFieldNames } from "./ecology-fields";
+
 export const fieldNames: Record<string, string> = {
+  ...ecologyFieldNames,
   record_id: "记录编号",
   plot_code: "样方编号",
   species: "物种",
@@ -11,6 +14,7 @@ export const fieldNames: Record<string, string> = {
   survey_date: "调查日期",
   sample_code: "样品编号",
   sex: "性别",
+  sex_original: "性别原始记录",
   material_type: "采样材料",
   is_core: "核心种质",
   longitude: "经度",
@@ -18,6 +22,9 @@ export const fieldNames: Record<string, string> = {
   result_id: "测定编号",
   assay_code: "实验编号",
   marker: "测定指标",
+  treatment: "实验处理",
+  time_h: "处理时间（h）",
+  method: "测定方法",
   value: "测定值",
   unit: "单位",
   batch: "实验批次",
@@ -71,12 +78,12 @@ export function resourceTitle(name: string) {
 }
 export const analysisTypes = [
   { id: "ecology", name: "生态观测", detail: "个体、群落、种群与功能性状" },
-  { id: "samples", name: "样品与种质", detail: "样品来源、材料与核心种质" },
-  { id: "molecular", name: "分子实验", detail: "生化测定、分子标记与实验批次" },
+  { id: "samples", name: "种质数据", detail: "样品来源、材料与核心种质" },
+  { id: "molecular", name: "分子数据", detail: "分子标记、实验测定与批次比较" },
   {
     id: "genome",
-    name: "基因组与组学",
-    detail: "参考组装、序列、表达、注释与变异",
+    name: "基因数据",
+    detail: "参考组装、基因结构、组装比较与序列统计",
   },
 ];
 export const genomeViews = [
@@ -84,9 +91,6 @@ export const genomeViews = [
   { value: "browser", label: "基因结构" },
   { value: "comparison", label: "组装比较" },
   { value: "sequence", label: "序列统计" },
-  { value: "expression", label: "基因表达" },
-  { value: "function", label: "功能注释" },
-  { value: "variants", label: "遗传变异" },
 ];
 export function resultMetrics(result: AnalysisResult) {
   return result.visuals.metrics.map((item) => {

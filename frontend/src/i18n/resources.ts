@@ -340,7 +340,7 @@ export const zhCN = {
       backupSubtitle: "管理科研数据和平台数据的本地与云端备份",
       authorizationSubtitle: "管理用户、角色和功能权限",
       resourceOverviewSubtitle: "汇总数据资源、图层、栅格和数据体量",
-      importSubtitle: "分别导入可分析的数据资源，或直接发布已完成的成果文件",
+      importSubtitle: "导入可分析的数据资源，或登记已完成的成果文件",
       inventoryTitle: "存量数据管理",
       inventorySubtitle:
         "查看已登记数据，并按权限管理状态、默认可视化、可见范围与导出",
@@ -909,11 +909,11 @@ export const zhCN = {
       importJson: "导入 JSON",
     },
     catalog: {
-      title: "胡杨生态数据资源目录",
-      context: "干旱区胡杨生态智慧监测",
-      mission: "服务生态保护 · 科学研究 · 数据共享",
+      title: "全球胡杨林保护数据资源目录",
+      context: "全球胡杨林生态系统保护",
+      mission: "服务生态系统保护 · 科学研究 · 数据共享",
       summary:
-        "汇聚遥感影像、空间矢量、实地调查、长期监测与科研成果，构建覆盖胡杨生态保护全链条的一站式数据资源目录。",
+        "面向全球胡杨林生态系统保护，汇聚遥感影像、空间矢量、实地调查、长期监测与科研成果，支持多源数据检索、共享与科研复用。",
       overview: "平台数据概览",
       visibleResources: "当前账号可见资源",
       resourcesSuffix: "项",
@@ -1334,7 +1334,7 @@ export const enUS = {
       resourceOverviewSubtitle:
         "Summary of resources, layers, rasters, and data volume",
       importSubtitle:
-        "Import analyzable resources or directly publish completed result files",
+        "Import analyzable resources or register completed result files",
       inventoryTitle: "Data Inventory Management",
       inventorySubtitle:
         "Manage registered data status, default visualization, visibility, and export",
@@ -1939,11 +1939,11 @@ export const enUS = {
       importJson: "Import JSON",
     },
     catalog: {
-      title: "Poplar Ecological Data Catalog",
-      context: "Intelligent Monitoring of Arid-region Poplar Ecosystems",
-      mission: "Ecological conservation · Scientific research · Data sharing",
+      title: "Global Populus euphratica Conservation Data Catalog",
+      context: "Global Populus euphratica Forest Ecosystem Conservation",
+      mission: "Ecosystem conservation · Scientific research · Data sharing",
       summary:
-        "A one-stop catalog connecting remote-sensing imagery, spatial vectors, field surveys, long-term monitoring, and research outputs across the poplar-conservation data chain.",
+        "Supporting global Populus euphratica forest ecosystem conservation through the discovery, sharing, and reuse of remote-sensing imagery, spatial vectors, field surveys, long-term observations, and research outputs.",
       overview: "Platform data overview",
       visibleResources: "Resources visible to this account",
       resourcesSuffix: "resources",

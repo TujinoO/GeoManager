@@ -47,7 +47,19 @@ def build_visuals(df, kind, metric, group):
 
     # Values from different assays must not be silently pooled into one distribution.
     mixed_assays = kind == "molecular" and distinct("marker") > 1
-    if kind in {"traits", "molecular", "variants", "sequence"} and metric in df:
+    if (
+        kind
+        in {
+            "individual",
+            "population",
+            "community",
+            "traits",
+            "molecular",
+            "variants",
+            "sequence",
+        }
+        and metric in df
+    ):
         box_group = (
             "batch"
             if kind == "molecular"
@@ -89,7 +101,16 @@ def build_visuals(df, kind, metric, group):
         summary("序列类型", distinct("sequence_type"), "核酸与蛋白长度分别统计")
         summary("参考组装", distinct("assembly"), "按组装版本关联")
         summary("关联基因", distinct("gene_id"), "仅统计已提供的编号")
-    if kind == "traits" and {"plot_code", "species"} <= set(df):
+    if kind == "individual":
+        summary("采集记录", len(df), "以采集记录计数")
+        summary("记录物种", distinct("species"), "按原始物种名称去重")
+        summary("记录科数", distinct("family"), "分类学组成")
+        summary("记录属数", distinct("genus"), "分类学组成")
+    if kind == "community":
+        summary("调查样方", distinct("plot_code"), "以样方编号去重")
+        summary("样方分组", distinct("group"), "沿用原始分组")
+        summary("有效记录", len(df), "不以记录数替代物种丰度")
+    if kind in {"traits", "population"} and {"plot_code", "species"} <= set(df):
         summary("调查样方", distinct("plot_code"), "按样方编号去重")
         summary("记录物种", distinct("species"), "按物种名称去重")
         summary("生活型", distinct("life_form"), "当前筛选记录中的类型")
@@ -118,10 +139,98 @@ def build_visuals(df, kind, metric, group):
             }
         )
 
+    if kind in {"individual", "population", "community", "traits"}:
+        fields = []
+        for field in df:
+            if field in {
+                "longitude",
+                "latitude",
+                "record_id",
+                "collection_code",
+                "site_number",
+                "family_order",
+                "transect",
+                "plot_code",
+            }:
+                continue
+            values = numeric_column(df, field)
+            if values.notna().sum() >= 3 and values.nunique() > 1:
+                fields.append(field)
+        preferred = {
+            "community": [
+                "shannon",
+                "simpson",
+                "richness",
+                "pielou",
+                "phylogenetic_diversity",
+                "fric",
+                "feve",
+                "fdiv",
+                "fdis",
+                "raoq",
+                "soil_water",
+                "soil_salt",
+                "soil_ph",
+                "conductivity",
+                "npp",
+                "agbc",
+            ],
+            "population": [
+                "density",
+                "individual_count",
+                "cover_fraction",
+                "frequency",
+                "importance_value",
+                "relative_abundance",
+                "relative_cover",
+                "relative_frequency",
+                "altitude_m",
+                "bio1",
+                "bio12",
+            ],
+        }.get(kind, [])
+        ordered = list(dict.fromkeys([metric, *preferred, *fields]))
+        fields = [f for f in ordered if f in fields][:16]
+        if len(fields) >= 2:
+            numeric = (
+                df[fields]
+                .apply(pd.to_numeric, errors="coerce")
+                .replace([np.inf, -np.inf], np.nan)
+            )
+            corr = numeric.corr(min_periods=3)
+            cells = []
+            for a in fields:
+                for b in fields:
+                    value = corr.at[a, b]
+                    cells.append(
+                        {
+                            "x": a,
+                            "y": b,
+                            "value": float(value) if pd.notna(value) else None,
+                            "n": int(numeric[[a, b]].notna().all(axis=1).sum()),
+                        }
+                    )
+            out["matrices"].append(
+                {
+                    "id": "fieldCorrelation",
+                    "title": "生态指标相关矩阵",
+                    "method": "Pearson相关；逐对排除缺测，至少3组有效配对，最多16项指标。原始单位与数值保留，相关性不表示因果关系。",
+                    "cells": cells,
+                }
+            )
+
     if kind == "samples" and {"region", "sex", "material_type", "is_core"} <= set(df):
-        core = df.is_core.astype(str).str.lower().eq("true").sum()
+        membership = df.is_core.fillna("").astype(str).str.strip().str.lower()
+        core = membership.eq("true").sum()
+        unconfirmed = (~membership.isin({"true", "false"})).sum()
         summary("登记样品", len(df), "一条记录对应一个样品")
-        summary("核心子集", int(core), "已包含于登记样品，不能重复相加")
+        summary(
+            "核心子集",
+            int(core) if unconfirmed < len(df) else "未提供",
+            f"{unconfirmed}份未提供核心种质归属；已确认核心样品包含于登记样品，不能重复相加"
+            if unconfirmed
+            else "已包含于登记样品，不能重复相加",
+        )
         summary("样品来源", distinct("region"), "按区域名称去重")
         summary("材料类型", distinct("material_type"), "当前筛选样品中的类型")
         stages = []

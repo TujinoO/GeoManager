@@ -292,6 +292,7 @@ export default function GenomeAnalysisPanel({
           坐标包含起止碱基
         </span>
         <AnalysisDownloads
+          resourceId={summary.assembly.resourceId}
           title={summary.assembly.name}
           paragraphs={[
             `该参考组装包含${n(summary.totalBp)} bp、${summary.sequenceCount}条序列、${summary.chromosomeCount}条命名染色体。`,

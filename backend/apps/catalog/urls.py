@@ -1,9 +1,18 @@
 from django.urls import path
 
-from apps.catalog import analysis, map_compositions, nongeo, results, views
+from apps.catalog import (
+    analysis,
+    analysis_reports,
+    map_compositions,
+    nongeo,
+    results,
+    views,
+)
 
 
 urlpatterns = [
+    path("analysis/reports/", analysis_reports.report),
+    path("analysis/reports/<int:id>/", analysis_reports.report),
     path("analysis/templates/", analysis.templates),
     path("analysis/templates/<str:kind>/file/", analysis.template_file),
     path("analysis/import/", analysis.table_import),

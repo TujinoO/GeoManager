@@ -724,3 +724,17 @@ Frontend owns `docs/openapi.yaml` and `mock/prism/examples/*.json`. Whenever fro
 - 验证：新增TSV/VCF错误输入和sequence长度单位测试，完整导入回查；检查契约生成及客户端。
 
 - 原生基因组导入补充可选sourceUrl（最多2000字），在资源和报告中保留原始资料来源。
+
+## 2026-10-30 原始生态模板与非地理报告流程
+
+前端合同交接：扩展专业导入individual/population/community及XLS原表适配；新增analysis/reports保存与编辑PDF草稿，复用ResultArtifact的提交审核、退回和审核发布。增加源资源、报告编辑内容及审核信息，旧地理成果直接导入流程保留。后端随后实现资源权限、PNG预算、已发布不可覆盖及审核门槛；前端使用生成类型。验证覆盖原模板字段、跨用户访问、草稿不可公开、审核发布和高清PDF预览。
+
+### 报告操作权限补充（2026-10-30）
+ResultArtifact 增加 canEditReport / canSubmitReview，由后端按草稿状态、所有权和功能权限计算，前端不使用删除权限推断编辑或提交权限。随报告集成测试验证。
+### 2026-10-30 非地理分步导入
+
+- 影响接口：POST /api/analysis/import/ 与 POST /api/omics/import/。本任务由单代理依次承担合同、后端、前端与验证角色，按此顺序交接。
+- 合同：表格增加sheetName、columns/rows预览；基因增加validateOnly=true及200 AnalysisImportResult，正式入库保持201。
+- 后端交接：扩展分隔文本gzip读取，复用真实基因解析作预检查且不创建业务记录，补齐可选空列。
+- 前端交接：文件选择→核查校验→确认入库；修改文件或参数后校验失效。字段规范与模板下载集中到帮助。
+- 验证：校验不入库、文件关联拒绝、格式及缺测、参数修改后的按钮状态与三步浏览器测试。沿用真实服务测试，无新增mock文件。

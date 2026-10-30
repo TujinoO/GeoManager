@@ -99,7 +99,6 @@ def _create_result_artifact(request):
     required_permissions = (
         "catalog.view_resultartifact",
         "catalog.add_resultartifact",
-        "catalog.publish_resultartifact",
     )
     if not all(
         has_feature_perm(request.user, permission)
@@ -112,6 +111,11 @@ def _create_result_artifact(request):
     payload = _multipart_json_payload(request)
     if isinstance(payload, JsonResponse):
         return payload
+    report_draft = payload.get("reportKind") == "nongeo"
+    if not report_draft and not has_feature_perm(
+        request.user, "catalog.publish_resultartifact"
+    ):
+        return feature_denied_response(request.user)
 
     name = str(payload.get("name") or "").strip()
     description = str(payload.get("description") or "").strip()
@@ -130,7 +134,13 @@ def _create_result_artifact(request):
         return JsonResponse({"detail": "请选择有效的成果来源"}, status=400)
     if result_type not in ResultArtifact.ResultType.values:
         return JsonResponse({"detail": "请选择有效的成果类型"}, status=400)
-    if "publish" in payload and payload.get("publish") is not True:
+    if report_draft and (
+        result_type != "report" or payload.get("publish") is not False
+    ):
+        return JsonResponse(
+            {"detail": "非地理报告请选择PDF报告并保存为草稿"}, status=400
+        )
+    if not report_draft and "publish" in payload and payload.get("publish") is not True:
         return JsonResponse({"detail": "成果导入必须直接发布"}, status=400)
 
     try:
@@ -140,7 +150,7 @@ def _create_result_artifact(request):
     group_ids = _positive_integer_list(payload.get("accessGroupIds", []))
     if isinstance(group_ids, JsonResponse):
         return group_ids
-    if not group_ids:
+    if not group_ids and not report_draft:
         return JsonResponse({"detail": "成果发布至少选择一个可访问角色"}, status=400)
     selectable_ids = set(
         selectable_access_groups_for(
@@ -152,6 +162,8 @@ def _create_result_artifact(request):
 
     original_name = _safe_result_filename(upload.name)
     extension = Path(original_name).suffix.lower()
+    if report_draft and extension != ".pdf":
+        return JsonResponse({"detail": "非地理分析报告仅支持PDF"}, status=400)
     if extension not in ALLOWED_RESULT_EXTENSIONS:
         return JsonResponse(
             {"detail": "成果文件仅支持 PNG、JPG、PDF、CSV 或 XLSX"}, status=400
@@ -183,15 +195,18 @@ def _create_result_artifact(request):
                 description=description,
                 source_type=source_type,
                 result_type=result_type,
-                status=ResultArtifact.Status.PUBLISHED,
+                status=ResultArtifact.Status.DRAFT
+                if report_draft
+                else ResultArtifact.Status.PUBLISHED,
+                requires_review=report_draft,
                 category=category,
                 provider=provider,
                 file_path=relative_path,
                 file_name=original_name,
                 mime_type=trusted_mime_type,
                 size_bytes=upload.size,
-                published_by=request.user,
-                published_at=now,
+                published_by=None if report_draft else request.user,
+                published_at=None if report_draft else now,
             )
             artifact.access_groups.set(group_ids)
     except Exception:
@@ -201,7 +216,7 @@ def _create_result_artifact(request):
     log_operation(
         request.user,
         "成果展示",
-        "导入并发布成果",
+        "导入报告草稿" if report_draft else "导入并发布成果",
         "success",
         artifact.name,
         request,
@@ -209,7 +224,11 @@ def _create_result_artifact(request):
         target_id=artifact.id,
         target_name=artifact.name,
     )
-    artifact = _result_queryset(request.user).get(pk=artifact.id)
+    artifact = (
+        ResultArtifact.objects.select_related("owner", "category", "published_by")
+        .prefetch_related("access_groups")
+        .get(pk=artifact.id)
+    )
     return JsonResponse(_serialize_result(artifact, request.user), status=201)
 
 
@@ -233,6 +252,13 @@ def result_artifact_detail(request, result_id: int):
     if action == "publish":
         if not has_feature_perm(request.user, "catalog.publish_resultartifact"):
             return feature_denied_response(request.user)
+        if artifact.requires_review and artifact.status not in {
+            "in_review",
+            "published",
+        }:
+            return JsonResponse(
+                {"detail": "请先提交审核，审核通过后才能发布"}, status=400
+            )
         group_ids = _positive_integer_list(payload.get("accessGroupIds", []))
         if isinstance(group_ids, JsonResponse):
             return group_ids
@@ -257,6 +283,31 @@ def result_artifact_detail(request, result_id: int):
             )
             artifact.access_groups.set(group_ids)
         operation = "发布成果文件"
+    elif action == "submit_review":
+        if not artifact.requires_review or artifact.status != "draft":
+            return JsonResponse({"detail": "仅报告草稿可以提交审核"}, status=400)
+        if not has_feature_perm(request.user, "catalog.add_resultartifact"):
+            return feature_denied_response(request.user)
+        artifact.status = "in_review"
+        artifact.save(update_fields=["status", "updated_at"])
+        operation = "提交报告审核"
+    elif action == "reject":
+        if not has_feature_perm(request.user, "catalog.publish_resultartifact"):
+            return feature_denied_response(request.user)
+        note = payload.get("reviewNote", "")
+        if (
+            not artifact.requires_review
+            or artifact.status != "in_review"
+            or not isinstance(note, str)
+            or not 1 <= len(note.strip()) <= 2000
+        ):
+            return JsonResponse(
+                {"detail": "请对待审核报告填写1–2000字退回意见"}, status=400
+            )
+        artifact.status = "draft"
+        artifact.review_note = note.strip()
+        artifact.save(update_fields=["status", "review_note", "updated_at"])
+        operation = "退回报告修改"
     elif action == "unpublish":
         if not has_feature_perm(request.user, "catalog.publish_resultartifact"):
             return feature_denied_response(request.user)
@@ -309,7 +360,7 @@ def result_artifact_detail(request, result_id: int):
         )
     else:
         return JsonResponse(
-            {"detail": "action 仅支持 publish、unpublish 或 delete"}, status=400
+            {"detail": "请选择发布、下架、提交审核、退回或删除操作"}, status=400
         )
 
     log_operation(
@@ -324,7 +375,13 @@ def result_artifact_detail(request, result_id: int):
         target_code=artifact.status,
         target_name=artifact.name,
     )
-    artifact = _result_queryset(request.user).get(pk=artifact.id)
+    # The reviewer loses draft visibility after returning it to its owner.
+    # Serialize the already-authorized operation result without a second visibility lookup.
+    artifact = (
+        ResultArtifact.objects.select_related("owner", "category", "published_by")
+        .prefetch_related("access_groups")
+        .get(pk=artifact.id)
+    )
     return JsonResponse(_serialize_result(artifact, request.user))
 
 
@@ -435,6 +492,8 @@ def _result_queryset(user):
     if user_has_full_data_access(user):
         return queryset
     visibility = Q(owner=user)
+    if has_feature_perm(user, "catalog.publish_resultartifact"):
+        visibility |= Q(requires_review=True, status="in_review")
     group_ids = effective_access_group_ids(user)
     if group_ids:
         visibility |= Q(
@@ -449,7 +508,15 @@ def _result_for_user(user, result_id: int) -> ResultArtifact | None:
 
 
 def _user_can_manage_result(artifact: ResultArtifact, user) -> bool:
-    return bool(user_has_full_data_access(user) or artifact.owner_id == user.id)
+    return bool(
+        user_has_full_data_access(user)
+        or artifact.owner_id == user.id
+        or (
+            artifact.requires_review
+            and artifact.status == "in_review"
+            and has_feature_perm(user, "catalog.publish_resultartifact")
+        )
+    )
 
 
 def _serialize_result(artifact: ResultArtifact, request_user) -> dict[str, Any]:
@@ -463,6 +530,30 @@ def _serialize_result(artifact: ResultArtifact, request_user) -> dict[str, Any]:
         "sourceType": artifact.source_type,
         "resultType": artifact.result_type,
         "status": artifact.status,
+        "sourceResourceId": artifact.source_resource_id,
+        "canEditReport": bool(
+            artifact.report_document
+            and artifact.source_resource_id
+            and artifact.status == "draft"
+            and (
+                user_has_full_data_access(request_user)
+                or artifact.owner_id == request_user.id
+            )
+            and all(
+                has_feature_perm(request_user, p)
+                for p in [
+                    "catalog.add_resultartifact",
+                    "catalog.export_dataresource",
+                    "core.query_data",
+                ]
+            )
+        ),
+        "canSubmitReview": artifact.requires_review
+        and artifact.status == "draft"
+        and _user_can_manage_result(artifact, request_user)
+        and has_feature_perm(request_user, "catalog.add_resultartifact"),
+        "requiresReview": artifact.requires_review,
+        "reviewNote": artifact.review_note,
         "category": _serialize_dictionary_item(artifact.category),
         "categoryPath": serialize_category_path(artifact.category),
         "provider": artifact.provider,
@@ -484,7 +575,11 @@ def _serialize_result(artifact: ResultArtifact, request_user) -> dict[str, Any]:
             request_user, "catalog.download_resultartifact"
         ),
         "canPublish": _user_can_manage_result(artifact, request_user)
-        and has_feature_perm(request_user, "catalog.publish_resultartifact"),
+        and has_feature_perm(request_user, "catalog.publish_resultartifact")
+        and (
+            not artifact.requires_review
+            or artifact.status in {"in_review", "published"}
+        ),
         "canUnpublish": artifact.status == ResultArtifact.Status.PUBLISHED
         and _user_can_manage_result(artifact, request_user)
         and has_feature_perm(request_user, "catalog.publish_resultartifact"),

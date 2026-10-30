@@ -1,4 +1,6 @@
 .analysis-workspace {
+  width: 100%;
+  max-width: 100%;
   background:
     radial-gradient(
       circle at 15% 15%,
@@ -46,6 +48,23 @@
 }
 .analysis-workspace .workspace-header .header-account-actions {
   flex-shrink: 0;
+}
+.analysis-workspace
+  .workspace-header
+  .header-account-actions
+  .data-import-shortcut {
+  display: inline-flex;
+}
+@media (max-width: 1120px) {
+  .analysis-workspace .workspace-header .data-import-shortcut {
+    width: 32px;
+    min-width: 32px;
+    padding-inline: 0;
+    justify-content: center;
+  }
+  .analysis-workspace .workspace-header .data-import-shortcut-text {
+    display: none;
+  }
 }
 .analysis-workspace .workspace-header .workspace-global-search {
   flex-shrink: 0;
@@ -205,6 +224,9 @@
   overflow-y: auto;
   overflow-x: hidden;
   min-width: 0;
+  min-height: 0;
+  width: 100%;
+  container-type: inline-size;
   padding: 28px clamp(16px, 2.4vw, 40px) 50px;
   background:
     radial-gradient(
@@ -387,6 +409,19 @@
 .analysis-chart-grid {
   margin-bottom: 18px;
 }
+.analysis-table-workbench,
+.analysis-table-workbench .ant-tabs,
+.analysis-table-workbench .ant-tabs-content-holder,
+.analysis-table-workbench .ant-tabs-content,
+.analysis-table-workbench .ant-tabs-tabpane {
+  min-width: 0;
+  max-width: 100%;
+}
+@container (max-width: 900px) {
+  .analysis-chart-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .analysis-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -418,14 +453,17 @@
 }
 .analysis-loading {
   min-height: 240px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
 }
-.analysis-loading > .ant-spin-nested-loading {
-  width: 100%;
-}
-.analysis-loading .ant-spin-container {
-  min-height: 240px;
+.analysis-loading p {
+  margin: 0;
+  color: var(--c-data-accent);
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 .analysis-karyotype-scroll,
 .analysis-gene-scroll {
@@ -787,5 +825,93 @@
 @media (max-width: 650px) {
   .analysis-shell {
     inset: 72px 6px 6px;
+  }
+}
+.nongeo-import-workflow {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.nongeo-import-workflow > .ant-steps,
+.nongeo-import-workflow > .import-step-pane {
+  background: #fff;
+  border: 1px solid #edf0ef;
+  border-radius: 10px;
+  padding: 20px 24px;
+  min-width: 0;
+}
+.nongeo-import-workflow .import-step-pane {
+  display: grid;
+  gap: 20px;
+}
+.nongeo-import-workflow .ant-upload-drag {
+  min-height: 190px;
+}
+.nongeo-import-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 24px;
+  max-width: 1100px;
+}
+.nongeo-import-fields .ant-form-item {
+  min-width: 0;
+}
+.nongeo-import-fileline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.nongeo-import-fileline > span {
+  overflow-wrap: anywhere;
+}
+.nongeo-import-fileline > .ant-btn {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.nongeo-genome-files {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.nongeo-genome-files .ant-upload-drag {
+  min-height: 150px;
+}
+.nongeo-genome-files .ant-upload-drag strong,
+.nongeo-genome-files .ant-upload-drag span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.nongeo-genome-files .ant-upload-drag strong {
+  margin: 8px 0;
+}
+.nongeo-import-preview {
+  min-width: 0;
+  overflow: hidden;
+}
+.nongeo-import-workflow .ant-descriptions-item-content {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .nongeo-import-fields,
+  .nongeo-genome-files {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .nongeo-import-workflow > .ant-steps,
+  .nongeo-import-workflow > .import-step-pane {
+    padding: 16px;
+  }
+  .nongeo-import-workflow .ant-radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .nongeo-import-workflow .ant-radio-button-wrapper {
+    white-space: normal;
+    height: auto;
+    min-height: 32px;
+  }
+  .nongeo-import-fileline {
+    flex-wrap: wrap;
   }
 }

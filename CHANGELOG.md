@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve unsaved map-composition edits when the live map view or source summary changes
 - Recommend usable geographic and Web Mercator grid intervals for both local and regional extents
 
+## [V3.26] - 2026-10-30
+
+- 非地理数据导入改为选择数据、核查校验、确认入库三步，支持原始生态模板、Excel 工作表及基因配套预检查。
+- 新增分析报告图文编辑、高清 PDF 保存与草稿审核发布，成果页和管理页使用本地 PDF 逐页预览。
+- 整理生态、种质、分子和基因分析入口，优化页面布局与固定导航，统一全球胡杨林保护主题文案。
+- 更新在线/离线帮助、字段字典、填写示例和参考数据下载包。
+- 升级说明：启动时执行 `catalog.0015/0016`，增加报告字段并对齐分析分类；迁移前备份数据库。数据根目录与栅格渲染方式不变，本地业务数据不自动上传。
+
 ## [V3.25] - 2026-10-30
 
 - 修复公网 HTTP 访问生态观测等表格分析页面时，数据返回后因 `crypto.randomUUID()` 不可用而白屏的问题。

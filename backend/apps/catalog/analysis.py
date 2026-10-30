@@ -17,6 +17,8 @@ from django.views.decorators.http import require_GET, require_POST, require_http
 from apps.audit.service import log_operation
 from apps.catalog.analysis_templates import TEMPLATES, template_bytes, template_catalog
 from apps.catalog.analysis_visuals import build_visuals
+from apps.catalog.ecology_contracts import normalize_analysis_table
+from apps.catalog.taxonomy import resolve_data_category
 from apps.catalog.analysis_readers import read_analysis_upload
 from apps.catalog.importer import (
     ImportDataError,
@@ -94,9 +96,22 @@ def validate_table(df, kind):
             f"联合键{'+'.join(spec['unique'])}重复；行号：{[int(i) + 2 for i in df.index[duplicates][:10]]}"
         )
     for field in spec["numeric"]:
+        if field not in df:
+            continue
         raw = df[field].astype(str).str.strip()
         values = pd.to_numeric(df[field].replace("", None), errors="coerce")
-        invalid = raw.ne("") & df[field].notna() & (~np.isfinite(values))
+        invalid = (
+            ~raw.isin({"", "NA", "N/A", "NaN", "nan", "NULL", "null"})
+            & df[field].notna()
+            & (~np.isfinite(values))
+        )
+        if (
+            field in {"longitude", "latitude"}
+            and kind in {"individual", "population", "community", "traits", "samples"}
+            and invalid.any()
+        ):
+            warnings.append(f"{field}含非十进制度坐标，按原文保留；不参与空间定位")
+            continue
         if invalid.any():
             issues.append(
                 f"{field}不是有限数值；行号：{[int(i) + 2 for i in df.index[invalid][:10]]}"
@@ -121,12 +136,25 @@ def validate_table(df, kind):
             if ((values < -bound) | (values > bound)).any():
                 issues.append(f"{field}越出WGS84合理范围")
     if kind == "samples":
+        if "sex_original" in df:
+            warnings.append(
+                "性别含未确认原文，已保留在sex_original列并归为未确认，请复核后再用于性别比较"
+            )
         if not set(df.sex.str.strip()).issubset({"female", "male", "unknown"}):
             issues.append("sex仅允许female/male/unknown；请先复核原值")
-        if not set(df.is_core.str.strip().str.lower()).issubset({"true", "false"}):
-            issues.append("is_core仅允许true/false")
+        if not set(df.is_core.fillna("").str.strip().str.lower()).issubset(
+            {"true", "false", ""}
+        ):
+            issues.append("is_core仅允许true/false；未提供时留空")
     if kind in {"expression", "molecular"} and df["unit"].nunique() != 1:
         issues.append("一个资源只允许一种单位，防止混合统计")
+    if (
+        kind == "molecular"
+        and pd.to_numeric(df["value"], errors="coerce").notna().sum() == 0
+    ):
+        warnings.append(
+            "尚未提供有效测定值，入库后仅可查看样品与指标信息；补充测定值后可分析数值分布"
+        )
     if (
         kind in {"expression", "function", "variants", "sequence"}
         and df["assembly"].nunique() != 1
@@ -176,6 +204,14 @@ def import_table(df, kind, name, provenance, user, size=0, source=""):
     spec = TEMPLATES[kind]
     # Preserve identifiers and raw text; only numeric-contract columns convert.
     for field in spec["numeric"]:
+        if field not in df:
+            continue
+        if (
+            field in {"longitude", "latitude"}
+            and pd.to_numeric(df[field].replace("", None), errors="coerce").isna().sum()
+            > df[field].replace("", None).isna().sum()
+        ):
+            continue
         df[field] = pd.to_numeric(df[field].replace("", None), errors="coerce")
     with transaction.atomic():
         result = import_plain_table(
@@ -187,7 +223,14 @@ def import_table(df, kind, name, provenance, user, size=0, source=""):
             user=user,
             access_group_ids=set(),
             domain_type=spec["domain"],
-            category=None,
+            category=resolve_data_category(
+                {
+                    "individual": "thematic_individual",
+                    "population": "thematic_population",
+                    "community": "thematic_community",
+                    "traits": "thematic_community",
+                }.get(kind, "thematic_gene_germplasm")
+            ),
         )
         resource = DataResource.objects.get(pk=result["resourceId"])
         resource.default_visualization = {
@@ -229,13 +272,31 @@ def table_import(request):
     uploaded = request.FILES.get("file")
     if uploaded is None or uploaded.size > 16 * 1024 * 1024:
         return JsonResponse(
-            {"detail": "请选择不超过16MiB的CSV、TSV、XLSX或VCF文件"}, status=400
+            {"detail": "请选择不超过16MiB的表格或受支持的压缩文本文件"}, status=400
         )
     try:
         source = request.POST.get("source", "").strip()
         if len(source) > 160:
             raise ValueError("数据来源不能超过160字")
-        df = read_analysis_upload(uploaded, kind, request.POST.get("assembly", ""))
+        df = read_analysis_upload(
+            uploaded,
+            kind,
+            request.POST.get("assembly", ""),
+            request.POST.get("sheetName"),
+        )
+        df = normalize_analysis_table(df, kind)
+        if kind in {
+            "individual",
+            "population",
+            "community",
+            "samples",
+            "traits",
+            "molecular",
+            "sequence",
+        }:
+            for field in TEMPLATES[kind]["columns"]:
+                if field not in df and field not in TEMPLATES[kind]["required"]:
+                    df[field] = ""
         issues, warnings = validate_table(df, kind)
         response = {
             "valid": not issues,
@@ -243,6 +304,8 @@ def table_import(request):
             "rowCount": len(df),
             "issues": issues,
             "warnings": warnings,
+            "columns": list(df.columns),
+            "rows": df.head(8).fillna("").astype(str).values.tolist(),
         }
         if issues:
             return JsonResponse(
@@ -396,6 +459,9 @@ def analysis_payload(resource, query, df, total):
             }
         )
     preferred_groups = {
+        "individual": "family",
+        "population": "species",
+        "community": "group",
         "traits": "life_form",
         "samples": "sex",
         "molecular": "quality_flag",
@@ -405,6 +471,9 @@ def analysis_payload(resource, query, df, total):
         "sequence": "sequence_type",
     }
     preferred_metrics = {
+        "individual": "altitude_m",
+        "population": "density",
+        "community": "shannon",
         "traits": "height_m",
         "molecular": "value",
         "expression": "value",

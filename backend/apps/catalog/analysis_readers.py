@@ -3,6 +3,7 @@
 import gzip
 import io
 import re
+import csv
 
 import pandas as pd
 
@@ -12,29 +13,53 @@ MAX_TEXT = 64 * 1024 * 1024
 MAX_ROWS = 200_000
 
 
-def read_analysis_upload(uploaded, kind, assembly=""):
+def read_analysis_upload(uploaded, kind, assembly="", sheet_name=None):
     name = uploaded.name.lower()
-    if name.endswith((".csv", ".xlsx")):
-        return read_uploaded_table(uploaded)
-    if not name.endswith((".tsv", ".txt", ".vcf", ".vcf.gz")):
-        raise ImportDataError("请选择CSV、TSV、XLSX或变异VCF文件")
+    if name.endswith((".csv", ".xls", ".xlsx")):
+        return read_uploaded_table(uploaded, sheet_name=sheet_name or None)
+    if not name.endswith(
+        (".tsv", ".txt", ".csv.gz", ".tsv.gz", ".txt.gz", ".vcf", ".vcf.gz")
+    ):
+        raise ImportDataError("请选择CSV、TSV、TXT、XLS、XLSX或对应的文本gzip文件")
     stream = gzip.GzipFile(fileobj=uploaded) if name.endswith(".gz") else uploaded
     try:
         raw = stream.read(MAX_TEXT + 1)
         if len(raw) > MAX_TEXT:
             raise ImportDataError("文本展开超过64MiB，请按数据集拆分")
-        text = raw.decode("utf-8-sig")
+        try:
+            text = raw.decode("utf-8-sig")
+        except UnicodeError:
+            text = raw.decode("gb18030")
     except (OSError, EOFError, UnicodeError) as exc:
         raise ImportDataError("文件不是有效的UTF-8文本或gzip文件") from exc
     if not name.endswith((".vcf", ".vcf.gz")):
         try:
-            return pd.read_csv(
+            separator = "\t" if name.endswith((".tsv", ".tsv.gz")) else ","
+            if name.endswith((".txt", ".txt.gz")):
+                try:
+                    separator = (
+                        csv.Sniffer().sniff(text[:8192], delimiters=",;\t|").delimiter
+                    )
+                except csv.Error as exc:
+                    raise ImportDataError(
+                        "TXT需包含明确的逗号、制表符、分号或竖线分隔表头"
+                    ) from exc
+            header = next(csv.reader(io.StringIO(text), delimiter=separator), [])
+            if (
+                not header
+                or any(not h.strip() for h in header)
+                or len(set(h.strip() for h in header)) != len(header)
+            ):
+                raise ImportDataError("表头不能为空或重复，请检查列名")
+            df = pd.read_csv(
                 io.StringIO(text),
-                sep="\t",
+                sep=separator,
                 dtype=str,
                 keep_default_na=False,
                 nrows=MAX_ROWS + 1,
             )
+            df.columns = [str(c).strip() for c in df.columns]
+            return df
         except (pd.errors.ParserError, pd.errors.EmptyDataError) as exc:
             raise ImportDataError("制表符表格结构无效，请检查列数") from exc
     if kind != "variants" or not assembly.strip():

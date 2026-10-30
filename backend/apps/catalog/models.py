@@ -383,6 +383,7 @@ class ResultArtifact(models.Model):
 
     class Status(models.TextChoices):
         DRAFT = "draft", "草稿"
+        IN_REVIEW = "in_review", "待审核"
         PUBLISHED = "published", "已发布"
 
     owner = models.ForeignKey(
@@ -418,6 +419,19 @@ class ResultArtifact(models.Model):
         verbose_name="权威业务分类",
     )
     provider = models.CharField(max_length=200, blank=True, verbose_name="提供单位")
+    source_resource = models.ForeignKey(
+        DataResource,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="analysis_reports",
+        verbose_name="原始数据资源",
+    )
+    report_document = models.JSONField(
+        default=dict, blank=True, verbose_name="报告编辑内容"
+    )
+    requires_review = models.BooleanField(default=False, verbose_name="须审核发布")
+    review_note = models.TextField(blank=True, verbose_name="审核意见")
     file_path = models.CharField(max_length=500, verbose_name="成果文件路径")
     file_name = models.CharField(max_length=255, verbose_name="原始文件名")
     mime_type = models.CharField(max_length=120, blank=True, verbose_name="媒体类型")
