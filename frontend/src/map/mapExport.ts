@@ -1,3 +1,5 @@
+import { basemapIdFromStyle, basemapMaxZoom } from "./basemapSnapshot";
+import type { BasemapId } from "./basemapCatalog";
 import mapboxgl, {
   type Map as MapboxMap,
   type MapboxOptions,
@@ -23,7 +25,9 @@ const maxMercatorLatitude = 85.05112878;
 const platformBasemapSourceId = "map-export-platform-basemap";
 const platformBasemapLayerId = "map-export-platform-basemap";
 const platformBasemapBackgroundLayerId = "map-export-background";
-const platformBasemapTileUrl = "/api/map/thumbnail-tiles/{z}/{x}/{y}.png";
+// Export must fail on missing imagery, rather than capture a thumbnail placeholder.
+const platformBasemapTileUrl =
+  "/api/map/thumbnail-tiles/{z}/{x}/{y}.png?purpose=export";
 const mapStyleLoadTimeoutMs = 8000;
 const mapTileLoadTimeoutMs = 25_000;
 const mapExportMaxAttempts = 2;
@@ -36,16 +40,19 @@ const rangeOverlaySourcePrefixes = [
 export type MapImageExportFormat = "png" | "jpg";
 
 export interface MapImageExportOptions {
+  basemapId?: BasemapId;
   dpi: number;
   tileZoom: number;
   format: MapImageExportFormat;
   /** Keep the whole requested range visible inside this output aspect ratio. */
   targetAspect?: number;
+  renderSize?: { width: number; height: number };
   accessToken?: string;
   signal?: AbortSignal;
 }
 
 export interface MapRangeExportPlan {
+  bounds: [number, number, number, number];
   center: [number, number];
   cssWidth: number;
   cssHeight: number;
@@ -66,6 +73,7 @@ export async function exportMapRangeImage(
   options: MapImageExportOptions,
 ): Promise<Blob> {
   const plan = createMapRangeExportPlan(geometry, options);
+  await waitForStyleLoad(map, mapStyleLoadTimeoutMs, options.signal);
   const sourceStyle = map.getStyle();
   let lastError: unknown = null;
 
@@ -90,7 +98,7 @@ async function exportMapRangeImageAttempt(
   options: MapImageExportOptions,
 ): Promise<Blob> {
   const container = createExportContainer(plan);
-  const exportStyle = createExportStyle(sourceStyle);
+  const exportStyle = createExportStyle(sourceStyle, options.basemapId);
   let exportMap: MapboxMap | null = null;
   let unbindSymbolFallback: (() => void) | null = null;
 
@@ -139,7 +147,10 @@ async function exportMapRangeImageAttempt(
 
 export function createMapRangeExportPlan(
   geometry: GeoJsonGeometry,
-  options: Pick<MapImageExportOptions, "dpi" | "tileZoom" | "targetAspect">,
+  options: Pick<
+    MapImageExportOptions,
+    "dpi" | "tileZoom" | "targetAspect" | "renderSize"
+  >,
 ): MapRangeExportPlan {
   const dpi = normalizeDpi(options.dpi);
   const tileZoom = normalizeTileZoom(options.tileZoom);
@@ -167,6 +178,19 @@ export function createMapRangeExportPlan(
     cssWidth = Math.ceil(Math.max(minExportCssDimension, contentWidth));
     cssHeight = Math.ceil(Math.max(minExportCssDimension, contentHeight));
   }
+  let renderZoom = tileZoom;
+  if (options.renderSize) {
+    cssWidth = Math.max(1, Math.round(options.renderSize.width));
+    cssHeight = Math.max(1, Math.round(options.renderSize.height));
+    renderZoom = Math.min(
+      24,
+      tileZoom +
+        Math.log2(Math.min(cssWidth / contentWidth, cssHeight / contentHeight)),
+    );
+  }
+  const viewportScale = 2 ** (renderZoom - tileZoom);
+  const extentWidth = cssWidth / viewportScale;
+  const extentHeight = cssHeight / viewportScale;
   const outputWidth = Math.round((cssWidth * dpi) / 96);
   const outputHeight = Math.round((cssHeight * dpi) / 96);
   validateOutputSize(outputWidth, outputHeight);
@@ -179,13 +203,31 @@ export function createMapRangeExportPlan(
   );
 
   return {
+    bounds: [
+      unprojectMercatorPixel(
+        [(projected.minX + projected.maxX - extentWidth) / 2, 0],
+        tileZoom,
+      )[0],
+      unprojectMercatorPixel(
+        [0, (projected.minY + projected.maxY + extentHeight) / 2],
+        tileZoom,
+      )[1],
+      unprojectMercatorPixel(
+        [(projected.minX + projected.maxX + extentWidth) / 2, 0],
+        tileZoom,
+      )[0],
+      unprojectMercatorPixel(
+        [0, (projected.minY + projected.maxY - extentHeight) / 2],
+        tileZoom,
+      )[1],
+    ],
     center,
     cssWidth,
     cssHeight,
     outputWidth,
     outputHeight,
     dpi,
-    tileZoom,
+    tileZoom: renderZoom,
   };
 }
 
@@ -304,17 +346,21 @@ export function addJpegDpiMetadata(bytes: Uint8Array, dpi: number): Uint8Array {
 
 export function createExportStyle(
   style: StyleSpecification,
+  selectedBasemapId?: BasemapId,
 ): StyleSpecification {
   const next = sanitizeStyleNumericAssertions(style);
+  const basemapId = selectedBasemapId ?? basemapIdFromStyle(style);
   next.projection = { name: "mercator" };
   const basemapSourceIds = new Set(
     Object.entries(next.sources ?? {})
       .filter(([sourceId, source]) => isExternalBasemapSource(sourceId, source))
       .map(([sourceId]) => sourceId),
   );
-  const usesSatelliteBasemap = Object.entries(next.sources ?? {}).some(
-    ([sourceId, source]) => isSatelliteBasemapSource(sourceId, source),
-  );
+  const usesSatelliteBasemap = selectedBasemapId
+    ? selectedBasemapId === "mapbox-satellite"
+    : Object.entries(next.sources ?? {}).some(([sourceId, source]) =>
+        isSatelliteBasemapSource(sourceId, source),
+      );
   next.sources ??= {};
   next.layers = (next.layers ?? []).filter((layer) => {
     if (isRangeOverlayId(layer.id) || layer.type === "background") {
@@ -330,11 +376,15 @@ export function createExportStyle(
   }
   next.sources[platformBasemapSourceId] = {
     type: "raster",
-    tiles: [platformBasemapTileUrl],
+    tiles: [`${platformBasemapTileUrl}&basemap=${basemapId}`],
     tileSize: 256,
     minzoom: 0,
-    maxzoom: 12,
-    attribution: "平台缓存底图",
+    maxzoom: basemapMaxZoom(basemapId),
+    attribution: basemapId.startsWith("mapbox")
+      ? "© Mapbox © OpenStreetMap"
+      : basemapId.startsWith("tianditu")
+        ? "© 天地图"
+        : "© OpenStreetMap contributors",
   };
   next.layers = [
     {
@@ -346,12 +396,28 @@ export function createExportStyle(
       id: platformBasemapLayerId,
       type: "raster",
       source: platformBasemapSourceId,
-      ...(usesSatelliteBasemap
-        ? { paint: { ...satelliteBasemapColorCorrection } }
-        : {}),
+      paint: {
+        "raster-fade-duration": 0,
+        ...(usesSatelliteBasemap ? satelliteBasemapColorCorrection : {}),
+      },
     },
     ...(next.layers ?? []),
   ];
+  if (basemapId.startsWith("tianditu-")) {
+    const labelId = `${platformBasemapSourceId}-labels`;
+    next.sources[labelId] = {
+      type: "raster",
+      tiles: [`${platformBasemapTileUrl}&basemap=${basemapId}&labels=1`],
+      tileSize: 256,
+      maxzoom: 18,
+    };
+    next.layers.splice(2, 0, {
+      id: labelId,
+      type: "raster",
+      source: labelId,
+      paint: { "raster-fade-duration": 0 },
+    });
+  }
   if (next.terrain && basemapSourceIds.has(next.terrain.source)) {
     delete next.terrain;
   }
@@ -478,12 +544,16 @@ function canvasToImageBlob(
   });
 }
 
-function waitForStyleLoad(
+export function waitForStyleLoad(
   map: MapboxMap,
-  timeoutMs: number,
+  timeoutMs: number = mapStyleLoadTimeoutMs,
   signal?: AbortSignal,
 ) {
   return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortError());
+      return;
+    }
     if (map.isStyleLoaded()) {
       resolve();
       return;
@@ -492,22 +562,27 @@ function waitForStyleLoad(
     const finish = (error?: Error) => {
       if (settled) return;
       settled = true;
-      window.clearTimeout(timeoutId);
+      globalThis.clearTimeout(timeoutId);
       map.off("style.load", handleLoad);
+      map.off("render", checkLoaded);
       map.off("error", handleError);
       signal?.removeEventListener("abort", handleAbort);
       if (error) reject(error);
       else resolve();
     };
     const handleLoad = () => finish();
+    const checkLoaded = () => {
+      if (map.isStyleLoaded()) finish();
+    };
     const handleError = (event: { error?: unknown }) =>
       finish(new Error(`底图样式加载失败：${mapLoadErrorText(event.error)}`));
     const handleAbort = () => finish(abortError());
-    const timeoutId = window.setTimeout(
+    const timeoutId = globalThis.setTimeout(
       () => finish(new Error("底图样式加载超时")),
       timeoutMs,
     );
     map.once("style.load", handleLoad);
+    map.on("render", checkLoaded);
     map.on("error", handleError);
     signal?.addEventListener("abort", handleAbort, { once: true });
     if (signal?.aborted) handleAbort();

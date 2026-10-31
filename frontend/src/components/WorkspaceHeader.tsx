@@ -4,6 +4,7 @@ import {
   ApartmentOutlined,
   BookOutlined,
   DatabaseOutlined,
+  DownOutlined,
   FolderOpenOutlined,
   HomeOutlined,
   InfoCircleOutlined,
@@ -55,7 +56,7 @@ import type {
   DataSchemaSummary,
   MapComposition,
   ResourceListItem,
-  WorkspaceScene,
+  WorkspaceSceneSummary,
 } from "../types";
 import {
   analysisResourceUrl,
@@ -88,13 +89,13 @@ interface WorkspaceHeaderProps {
   activeTab: WorkspaceTab;
   canBrowseData: boolean;
   resources?: ResourceListItem[];
-  workspaceScenes?: WorkspaceScene[];
+  workspaceScenes?: WorkspaceSceneSummary[];
   mapCompositions?: MapComposition[];
   dataSchema?: DataSchemaSummary | null;
   searchKeyword?: string;
   onGlobalSearch?: (keyword: string) => void;
   onQuickLoadResource?: (resource: ResourceListItem) => Promise<void> | void;
-  onLoadWorkspaceScene?: (scene: WorkspaceScene) => void;
+  onLoadWorkspaceScene?: (scene: WorkspaceSceneSummary) => void;
   onLoadMapComposition?: (composition: MapComposition) => void;
   onSearchFocus?: () => void;
 }
@@ -122,13 +123,17 @@ export default function WorkspaceHeader({
       : platformChineseName;
   const navigate = useNavigate();
   const [searchText, setSearchText] = useState("");
+  const [remoteScenes, setRemoteScenes] = useState<{
+    query: string;
+    items: WorkspaceSceneSummary[];
+  } | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [quickLoadingResourceId, setQuickLoadingResourceId] = useState<
     ResourceListItem["id"] | null
   >(null);
   const [localResources, setLocalResources] = useState<ResourceListItem[]>([]);
   const [localWorkspaceScenes, setLocalWorkspaceScenes] = useState<
-    WorkspaceScene[]
+    WorkspaceSceneSummary[]
   >([]);
   const [localMapCompositions, setLocalMapCompositions] = useState<
     MapComposition[]
@@ -481,6 +486,7 @@ export default function WorkspaceHeader({
       }
       if (layoutMeasureFrameRef.current !== null) {
         window.cancelAnimationFrame(layoutMeasureFrameRef.current);
+        layoutMeasureFrameRef.current = null;
       }
     };
   }, []);
@@ -504,6 +510,33 @@ export default function WorkspaceHeader({
   }, [closeSearchPanel]);
 
   const searchQuery = searchText.trim().toLocaleLowerCase("zh-CN");
+  useEffect(() => {
+    if (!searchQuery || !user?.permissions.canViewWorkspaces) {
+      setRemoteScenes(null);
+      return;
+    }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void api
+        .workspaces({ q: searchQuery, limit: 100 })
+        .then((result) => {
+          if (active)
+            setRemoteScenes({ query: searchQuery, items: result.items });
+        })
+        .catch((error) => {
+          if (active)
+            message.error(
+              error instanceof Error
+                ? error.message
+                : t("navigation.globalSearchLoadFailed"),
+            );
+        });
+    }, 200);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [searchQuery, user?.permissions.canViewWorkspaces, user?.id, message, t]);
   const filteredResources = useMemo(
     () =>
       effectiveResources.filter((resource) =>
@@ -515,10 +548,12 @@ export default function WorkspaceHeader({
   );
   const filteredWorkspaceScenes = useMemo(
     () =>
-      effectiveWorkspaceScenes.filter((scene) =>
-        searchQuery ? sceneMatches(scene, searchQuery) : true,
-      ),
-    [effectiveWorkspaceScenes, searchQuery],
+      remoteScenes?.query === searchQuery
+        ? remoteScenes.items
+        : effectiveWorkspaceScenes.filter((scene) =>
+            searchQuery ? sceneMatches(scene, searchQuery) : true,
+          ),
+    [effectiveWorkspaceScenes, searchQuery, remoteScenes],
   );
   const filteredProjectScenes = useMemo(
     () => filteredWorkspaceScenes,
@@ -609,7 +644,7 @@ export default function WorkspaceHeader({
     closeSearchPanel();
   }
 
-  function openWorkspaceScene(scene: WorkspaceScene) {
+  function openWorkspaceScene(scene: WorkspaceSceneSummary) {
     if (onLoadWorkspaceScene) {
       onLoadWorkspaceScene(scene);
     } else {
@@ -856,23 +891,54 @@ export default function WorkspaceHeader({
     user?.permissions.canViewOwnOperationLogs,
   ]);
 
+  const knowledgeMenuItems = useMemo<MenuProps["items"]>(
+    () => [
+      {
+        key: "knowledge",
+        label: t("navigation.knowledge"),
+        onClick: () => navigateFromHeader("/knowledge"),
+      },
+      ...(user?.permissions.canManageAuth
+        ? [
+            {
+              key: "science-updates",
+              label: t("navigation.scienceUpdates"),
+              onClick: () => navigateFromHeader("/science-updates"),
+            },
+          ]
+        : []),
+    ],
+    [navigateFromHeader, t, user?.permissions.canManageAuth],
+  );
+
   const aboutMenuItems = useMemo<MenuProps["items"]>(
     () =>
-      aboutNavigationSections.map((section) => ({
-        key: section.key,
-        label: t(
-          section.key === "system"
-            ? "navigation.aboutSystem"
-            : section.key === "team"
-              ? "navigation.aboutTeam"
-              : section.key === "members"
-                ? "navigation.aboutMembers"
-                : section.key === "contact"
-                  ? "navigation.aboutContact"
-                  : "navigation.aboutDocs",
-        ),
-        onClick: () => navigateFromHeader(section.path),
-      })),
+      aboutNavigationSections.flatMap((section) => [
+        {
+          key: section.key,
+          label: t(
+            section.key === "system"
+              ? "navigation.aboutSystem"
+              : section.key === "team"
+                ? "navigation.aboutTeam"
+                : section.key === "members"
+                  ? "navigation.aboutMembers"
+                  : section.key === "contact"
+                    ? "navigation.aboutContact"
+                    : "navigation.aboutDocs",
+          ),
+          onClick: () => navigateFromHeader(section.path),
+        },
+        ...(section.key === "team"
+          ? [
+              {
+                key: "team-news",
+                label: t("navigation.teamNews"),
+                onClick: () => navigateFromHeader("/news"),
+              },
+            ]
+          : []),
+      ]),
     [navigateFromHeader, t],
   );
 
@@ -1306,23 +1372,32 @@ export default function WorkspaceHeader({
               </Button>
             </Dropdown>
           )}
-          <Button
-            type="text"
-            className={tabClass(
-              activeTab === "knowledge",
-              expandedTabId === "knowledge",
-            )}
-            onClick={() => navigateFromHeader("/knowledge")}
-            onMouseEnter={() => scheduleTabHoverExpand("knowledge")}
-            onMouseLeave={collapseTabHover}
-            title={t("navigation.knowledge")}
+          <Dropdown
+            menu={{ items: knowledgeMenuItems }}
+            trigger={["hover", "click"]}
+            placement="bottom"
+            classNames={{ root: "workspace-management-dropdown" }}
           >
-            <ReadOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-            <span className="tab-text">{t("navigation.knowledge")}</span>
-          </Button>
+            <Button
+              type="text"
+              className={tabClass(
+                activeTab === "knowledge",
+                expandedTabId === "knowledge",
+              )}
+              onMouseEnter={() => scheduleTabHoverExpand("knowledge")}
+              onMouseLeave={collapseTabHover}
+              title={t("navigation.knowledge")}
+            >
+              <ReadOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+              <span className="tab-text">
+                {t("navigation.knowledge")}{" "}
+                <DownOutlined aria-hidden="true" style={{ fontSize: 10 }} />
+              </span>
+            </Button>
+          </Dropdown>
           <Dropdown
             menu={{ items: aboutMenuItems }}
-            trigger={["hover"]}
+            trigger={["hover", "click"]}
             placement="bottom"
             classNames={{ root: "workspace-management-dropdown" }}
           >
@@ -1333,13 +1408,15 @@ export default function WorkspaceHeader({
                 activeTab === "about",
                 expandedTabId === "about",
               )}
-              onClick={() => navigateFromHeader("/about/system")}
               onMouseEnter={() => scheduleTabHoverExpand("about")}
               onMouseLeave={collapseTabHover}
               title={t("navigation.about")}
             >
               <InfoCircleOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-              <span className="tab-text">{t("navigation.about")}</span>
+              <span className="tab-text">
+                {t("navigation.about")}{" "}
+                <DownOutlined aria-hidden="true" style={{ fontSize: 10 }} />
+              </span>
             </Button>
           </Dropdown>
         </nav>
@@ -1628,7 +1705,7 @@ function resourceMatches(
   ].some((value) => textMatches(value, query));
 }
 
-function sceneMatches(scene: WorkspaceScene, query: string) {
+function sceneMatches(scene: WorkspaceSceneSummary, query: string) {
   return [
     scene.name,
     scene.description,
@@ -1655,6 +1732,6 @@ function textMatches(value: unknown, query: string) {
     .includes(query);
 }
 
-function formatSceneUpdatedAt(scene: Pick<WorkspaceScene, "updatedAt">) {
+function formatSceneUpdatedAt(scene: Pick<WorkspaceSceneSummary, "updatedAt">) {
   return new Date(scene.updatedAt).toLocaleString("zh-CN", { hour12: false });
 }

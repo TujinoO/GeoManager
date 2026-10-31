@@ -5,6 +5,213 @@ export type ClientOptions = {
 };
 
 /**
+ * 平台升级数据结构。
+ */
+export type ContentArticle = {
+    /**
+     * 条目 ID。
+     */
+    id: number;
+    /**
+     * 知识或新闻。
+     */
+    kind: 'knowledge' | 'news';
+    /**
+     * 标题。
+     */
+    title: string;
+    /**
+     * 摘要。
+     */
+    summary: string;
+    /**
+     * 知识方向或新闻类别。
+     */
+    category: string;
+    /**
+     * Markdown 正文，禁止原始 HTML。
+     */
+    body: string;
+    /**
+     * 草稿、发布或下架。
+     */
+    status: 'draft' | 'published' | 'archived';
+    /**
+     * 受控封面地址。
+     */
+    coverUrl: string;
+    /**
+     * 事件日期 YYYY-MM-DD，允许空字符串。
+     */
+    eventDate: string;
+    /**
+     * 实际发布时间，未发布为空字符串。
+     */
+    publishedAt: string;
+    /**
+     * 素材来源与页码，仅内容管理员可见，普通阅读者返回空字符串。
+     */
+    source: string;
+    /**
+     * 是否置顶。
+     */
+    pinned: boolean;
+    /**
+     * 乐观锁版本。
+     */
+    revision: number;
+    /**
+     * 受控图片和附件。
+     */
+    assets: Array<ContentAsset>;
+    /**
+     * 学习链接。
+     */
+    links: Array<{
+        /**
+         * 显示标题。
+         */
+        title: string;
+        /**
+         * HTTP(S) 地址。
+         */
+        url: string;
+    }>;
+};
+
+/**
+ * 平台升级数据结构。
+ */
+export type ContentAsset = {
+    /**
+     * 媒体 ID。
+     */
+    id: number;
+    /**
+     * 名称。
+     */
+    name: string;
+    /**
+     * 访问地址。
+     */
+    url: string;
+    /**
+     * MIME 类型。
+     */
+    mimeType: string;
+    /**
+     * 说明。
+     */
+    caption: string;
+    /**
+     * 尚未提交的附件；仅上传者可预览，保存正文并提交附件 ID 后才对读者可见。
+     */
+    pending: boolean;
+};
+
+/**
+ * 平台升级数据结构。
+ */
+export type ContentArticleList = {
+    /**
+     * 按登录权限和发布状态过滤的科普或动态条目。
+     */
+    items: Array<ContentArticle>;
+    /**
+     * 筛选后总数。
+     */
+    total: number;
+    /**
+     * 当前用户是否具有 core.manage_auth 内容维护权限。
+     */
+    canEdit: boolean;
+};
+
+/**
+ * 平台升级数据结构。
+ */
+export type ContentArticleInput = {
+    /**
+     * 知识或新闻。
+     */
+    kind: 'knowledge' | 'news';
+    /**
+     * 标题。
+     */
+    title: string;
+    /**
+     * 摘要。
+     */
+    summary?: string;
+    /**
+     * 知识方向或新闻类别。
+     */
+    category: string;
+    /**
+     * Markdown 正文，禁止原始 HTML。
+     */
+    body: string;
+    /**
+     * 草稿、发布或下架。
+     */
+    status: 'draft' | 'published' | 'archived';
+    /**
+     * 事件日期 YYYY-MM-DD，允许空字符串。
+     */
+    eventDate?: string;
+    /**
+     * 素材来源与页码。
+     */
+    source?: string;
+    /**
+     * 是否置顶。
+     */
+    pinned?: boolean;
+    /**
+     * 乐观锁版本。
+     */
+    revision?: number;
+    /**
+     * 学习链接。
+     */
+    links?: Array<{
+        /**
+         * 显示标题。
+         */
+        title: string;
+        /**
+         * HTTP(S) 地址。
+         */
+        url: string;
+    }>;
+    /**
+     * 已上传封面媒体 ID。
+     */
+    coverAssetId?: number | null;
+    /**
+     * 本次保存时删除的本条内容附件 ID。
+     */
+    removeAssetIds?: Array<number>;
+    /**
+     * 本次保存的附件说明。
+     */
+    assetCaptions?: Array<{
+        /**
+         * 本条内容附件 ID。
+         */
+        id: number;
+        /**
+         * 图片或附件说明，最长 500 字符。
+         */
+        caption: string;
+    }>;
+    /**
+     * 本次保存时提交的暂存附件 ID，必须属于本条内容且由当前编辑者上传；与正文 revision 一起提交。
+     */
+    commitAssetIds?: Array<number>;
+};
+
+/**
  * 模板字段
  */
 export type AnalysisTemplateColumn = {
@@ -4151,15 +4358,75 @@ export type WorkspaceScene = {
     updatedAt: string;
 };
 
+export type WorkspaceSceneSummary = {
+    /**
+     * 工程 ID
+     */
+    id: number;
+    /**
+     * 场景类型，固定为工程
+     */
+    kind: 'project';
+    /**
+     * 工程或专题名称
+     */
+    name: string;
+    /**
+     * 工程或专题说明
+     */
+    description: string;
+    owner: WorkspaceSceneOwner;
+    /**
+     * 除所属用户本人和超级管理员外，允许访问该工程专题的额外角色；超级管理员角色不在该数组中返回
+     */
+    accessGroups: Array<AdminDataResourceAccessGroup>;
+    /**
+     * 当前用户是否为该工程专题所属用户
+     */
+    isOwner: boolean;
+    /**
+     * 当前用户是否可在普通工作台编辑该工程专题；仅所属用户且具备 `catalog.change_workspacescene` 时为 true
+     */
+    canEdit: boolean;
+    /**
+     * 当前用户是否可在普通工作台删除该工程专题；仅所属用户且具备 `catalog.delete_workspacescene` 时为 true
+     */
+    canDelete: boolean;
+    /**
+     * 当前用户是否可在普通工作台维护额外可见角色；所属用户为 true
+     */
+    canManageAccess: boolean;
+    /**
+     * 创建时间
+     */
+    createdAt: string;
+    /**
+     * 更新时间
+     */
+    updatedAt: string;
+};
+
 export type WorkspaceSceneListResponse = {
     /**
      * 当前用户拥有或获准加载的启用工程/专题；超级管理员返回全部启用对象
      */
-    items: Array<WorkspaceScene>;
+    items: Array<WorkspaceSceneSummary>;
     /**
      * 保存或编辑本人工程专题时可选择的额外访问角色；不返回超级管理员角色
      */
     availableAccessGroups: Array<AdminDataResourceAccessGroup>;
+    /**
+     * 符合权限与搜索条件的工程总数
+     */
+    total: number;
+    /**
+     * 本页大小，1至100
+     */
+    limit: number;
+    /**
+     * 本页起始偏移
+     */
+    offset: number;
 };
 
 export type WorkspaceSceneCreateRequest = {
@@ -4183,6 +4450,10 @@ export type WorkspaceSceneCreateRequest = {
 };
 
 export type WorkspaceSceneUpdateRequest = {
+    /**
+     * 最近读取的更新时间；提供后执行原子版本校验，冲突返回409
+     */
+    expectedUpdatedAt?: string;
     /**
      * 传 delete 时删除该工程或专题；不传时更新字段
      */
@@ -4362,6 +4633,10 @@ export type MapCompositionCreateRequest = {
 };
 
 export type MapCompositionUpdateRequest = {
+    /**
+     * 最近读取的更新时间；提供后执行原子版本校验，冲突返回409
+     */
+    expectedUpdatedAt?: string;
     /**
      * update 更新版式；delete 永久删除专题、全部版本记录和成果文件
      */
@@ -7617,7 +7892,7 @@ export type GetMapThumbnailTileData = {
     body?: never;
     path: {
         /**
-         * Web Mercator 瓦片层级，范围 0-12。
+         * Web Mercator 层级；Mapbox 0–22、天地图 0–18、OSM 0–19。
          */
         z: number;
         /**
@@ -7629,7 +7904,20 @@ export type GetMapThumbnailTileData = {
          */
         y: number;
     };
-    query?: never;
+    query?: {
+        /**
+         * thumbnail 为普通缩略图，允许网络故障时生成简化背景；export 用于制图预览和正式导出，仅接受真实底图或缓存，失败返回 503 且不缓存失败响应。
+         */
+        purpose?: 'thumbnail' | 'export';
+        /**
+         * 受控底图标识；指定后不替换为服务器默认底图。天地图标签层使用 labels=1。
+         */
+        basemap?: 'mapbox-satellite' | 'mapbox-streets' | 'tianditu-vector' | 'tianditu-imagery' | 'osm';
+        /**
+         * 天地图注记瓦片；1 为透明注记层，其余为主图。
+         */
+        labels?: '0' | '1';
+    };
     url: '/api/map/thumbnail-tiles/{z}/{x}/{y}.png';
 };
 
@@ -7638,6 +7926,14 @@ export type GetMapThumbnailTileErrors = {
      * 请求错误
      */
     400: ErrorResponse;
+    /**
+     * 项目或对象不存在，或当前用户无权访问。
+     */
+    404: ErrorResponse;
+    /**
+     * 制图底图暂时不可用且无真实瓦片缓存，返回 JSON 错误，Cache-Control 为 no-store，Retry-After 为 2 秒。
+     */
+    503: ErrorResponse;
 };
 
 export type GetMapThumbnailTileError = GetMapThumbnailTileErrors[keyof GetMapThumbnailTileErrors];
@@ -9570,6 +9866,18 @@ export type ListCatalogWorkspacesData = {
          * 工作台快照类型；project 表示工程，topic 表示专题
          */
         kind?: 'project';
+        /**
+         * 名称、说明、所属用户及可见角色搜索
+         */
+        q?: string;
+        /**
+         * 每页数量
+         */
+        limit?: number;
+        /**
+         * 起始偏移
+         */
+        offset?: number;
     };
     url: '/api/catalog/workspaces/';
 };
@@ -9692,6 +10000,10 @@ export type UpdateCatalogWorkspaceErrors = {
      * 资源不存在
      */
     404: ErrorResponse;
+    /**
+     * 内容已被其他编辑更新，请重新读取
+     */
+    409: ErrorResponse;
 };
 
 export type UpdateCatalogWorkspaceError = UpdateCatalogWorkspaceErrors[keyof UpdateCatalogWorkspaceErrors];
@@ -10315,6 +10627,10 @@ export type UpdateMapCompositionErrors = {
      * 资源不存在
      */
     404: ErrorResponse;
+    /**
+     * 内容已被其他编辑更新，请重新读取
+     */
+    409: ErrorResponse;
 };
 
 export type UpdateMapCompositionError = UpdateMapCompositionErrors[keyof UpdateMapCompositionErrors];
@@ -11288,3 +11604,376 @@ export type GetTileResponses = {
 };
 
 export type GetTileResponse = GetTileResponses[keyof GetTileResponses];
+
+export type ListContentArticlesData = {
+    body?: never;
+    headers?: {
+        /**
+         * 平台公共内容忽略此项目参数，不受当前业务项目影响。
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * knowledge 或 news。
+         */
+        kind?: string;
+        /**
+         * 检索文字。
+         */
+        q?: string;
+        /**
+         * 类别。
+         */
+        category?: string;
+        /**
+         * 1 表示管理列表，需要内容编辑权限。
+         */
+        manage?: string;
+        /**
+         * 偏移量，默认 0。
+         */
+        offset?: string;
+        /**
+         * 分页条数，默认 24，最大 100。
+         */
+        limit?: string;
+    };
+    url: '/api/content/articles/';
+};
+
+export type ListContentArticlesErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 对象不可访问。
+     */
+    404: ErrorResponse;
+};
+
+export type ListContentArticlesError = ListContentArticlesErrors[keyof ListContentArticlesErrors];
+
+export type ListContentArticlesResponses = {
+    /**
+     * 操作成功。
+     */
+    200: ContentArticleList;
+};
+
+export type ListContentArticlesResponse = ListContentArticlesResponses[keyof ListContentArticlesResponses];
+
+export type CreateContentArticleData = {
+    /**
+     * 待保存数据。
+     */
+    body: ContentArticleInput;
+    headers?: {
+        /**
+         * 平台公共内容忽略此项目参数，不受当前业务项目影响。
+         */
+        'X-Project-Id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/content/articles/';
+};
+
+export type CreateContentArticleErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 对象不可访问。
+     */
+    404: ErrorResponse;
+};
+
+export type CreateContentArticleError = CreateContentArticleErrors[keyof CreateContentArticleErrors];
+
+export type CreateContentArticleResponses = {
+    /**
+     * 操作成功。
+     */
+    201: ContentArticle;
+};
+
+export type CreateContentArticleResponse = CreateContentArticleResponses[keyof CreateContentArticleResponses];
+
+export type GetContentArticleData = {
+    body?: never;
+    headers?: {
+        /**
+         * 平台公共内容忽略此项目参数，不受当前业务项目影响。
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * 对象 ID。
+         */
+        articleId: number;
+    };
+    query?: never;
+    url: '/api/content/articles/{articleId}/';
+};
+
+export type GetContentArticleErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 对象不可访问。
+     */
+    404: ErrorResponse;
+};
+
+export type GetContentArticleError = GetContentArticleErrors[keyof GetContentArticleErrors];
+
+export type GetContentArticleResponses = {
+    /**
+     * 操作成功。
+     */
+    200: ContentArticle;
+};
+
+export type GetContentArticleResponse = GetContentArticleResponses[keyof GetContentArticleResponses];
+
+export type UpdateContentArticleData = {
+    /**
+     * 待保存数据。
+     */
+    body: ContentArticleInput;
+    headers?: {
+        /**
+         * 平台公共内容忽略此项目参数，不受当前业务项目影响。
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * 对象 ID。
+         */
+        articleId: number;
+    };
+    query?: never;
+    url: '/api/content/articles/{articleId}/';
+};
+
+export type UpdateContentArticleErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 对象不可访问。
+     */
+    404: ErrorResponse;
+    /**
+     * 内容或版式已被其他会话更新；重新读取后再保存。
+     */
+    409: ErrorResponse;
+};
+
+export type UpdateContentArticleError = UpdateContentArticleErrors[keyof UpdateContentArticleErrors];
+
+export type UpdateContentArticleResponses = {
+    /**
+     * 操作成功。
+     */
+    200: ContentArticle;
+};
+
+export type UpdateContentArticleResponse = UpdateContentArticleResponses[keyof UpdateContentArticleResponses];
+
+export type UploadContentAssetData = {
+    /**
+     * 平台升级数据结构。
+     */
+    body: {
+        /**
+         * 图片或 PDF 文件。
+         */
+        file: Blob | File;
+        /**
+         * 媒体说明。
+         */
+        caption?: string;
+    };
+    headers?: {
+        /**
+         * 平台公共内容忽略此项目参数，不受当前业务项目影响。
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * 对象 ID。
+         */
+        articleId: number;
+    };
+    query?: never;
+    url: '/api/content/articles/{articleId}/assets/';
+};
+
+export type UploadContentAssetErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 对象不可访问。
+     */
+    404: ErrorResponse;
+};
+
+export type UploadContentAssetError = UploadContentAssetErrors[keyof UploadContentAssetErrors];
+
+export type UploadContentAssetResponses = {
+    /**
+     * 操作成功。
+     */
+    201: ContentAsset;
+};
+
+export type UploadContentAssetResponse = UploadContentAssetResponses[keyof UploadContentAssetResponses];
+
+export type DiscardContentAssetData = {
+    body?: never;
+    headers?: {
+        /**
+         * 平台公共内容忽略此项目参数，不受当前业务项目影响。
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * 对象 ID。
+         */
+        assetId: number;
+    };
+    query?: never;
+    url: '/api/content/assets/{assetId}/';
+};
+
+export type DiscardContentAssetErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 暂存附件不可访问
+     */
+    404: ErrorResponse;
+};
+
+export type DiscardContentAssetError = DiscardContentAssetErrors[keyof DiscardContentAssetErrors];
+
+export type DiscardContentAssetResponses = {
+    /**
+     * 暂存附件已撤销
+     */
+    200: DetailResponse;
+};
+
+export type DiscardContentAssetResponse = DiscardContentAssetResponses[keyof DiscardContentAssetResponses];
+
+export type DownloadContentAssetData = {
+    body?: never;
+    headers?: {
+        /**
+         * 平台公共内容忽略此项目参数，不受当前业务项目影响。
+         */
+        'X-Project-Id'?: string;
+    };
+    path: {
+        /**
+         * 对象 ID。
+         */
+        assetId: number;
+    };
+    query?: never;
+    url: '/api/content/assets/{assetId}/';
+};
+
+export type DownloadContentAssetErrors = {
+    /**
+     * 请求错误
+     */
+    400: ErrorResponse;
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+    /**
+     * 对象不可访问。
+     */
+    404: ErrorResponse;
+};
+
+export type DownloadContentAssetError = DownloadContentAssetErrors[keyof DownloadContentAssetErrors];
+
+export type DownloadContentAssetResponses = {
+    /**
+     * 媒体二进制。
+     */
+    200: Blob | File;
+};
+
+export type DownloadContentAssetResponse = DownloadContentAssetResponses[keyof DownloadContentAssetResponses];

@@ -2466,3 +2466,13 @@ POST /api/analysis/reports/及GET/POST /api/analysis/reports/{id}/接收Analysis
 POST /api/analysis/import/ 支持kind=auto及ecology：ecology仅识别生态观测子类；仅根据原始表头的专业特征唯一识别当前七类表格，返回resolvedKind；未知或歧义需手动选择。明确选错类型且校验不通过时给出正确类型建议，不静默改类。正式入库仍重新识别及校验，不放宽必填规则。
 
 POST /api/omics/import/ 支持multipart重复files字段一次提交2–5个配套文件，与明确用途字段互斥。识别genome/GFF/Protein/RNA/CDS文件名和专用扩展名；重复用途、混合GWH组装、未知用途阻断，无法从通用FASTA推断RNA/CDS时提示使用原始文件名。成功预检查返回matchedFiles；仍复用完整内容解析及配套校验，保留原权限、512MiB/4GiB限制和200预检查/201正式入库响应。
+
+
+## STISP所选优化接口（2026-10-31）
+
+工程列表增加q/limit/offset及total/limit/offset，items改为不含snapshot的WorkspaceSceneSummary；详情端点读取快照，保留原角色权限。工程和出图稿可提交expectedUpdatedAt，原子校验失败返回409。底图瓦片支持purpose=export、basemap、labels，导出缺瓦片返回503，缩略图仍可使用本地占位。Mock: mock/prism/examples/30-catalog-vector.json。实现后使用权限、分页与冲突回归测试验收。
+
+
+### 科普与动态内容维护（091—093、097）
+
+新增 `/api/content/articles/`、`/api/content/articles/{articleId}/`、`/api/content/articles/{articleId}/assets/`、`/api/content/assets/{assetId}/`。全部需要Django会话，读取仅已发布内容；维护复用core.manage_auth。附件暂存24小时、按编辑者隔离，正文revision和附件提交在同一事务中更新，冲突409；不引入项目、计算或知识库服务。内部素材备注仅向内容管理员返回；附件位于 TOML 业务数据根目录的 media/content/ 下，校验真实图片格式与扩展名。前端仅安全Markdown/公式显示。未提交附件过期后不可读取，保留待人工检查，不运行批量清理。Mock：mock/prism/examples/content.json。

@@ -1,3 +1,4 @@
+import AccountCapabilities from "../components/AccountCapabilities";
 import { LockOutlined, UploadOutlined, UserOutlined } from "@ant-design/icons";
 import type { ProDescriptionsItemProps } from "@ant-design/pro-components";
 import { ProCard, ProDescriptions } from "@ant-design/pro-components";
@@ -300,6 +301,7 @@ export default function AdminProfilePage() {
 
   return (
     <div className="admin-page-stack">
+      <AccountCapabilities />
       <ProCard
         title={english ? "Profile" : "个人信息"}
         className="admin-section-card"

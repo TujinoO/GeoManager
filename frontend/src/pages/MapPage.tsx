@@ -1,3 +1,10 @@
+import { selectedMapBasemap, restoreMapBasemap } from "../map/basemapSnapshot";
+import { useUniqueLayerLoad } from "../hooks/useUniqueLayerLoad";
+import { resourceLayerKey } from "../utils/uniqueLoadedLayers";
+import {
+  loadedQueryResources,
+  isQueryableLoadedLayer,
+} from "../utils/spatialQueryTargets";
 import {
   AimOutlined,
   ApartmentOutlined,
@@ -9,7 +16,16 @@ import {
   LeftOutlined,
   RightOutlined,
 } from "@ant-design/icons";
-import { App, Button, ConfigProvider, Layout, Spin, Tabs, Tooltip } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  ConfigProvider,
+  Layout,
+  Spin,
+  Tabs,
+  Tooltip,
+} from "antd";
 import type { LngLatBounds, Map as MapboxMap } from "mapbox-gl";
 import {
   lazy,
@@ -82,7 +98,7 @@ import type {
   RasterJob,
   ResourceVisualizationSummary,
   SpatialFilter,
-  WorkspaceScene,
+  WorkspaceSceneSummary,
 } from "../types";
 import {
   findTaxonomyNode,
@@ -405,6 +421,184 @@ interface LastGeoInsightCache {
 
 let lastGeoInsightCache: LastGeoInsightCache | null = null;
 
+export function mapUrlResourceIds(params: URLSearchParams) {
+  return [
+    ...new Set(
+      (params.get("resources") || params.get("resourceId") || "")
+        .split(",")
+        .filter((value) => /^[1-9]\d*$/.test(value))
+        .map(Number),
+    ),
+  ]
+    .filter(Number.isSafeInteger)
+    .slice(0, 12);
+}
+
+export function useMapUrlResources(options: {
+  params: URLSearchParams;
+  currentProject: string;
+  ready: boolean;
+  loadingResources: boolean;
+  resources: ResourceListItem[];
+  english: boolean;
+  showExisting: (id: number) => Promise<boolean>;
+  load: (resource: ResourceListItem) => Promise<boolean>;
+  onStart: () => void;
+}) {
+  const latest = useRef(options);
+  latest.current = options;
+  const ids = mapUrlResourceIds(options.params);
+  const key = `${options.currentProject}:${ids.join(",")}`;
+  const currentKey = useRef(key);
+  currentKey.current = key;
+  const loaded = useRef(new Set<string>());
+  const attempted = useRef("");
+  const loading = useRef(false);
+  const mounted = useRef(true);
+  const [error, setError] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [completed, setCompleted] = useState<{ key: string; ids: number[] }>({
+    key: "",
+    ids: [],
+  });
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (
+      !ids.length ||
+      !options.ready ||
+      options.loadingResources ||
+      attempted.current === key ||
+      loading.current
+    )
+      return;
+    attempted.current = key;
+    loading.current = true;
+    setError("");
+    options.onStart();
+    void (async () => {
+      const unavailable: string[] = [];
+      for (const id of ids) {
+        if (
+          !mounted.current ||
+          currentKey.current !== key ||
+          !latest.current.ready
+        )
+          break;
+        const resourceKey = `${options.currentProject}:${id}`;
+        if (loaded.current.has(resourceKey)) continue;
+        let resource = latest.current.resources.find(
+          (entry) => entry.id === id,
+        );
+        if (!resource) {
+          try {
+            resource = (await api.resources({})).items.find(
+              (entry) => entry.id === id,
+            );
+          } catch {
+            /* handled as unavailable below */
+          }
+        }
+        if (!resource) {
+          unavailable.push(
+            options.english ? "Unavailable data" : "不可访问的数据",
+          );
+          continue;
+        }
+        if (resource.dataType !== "raster" && !resource.isQueryable) continue;
+        try {
+          if (
+            (await latest.current.showExisting(id)) ||
+            (await latest.current.load(resource))
+          )
+            loaded.current.add(resourceKey);
+          else unavailable.push(resource.name);
+        } catch {
+          unavailable.push(resource.name);
+        }
+      }
+      if (mounted.current && currentKey.current === key && unavailable.length)
+        setError(
+          `${options.english ? "Some layers could not be loaded" : "部分图层未能加载"}：${unavailable.join("、")}`,
+        );
+      if (mounted.current && currentKey.current === key)
+        setCompleted({
+          key,
+          ids: ids.filter((id) =>
+            loaded.current.has(`${options.currentProject}:${id}`),
+          ),
+        });
+    })()
+      .catch((reason) => {
+        if (mounted.current && currentKey.current === key)
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : options.english
+                ? "Failed to load result layers"
+                : "成果图层加载失败",
+          );
+      })
+      .finally(() => {
+        loading.current = false;
+        if (mounted.current && currentKey.current !== key)
+          setRevision((value) => value + 1);
+      });
+  }, [
+    key,
+    revision,
+    options.ready,
+    options.loadingResources,
+    options.resources,
+  ]);
+  const retry = () => {
+    attempted.current = "";
+    setRevision((value) => value + 1);
+  };
+  return {
+    error,
+    retry,
+    loadedResourceIds: completed.key === key ? completed.ids : [],
+  };
+}
+
+export function mapUrlResourceBounds(
+  layers: LoadedLayer[],
+  resourceIds: number[],
+) {
+  if (resourceIds.length < 2) return null;
+  const requested = new Set(resourceIds);
+  const selected = layers.filter((layer) =>
+    requested.has(layer.sourceResource.id),
+  );
+  if (
+    resourceIds.some(
+      (id) => !selected.some((layer) => layer.sourceResource.id === id),
+    )
+  )
+    return null;
+  let bounds = combinedFeatureBounds(
+    selected.flatMap((layer) =>
+      layer.layerType === "vector" ? [layer.geojson] : [],
+    ),
+  );
+  for (const layer of selected) {
+    if (layer.layerType !== "raster" || !layer.imageCoordinates) continue;
+    const extent = boundsFromImageCoordinates(layer.imageCoordinates);
+    if (!extent) continue;
+    if (!bounds) bounds = extent;
+    else {
+      bounds.extend(extent.getSouthWest());
+      bounds.extend(extent.getNorthEast());
+    }
+  }
+  return bounds;
+}
+
 export default function MapPage() {
   const { bootstrap, user } = useAppContext();
   const { message, notification } = App.useApp();
@@ -495,6 +689,7 @@ export default function MapPage() {
   const resourceRequestSequenceRef = useRef(0);
   const resourceProfileRequestSequenceRef = useRef(0);
   const spatialProfileRequestSequenceRef = useRef(0);
+  const spatialQuerySequenceRef = useRef(0);
   const latestResourceFiltersRef = useRef<ResourceFilters>({});
   const loadedSceneIdRef = useRef<number | null>(null);
   const loadedCompositionIdRef = useRef<number | null>(null);
@@ -524,6 +719,27 @@ export default function MapPage() {
   }, [searchParams, selectedCategoryCode]);
 
   const layerGroups = useLayerGroups(user ? `user-${user.id}` : "anonymous");
+  const uniqueLayerLoad = useUniqueLayerLoad({
+    scope: String(user?.id ?? "anonymous"),
+    groups: layerGroups.groups,
+    onExisting: async (group, layer) => {
+      layerGroups.setGroupVisibility(group.id, true);
+      layerGroups.setLayerVisibility(group.id, layer.id, true);
+      setSelectedLayerId(layer.id);
+      setActiveLeftPanel("layers");
+      await locateLayer(group.id, layer.id);
+      message.info(
+        english
+          ? "This data is already loaded; showing the existing layer"
+          : "该数据已加载，已定位现有图层",
+      );
+    },
+    onLoading: () => {
+      message.info(
+        english ? "This data is already loading" : "该数据正在加载，请稍候",
+      );
+    },
+  });
   const { prepareRasterLayer, startRasterRender, setMapInstance } =
     useRasterRender(layerGroups.updateRasterLayer);
   const permissionDeniedMessage = english
@@ -540,6 +756,8 @@ export default function MapPage() {
   }, []);
   const {
     workspaceScenes,
+    workspaceTotal,
+    workspaceQuery,
     workspaceAccessGroups,
     loadWorkspaceScenes,
     loadWorkspaceScene,
@@ -574,6 +792,38 @@ export default function MapPage() {
     () => layerGroups.groups.flatMap((group) => group.children),
     [layerGroups.groups],
   );
+  const spatialQueryResources = useMemo(
+    () => loadedQueryResources(allLayers),
+    [allLayers],
+  );
+  const spatialQueryResourcesRef = useRef(spatialQueryResources);
+  spatialQueryResourcesRef.current = spatialQueryResources;
+  useEffect(() => {
+    const resourceRemoved =
+      spatialTargetResource &&
+      !spatialQueryResources.some(
+        (resource) => resource.id === spatialTargetResource.id,
+      );
+    const layerRemoved =
+      spatialTargetLayerId &&
+      !allLayers.some(
+        (layer) =>
+          layer.id === spatialTargetLayerId && isQueryableLoadedLayer(layer),
+      );
+    if (resourceRemoved) {
+      spatialProfileRequestSequenceRef.current += 1;
+      setSpatialTargetResource(null);
+      setSpatialTargetResourceProfile(null);
+      setLoadingSpatialTargetProfile(false);
+    }
+    if (layerRemoved) setSpatialTargetLayerId(null);
+    if (resourceRemoved || layerRemoved) clearSpatialQueryState();
+  }, [
+    allLayers,
+    spatialQueryResources,
+    spatialTargetResource,
+    spatialTargetLayerId,
+  ]);
   const compositionSourceText = useMemo(() => {
     const sources = new Set(
       allLayers
@@ -1103,6 +1353,20 @@ export default function MapPage() {
     resource: ResourceListItem,
     reportProgress: DataResourceLoadReporter = () => undefined,
   ) {
+    if (
+      await uniqueLayerLoad.showExisting(
+        resourceLayerKey({
+          sourceResource: resource,
+          layerType: resource.dataType === "raster" ? "raster" : "vector",
+        }),
+      )
+    ) {
+      reportProgress({
+        percent: 100,
+        message: english ? "Showing existing layer" : "已定位现有图层",
+      });
+      return true;
+    }
     reportProgress({
       percent: 8,
       message: english
@@ -1111,11 +1375,10 @@ export default function MapPage() {
     });
     const profile = await fetchResourceProfile(resource);
     if (!profile) {
-      return;
+      return false;
     }
     if (resource.isRenderable && resource.dataType === "raster") {
-      await loadRasterResource(resource, profile, reportProgress);
-      return;
+      return await loadRasterResource(resource, profile, reportProgress);
     }
     if (resource.isQueryable) {
       reportProgress({
@@ -1124,14 +1387,66 @@ export default function MapPage() {
           ? "Querying and building vector layer"
           : "正在查询并构建矢量图层",
       });
-      await loadVectorResource(resource, profile, [], {
+      return await loadVectorResource(resource, profile, [], {
         spatialFilter: null,
-        errorMessage: english ? "Quick load failed" : "快速加载失败",
+        errorMessage: english ? "Load failed" : "加载失败",
         trackQuerying: false,
         reportProgress,
       });
     }
+    return false;
   }
+
+  const quickLoadResourceRef = useRef(handleQuickLoadResource);
+  quickLoadResourceRef.current = handleQuickLoadResource;
+  const urlResources = useMapUrlResources({
+    params: searchParams,
+    currentProject: String(user?.id ?? "anonymous"),
+    ready: Boolean(mapObject),
+    loadingResources,
+    resources,
+    english,
+    onStart: () => {
+      setActiveLeftPanel("layers");
+      setMobileMapPanel("map");
+    },
+    load: async (resource) =>
+      (await quickLoadResourceRef.current(resource)) === true,
+    showExisting: async (id) => {
+      const group = layerGroups.groups.find((entry) =>
+        entry.children.some((layer) => layer.sourceResource.id === id),
+      );
+      const layer = group?.children.find(
+        (entry) => entry.sourceResource.id === id,
+      );
+      if (!group || !layer) return false;
+      layerGroups.setGroupVisibility(group.id, true);
+      layerGroups.setLayerVisibility(group.id, layer.id, true);
+      setSelectedLayerId(layer.id);
+      await locateLayer(group.id, layer.id);
+      return true;
+    },
+  });
+  const fittedUrlResources = useRef("");
+  useEffect(() => {
+    if (!mapObject || urlResources.loadedResourceIds.length < 2) return;
+    const fitKey = `${user?.id ?? "anonymous"}:${urlResources.loadedResourceIds.join(",")}`;
+    if (fittedUrlResources.current === fitKey) return;
+    const bounds = mapUrlResourceBounds(
+      layerGroups.groups.flatMap((group) => group.children),
+      urlResources.loadedResourceIds,
+    );
+    if (!bounds) return;
+    let disposed = false;
+    void mapFitBoundsOptions(mapObject).then((options) => {
+      if (disposed) return;
+      fittedUrlResources.current = fitKey;
+      mapObject.fitBounds(bounds, options);
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [mapObject, layerGroups.groups, urlResources.loadedResourceIds]);
 
   async function handleLoadRaster(reportProgress: DataResourceLoadReporter) {
     if (!permissions.canLoadRasterLayer) {
@@ -1156,8 +1471,19 @@ export default function MapPage() {
   ) {
     if (!permissions.canLoadRasterLayer) {
       message.warning(permissionDeniedMessage);
-      return;
+      return false;
     }
+    return uniqueLayerLoad.load(
+      resourceLayerKey({ sourceResource: resource, layerType: "raster" }),
+      async () => loadNewRasterResource(resource, profile, reportProgress),
+    );
+  }
+
+  async function loadNewRasterResource(
+    resource: DataResource,
+    profile: DataResourceProfile,
+    reportProgress: DataResourceLoadReporter,
+  ) {
     const group = createRasterLayerGroup(resource, profile);
     if (!group) {
       message.error(
@@ -1165,7 +1491,7 @@ export default function MapPage() {
           ? "Raster metadata is incomplete and cannot be loaded"
           : "栅格元信息不完整，无法加载",
       );
-      return;
+      return false;
     }
     const pendingLayer = group.children[0] as LoadedRasterLayer;
     reportProgress({
@@ -1180,7 +1506,7 @@ export default function MapPage() {
         reportProgress(rasterDataLoadProgress(job, english));
       });
     } catch (error) {
-      if (isAbortError(error)) return;
+      if (isAbortError(error)) return false;
       message.error(
         error instanceof Error
           ? error.message
@@ -1188,7 +1514,7 @@ export default function MapPage() {
             ? "Failed to load raster"
             : "栅格加载失败",
       );
-      return;
+      return false;
     }
     reportProgress({
       percent: 98,
@@ -1213,6 +1539,7 @@ export default function MapPage() {
         ? "Raster imagery loaded on the 3D globe"
         : "栅格影像已加载到三维地球",
     });
+    return true;
   }
 
   async function loadVectorResource(
@@ -1228,8 +1555,30 @@ export default function MapPage() {
   ) {
     if (!permissions.canQueryData || !permissions.canLoadVectorLayer) {
       message.warning(permissionDeniedMessage);
-      return;
+      return false;
     }
+    return uniqueLayerLoad.load(
+      resourceLayerKey({
+        sourceResource: resource,
+        layerType: "vector",
+        query: { attributeFilters, spatialFilter: options.spatialFilter },
+      }),
+      async () =>
+        loadNewVectorResource(resource, profile, attributeFilters, options),
+    );
+  }
+
+  async function loadNewVectorResource(
+    resource: ResourceListItem,
+    profile: DataResourceProfile,
+    attributeFilters: AttributeFilter[],
+    options: {
+      spatialFilter: SpatialFilter | null;
+      errorMessage: string;
+      trackQuerying?: boolean;
+      reportProgress?: DataResourceLoadReporter;
+    },
+  ) {
     const trackQuerying = options.trackQuerying !== false;
     if (trackQuerying) setQuerying(true);
     try {
@@ -1250,7 +1599,7 @@ export default function MapPage() {
         : `查询命中 ${result.totalCount} 条，返回 ${result.returnedCount} 条`;
       if (result.returnedCount === 0) {
         message.warning(resultMessage);
-        return;
+        return false;
       }
       const group = createVectorLayerGroup(resource, profile, result, {
         attributeFilters,
@@ -1258,6 +1607,19 @@ export default function MapPage() {
       });
       layerGroups.addGroup(group);
       setSelectedLayerId(group.children[0]?.id ?? null);
+      const map = mapInstanceRef.current;
+      if (map) {
+        void mapFitBoundsOptions(map).then((fitOptions) => {
+          if (mapInstanceRef.current !== map) return;
+          fitGeojsonBounds(
+            map,
+            result.geojson,
+            bootstrap.map.defaultCenter,
+            bootstrap.map.defaultZoom,
+            fitOptions,
+          );
+        });
+      }
       options.reportProgress?.({
         percent: 100,
         message: english
@@ -1265,10 +1627,12 @@ export default function MapPage() {
           : "矢量数据已加载到三维地球",
       });
       message.success(resultMessage);
+      return true;
     } catch (error) {
       message.error(
         error instanceof Error ? error.message : options.errorMessage,
       );
+      return false;
     } finally {
       if (trackQuerying) setQuerying(false);
     }
@@ -1637,6 +2001,8 @@ export default function MapPage() {
   }
 
   function clearSpatialQueryState() {
+    spatialQuerySequenceRef.current += 1;
+    setSpatialQuerying(false);
     setSpatialQueryData(null);
     setSpatialQueryContext(null);
     setSpatialQueryResult(null);
@@ -1645,16 +2011,20 @@ export default function MapPage() {
   async function handleSelectSpatialTargetResource(resourceId: number | null) {
     clearSpatialQueryState();
     if (resourceId === null) {
+      spatialProfileRequestSequenceRef.current += 1;
+      setLoadingSpatialTargetProfile(false);
       setSpatialTargetResource(null);
       setSpatialTargetResourceProfile(null);
       return;
     }
-    const resource = resources.find((item) => item.id === resourceId);
+    const resource = spatialQueryResources.find(
+      (item) => item.id === resourceId,
+    );
     if (!resource) {
       message.warning(
         english
-          ? "The resource was not found in the current list"
-          : "当前资源列表中没有找到该资源",
+          ? "Load a queryable vector resource into the layer tree first"
+          : "请先将可查询的矢量资源加载到图层树",
       );
       return;
     }
@@ -1694,7 +2064,12 @@ export default function MapPage() {
       spatialFilter: queryFilter,
     };
     if (target === "selectedResource") {
-      if (!spatialTargetResource) {
+      if (
+        !spatialTargetResource ||
+        !spatialQueryResources.some(
+          (resource) => resource.id === spatialTargetResource.id,
+        )
+      ) {
         message.warning(
           english
             ? "Select a resource in the spatial query workspace first"
@@ -1771,19 +2146,33 @@ export default function MapPage() {
       return;
     }
 
+    const sequence = ++spatialQuerySequenceRef.current;
     setSpatialQuerying(true);
     setSpatialQueryData(null);
     setSpatialQueryContext(null);
     setSpatialQueryResult(null);
     try {
       const context = await resolveSpatialQueryContext(target, spatialFilter);
-      if (!context) {
+      if (
+        !context ||
+        sequence !== spatialQuerySequenceRef.current ||
+        !spatialQueryResourcesRef.current.some(
+          (resource) => resource.id === context.resource.id,
+        )
+      ) {
         return;
       }
       const result = await api.queryResource(context.resource, {
         ...context.query,
         limit: bootstrap.limits.queryResultLimit,
       });
+      if (
+        sequence !== spatialQuerySequenceRef.current ||
+        !spatialQueryResourcesRef.current.some(
+          (resource) => resource.id === context.resource.id,
+        )
+      )
+        return;
       showGeojsonWarnings(notification, result.warnings);
       setSpatialQueryData(result);
       setSpatialQueryContext(context);
@@ -1812,6 +2201,7 @@ export default function MapPage() {
         message.success(resultMessage);
       }
     } catch (error) {
+      if (sequence !== spatialQuerySequenceRef.current) return;
       message.error(
         error instanceof Error
           ? error.message
@@ -1820,7 +2210,8 @@ export default function MapPage() {
             : "空间查询执行失败",
       );
     } finally {
-      setSpatialQuerying(false);
+      if (sequence === spatialQuerySequenceRef.current)
+        setSpatialQuerying(false);
     }
   }
 
@@ -1888,16 +2279,9 @@ export default function MapPage() {
   }
 
   function handleLoadSpatialResult() {
-    if (spatialQueryResult?.loadedLayerName) {
-      message.info(
-        english
-          ? "Spatial query results are already loaded as a layer"
-          : "空间查询结果已加载为图层",
-      );
-      return;
-    }
     const group = createSpatialResultGroup();
-    if (!group) {
+    const layer = group?.children[0];
+    if (!group || !layer) {
       message.warning(
         english
           ? "No spatial query results are available to load"
@@ -1905,16 +2289,19 @@ export default function MapPage() {
       );
       return;
     }
-    layerGroups.addGroup(group);
-    setSelectedLayerId(group.children[0]?.id ?? null);
-    setSpatialQueryResult((current) =>
-      current ? { ...current, loadedLayerName: group.name } : current,
-    );
-    message.success(
-      english
-        ? "Spatial query results loaded as a layer"
-        : "空间查询结果已加载为图层",
-    );
+    void uniqueLayerLoad.load(resourceLayerKey(layer), async () => {
+      layerGroups.addGroup(group);
+      setSelectedLayerId(group.children[0]?.id ?? null);
+      setSpatialQueryResult((current) =>
+        current ? { ...current, loadedLayerName: group.name } : current,
+      );
+      message.success(
+        english
+          ? "Spatial query results loaded as a layer"
+          : "空间查询结果已加载为图层",
+      );
+      return true;
+    });
   }
 
   async function handleLocateSpatialResult() {
@@ -2090,14 +2477,14 @@ export default function MapPage() {
   };
 
   const handleCreateMapComposition = useCallback(
-    async (scene: WorkspaceScene) => {
+    async (scene: WorkspaceSceneSummary) => {
       if (!permissions.canCreateMapCompositions) {
         message.warning(permissionDeniedMessage);
         return;
       }
       try {
         await loadWorkspaceScene(scene);
-        const snapshot = scene.snapshot as {
+        const snapshot = (await api.workspace(scene.id)).snapshot as {
           mapView?: { bounds?: unknown } | null;
         };
         const bounds = boundsFromUnknown(
@@ -2120,11 +2507,10 @@ export default function MapPage() {
             : `${baseName}（${suffix}）`;
           suffix += 1;
         }
-        const created = await mapCompositions.create(
-          scene.id,
-          name,
-          defaultCompositionLayout(name, bounds, compositionSourceText),
-        );
+        const created = await mapCompositions.create(scene.id, name, {
+          ...defaultCompositionLayout(name, bounds, compositionSourceText),
+          basemapId: selectedMapBasemap(mapInstanceRef.current),
+        });
         setEditingComposition(created);
         setActiveLeftPanel("topics");
         message.success(
@@ -2159,6 +2545,9 @@ export default function MapPage() {
           workspaceScenes.find((scene) => scene.id === composition.projectId) ??
           (await api.workspace(composition.projectId));
         await loadWorkspaceScene(project);
+        const basemapId = composition.layout.basemapId;
+        if (mapInstanceRef.current && typeof basemapId === "string")
+          await restoreMapBasemap(mapInstanceRef.current, basemapId);
         setEditingComposition(composition);
       } catch (error) {
         message.error(
@@ -2227,7 +2616,7 @@ export default function MapPage() {
   );
 
   const handleRestoredMapCompositionProject = useCallback(
-    async (project: WorkspaceScene) => {
+    async (project: WorkspaceSceneSummary) => {
       await loadWorkspaceScenes();
       await loadWorkspaceScene(project);
       setActiveLeftPanel("projects");
@@ -2249,7 +2638,9 @@ export default function MapPage() {
       searchKeyword={resourceSearchKeyword}
       onFilterResources={loadResources}
       onSelectResource={handleSelectResource}
-      onQuickLoadResource={handleQuickLoadResource}
+      onQuickLoadResource={async (resource, reportProgress) => {
+        await handleQuickLoadResource(resource, reportProgress);
+      }}
       onQueryAndLoad={handleQueryAndLoad}
       onLoadRaster={handleLoadRaster}
     />
@@ -2351,6 +2742,29 @@ export default function MapPage() {
           />
         </Tooltip>
         <main className="map-stage">
+          {urlResources.error && (
+            <div
+              style={{
+                position: "absolute",
+                top: 16,
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 8,
+                width: "min(520px, 90%)",
+              }}
+            >
+              <Alert
+                type="warning"
+                title={urlResources.error}
+                action={
+                  <Button size="small" onClick={urlResources.retry}>
+                    {english ? "Retry" : "重试加载"}
+                  </Button>
+                }
+              />
+            </div>
+          )}
+
           <Suspense
             fallback={
               <div className="map-canvas-loading">
@@ -2423,6 +2837,9 @@ export default function MapPage() {
                     children: (
                       <WorkspaceScenePanel
                         kind="project"
+                        total={workspaceTotal}
+                        query={workspaceQuery}
+                        onQuery={loadWorkspaceScenes}
                         items={workspaceScenes.filter(
                           (scene) => scene.kind === "project",
                         )}
@@ -2481,19 +2898,21 @@ export default function MapPage() {
           aria-label={english ? "Feature information panel" : "要素信息面板"}
         >
           <ConfigProvider theme={workspacePanelTheme}>
-            <RightSidePanel
-              selectedFeature={rightPanelSelectedFeature}
-              selectedResource={rightPanelSelectedResource}
-              selectedResourceProfile={rightPanelSelectedResourceProfile}
-              selectedLayer={rightPanelSelectedLayer}
-              visualizationSummary={rightPanelVisualizationSummary}
-              visualizationSummaryLoading={
-                rightPanelVisualizationSummaryLoading
-              }
-              visualizationSummaryError={visualizationSummaryError}
-              currentView={currentMapView}
-              mapConfig={bootstrap.map}
-            />
+            <LayerContext.Provider value={layerContextValue}>
+              <RightSidePanel
+                selectedFeature={rightPanelSelectedFeature}
+                selectedResource={rightPanelSelectedResource}
+                selectedResourceProfile={rightPanelSelectedResourceProfile}
+                selectedLayer={rightPanelSelectedLayer}
+                visualizationSummary={rightPanelVisualizationSummary}
+                visualizationSummaryLoading={
+                  rightPanelVisualizationSummaryLoading
+                }
+                visualizationSummaryError={visualizationSummaryError}
+                currentView={currentMapView}
+                mapConfig={bootstrap.map}
+              />
+            </LayerContext.Provider>
           </ConfigProvider>
         </aside>
         <aside
@@ -2529,7 +2948,7 @@ export default function MapPage() {
                   />
                 </Tooltip>
                 <SpatialQueryWorkbench
-                  resources={resources}
+                  resources={spatialQueryResources}
                   layers={allLayers}
                   selectedResource={spatialTargetResource}
                   selectedResourceProfile={spatialTargetResourceProfile}
@@ -2606,6 +3025,7 @@ export default function MapPage() {
             layerGroups.groups,
             selectedLayerId,
             currentMapView,
+            selectedMapBasemap(mapObject),
           )}
           fallbackBounds={compositionFallbackBounds}
           sourceText={compositionSourceText}

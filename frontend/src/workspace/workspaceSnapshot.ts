@@ -12,9 +12,11 @@ export function workspaceSnapshot(
   groups: LoadedLayerGroup[],
   selectedLayerId: string | null,
   mapView: MapViewState | null,
+  basemapId?: import("../map/basemapCatalog").BasemapId,
 ): WorkspaceSceneSnapshot {
   return {
     version: 2,
+    ...(basemapId ? { basemapId } : {}),
     groups: groups.map(toSavedWorkspaceGroup),
     selectedLayerId,
     mapView,

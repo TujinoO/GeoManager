@@ -1,5 +1,8 @@
 import type { Map as MapboxMap } from "mapbox-gl";
-import { exportMapRangeImage } from "../map/mapExport";
+import {
+  createMapRangeExportPlan,
+  exportMapRangeImage,
+} from "../map/mapExport";
 import type { GeoJsonGeometry } from "../types";
 import type { MapBounds } from "./layout";
 
@@ -10,6 +13,7 @@ export async function renderBoundsImage(
   targetHeight: number,
   accessToken?: string,
   signal?: AbortSignal,
+  basemapId?: import("../map/basemapCatalog").BasemapId,
 ): Promise<ImageBitmap> {
   const tileZoom = tileZoomForTarget(bounds, targetWidth, targetHeight);
   const blob = await exportMapRangeImage(map, boundsGeometry(bounds), {
@@ -17,10 +21,25 @@ export async function renderBoundsImage(
     tileZoom,
     format: "png",
     targetAspect: targetWidth / Math.max(1, targetHeight),
+    renderSize: { width: targetWidth, height: targetHeight },
     accessToken,
     signal,
+    basemapId,
   });
   return createImageBitmap(blob);
+}
+
+export function boundsImagePlan(
+  bounds: MapBounds,
+  width: number,
+  height: number,
+) {
+  return createMapRangeExportPlan(boundsGeometry(bounds), {
+    dpi: 96,
+    tileZoom: tileZoomForTarget(bounds, width, height),
+    targetAspect: width / height,
+    renderSize: { width, height },
+  });
 }
 
 export function fitOverviewBounds(

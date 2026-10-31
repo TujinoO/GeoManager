@@ -73,6 +73,7 @@ import type {
   ResourceField,
   ResourceListItem,
   ResourceVisualizationSummary,
+  WorkspaceSceneSummary,
 } from "../types";
 import { createEmptyLayerGroup } from "../utils/layerFactory";
 import { resourceExportId } from "../utils/resources";
@@ -114,6 +115,34 @@ export default function LayerPanel() {
   const [saveMode, setSaveMode] = useState<"create" | "update">("create");
   const [saveOpen, setSaveOpen] = useState(false);
   const [savingWorkspace, setSavingWorkspace] = useState(false);
+  const [saveSearch, setSaveSearch] = useState("");
+  const [saveCandidates, setSaveCandidates] = useState<WorkspaceSceneSummary[]>(
+    [],
+  );
+  const [saveCandidateTotal, setSaveCandidateTotal] = useState(0);
+  const saveSearchSequence = useRef(0);
+  const savePagePending = useRef<string | null>(null);
+  useEffect(() => {
+    if (!saveOpen) return;
+    const sequence = ++saveSearchSequence.current;
+    const timer = setTimeout(() => {
+      void api
+        .workspaces({ q: saveSearch, limit: 100 })
+        .then((result) => {
+          if (sequence !== saveSearchSequence.current) return;
+          setSaveCandidates(result.items);
+          setSaveCandidateTotal(result.total);
+        })
+        .catch((error) => {
+          if (sequence === saveSearchSequence.current)
+            message.error(error.message);
+        });
+    }, 200);
+    return () => {
+      clearTimeout(timer);
+      saveSearchSequence.current += 1;
+    };
+  }, [saveOpen, saveSearch, message]);
   const groupDragFrameRef = useRef<number | null>(null);
   const groupDragPendingRef = useRef<{
     element: HTMLElement;
@@ -129,8 +158,16 @@ export default function LayerPanel() {
   } | null>(null);
   const selectedSaveTargetId = Form.useWatch("targetId", saveForm);
   const saveTargetScenes = useMemo(
-    () => ctx.workspaceScenes.filter((scene) => scene.canEdit),
-    [ctx.workspaceScenes],
+    () =>
+      [
+        ...new Map(
+          (saveSearch
+            ? saveCandidates
+            : [...ctx.workspaceScenes, ...saveCandidates]
+          ).map((scene) => [scene.id, scene]),
+        ).values(),
+      ].filter((scene) => scene.canEdit),
+    [ctx.workspaceScenes, saveCandidates, saveSearch],
   );
   const selectedSaveTarget = useMemo(
     () => saveTargetScenes.find((scene) => scene.id === selectedSaveTargetId),
@@ -310,6 +347,7 @@ export default function LayerPanel() {
         saveMode === "update" && targetScene
           ? {
               targetId: targetScene.id,
+              expectedUpdatedAt: values.expectedUpdatedAt,
               name: targetScene.name,
               description: targetScene.description,
               accessGroupIds: values.accessGroupIds ?? [],
@@ -716,6 +754,9 @@ export default function LayerPanel() {
         destroyOnHidden
       >
         <Form form={saveForm} layout="vertical">
+          <Form.Item name="expectedUpdatedAt" hidden>
+            <Input />
+          </Form.Item>
           <Form.Item label={t("layerPanel.saveMode")}>
             <Segmented
               block
@@ -743,6 +784,7 @@ export default function LayerPanel() {
                 const firstScene = saveTargetScenes[0];
                 saveForm.setFieldsValue({
                   targetId: firstScene?.id,
+                  expectedUpdatedAt: firstScene?.updatedAt,
                   name: firstScene?.name ?? "",
                   description: firstScene?.description ?? "",
                   accessGroupIds:
@@ -761,6 +803,47 @@ export default function LayerPanel() {
                 ]}
               >
                 <Select
+                  showSearch
+                  filterOption={false}
+                  onSearch={setSaveSearch}
+                  onPopupScroll={(event) => {
+                    const element = event.target as HTMLElement;
+                    if (
+                      element.scrollTop + element.clientHeight <
+                        element.scrollHeight - 12 ||
+                      saveCandidates.length >= saveCandidateTotal
+                    )
+                      return;
+                    const sequence = saveSearchSequence.current;
+                    const pageKey = `${sequence}:${saveCandidates.length}`;
+                    if (savePagePending.current === pageKey) return;
+                    savePagePending.current = pageKey;
+                    void api
+                      .workspaces({
+                        q: saveSearch,
+                        limit: 100,
+                        offset: saveCandidates.length,
+                      })
+                      .then((result) => {
+                        if (sequence === saveSearchSequence.current)
+                          setSaveCandidates((current) => [
+                            ...new Map(
+                              [...current, ...result.items].map((scene) => [
+                                scene.id,
+                                scene,
+                              ]),
+                            ).values(),
+                          ]);
+                      })
+                      .catch((error) => {
+                        if (sequence === saveSearchSequence.current)
+                          message.error(error.message);
+                      })
+                      .finally(() => {
+                        if (savePagePending.current === pageKey)
+                          savePagePending.current = null;
+                      });
+                  }}
                   placeholder={t("layerPanel.overwritePlaceholder")}
                   options={saveTargetScenes.map((scene) => ({
                     value: scene.id,
@@ -772,6 +855,7 @@ export default function LayerPanel() {
                     );
                     saveForm.setFieldsValue({
                       name: scene?.name ?? "",
+                      expectedUpdatedAt: scene?.updatedAt,
                       description: scene?.description ?? "",
                       accessGroupIds:
                         scene?.accessGroups.map((group) => group.id) ?? [],
@@ -851,6 +935,7 @@ function LayerTooltip({
 }
 
 interface SaveWorkspaceFormValues {
+  expectedUpdatedAt?: string;
   targetId?: number;
   name: string;
   description?: string;

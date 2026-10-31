@@ -350,7 +350,7 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
 }
 
-async function requestJson<T>(
+export async function requestJson<T>(
   url: string,
   options: {
     method?: string;
@@ -386,7 +386,7 @@ interface FormRequestOptions {
   onUploadProgress?: (percent: number) => void;
 }
 
-async function requestForm<T>(
+export async function requestForm<T>(
   url: string,
   formData: FormData,
   options: FormRequestOptions = {},
@@ -733,9 +733,14 @@ export const api = {
     unwrap<ListResponse<ResourceListItem> & { count: number }>(
       sdk.scanCatalogSources(),
     ),
-  workspaces: (kind?: WorkspaceSceneKind) =>
+  workspaces: (query?: {
+    kind?: WorkspaceSceneKind;
+    q?: string;
+    limit?: number;
+    offset?: number;
+  }) =>
     unwrap<WorkspaceSceneListResponse>(
-      sdk.listCatalogWorkspaces({ query: kind ? { kind } : {} }),
+      sdk.listCatalogWorkspaces({ query: query ?? {} }),
     ),
   createWorkspace: (payload: WorkspaceSceneCreateRequest) =>
     unwrap<WorkspaceScene>(sdk.createCatalogWorkspace({ body: payload })),

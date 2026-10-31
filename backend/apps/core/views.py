@@ -14,7 +14,7 @@ from apps.core.config import (
     load_runtime_config_document,
     sanitized_public_map_credentials,
 )
-from apps.core.map_thumbnail import thumbnail_tile
+from apps.core.map_thumbnail import ThumbnailTileError, thumbnail_tile
 from apps.core.models import SystemSetting
 from apps.core.localization import localized
 from apps.core.platform_brand import (
@@ -134,10 +134,38 @@ def health(request):
 
 @require_GET
 def map_thumbnail_tile(request, z: int, x: int, y: int):
+    purpose = request.GET.get("purpose", "thumbnail")
+    if purpose not in {"thumbnail", "export"}:
+        return JsonResponse(
+            {"detail": "purpose 必须为 thumbnail 或 export"}, status=400
+        )
     try:
-        data, content_type, is_fallback = thumbnail_tile(z, x, y)
+        data, content_type, is_fallback = thumbnail_tile(
+            z,
+            x,
+            y,
+            allow_fallback=purpose == "thumbnail",
+            **(
+                {
+                    "basemap": request.GET["basemap"],
+                    "labels": request.GET.get("labels") == "1",
+                }
+                if "basemap" in request.GET
+                else {}
+            ),
+        )
     except ValueError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
+    except ThumbnailTileError:
+        response = JsonResponse(
+            {
+                "detail": "制图底图服务暂时不可用，请稍后重试或检查服务器到 Mapbox/OSM 的网络连接"
+            },
+            status=503,
+        )
+        response["Cache-Control"] = "no-store"
+        response["Retry-After"] = "2"
+        return response
 
     response = HttpResponse(data, content_type=content_type)
     response["Cache-Control"] = (

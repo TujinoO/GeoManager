@@ -13,6 +13,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Max, Q
 from django.http import FileResponse, JsonResponse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 from PIL import Image, UnidentifiedImageError
 
@@ -196,10 +197,23 @@ def map_composition_detail(request, composition_id: int):
         return values
     if not values:
         return JsonResponse({"detail": "没有可更新的出图稿字段"}, status=400)
-    for key, value in values.items():
-        setattr(composition, key, value)
+    expected = payload.get("expectedUpdatedAt")
+    if expected is not None:
+        try:
+            expected = parse_datetime(expected) if isinstance(expected, str) else None
+        except ValueError:
+            expected = None
+        if expected is None:
+            return JsonResponse({"detail": "expectedUpdatedAt 无效"}, status=400)
     try:
-        composition.save(update_fields=[*values.keys(), "updated_at"])
+        target = MapComposition.objects.filter(pk=composition.pk)
+        if expected is not None:
+            target = target.filter(updated_at=expected)
+        if not target.update(**values, updated_at=timezone.now()):
+            return JsonResponse(
+                {"detail": "出图稿已被其他编辑更新，请刷新后重试"}, status=409
+            )
+        composition.refresh_from_db()
     except IntegrityError:
         return JsonResponse({"detail": "该工程下已存在同名出图稿"}, status=409)
     log_operation(

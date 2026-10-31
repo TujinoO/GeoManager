@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import type { LoadedLayerGroup } from "../types";
+import { uniqueLoadedLayerGroups } from "../utils/uniqueLoadedLayers";
 import { createLayerWorkspaceFingerprint } from "../utils/layerWorkspaceCacheBudget";
 import {
   readCachedLayerGroups,
@@ -65,7 +66,7 @@ export function useCachedLayerGroups(
 
   const persistLatestGroups = useCallback(() => {
     if (!storageHydratedRef.current) return;
-    const currentGroups = latestGroupsRef.current;
+    const currentGroups = uniqueLoadedLayerGroups(latestGroupsRef.current);
     if (lastSkippedGroupsRef.current === currentGroups) {
       return;
     }
@@ -115,7 +116,9 @@ export function useCachedLayerGroups(
 
     async function hydrateCachedGroups() {
       try {
-        const cachedGroups = await readCachedLayerGroups(cacheKey);
+        const cachedGroups = uniqueLoadedLayerGroups(
+          await readCachedLayerGroups(cacheKey),
+        );
         if (cancelled) return;
         if (!localChangeBeforeHydrationRef.current) {
           const fingerprint = createLayerWorkspaceFingerprint(
@@ -183,7 +186,10 @@ export function useCachedLayerGroups(
       }
       setGroupsState((current) => {
         const next = typeof value === "function" ? value(current) : value;
-        rememberCachedLayerGroups(latestCacheKeyRef.current, next);
+        rememberCachedLayerGroups(
+          latestCacheKeyRef.current,
+          uniqueLoadedLayerGroups(next),
+        );
         return next;
       });
     },

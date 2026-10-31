@@ -113,13 +113,16 @@ describe("mapExport", () => {
     expect(style.sources).toHaveProperty("map-export-platform-basemap");
     expect(style.sources?.["map-export-platform-basemap"]).toMatchObject({
       type: "raster",
-      tiles: ["/api/map/thumbnail-tiles/{z}/{x}/{y}.png"],
+      tiles: [
+        "/api/map/thumbnail-tiles/{z}/{x}/{y}.png?purpose=export&basemap=mapbox-satellite",
+      ],
       tileSize: 256,
-      maxzoom: 12,
+      maxzoom: 22,
     });
     expect(style.layers[1]).toMatchObject({
       id: "map-export-platform-basemap",
       paint: {
+        "raster-fade-duration": 0,
         "raster-saturation": -0.55,
         "raster-contrast": -0.1,
       },
@@ -132,7 +135,7 @@ describe("mapExport", () => {
     ]);
   });
 
-  it("replaces Tianditu sources with the platform export basemap", () => {
+  it("proxies Tianditu imagery and labels without changing provider", () => {
     const style = createExportStyle({
       version: 8,
       sources: {
@@ -176,6 +179,7 @@ describe("mapExport", () => {
     expect(style.layers.map((layer) => layer.id)).toEqual([
       "map-export-background",
       "map-export-platform-basemap",
+      "map-export-platform-basemap-labels",
       "loaded-vector-fill",
     ]);
   });
@@ -211,7 +215,7 @@ describe("mapExport", () => {
             id: "loaded-raster-raster",
             type: "raster",
             source: "loaded-raster",
-            maxzoom: 12,
+            maxzoom: 22,
           },
         ],
       },

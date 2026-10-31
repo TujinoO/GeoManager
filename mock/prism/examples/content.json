@@ -1,0 +1,9 @@
+{
+  "GET /api/content/articles/": {
+    "200": {
+      "items": [],
+      "total": 0,
+      "canEdit": false
+    }
+  }
+}

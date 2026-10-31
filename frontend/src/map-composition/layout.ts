@@ -30,6 +30,8 @@ export function defaultCompositionLayout(
   const boxes = standardCompositionBoxes(297, 210, "landscape");
   return {
     version: 1,
+    editor: { order: [], locked: [] },
+    extraTexts: [],
     page: {
       preset: "A4",
       orientation: "landscape",
@@ -102,7 +104,7 @@ export function defaultCompositionLayout(
     },
     note: {
       enabled: true,
-      text: `制图说明：WebGIS 平台专题制图 · ${new Date().toLocaleDateString("zh-CN")}`,
+      text: `制图说明：WebGIS 平台专题制图 ${new Date().toLocaleDateString("zh-CN")}`,
       ...boxes.note,
       fontSizePt: 7,
       color: "#475569",
@@ -147,6 +149,43 @@ export function normalizeCompositionLayout(
   if (!isRecord(raw)) return fallback;
   const merged = structuredClone(fallback);
   mergeKnown(merged, raw);
+  if (
+    typeof raw.basemapId === "string" &&
+    [
+      "mapbox-satellite",
+      "mapbox-streets",
+      "tianditu-vector",
+      "tianditu-imagery",
+      "osm",
+    ].includes(raw.basemapId)
+  ) {
+    merged.basemapId = raw.basemapId as MapCompositionLayout["basemapId"];
+  }
+  merged.editor.order = Array.isArray(merged.editor.order)
+    ? merged.editor.order.filter((id) => typeof id === "string")
+    : [];
+  merged.editor.locked = Array.isArray(merged.editor.locked)
+    ? merged.editor.locked.filter((id) => typeof id === "string")
+    : [];
+  const seen = new Set<string>();
+  merged.extraTexts = (Array.isArray(raw.extraTexts) ? raw.extraTexts : [])
+    .slice(0, 100)
+    .filter((item) => {
+      if (
+        !isRecord(item) ||
+        typeof item.id !== "string" ||
+        !item.id.startsWith("text-") ||
+        seen.has(item.id)
+      )
+        return false;
+      seen.add(item.id);
+      return true;
+    })
+    .map((item) => {
+      const text = { ...fallback.note, id: item.id as string };
+      mergeKnown(text, item);
+      return text;
+    });
   merged.mapFrame.bounds = normalizeBounds(
     isRecord(raw.mapFrame) ? raw.mapFrame.bounds : undefined,
     fallbackBounds,
@@ -259,7 +298,12 @@ function mergeKnown(target: unknown, source: unknown) {
   for (const key of Object.keys(target)) {
     const sourceValue = source[key];
     const targetValue = target[key];
-    if (sourceValue === undefined) continue;
+    if (sourceValue === undefined || sourceValue === null) continue;
+    if (
+      Array.isArray(targetValue) !== Array.isArray(sourceValue) &&
+      typeof targetValue === "object"
+    )
+      continue;
     if (isRecord(targetValue) && isRecord(sourceValue)) {
       mergeKnown(targetValue, sourceValue);
     } else if (

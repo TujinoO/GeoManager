@@ -280,7 +280,10 @@ function makeGroup(
   return {
     id,
     name: `${id} 组`,
-    sourceResource: sourceResource(),
+    sourceResource: {
+      ...sourceResource(),
+      id: [...id].reduce((n, c) => n * 31 + c.charCodeAt(0), 0) >>> 0,
+    },
     visible: true,
     summary: `${id} 摘要`,
     createdAt: "2026-06-06T00:00:00.000Z",
@@ -295,7 +298,10 @@ function makeVectorLayer(id: string): LoadedVectorLayer {
     id,
     name: id,
     layerType: "vector",
-    sourceResource: sourceResource(),
+    sourceResource: {
+      ...sourceResource(),
+      id: [...id].reduce((n, c) => n * 31 + c.charCodeAt(0), 0) >>> 0,
+    },
     geojson: { type: "FeatureCollection", features: [] },
     geometryType: "Point",
     visible: true,
@@ -311,7 +317,10 @@ function makeRasterLayer(id: string): LoadedRasterLayer {
     id,
     name: id,
     layerType: "raster",
-    sourceResource: sourceResource() as LoadedRasterLayer["sourceResource"],
+    sourceResource: {
+      ...sourceResource(),
+      id: [...id].reduce((n, c) => n * 31 + c.charCodeAt(0), 0) >>> 0,
+    } as LoadedRasterLayer["sourceResource"],
     geometryType: "Raster",
     visible: true,
     summary: `${id} 摘要`,

@@ -123,6 +123,7 @@ export type {
   UserPermissionUpdateRequest,
   UserUpdateRequest,
   WorkspaceScene,
+  WorkspaceSceneSummary,
   WorkspaceSceneCreateRequest,
   WorkspaceSceneListResponse,
   WorkspaceSceneUpdateRequest,
@@ -269,6 +270,7 @@ export type WorkspaceSceneSnapshot = GeneratedWorkspaceSceneSnapshot & {
   selectedLayerId?: string | null;
   mapView?: MapViewState | null;
   savedAt?: string;
+  basemapId?: import("./map/basemapCatalog").BasemapId;
 };
 
 export type DataResourceProfile = ResourceProfileResponse;

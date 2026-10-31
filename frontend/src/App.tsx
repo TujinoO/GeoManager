@@ -1,6 +1,13 @@
 import { App as AntApp, Spin } from "antd";
 import type { ReactNode } from "react";
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import {
   api,
@@ -51,6 +58,7 @@ const AboutPage = lazy(() => import("./pages/AboutV2Page"));
 const HomePage = lazy(() => import("./pages/HomePage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const DataCatalogPage = lazy(() => import("./pages/DataCatalogPage"));
+const EditorialPage = lazy(() => import("./pages/EditorialPage"));
 const KnowledgePage = lazy(() => import("./pages/KnowledgePage"));
 const MapPage = lazy(() => import("./pages/MapPage"));
 const NonGeoPage = lazy(() => import("./pages/AnalysisPage"));
@@ -86,17 +94,39 @@ export default function App({
 } = {}) {
   const { message } = AntApp.useApp();
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUserState] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const handleForbidden = useCallback(async () => {
+  const authGeneration = useRef(0);
+  const setUser = useCallback((next: User | null) => {
+    authGeneration.current += 1;
+    setUserState(next);
     try {
-      const me = await api.me();
-      setUser(me.user);
+      localStorage.setItem(
+        "geomanager:auth-change",
+        JSON.stringify({ at: Date.now(), nonce: Math.random() }),
+      );
     } catch {
-      setUser(null);
+      /* Cookies remain authoritative. */
     }
   }, []);
+  const handleForbidden = useCallback(async () => {
+    const generation = ++authGeneration.current;
+    try {
+      const me = await api.me();
+      if (generation === authGeneration.current) setUserState(me.user);
+    } catch (error) {
+      if (generation === authGeneration.current && isApiStatus(error, 401))
+        setUserState(null);
+    }
+  }, []);
+  useEffect(() => {
+    const changed = (event: StorageEvent) => {
+      if (event.key === "geomanager:auth-change") void handleForbidden();
+    };
+    window.addEventListener("storage", changed);
+    return () => window.removeEventListener("storage", changed);
+  }, [handleForbidden]);
 
   useEffect(() => {
     registerForbiddenHandler(handleForbidden);
@@ -107,6 +137,7 @@ export default function App({
 
   useEffect(() => {
     let mounted = true;
+    const generation = authGeneration.current;
     async function boot() {
       try {
         const bootstrapData = await retryTransientStartup(async () => {
@@ -124,7 +155,7 @@ export default function App({
         }
         if (mounted) {
           setBootstrap(bootstrapData);
-          setUser(currentUser);
+          if (generation === authGeneration.current) setUserState(currentUser);
           applyPlatformDocumentTitle(bootstrapData.systemName);
         }
       } catch (error) {
@@ -186,6 +217,14 @@ export default function App({
 
           {/* 需要登录才能访问的页面 */}
           <Route element={<RequireAuth />}>
+            <Route
+              path="/science-updates/:articleId?"
+              element={<EditorialPage key="science-updates" kind="knowledge" />}
+            />
+            <Route
+              path="/news/:articleId?"
+              element={<EditorialPage key="team-news" kind="news" />}
+            />
             <Route
               path="/data"
               element={

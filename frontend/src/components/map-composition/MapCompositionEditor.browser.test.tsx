@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import type { Map as MapboxMap } from "mapbox-gl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { api } from "../../api/client";
 import { defaultCompositionLayout } from "../../map-composition/layout";
 import { renderCompositionPng } from "../../map-composition/render";
 import type { MapComposition } from "../../types";
@@ -33,6 +34,10 @@ vi.mock("../../map-composition/render", async (importOriginal) => {
 });
 
 const renderCompositionPngMock = vi.mocked(renderCompositionPng);
+
+function mapStub() {
+  return { on: vi.fn(), off: vi.fn() } as unknown as MapboxMap;
+}
 
 const composition: MapComposition = {
   id: 31,
@@ -91,6 +96,11 @@ function editor(
 
 describe("MapCompositionEditor", () => {
   beforeEach(() => {
+    vi.mocked(api.updateMapComposition).mockReset();
+    vi.mocked(api.updateMapComposition).mockResolvedValue({
+      ...composition,
+      updatedAt: "2026-07-15T00:00:00Z",
+    });
     renderCompositionPngMock.mockReset();
     renderCompositionPngMock.mockResolvedValue(
       new Blob(["preview"], { type: "image/png" }),
@@ -136,7 +146,7 @@ describe("MapCompositionEditor", () => {
   });
 
   it("auto previews the latest accumulated range at screen resolution", async () => {
-    render(editor([81, 36, 91, 46], {} as MapboxMap));
+    render(editor([81, 36, 91, 46], mapStub()));
 
     await screen.findByRole("img", { name: "专题图预览" });
     renderCompositionPngMock.mockClear();
@@ -158,7 +168,7 @@ describe("MapCompositionEditor", () => {
   });
 
   it("does not restart an immediate refresh from the pending auto timer", async () => {
-    render(editor([80, 35, 90, 45], {} as MapboxMap));
+    render(editor([80, 35, 90, 45], mapStub()));
 
     await screen.findByRole("img", { name: "专题图预览" });
     renderCompositionPngMock.mockClear();
@@ -182,5 +192,112 @@ describe("MapCompositionEditor", () => {
       81.2, 35, 91.2, 45,
     ]);
     resolvePreview(new Blob(["latest"], { type: "image/png" }));
+  });
+
+  it("automatically retries preview when a slow source style finally loads", async () => {
+    const map = mapStub();
+    renderCompositionPngMock.mockRejectedValueOnce(
+      new Error("底图样式加载超时"),
+    );
+    const view = render(editor([80, 35, 90, 45], map));
+    await waitFor(() =>
+      expect(renderCompositionPngMock).toHaveBeenCalledTimes(1),
+    );
+    const handler = vi
+      .mocked(map.on)
+      .mock.calls.find(([event]) => event === "style.load")?.[1] as () => void;
+    expect(handler).toBeTypeOf("function");
+    handler();
+    await screen.findByRole("img", { name: "专题图预览" });
+    expect(renderCompositionPngMock).toHaveBeenCalledTimes(2);
+    view.unmount();
+    expect(map.off).toHaveBeenCalledWith("style.load", handler);
+  });
+  it("retains edits and disables autosave after a save conflict", async () => {
+    vi.mocked(api.updateMapComposition).mockRejectedValueOnce(
+      new Error("内容已更新"),
+    );
+    render(editor([80, 35, 90, 45]));
+    fireEvent.click(await screen.findByRole("button", { name: "添加文字" }));
+    const text = screen.getByRole("textbox", { name: "选中要素文字" });
+    fireEvent.change(text, { target: { value: "保留本地草稿" } });
+    fireEvent.click(await screen.findByRole("button", { name: "保存草稿" }));
+    await screen.findByText("保存失败：草稿仍保留在当前页面");
+    expect(text).toHaveValue("保留本地草稿");
+    expect(
+      screen.getByRole("button", { name: "自动保存：关" }),
+    ).toBeInTheDocument();
+    const retry = screen.getByText("保存草稿").closest("button")!;
+    await waitFor(() => expect(retry).not.toHaveClass("ant-btn-loading"));
+    fireEvent.click(retry);
+    await screen.findByText("已保存", { exact: true });
+    expect(
+      vi.mocked(api.updateMapComposition).mock.calls[1]?.[1],
+    ).toMatchObject({ expectedUpdatedAt: composition.updatedAt });
+  });
+
+  it("saves the submitted snapshot without marking later edits saved", async () => {
+    let complete!: (value: MapComposition) => void;
+    vi.mocked(api.updateMapComposition).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    render(editor([80, 35, 90, 45]));
+    fireEvent.click(await screen.findByRole("button", { name: "添加文字" }));
+    const text = screen.getByRole("textbox", { name: "选中要素文字" });
+    fireEvent.change(text, { target: { value: "提交时文字" } });
+    fireEvent.click(await screen.findByRole("button", { name: "保存草稿" }));
+    await waitFor(() =>
+      expect(api.updateMapComposition).toHaveBeenCalledTimes(1),
+    );
+    fireEvent.change(text, { target: { value: "保存期间新文字" } });
+    complete({ ...composition, updatedAt: "2026-07-15T00:00:00Z" });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "保存草稿" })).not.toHaveClass(
+        "ant-btn-loading",
+      ),
+    );
+    await screen.findByText("未保存", { exact: true });
+    expect(
+      vi.mocked(api.updateMapComposition).mock.calls[0]?.[1].layout,
+    ).toMatchObject({ extraTexts: [{ text: "提交时文字" }] });
+    fireEvent.click(await screen.findByRole("button", { name: "保存草稿" }));
+    await screen.findByText("已保存", { exact: true });
+    expect(
+      vi.mocked(api.updateMapComposition).mock.calls[1]?.[1],
+    ).toMatchObject({
+      expectedUpdatedAt: "2026-07-15T00:00:00Z",
+      layout: { extraTexts: [{ text: "保存期间新文字" }] },
+    });
+  });
+
+  it("autosaves edits after the idle interval", async () => {
+    render(editor([80, 35, 90, 45]));
+    fireEvent.click(await screen.findByRole("button", { name: "添加文字" }));
+    await waitFor(
+      () => expect(api.updateMapComposition).toHaveBeenCalledTimes(1),
+      { timeout: 6000 },
+    );
+    await screen.findByText("已保存", { exact: true });
+  });
+  it("guards dirty close and refresh while keeping the editor available", async () => {
+    render(editor([80, 35, 90, 45]));
+    fireEvent.click(await screen.findByRole("button", { name: "添加文字" }));
+    const unload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+    fireEvent.click(document.querySelector(".ant-modal-close")!);
+    await screen.findAllByText("保存制图草稿后关闭？");
+    fireEvent.click(screen.getByRole("button", { name: "继续编辑" }));
+    expect(
+      screen.getByRole("textbox", { name: "选中要素文字" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "保存草稿" }));
+    await screen.findByText("已保存", { exact: true });
+    const cleanUnload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(cleanUnload);
+    expect(cleanUnload.defaultPrevented).toBe(false);
   });
 });

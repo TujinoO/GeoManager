@@ -15,29 +15,33 @@ import {
   Input,
   Modal,
   Popconfirm,
+  Pagination,
   Select,
   Space,
   Tag,
   Tooltip,
 } from "antd";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api/client";
 import type {
   WorkspaceAccessGroup,
-  WorkspaceScene,
+  WorkspaceSceneSummary,
   WorkspaceSceneKind,
 } from "../types";
 
 interface WorkspaceScenePanelProps {
   kind: WorkspaceSceneKind;
-  items: WorkspaceScene[];
+  items: WorkspaceSceneSummary[];
+  total: number;
+  query: { q: string; offset: number };
+  onQuery: (query: { q?: string; offset?: number }) => unknown;
   accessGroups: WorkspaceAccessGroup[];
-  onLoad: (scene: WorkspaceScene) => void | Promise<void>;
+  onLoad: (scene: WorkspaceSceneSummary) => void | Promise<void>;
   onRefresh: () => unknown | Promise<unknown>;
-  onUpdate: (scene: WorkspaceScene) => void;
+  onUpdate: (scene: WorkspaceSceneSummary) => void;
   onDelete: (sceneId: number) => void;
-  onCreateComposition?: (scene: WorkspaceScene) => void | Promise<void>;
+  onCreateComposition?: (scene: WorkspaceSceneSummary) => void | Promise<void>;
 }
 
 interface WorkspaceEditValues {
@@ -49,6 +53,9 @@ interface WorkspaceEditValues {
 export default function WorkspaceScenePanel({
   kind,
   items,
+  total,
+  query,
+  onQuery,
   accessGroups,
   onLoad,
   onRefresh,
@@ -64,7 +71,8 @@ export default function WorkspaceScenePanel({
   const [loading, setLoading] = useState(false);
   const [loadingSceneId, setLoadingSceneId] = useState<number | null>(null);
   const [searchText, setSearchText] = useState("");
-  const [editingScene, setEditingScene] = useState<WorkspaceScene | null>(null);
+  const [editingScene, setEditingScene] =
+    useState<WorkspaceSceneSummary | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const label =
     kind === "project"
@@ -74,19 +82,15 @@ export default function WorkspaceScenePanel({
       : english
         ? "thematic map"
         : "专题";
-  const filteredItems = useMemo(() => {
-    const query = searchText.trim().toLocaleLowerCase("zh-CN");
-    if (!query) return items;
-    return items.filter((scene) =>
-      [
-        scene.name,
-        scene.description,
-        scene.owner.displayName,
-        scene.owner.username,
-        ...scene.accessGroups.map((group) => group.name),
-      ].some((value) => value.toLocaleLowerCase("zh-CN").includes(query)),
+  const filteredItems = items;
+  useEffect(() => {
+    if (searchText === query.q) return;
+    const timer = window.setTimeout(
+      () => onQuery({ q: searchText, offset: 0 }),
+      200,
     );
-  }, [items, searchText]);
+    return () => window.clearTimeout(timer);
+  }, [searchText, query.q, onQuery]);
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -105,7 +109,7 @@ export default function WorkspaceScenePanel({
     }
   }, [label, message, onRefresh]);
 
-  async function loadScene(scene: WorkspaceScene) {
+  async function loadScene(scene: WorkspaceSceneSummary) {
     setLoadingSceneId(scene.id);
     try {
       await onLoad(scene);
@@ -122,7 +126,7 @@ export default function WorkspaceScenePanel({
     }
   }
 
-  async function removeScene(scene: WorkspaceScene) {
+  async function removeScene(scene: WorkspaceSceneSummary) {
     try {
       await api.deleteWorkspace(scene.id);
       onDelete(scene.id);
@@ -138,7 +142,7 @@ export default function WorkspaceScenePanel({
     }
   }
 
-  function openEditScene(scene: WorkspaceScene) {
+  function openEditScene(scene: WorkspaceSceneSummary) {
     setEditingScene(scene);
     form.setFieldsValue({
       name: scene.name,
@@ -158,6 +162,7 @@ export default function WorkspaceScenePanel({
     setSavingEdit(true);
     try {
       const updated = await api.updateWorkspace(editingScene.id, {
+        expectedUpdatedAt: editingScene.updatedAt,
         ...(editingScene.canEdit
           ? {
               name: values.name.trim(),
@@ -199,7 +204,9 @@ export default function WorkspaceScenePanel({
               : `搜索${label}、所属用户或共享角色`
           }
           value={searchText}
-          onChange={(event) => setSearchText(event.target.value)}
+          onChange={(event) => {
+            setSearchText(event.target.value);
+          }}
         />
         <Button
           size="small"
@@ -210,10 +217,19 @@ export default function WorkspaceScenePanel({
           {english ? "Refresh" : "刷新"}
         </Button>
       </div>
+      <Pagination
+        size="small"
+        current={Math.floor(query.offset / 24) + 1}
+        pageSize={24}
+        total={total}
+        showSizeChanger={false}
+        hideOnSinglePage
+        onChange={(page) => onQuery({ q: searchText, offset: (page - 1) * 24 })}
+      />
       <div className="workspace-scene-summary">
         {english
-          ? `${items.length} loadable ${label}${items.length === 1 ? "" : "s"}`
-          : `共 ${items.length} 个可加载${label}`}
+          ? `${total} loadable ${label}${items.length === 1 ? "" : "s"}`
+          : `共 ${total} 个可加载${label}`}
         {searchText.trim()
           ? english
             ? `; ${filteredItems.length} matches`

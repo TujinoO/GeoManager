@@ -1,4 +1,5 @@
-import { App, Button, Modal, Space, Spin, Typography } from "antd";
+import { App, Button, Modal, Space, Typography } from "antd";
+import { selectedMapBasemap } from "../../map/basemapSnapshot";
 import type { Map as MapboxMap } from "mapbox-gl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -21,6 +22,8 @@ import type {
   WorkspaceSceneSnapshot,
 } from "../../types";
 import { downloadBlob } from "../../utils/download";
+import CompositionCanvas from "./CompositionCanvas";
+import { builtinOrder } from "../../map-composition/editing";
 import CompositionSettings from "./CompositionSettings";
 import CompositionOutputPanel from "./CompositionOutputPanel";
 
@@ -74,6 +77,15 @@ export default function MapCompositionEditor({
   const [versionNote, setVersionNote] = useState("");
   const initializedCompositionId = useRef<number | null>(null);
   const layoutRef = useRef(layout);
+  const savedLayout = useRef("");
+  const saveInFlight = useRef<Promise<MapComposition | null> | null>(null);
+  const expectedUpdatedAt = useRef("");
+  const imageCache = useRef(new Map<string, Blob>());
+  const [autoSave, setAutoSave] = useState(true);
+  const [saveState, setSaveState] = useState("");
+  const history = useRef<MapCompositionLayout[]>([]);
+  const future = useRef<MapCompositionLayout[]>([]);
+  const [, setHistoryTick] = useState(0);
   const previewSequence = useRef(0);
   const previewUrlRef = useRef("");
   const previewAbortController = useRef<AbortController | null>(null);
@@ -93,6 +105,10 @@ export default function MapCompositionEditor({
     }
     if (initializedCompositionId.current === composition.id) return;
     initializedCompositionId.current = composition.id;
+    expectedUpdatedAt.current = composition.updatedAt;
+    imageCache.current.clear();
+    setAutoSave(true);
+    setSaveState("");
     previewAbortController.current?.abort();
     previewAbortController.current = null;
     previewSequence.current += 1;
@@ -108,6 +124,10 @@ export default function MapCompositionEditor({
     );
     layoutRef.current = nextLayout;
     setLayout(nextLayout);
+    savedLayout.current = JSON.stringify(nextLayout);
+    history.current = [];
+    future.current = [];
+    setHistoryTick((t) => t + 1);
     setVersionNote("");
   }, [composition, fallbackBounds, sourceText]);
 
@@ -155,6 +175,7 @@ export default function MapCompositionEditor({
           outputDpi: previewDpi,
           mapDpi: previewDpi,
           signal: controller.signal,
+          imageCache: imageCache.current,
         },
       );
       if (sequence !== previewSequence.current) return;
@@ -202,30 +223,152 @@ export default function MapCompositionEditor({
     };
   }, [composition?.id, layout, map, open, refreshPreview]);
 
+  useEffect(() => {
+    if (!open || !map) return;
+    const styleLoaded = () => void refreshPreview();
+    map.on("style.load", styleLoaded);
+    return () => {
+      map.off("style.load", styleLoaded);
+    };
+  }, [map, open, refreshPreview]);
+
   const updateLayout = useCallback(
     (update: (current: MapCompositionLayout) => MapCompositionLayout) => {
-      const next = constrainCompositionLayout(update(layoutRef.current));
+      let candidate = update(layoutRef.current);
+      for (const id of layoutRef.current.editor.locked) {
+        if (!candidate.editor.locked.includes(id)) continue;
+        if (builtinOrder.includes(id))
+          candidate = { ...candidate, [id]: layoutRef.current[id] };
+        else
+          candidate = {
+            ...candidate,
+            extraTexts: candidate.extraTexts.map((t) =>
+              t.id === id
+                ? (layoutRef.current.extraTexts.find((old) => old.id === id) ??
+                  t)
+                : t,
+            ),
+          };
+      }
+      const next = constrainCompositionLayout(candidate);
+      if (JSON.stringify(next) === JSON.stringify(layoutRef.current)) return;
+      history.current = [...history.current.slice(-49), layoutRef.current];
+      future.current = [];
+      setHistoryTick((t) => t + 1);
       layoutRef.current = next;
       setLayout(next);
     },
     [],
   );
 
-  async function saveDraft() {
+  function undo() {
+    const previous = history.current.pop();
+    if (!previous) return;
+    future.current.push(layoutRef.current);
+    layoutRef.current = previous;
+    setLayout(previous);
+    setHistoryTick((t) => t + 1);
+  }
+  function redo() {
+    const next = future.current.pop();
+    if (!next) return;
+    history.current.push(layoutRef.current);
+    layoutRef.current = next;
+    setLayout(next);
+    setHistoryTick((t) => t + 1);
+  }
+  function closeEditor() {
+    if (exporting) return;
+    if (savedLayout.current === JSON.stringify(layoutRef.current)) {
+      onClose();
+      return;
+    }
+    Modal.confirm({
+      title: "保存制图草稿后关闭？",
+      content: "当前有未保存的版式修改。",
+      okText: "保存并关闭",
+      cancelText: "继续编辑",
+      onOk: async () => {
+        const result = await saveDraft();
+        if (result && savedLayout.current !== JSON.stringify(layoutRef.current))
+          await saveDraft();
+        if (savedLayout.current === JSON.stringify(layoutRef.current))
+          onClose();
+        else throw new Error("草稿尚未保存，请继续编辑或重试");
+      },
+    });
+  }
+  useEffect(() => {
+    const handler = (event: BeforeUnloadEvent) => {
+      if (open && savedLayout.current !== JSON.stringify(layoutRef.current)) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [open]);
+
+  useEffect(() => {
+    if (
+      !open ||
+      !composition ||
+      saving ||
+      exporting ||
+      !autoSave ||
+      savedLayout.current === JSON.stringify(layout)
+    )
+      return;
+    setSaveState("未保存");
+    const timer = window.setTimeout(() => {
+      void saveDraft(true);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [layout, open, composition?.id, autoSave, saving, exporting]);
+
+  async function saveDraft(silent = false): Promise<MapComposition | null> {
+    if (saveInFlight.current) return saveInFlight.current;
+    const operation = performSave(silent);
+    saveInFlight.current = operation;
+    try {
+      return await operation;
+    } finally {
+      if (saveInFlight.current === operation) saveInFlight.current = null;
+    }
+  }
+  async function performSave(silent: boolean) {
     if (!composition) return null;
+    const submitted = layoutRef.current;
+    const compositionId = composition.id;
     setSaving(true);
     try {
       const result = await api.updateMapComposition(composition.id, {
         action: "update",
-        layout,
+        layout: {
+          ...submitted,
+          basemapId: submitted.basemapId ?? selectedMapBasemap(map),
+        },
+        expectedUpdatedAt: expectedUpdatedAt.current,
       });
       if ("id" in result) {
+        if (initializedCompositionId.current !== compositionId) return result;
+        savedLayout.current = JSON.stringify(submitted);
+        expectedUpdatedAt.current = result.updatedAt;
+        setSaveState(
+          JSON.stringify(layoutRef.current) === JSON.stringify(submitted)
+            ? "已保存"
+            : "未保存",
+        );
         onSaved(result);
-        message.success(english ? "Map draft saved" : "出图草稿已保存");
+        if (!silent)
+          message.success(english ? "Map draft saved" : "出图草稿已保存");
         return result;
       }
       return null;
     } catch (error) {
+      if (initializedCompositionId.current !== compositionId) return null;
+      setAutoSave(false);
+      setSaveState("保存失败：草稿仍保留在当前页面");
       message.error(
         error instanceof Error
           ? error.message
@@ -235,7 +378,7 @@ export default function MapCompositionEditor({
       );
       return null;
     } finally {
-      setSaving(false);
+      if (initializedCompositionId.current === compositionId) setSaving(false);
     }
   }
 
@@ -255,10 +398,18 @@ export default function MapCompositionEditor({
     setPreviewing(false);
     setExporting(true);
     try {
-      await api.updateMapComposition(composition.id, {
+      const saved = await api.updateMapComposition(composition.id, {
         action: "update",
-        layout,
+        layout: {
+          ...layout,
+          basemapId: layout.basemapId ?? selectedMapBasemap(map),
+        },
+        expectedUpdatedAt: expectedUpdatedAt.current,
       });
+      if ("id" in saved) {
+        expectedUpdatedAt.current = saved.updatedAt;
+        savedLayout.current = JSON.stringify(layout);
+      }
       const master = await renderCompositionPng(
         map,
         layout,
@@ -283,6 +434,7 @@ export default function MapCompositionEditor({
       );
       downloadBlob(result.blob, result.filename);
       const refreshed = await api.mapComposition(composition.id);
+      expectedUpdatedAt.current = refreshed.updatedAt;
       onSaved(refreshed);
       message.success(
         english
@@ -308,8 +460,8 @@ export default function MapCompositionEditor({
       title={
         composition
           ? english
-            ? `Thematic mapping · ${composition.name}`
-            : `专题制图 · ${composition.name}`
+            ? `Thematic mapping: ${composition.name}`
+            : `专题制图：${composition.name}`
           : english
             ? "Thematic mapping"
             : "专题制图"
@@ -317,9 +469,10 @@ export default function MapCompositionEditor({
       open={open}
       width="calc(100vw - 24px)"
       style={{ top: 12 }}
+      styles={{ body: { height: "calc(100dvh - 100px)", overflow: "auto" } }}
       footer={null}
       destroyOnHidden
-      onCancel={onClose}
+      onCancel={closeEditor}
     >
       <div className="map-composition-editor">
         <aside className="map-composition-settings-pane">
@@ -332,7 +485,7 @@ export default function MapCompositionEditor({
         <main className="map-composition-preview-pane">
           <div className="composition-preview-toolbar">
             <Typography.Text>
-              {layout.page.preset} ·{" "}
+              {layout.page.preset} /{" "}
               {layout.page.orientation === "landscape"
                 ? english
                   ? "Landscape"
@@ -340,9 +493,13 @@ export default function MapCompositionEditor({
                 : english
                   ? "Portrait"
                   : "纵向"}{" "}
-              · {pixels.width}×{pixels.height}px
+              / {pixels.width}×{pixels.height}px
             </Typography.Text>
-            <Space>
+            <Space wrap>
+              <Typography.Text type="secondary">{saveState}</Typography.Text>
+              <Button size="small" onClick={() => setAutoSave((v) => !v)}>
+                {autoSave ? "自动保存：开" : "自动保存：关"}
+              </Button>
               <Typography.Text type="secondary">
                 {previewing
                   ? english
@@ -352,7 +509,12 @@ export default function MapCompositionEditor({
                     ? "Preview updates after changes"
                     : "修改后自动预览"}
               </Typography.Text>
-              <Button loading={saving} onClick={() => void saveDraft()}>
+              <Button
+                aria-label={english ? "Save draft" : "保存草稿"}
+                disabled={exporting}
+                loading={saving}
+                onClick={() => void saveDraft()}
+              >
                 {english ? "Save draft" : "保存草稿"}
               </Button>
               <Button
@@ -364,27 +526,15 @@ export default function MapCompositionEditor({
               </Button>
             </Space>
           </div>
-          <div className="composition-paper-stage">
-            {previewing && !previewUrl ? (
-              <Spin size="large" />
-            ) : previewUrl ? (
-              <div className="composition-preview-image-wrap">
-                <img
-                  src={previewUrl}
-                  alt={english ? "Thematic map preview" : "专题图预览"}
-                />
-                {previewing ? (
-                  <Spin className="composition-preview-updating" />
-                ) : null}
-              </div>
-            ) : (
-              <div className="composition-preview-empty">
-                {english
-                  ? "Generating standard-layout preview…"
-                  : "正在生成标准版式预览…"}
-              </div>
-            )}
-          </div>
+          <CompositionCanvas
+            layout={layout}
+            previewUrl={previewUrl}
+            onChange={updateLayout}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={history.current.length > 0}
+            canRedo={future.current.length > 0}
+          />
         </main>
         <CompositionOutputPanel
           issues={issues}
@@ -392,7 +542,7 @@ export default function MapCompositionEditor({
           note={versionNote}
           canExport={canExport}
           exporting={exporting}
-          disabled={hasErrors || !map}
+          disabled={hasErrors || !map || saving}
           onFormatChange={setFormat}
           onNoteChange={setVersionNote}
           onGenerate={() => void generateVersion()}

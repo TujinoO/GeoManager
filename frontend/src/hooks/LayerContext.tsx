@@ -11,7 +11,7 @@ import type {
   LoadedLayer,
   LoadedLayerGroup,
   LoadedRasterLayer,
-  WorkspaceScene,
+  WorkspaceSceneSummary,
   WorkspaceAccessGroup,
 } from "../types";
 
@@ -104,17 +104,16 @@ export interface LayerContextValue {
     options: ExportOptions,
     onProgress?: ExportProgressHandler,
   ) => Promise<void>;
-  workspaceScenes: WorkspaceScene[];
+  workspaceScenes: WorkspaceSceneSummary[];
   workspaceAccessGroups: WorkspaceAccessGroup[];
   canCreateWorkspaces: boolean;
-  saveWorkspace: (
-    values: {
-      name: string;
-      description?: string;
-      targetId?: number;
-      accessGroupIds?: number[];
-    },
-  ) => Promise<void>;
+  saveWorkspace: (values: {
+    name: string;
+    description?: string;
+    targetId?: number;
+    expectedUpdatedAt?: string;
+    accessGroupIds?: number[];
+  }) => Promise<void>;
 }
 
 export const LayerContext = createContext<LayerContextValue | null>(null);

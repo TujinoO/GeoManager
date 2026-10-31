@@ -19,8 +19,11 @@ export interface TextElement extends LayoutBox {
 }
 
 export interface MapCompositionLayout {
+  basemapId?: import("../map/basemapCatalog").BasemapId;
   [key: string]: unknown;
   version: 1;
+  editor: { order: string[]; locked: string[] };
+  extraTexts: (TextElement & { id: string })[];
   page: {
     preset: PaperPreset;
     orientation: PaperOrientation;

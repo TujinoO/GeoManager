@@ -45,12 +45,7 @@ export function standardCompositionBoxes(
     const mapHeight = panelY - ELEMENT_GAP_MM - mapY;
     const overviewWidth = clamp(widthMm * 0.31, 62, 88);
     const legendWidth = contentWidth - ELEMENT_GAP_MM - overviewWidth;
-    const mapFrame = box(
-      PAGE_MARGIN_MM,
-      mapY,
-      contentWidth,
-      mapHeight,
-    );
+    const mapFrame = box(PAGE_MARGIN_MM, mapY, contentWidth, mapHeight);
     return {
       mapFrame,
       title,
@@ -155,6 +150,9 @@ export function constrainCompositionLayout(
     scaleBar: fitBox(layout.scaleBar, pageWidth, pageHeight),
     source: fitBox(layout.source, pageWidth, pageHeight),
     note: fitBox(layout.note, pageWidth, pageHeight),
+    extraTexts: layout.extraTexts.map((item) =>
+      fitBox(item, pageWidth, pageHeight),
+    ),
   };
 }
 
@@ -172,10 +170,7 @@ export function layoutHasOutOfBoundsBoxes(layout: MapCompositionLayout) {
   ].some((item) => !isBoxWithinPage(layout, item));
 }
 
-export function isBoxWithinPage(
-  layout: MapCompositionLayout,
-  item: LayoutBox,
-) {
+export function isBoxWithinPage(layout: MapCompositionLayout, item: LayoutBox) {
   return (
     Number.isFinite(item.xMm) &&
     Number.isFinite(item.yMm) &&

@@ -1,12 +1,14 @@
+import { selectedMapBasemap, restoreMapBasemap } from "../map/basemapSnapshot";
 import { App } from "antd";
 import type { Map as MapboxMap } from "mapbox-gl";
 import type { RefObject } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type {
   LoadedLayerGroup,
   MapViewState,
-  WorkspaceScene,
+  WorkspaceSceneSummary,
+  WorkspaceSceneListResponse,
   WorkspaceAccessGroup,
   WorkspaceSceneSnapshot,
 } from "../types";
@@ -22,6 +24,7 @@ import {
   workspaceInventoryChangedEvent,
 } from "../workspace/workspaceSync";
 import { workspaceSnapshot } from "../workspace/workspaceSnapshot";
+import { uniqueLoadedLayerGroups } from "../utils/uniqueLoadedLayers";
 
 interface UseWorkspaceScenesOptions {
   canViewWorkspaces: boolean;
@@ -53,34 +56,89 @@ export function useWorkspaceScenes({
   onWorkspaceLoaded,
 }: UseWorkspaceScenesOptions) {
   const { message, notification } = App.useApp();
-  const [workspaceScenes, setWorkspaceScenes] = useState<WorkspaceScene[]>([]);
+  const [workspaceScenes, setWorkspaceScenes] = useState<
+    WorkspaceSceneSummary[]
+  >([]);
   const [workspaceAccessGroups, setWorkspaceAccessGroups] = useState<
     WorkspaceAccessGroup[]
   >([]);
 
-  const loadWorkspaceScenes = useCallback(async () => {
-    if (!canViewWorkspaces) {
-      setWorkspaceScenes([]);
-      setWorkspaceAccessGroups([]);
-      return [];
-    }
-    try {
-      const sceneResponse = await api.workspaces();
-      setWorkspaceScenes(sceneResponse.items);
-      setWorkspaceAccessGroups(sceneResponse.availableAccessGroups);
-      return sceneResponse.items;
-    } catch (error) {
-      message.warning(
-        error instanceof Error ? error.message : "搜索内容加载失败",
-      );
-      return [];
-    }
-  }, [canViewWorkspaces, message]);
+  const [workspaceTotal, setWorkspaceTotal] = useState(0);
+  const [workspaceQuery, setWorkspaceQuery] = useState({ q: "", offset: 0 });
+  const queryRef = useRef({ q: "", offset: 0 });
+  const requestSequence = useRef(0);
+  const pendingLists = useRef(
+    new Map<string, Promise<WorkspaceSceneListResponse>>(),
+  );
+  const restoreSequence = useRef(0);
+  const requestList = useCallback(
+    (query: { q: string; offset: number; limit: number }) => {
+      const key = JSON.stringify(query);
+      const existing = pendingLists.current.get(key);
+      if (existing) return existing;
+      const operation = api.workspaces(query).finally(() => {
+        if (pendingLists.current.get(key) === operation)
+          pendingLists.current.delete(key);
+      });
+      pendingLists.current.set(key, operation);
+      return operation;
+    },
+    [],
+  );
+  const lastRefresh = useRef(0);
+  const loadWorkspaceScenes = useCallback(
+    async (query?: { q?: string; offset?: number }) => {
+      if (query) {
+        queryRef.current = { q: query.q ?? "", offset: query.offset ?? 0 };
+        setWorkspaceQuery(queryRef.current);
+      }
+      const sequence = ++requestSequence.current;
+      lastRefresh.current = Date.now();
+      if (!canViewWorkspaces) {
+        setWorkspaceScenes([]);
+        setWorkspaceTotal(0);
+        setWorkspaceAccessGroups([]);
+        return [];
+      }
+      try {
+        let sceneResponse = await requestList({
+          ...queryRef.current,
+          limit: 24,
+        });
+        if (sequence !== requestSequence.current) return [];
+        const lastOffset = Math.max(
+          0,
+          Math.floor((sceneResponse.total - 1) / 24) * 24,
+        );
+        if (queryRef.current.offset > lastOffset) {
+          queryRef.current = { ...queryRef.current, offset: lastOffset };
+          setWorkspaceQuery(queryRef.current);
+          sceneResponse = await requestList({
+            ...queryRef.current,
+            limit: 24,
+          });
+          if (sequence !== requestSequence.current) return [];
+        }
+        setWorkspaceTotal(sceneResponse.total);
+        setWorkspaceScenes(sceneResponse.items);
+        setWorkspaceAccessGroups(sceneResponse.availableAccessGroups);
+        return sceneResponse.items;
+      } catch (error) {
+        if (sequence !== requestSequence.current) return [];
+        message.warning(
+          error instanceof Error ? error.message : "搜索内容加载失败",
+        );
+        return [];
+      }
+    },
+    [canViewWorkspaces, message, requestList],
+  );
 
   useEffect(() => {
     function refreshFromEvent(event: Event) {
       const detail = event instanceof CustomEvent ? event.detail : undefined;
       if (isWorkspaceInventoryChange(detail)) {
+        pendingLists.current.clear();
         void loadWorkspaceScenes();
       }
     }
@@ -90,6 +148,7 @@ export function useWorkspaceScenes({
       }
       try {
         if (isWorkspaceInventoryChange(JSON.parse(event.newValue))) {
+          pendingLists.current.clear();
           void loadWorkspaceScenes();
         }
       } catch {
@@ -97,7 +156,11 @@ export function useWorkspaceScenes({
       }
     }
     function refreshOnFocus() {
-      if (document.visibilityState === "visible") {
+      if (
+        document.visibilityState === "visible" &&
+        Date.now() - lastRefresh.current > 15_000 &&
+        pendingLists.current.size === 0
+      ) {
         void loadWorkspaceScenes();
       }
     }
@@ -106,6 +169,8 @@ export function useWorkspaceScenes({
     window.addEventListener("focus", refreshOnFocus);
     document.addEventListener("visibilitychange", refreshOnFocus);
     return () => {
+      requestSequence.current += 1;
+      restoreSequence.current += 1;
       window.removeEventListener(
         workspaceInventoryChangedEvent,
         refreshFromEvent,
@@ -122,6 +187,7 @@ export function useWorkspaceScenes({
       description?: string;
       targetId?: number;
       accessGroupIds?: number[];
+      expectedUpdatedAt?: string;
     }) => {
       const label = "工程";
       const notificationKey = `workspace-save-project-${Date.now()}`;
@@ -138,6 +204,7 @@ export function useWorkspaceScenes({
           groups,
           selectedLayerId,
           currentMapView,
+          selectedMapBasemap(mapRef.current),
         );
         openWorkspaceProgressNotification(notification, {
           key: notificationKey,
@@ -148,6 +215,7 @@ export function useWorkspaceScenes({
         });
         const saved = values.targetId
           ? await api.updateWorkspace(values.targetId, {
+              expectedUpdatedAt: values.expectedUpdatedAt,
               kind: "project",
               name: targetName,
               description: values.description?.trim() ?? "",
@@ -190,10 +258,15 @@ export function useWorkspaceScenes({
   );
 
   const loadWorkspaceScene = useCallback(
-    async (scene: WorkspaceScene) => {
+    async (scene: WorkspaceSceneSummary) => {
+      const sequence = ++restoreSequence.current;
       const label = scene.kind === "project" ? "工程" : "专题";
       const notificationKey = `workspace-load-${scene.id}`;
-      const snapshot = scene.snapshot as WorkspaceSceneSnapshot;
+      const detail = await api.workspace(scene.id);
+      if (sequence !== restoreSequence.current) return;
+      const snapshot = detail.snapshot as WorkspaceSceneSnapshot;
+      if (mapRef.current)
+        await restoreMapBasemap(mapRef.current, snapshot.basemapId);
       if (!Array.isArray(snapshot.groups)) {
         message.warning("该工作区快照不包含可恢复的图层");
         return;
@@ -222,7 +295,8 @@ export function useWorkspaceScenes({
           });
         },
       });
-      const restoredGroups = restoreResult.groups;
+      if (sequence !== restoreSequence.current) return;
+      const restoredGroups = uniqueLoadedLayerGroups(restoreResult.groups);
       if (restoredGroups.length === 0) {
         showWorkspaceRestoreEmptyResult(notification, {
           key: notificationKey,
@@ -242,7 +316,12 @@ export function useWorkspaceScenes({
         detail: "正在应用图层和地图视图",
       });
       replaceGroups(restoredGroups);
-      setSelectedLayerId(snapshot.selectedLayerId ?? null);
+      const restoredLayers = restoredGroups.flatMap((group) => group.children);
+      setSelectedLayerId(
+        restoredLayers.some((layer) => layer.id === snapshot.selectedLayerId)
+          ? (snapshot.selectedLayerId ?? null)
+          : (restoredLayers[0]?.id ?? null),
+      );
       onWorkspaceLoaded();
       if (snapshot.mapView && mapRef.current) {
         mapRef.current.flyTo({
@@ -287,7 +366,7 @@ export function useWorkspaceScenes({
     [loadWorkspaceScene, workspaceScenes],
   );
 
-  const updateWorkspaceScene = useCallback((scene: WorkspaceScene) => {
+  const updateWorkspaceScene = useCallback((scene: WorkspaceSceneSummary) => {
     setWorkspaceScenes((current) =>
       current.map((item) => (item.id === scene.id ? scene : item)),
     );
@@ -301,6 +380,8 @@ export function useWorkspaceScenes({
 
   return {
     workspaceScenes,
+    workspaceTotal,
+    workspaceQuery,
     workspaceAccessGroups,
     loadWorkspaceScenes,
     saveWorkspace,

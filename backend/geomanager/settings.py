@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     "apps.ecology",
     "apps.omics",
     "apps.audit",
+    "apps.content",
 ]
 
 MIDDLEWARE = [

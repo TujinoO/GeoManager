@@ -73,6 +73,9 @@ function renderPanel(
         <WorkspaceScenePanel
           kind="topic"
           items={[ownScene, sharedScene]}
+          total={2}
+          query={{ q: "", offset: 0 }}
+          onQuery={vi.fn()}
           accessGroups={accessGroups}
           onLoad={onLoad}
           onRefresh={vi.fn()}
@@ -136,7 +139,7 @@ describe("WorkspaceScenePanel", () => {
       { target: { value: "上传用户" } },
     );
     expect(screen.getByText("共享专题")).toBeInTheDocument();
-    expect(screen.queryByText("我的专题")).not.toBeInTheDocument();
+    expect(screen.getByText("我的专题")).toBeInTheDocument();
 
     fireEvent.change(
       screen.getByPlaceholderText("搜索专题、所属用户或共享角色"),
@@ -156,6 +159,7 @@ describe("WorkspaceScenePanel", () => {
 
     await waitFor(() =>
       expect(updateWorkspaceMock).toHaveBeenCalledWith(1, {
+        expectedUpdatedAt: "2026-07-14T10:00:00+08:00",
         name: "更新后的专题",
         description: "我的专题说明",
         accessGroupIds: [2],

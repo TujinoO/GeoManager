@@ -6,17 +6,9 @@ export function drawScaleBar(
   box: PixelBox,
   bounds: MapBounds,
   color: string,
+  mapWidth: number,
 ) {
-  const centerLat = (bounds[1] + bounds[3]) / 2;
-  const metersPerPixel =
-    ((bounds[2] - bounds[0]) *
-      111_320 *
-      Math.cos((centerLat * Math.PI) / 180)) /
-    box.width /
-    4;
-  const targetMeters = Math.max(1, metersPerPixel * box.width);
-  const distance = niceDistance(targetMeters);
-  const width = box.width * (distance / targetMeters);
+  const { distance, width } = scaleBarMetrics(bounds, mapWidth, box.width);
   const segmentWidth = width / 4;
   const barHeight = box.height * 0.34;
   context.save();
@@ -43,6 +35,28 @@ export function drawScaleBar(
   context.textBaseline = "bottom";
   context.fillText(formatDistance(distance), box.x, box.y + box.height);
   context.restore();
+}
+
+/** Local scale at the Mercator map centre. Resizing the bar cannot change map scale. */
+export function scaleBarMetrics(
+  bounds: MapBounds,
+  mapWidth: number,
+  maxWidth: number,
+) {
+  const mercator = (latitude: number) =>
+    Math.asinh(Math.tan((latitude * Math.PI) / 180));
+  const centerLat = Math.atan(
+    Math.sinh((mercator(bounds[1]) + mercator(bounds[3])) / 2),
+  );
+  const metersPerPixel =
+    (((Math.abs(bounds[2] - bounds[0]) * Math.PI) / 180) *
+      6378137 *
+      Math.cos(centerLat)) /
+    mapWidth;
+  if (!(metersPerPixel > 0) || !(maxWidth > 0))
+    throw new Error("Invalid scale extent");
+  const distance = niceDistance(metersPerPixel * maxWidth);
+  return { distance, width: distance / metersPerPixel, metersPerPixel };
 }
 
 function niceDistance(value: number) {

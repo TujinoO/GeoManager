@@ -12,6 +12,8 @@ from django.db.models import Q
 from django.db.models.deletion import ProtectedError
 from django.http import FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from apps.audit.service import log_operation
@@ -511,9 +513,31 @@ def workspaces(request):
     )
     if kind:
         queryset = queryset.filter(kind=kind)
+    query = request.GET.get("q", "").strip()[:150]
+    if query:
+        queryset = queryset.filter(
+            Q(name__icontains=query)
+            | Q(description__icontains=query)
+            | Q(owner__username__icontains=query)
+            | Q(owner__first_name__icontains=query)
+            | Q(access_groups__name__icontains=query)
+        ).distinct()
+    try:
+        limit = int(request.GET.get("limit", 24))
+        offset = int(request.GET.get("offset", 0))
+        if not 1 <= limit <= 100 or offset < 0:
+            raise ValueError
+    except ValueError:
+        return JsonResponse({"detail": "分页参数无效"}, status=400)
     return JsonResponse(
         {
-            "items": [_serialize_workspace(item, request.user) for item in queryset],
+            "items": [
+                _serialize_workspace(item, request.user, summary=True)
+                for item in queryset.defer("snapshot")[offset : offset + limit]
+            ],
+            "total": queryset.count(),
+            "limit": limit,
+            "offset": offset,
             "availableAccessGroups": _available_access_groups(request.user),
         }
     )
@@ -620,20 +644,35 @@ def workspace_detail(request, workspace_id: int):
         group_ids = _workspace_access_group_ids(payload, request.user)
         if isinstance(group_ids, JsonResponse):
             return group_ids
-    for key, value in values.items():
-        setattr(scene, key, value)
+    expected = payload.get("expectedUpdatedAt")
+    if expected is not None:
+        try:
+            expected = parse_datetime(expected) if isinstance(expected, str) else None
+        except ValueError:
+            expected = None
+        if expected is None:
+            return JsonResponse({"detail": "expectedUpdatedAt 无效"}, status=400)
     try:
-        if values:
+        if values or group_ids is not None:
             with transaction.atomic():
-                scene.save()
+                updates = {**values, "updated_at": timezone.now()}
+                target = WorkspaceScene.objects.filter(pk=scene.pk)
+                if expected is not None:
+                    target = target.filter(updated_at=expected)
+                if not target.update(**updates):
+                    return JsonResponse(
+                        {"detail": "工程已被其他编辑更新，请刷新后重试"}, status=409
+                    )
+                if group_ids is not None:
+                    access_error = _set_access_groups_with_superadmin(
+                        scene, group_ids, request.user
+                    )
+                    if isinstance(access_error, JsonResponse):
+                        transaction.set_rollback(True)
+                        return access_error
+                scene.refresh_from_db()
     except IntegrityError:
         return JsonResponse({"detail": "同名工程已存在"}, status=400)
-    if group_ids is not None:
-        access_error = _set_access_groups_with_superadmin(
-            scene, group_ids, request.user
-        )
-        if isinstance(access_error, JsonResponse):
-            return access_error
     if not values and group_ids is None:
         return JsonResponse({"detail": "没有可更新的工程字段"}, status=400)
     log_operation(
@@ -708,7 +747,9 @@ def _workspace_payload(
     return values
 
 
-def _serialize_workspace(scene: WorkspaceScene, request_user) -> dict[str, object]:
+def _serialize_workspace(
+    scene: WorkspaceScene, request_user, *, summary=False
+) -> dict[str, object]:
     is_owner = scene.owner_id == getattr(request_user, "id", None)
     can_manage_all = user_has_full_data_access(request_user)
     owner = scene.owner if user_is_visible_to(request_user, scene.owner) else None
@@ -717,7 +758,7 @@ def _serialize_workspace(scene: WorkspaceScene, request_user) -> dict[str, objec
         "kind": scene.kind,
         "name": scene.name,
         "description": scene.description,
-        "snapshot": scene.snapshot,
+        **({} if summary else {"snapshot": scene.snapshot}),
         "owner": {
             "id": owner.id if owner else 0,
             "displayName": (
@@ -1237,12 +1278,8 @@ def resource_query(request, pk: int):
     payload = _json_payload(request, max_body_bytes=RESOURCE_QUERY_MAX_BODY_BYTES)
     if isinstance(payload, JsonResponse):
         return payload
-    if not _RESOURCE_QUERY_GATE.acquire(
-        timeout=RESOURCE_QUERY_GATE_WAIT_SECONDS
-    ):
-        response = JsonResponse(
-            {"detail": "查询任务繁忙，请稍后重试"}, status=503
-        )
+    if not _RESOURCE_QUERY_GATE.acquire(timeout=RESOURCE_QUERY_GATE_WAIT_SECONDS):
+        response = JsonResponse({"detail": "查询任务繁忙，请稍后重试"}, status=503)
         response["Retry-After"] = "2"
         return response
     try:
@@ -1292,16 +1329,12 @@ def _validate_export_item_access(item: Any, user) -> JsonResponse | None:
                 status=DataResource.Status.ACTIVE,
             )
             if not user_can_access(resource, user):
-                return JsonResponse(
-                    {"detail": "无权访问该数据资源"}, status=403
-                )
+                return JsonResponse({"detail": "无权访问该数据资源"}, status=403)
         return None
 
     dataset_id = _positive_export_id(item.get("datasetId"))
     if dataset_id is None:
-        return JsonResponse(
-            {"detail": "栅格图层缺少有效 datasetId"}, status=400
-        )
+        return JsonResponse({"detail": "栅格图层缺少有效 datasetId"}, status=400)
     dataset = (
         RasterDataset.objects.select_related("data_resource")
         .filter(pk=dataset_id)
@@ -1312,9 +1345,7 @@ def _validate_export_item_access(item: Any, user) -> JsonResponse | None:
 
     resource = dataset.data_resource
     if resource is None:
-        return JsonResponse(
-            {"detail": "栅格数据集未关联数据资源"}, status=400
-        )
+        return JsonResponse({"detail": "栅格数据集未关联数据资源"}, status=400)
     if resource.status != DataResource.Status.ACTIVE:
         return JsonResponse({"detail": "数据资源不存在"}, status=404)
     if not user_can_access(resource, user):
@@ -1325,9 +1356,7 @@ def _validate_export_item_access(item: Any, user) -> JsonResponse | None:
         if supplied_resource_id is None:
             return JsonResponse({"detail": "resourceId 不合法"}, status=400)
         if supplied_resource_id != resource.id:
-            return JsonResponse(
-                {"detail": "resourceId 与栅格数据集不匹配"}, status=400
-            )
+            return JsonResponse({"detail": "resourceId 与栅格数据集不匹配"}, status=400)
     return None
 
 

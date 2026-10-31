@@ -205,27 +205,6 @@
           "kind": "project",
           "name": "塔里木河样地工程",
           "description": "样地监测点和遥感底图组合",
-          "snapshot": {
-            "version": 1,
-            "groups": [],
-            "selectedLayerId": null,
-            "mapView": {
-              "center": [
-                87.62,
-                43.8
-              ],
-              "bounds": [
-                87.4,
-                43.6,
-                87.8,
-                44
-              ],
-              "zoom": 8.4,
-              "bearing": 0,
-              "pitch": 18
-            },
-            "savedAt": "2026-06-16T10:20:00+08:00"
-          },
           "owner": {
             "id": 1,
             "username": "admin",
@@ -260,7 +239,10 @@
           "isGuest": true,
           "isSuperadmin": false
         }
-      ]
+      ],
+      "total": 1,
+      "limit": 24,
+      "offset": 0
     }
   },
   "POST /api/catalog/workspaces/": {
@@ -1356,19 +1338,51 @@
           "geometryType": "Polygon",
           "featureCount": 1,
           "vertexCount": 27139,
-          "bounds": [73.49901303, 34.33631216, 96.38533386, 49.18141068],
+          "bounds": [
+            73.49901303,
+            34.33631216,
+            96.38533386,
+            49.18141068
+          ],
           "coordinateSystem": "EPSG:4326",
           "epsg": 4326,
           "encoding": "GB18030",
           "fields": [
-            {"name": "Name", "type": "object", "nullable": false, "sampleValues": ["中华人民共和国"]},
-            {"name": "adcode", "type": "object", "nullable": false, "sampleValues": ["100000"]}
+            {
+              "name": "Name",
+              "type": "object",
+              "nullable": false,
+              "sampleValues": [
+                "中华人民共和国"
+              ]
+            },
+            {
+              "name": "adcode",
+              "type": "object",
+              "nullable": false,
+              "sampleValues": [
+                "100000"
+              ]
+            }
           ],
-          "previewRows": [{"Name": "中华人民共和国", "adcode": "100000"}],
-          "quality": {"validCount": 1, "invalidCount": 0, "emptyCount": 0, "nullCount": 0, "mixedGeometry": false}
+          "previewRows": [
+            {
+              "Name": "中华人民共和国",
+              "adcode": "100000"
+            }
+          ],
+          "quality": {
+            "validCount": 1,
+            "invalidCount": 0,
+            "emptyCount": 0,
+            "nullCount": 0,
+            "mixedGeometry": false
+          }
         }
       ],
-      "limitations": ["Shapefile 请以 ZIP 上传，并包含同名 .shp、.shx、.dbf。"]
+      "limitations": [
+        "Shapefile 请以 ZIP 上传，并包含同名 .shp、.shx、.dbf。"
+      ]
     }
   },
   "POST /api/catalog/vector-import/validate/": {
@@ -1380,13 +1394,37 @@
         "geometryType": "Polygon",
         "featureCount": 1,
         "vertexCount": 27139,
-        "bounds": [73.49901303, 34.33631216, 96.38533386, 49.18141068],
+        "bounds": [
+          73.49901303,
+          34.33631216,
+          96.38533386,
+          49.18141068
+        ],
         "coordinateSystem": "EPSG:4326",
         "epsg": 4326,
         "encoding": "GB18030",
-        "fields": [{"name": "Name", "type": "object", "nullable": false, "sampleValues": ["中华人民共和国"]}],
-        "previewRows": [{"Name": "中华人民共和国"}],
-        "quality": {"validCount": 1, "invalidCount": 0, "emptyCount": 0, "nullCount": 0, "mixedGeometry": false}
+        "fields": [
+          {
+            "name": "Name",
+            "type": "object",
+            "nullable": false,
+            "sampleValues": [
+              "中华人民共和国"
+            ]
+          }
+        ],
+        "previewRows": [
+          {
+            "Name": "中华人民共和国"
+          }
+        ],
+        "quality": {
+          "validCount": 1,
+          "invalidCount": 0,
+          "emptyCount": 0,
+          "nullCount": 0,
+          "mixedGeometry": false
+        }
       },
       "validationIssues": [],
       "duplicateTarget": null
@@ -1403,7 +1441,12 @@
       "sourceLayerName": "新疆自治区_中华人民共和国",
       "importedFeatures": 1,
       "skippedFeatures": 0,
-      "bounds": [73.49901303, 34.33631216, 96.38533386, 49.18141068],
+      "bounds": [
+        73.49901303,
+        34.33631216,
+        96.38533386,
+        49.18141068
+      ],
       "geometryType": "Polygon",
       "coordinateSystem": "EPSG:4326",
       "sourceEncoding": "GB18030",

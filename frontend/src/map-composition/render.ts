@@ -1,6 +1,7 @@
+import { elementOrder, elementBox } from "./editing";
+import { waitForStyleLoad } from "../map/mapExport";
 import type { Map as MapboxMap } from "mapbox-gl";
 import {
-  drawImageCover,
   drawLegend,
   drawNorthArrow,
   drawTextElement,
@@ -11,7 +12,11 @@ import { drawScaleBar } from "./canvasScale";
 import type { CompositionLegendItem } from "./legend";
 import type { MapCompositionLayout } from "./layout";
 import { isBoxWithinPage } from "./layoutGeometry";
-import { fitOverviewBounds, renderBoundsImage } from "./mapImage";
+import {
+  boundsImagePlan,
+  fitOverviewBounds,
+  renderBoundsImage,
+} from "./mapImage";
 
 export interface CompositionIssue {
   level: "error" | "warning";
@@ -22,6 +27,7 @@ export interface CompositionRenderOptions {
   outputDpi?: number;
   mapDpi?: number;
   signal?: AbortSignal;
+  imageCache?: Map<string, Blob>;
 }
 
 export async function renderCompositionPng(
@@ -38,6 +44,7 @@ export async function renderCompositionPng(
   const width = Math.round(layout.page.widthMm * pxPerMm);
   const height = Math.round(layout.page.heightMm * pxPerMm);
   validateOutputSize(width, height);
+  await waitForStyleLoad(map, undefined, options.signal);
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -46,98 +53,160 @@ export async function renderCompositionPng(
   context.fillStyle = layout.page.backgroundColor;
   context.fillRect(0, 0, width, height);
 
-  const mapBox = pixelBox(layout.mapFrame, pxPerMm);
-  const mapRenderBox = pixelBox(layout.mapFrame, mapPxPerMm);
-  const mapImage = await renderBoundsImage(
-    map,
-    layout.mapFrame.bounds,
-    Math.ceil(mapRenderBox.width),
-    Math.ceil(mapRenderBox.height),
-    accessToken,
-    options.signal,
-  );
-  try {
-    context.save();
-    context.beginPath();
-    context.rect(mapBox.x, mapBox.y, mapBox.width, mapBox.height);
-    context.clip();
-    drawImageCover(context, mapImage, mapBox);
-    context.restore();
-  } finally {
-    mapImage.close();
-  }
-  drawGrid(context, mapBox, layout.mapFrame.bounds, layout.grid, pxPerMm);
-  context.strokeStyle = layout.mapFrame.borderColor;
-  context.lineWidth = Math.max(
-    1,
-    layout.mapFrame.borderWidthPt * 0.352778 * pxPerMm,
-  );
-  context.strokeRect(mapBox.x, mapBox.y, mapBox.width, mapBox.height);
-
-  if (layout.overview.enabled) {
-    const overviewBox = pixelBox(layout.overview, pxPerMm);
-    const overviewRenderBox = pixelBox(layout.overview, mapPxPerMm);
-    const overviewBounds = fitOverviewBounds(
-      layout.overview.bounds,
-      layout.mapFrame.bounds,
-      overviewRenderBox.width,
-      overviewRenderBox.height,
-    );
-    const overviewImage = await renderBoundsImage(
+  async function imageFor(
+    bounds: [number, number, number, number],
+    targetWidth: number,
+    targetHeight: number,
+  ) {
+    const key = JSON.stringify([
+      bounds,
+      targetWidth,
+      targetHeight,
+      map.getStyle?.(),
+      layout.basemapId,
+    ]);
+    const cached = options.imageCache?.get(key);
+    if (cached) return createImageBitmap(cached);
+    const result = await renderBoundsImage(
       map,
-      overviewBounds,
-      Math.ceil(overviewRenderBox.width),
-      Math.ceil(overviewRenderBox.height),
+      bounds,
+      targetWidth,
+      targetHeight,
       accessToken,
       options.signal,
+      layout.basemapId,
     );
-    try {
-      context.save();
-      context.beginPath();
-      context.rect(
-        overviewBox.x,
-        overviewBox.y,
-        overviewBox.width,
-        overviewBox.height,
-      );
-      context.clip();
-      drawImageCover(context, overviewImage, overviewBox);
-      context.restore();
-    } finally {
-      overviewImage.close();
+    if (options.imageCache) {
+      const buffer = document.createElement("canvas");
+      buffer.width = result.width;
+      buffer.height = result.height;
+      buffer.getContext("2d")!.drawImage(result, 0, 0);
+      const blob = await canvasBlob(buffer);
+      if (options.imageCache.size >= 4)
+        options.imageCache.delete(options.imageCache.keys().next().value!);
+      options.imageCache.set(key, blob);
     }
-    context.strokeStyle = "#475569";
-    context.lineWidth = Math.max(1, pxPerMm * 0.3);
-    context.strokeRect(
-      overviewBox.x,
-      overviewBox.y,
-      overviewBox.width,
-      overviewBox.height,
-    );
-    drawOverviewExtent(
-      context,
-      overviewBox,
-      overviewBounds,
-      layout.mapFrame.bounds,
-      layout.overview.borderColor,
-    );
+    return result;
   }
 
-  drawTextElement(context, layout.title, pxPerMm);
-  drawTextElement(context, layout.subtitle, pxPerMm);
-  drawLegend(context, layout, legendItems, pxPerMm);
-  drawTextElement(context, layout.source, pxPerMm);
-  drawTextElement(context, layout.note, pxPerMm);
-  if (layout.northArrow.enabled) {
-    drawNorthArrow(context, pixelBox(layout.northArrow, pxPerMm));
-  }
-  if (layout.scaleBar.enabled) {
-    drawScaleBar(
-      context,
-      pixelBox(layout.scaleBar, pxPerMm),
-      layout.mapFrame.bounds,
-      layout.scaleBar.color,
-    );
+  const mainRenderBox = pixelBox(layout.mapFrame, mapPxPerMm);
+  const mainBounds = boundsImagePlan(
+    layout.mapFrame.bounds,
+    Math.ceil(mainRenderBox.width),
+    Math.ceil(mainRenderBox.height),
+  ).bounds;
+  for (const id of elementOrder(layout)) {
+    const element = elementBox(layout, id);
+    if (element?.enabled === false) continue;
+    if (id === "mapFrame") {
+      const mapBox = pixelBox(layout.mapFrame, pxPerMm);
+      const mapRenderBox = pixelBox(layout.mapFrame, mapPxPerMm);
+      const mapImage = await imageFor(
+        layout.mapFrame.bounds,
+        Math.ceil(mapRenderBox.width),
+        Math.ceil(mapRenderBox.height),
+      );
+      try {
+        context.save();
+        context.beginPath();
+        context.rect(mapBox.x, mapBox.y, mapBox.width, mapBox.height);
+        context.clip();
+        context.drawImage(
+          mapImage,
+          mapBox.x,
+          mapBox.y,
+          mapBox.width,
+          mapBox.height,
+        );
+        context.restore();
+      } finally {
+        mapImage.close();
+      }
+      drawGrid(context, mapBox, mainBounds, layout.grid, pxPerMm);
+      context.strokeStyle = layout.mapFrame.borderColor;
+      context.lineWidth = Math.max(
+        1,
+        layout.mapFrame.borderWidthPt * 0.352778 * pxPerMm,
+      );
+      context.strokeRect(mapBox.x, mapBox.y, mapBox.width, mapBox.height);
+    } else if (id === "overview") {
+      if (layout.overview.enabled) {
+        const overviewBox = pixelBox(layout.overview, pxPerMm);
+        const overviewRenderBox = pixelBox(layout.overview, mapPxPerMm);
+        const overviewBounds = fitOverviewBounds(
+          layout.overview.bounds,
+          mainBounds,
+          overviewRenderBox.width,
+          overviewRenderBox.height,
+        );
+        const overviewImage = await imageFor(
+          overviewBounds,
+          Math.ceil(overviewRenderBox.width),
+          Math.ceil(overviewRenderBox.height),
+        );
+        try {
+          context.save();
+          context.beginPath();
+          context.rect(
+            overviewBox.x,
+            overviewBox.y,
+            overviewBox.width,
+            overviewBox.height,
+          );
+          context.clip();
+          context.drawImage(
+            overviewImage,
+            overviewBox.x,
+            overviewBox.y,
+            overviewBox.width,
+            overviewBox.height,
+          );
+          context.restore();
+        } finally {
+          overviewImage.close();
+        }
+        context.strokeStyle = "#475569";
+        context.lineWidth = Math.max(1, pxPerMm * 0.3);
+        context.strokeRect(
+          overviewBox.x,
+          overviewBox.y,
+          overviewBox.width,
+          overviewBox.height,
+        );
+        drawOverviewExtent(
+          context,
+          overviewBox,
+          boundsImagePlan(
+            overviewBounds,
+            Math.ceil(overviewRenderBox.width),
+            Math.ceil(overviewRenderBox.height),
+          ).bounds,
+          mainBounds,
+          layout.overview.borderColor,
+        );
+      }
+    } else if (["title", "subtitle", "source", "note"].includes(id)) {
+      drawTextElement(
+        context,
+        layout[id] as MapCompositionLayout["title"],
+        pxPerMm,
+      );
+    } else if (id === "legend")
+      drawLegend(context, layout, legendItems, pxPerMm);
+    else if (id === "northArrow")
+      drawNorthArrow(context, pixelBox(layout.northArrow, pxPerMm));
+    else if (id === "scaleBar")
+      drawScaleBar(
+        context,
+        pixelBox(layout.scaleBar, pxPerMm),
+        mainBounds,
+        layout.scaleBar.color,
+        layout.mapFrame.widthMm * pxPerMm,
+      );
+    else {
+      const text = layout.extraTexts.find((t) => t.id === id);
+      if (text) drawTextElement(context, text, pxPerMm);
+    }
   }
   return canvasBlob(canvas);
 }
@@ -210,6 +279,7 @@ export function compositionIssues(
     layout.scaleBar,
     layout.source,
     layout.note,
+    ...layout.extraTexts,
   ]) {
     if (element.enabled && !isBoxWithinPage(layout, element)) {
       issues.push({

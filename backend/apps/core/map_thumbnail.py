@@ -12,8 +12,9 @@ from PIL import Image, ImageDraw
 
 from apps.core.config import load_runtime_config_document
 
-THUMBNAIL_TILE_MAX_ZOOM = 12
+THUMBNAIL_TILE_MAX_ZOOM = 22
 THUMBNAIL_TILE_TIMEOUT_SECONDS = 4
+EXPORT_TILE_TIMEOUT_SECONDS = 10
 THUMBNAIL_TILE_SIZE = 256
 THUMBNAIL_MAX_MERCATOR_LAT = 85.05112878
 MAPBOX_SATELLITE_STYLE = "mapbox/satellite-streets-v12"
@@ -30,21 +31,36 @@ class ThumbnailTileError(RuntimeError):
     pass
 
 
-def thumbnail_tile(z: int, x: int, y: int) -> tuple[bytes, str, bool]:
+def thumbnail_tile(
+    z: int,
+    x: int,
+    y: int,
+    *,
+    allow_fallback: bool = True,
+    basemap: str | None = None,
+    labels: bool = False,
+) -> tuple[bytes, str, bool]:
     validate_tile_coordinates(z, x, y)
-    url, cache_key = configured_tile_url(z, x, y)
+    url, cache_key = configured_tile_url(z, x, y, basemap=basemap, labels=labels)
     cache_path = thumbnail_cache_path(cache_key, z, x, y)
     if cache_path.exists():
         data = cache_path.read_bytes()
         return data, detect_image_content_type(data), False
 
     try:
-        data, content_type = fetch_tile(url)
+        data, content_type = fetch_tile(
+            url,
+            timeout=THUMBNAIL_TILE_TIMEOUT_SECONDS
+            if allow_fallback
+            else EXPORT_TILE_TIMEOUT_SECONDS,
+        )
     except ThumbnailTileError:
         stale = latest_cached_tile(cache_key, z, x, y)
         if stale is not None:
             data = stale.read_bytes()
             return data, detect_image_content_type(data), False
+        if not allow_fallback:
+            raise
         return generated_local_tile(z, x, y), "image/png", True
 
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -60,12 +76,52 @@ def validate_tile_coordinates(z: int, x: int, y: int) -> None:
         raise ValueError("缩略图瓦片坐标超出范围")
 
 
-def configured_tile_url(z: int, x: int, y: int) -> tuple[str, str]:
+def configured_tile_url(
+    z: int, x: int, y: int, *, basemap: str | None = None, labels: bool = False
+) -> tuple[str, str]:
     map_config = load_runtime_config_document(settings.PROJECT_CONFIG)["application"][
         "map"
     ]
     default_basemap = str(map_config.get("default_basemap", "osm")).strip()
     mapbox_access_token = str(map_config.get("mapbox_access_token", "")).strip()
+    if basemap is not None:
+        maxima = {
+            "mapbox-satellite": 22,
+            "mapbox-streets": 22,
+            "tianditu-vector": 18,
+            "tianditu-imagery": 18,
+            "osm": 19,
+        }
+        if basemap not in maxima or z > maxima[basemap]:
+            raise ValueError("底图标识或瓦片层级无效")
+        if labels and not basemap.startswith("tianditu-"):
+            raise ValueError("仅天地图支持独立注记层")
+        if basemap.startswith("mapbox-"):
+            if not mapbox_access_token:
+                raise ThumbnailTileError("Mapbox 未配置")
+            style = (
+                MAPBOX_SATELLITE_STYLE
+                if basemap == "mapbox-satellite"
+                else "mapbox/streets-v12"
+            )
+            return (
+                f"https://api.mapbox.com/styles/v1/{style}/tiles/256/{z}/{x}/{y}@2x?access_token={mapbox_access_token}",
+                cache_key_for("mapbox", style, mapbox_access_token),
+            )
+        if basemap.startswith("tianditu-"):
+            token = str(map_config.get("tianditu_access_token", "")).strip()
+            if not token:
+                raise ThumbnailTileError("天地图未配置")
+            layer = (
+                ("cva" if labels else "vec")
+                if basemap == "tianditu-vector"
+                else ("cia" if labels else "img")
+            )
+            return (
+                f"https://t{(x + y) % 8}.tianditu.gov.cn/{layer}_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER={layer}&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk={token}",
+                cache_key_for("tianditu", layer, token),
+            )
+        default_basemap = "osm"
     if mapbox_access_token and default_basemap != "osm":
         cache_key = cache_key_for("mapbox", MAPBOX_SATELLITE_STYLE, mapbox_access_token)
         return (
@@ -78,7 +134,9 @@ def configured_tile_url(z: int, x: int, y: int) -> tuple[str, str]:
     return OSM_TILE_URL_TEMPLATE.format(s=subdomain, z=z, x=x, y=y), cache_key
 
 
-def fetch_tile(url: str) -> tuple[bytes, str]:
+def fetch_tile(
+    url: str, *, timeout: int = THUMBNAIL_TILE_TIMEOUT_SECONDS
+) -> tuple[bytes, str]:
     request = Request(
         url,
         headers={
@@ -87,7 +145,7 @@ def fetch_tile(url: str) -> tuple[bytes, str]:
         },
     )
     try:
-        with urlopen(request, timeout=THUMBNAIL_TILE_TIMEOUT_SECONDS) as response:
+        with urlopen(request, timeout=timeout) as response:
             content_type = response.headers.get("Content-Type", "image/png")
             data = response.read()
     except (HTTPError, URLError, TimeoutError, OSError) as exc:

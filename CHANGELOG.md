@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve unsaved map-composition edits when the live map view or source summary changes
 - Recommend usable geographic and Web Mercator grid intervals for both local and regional extents
 
+## [V3.28] - 2026-10-31
+
+- 新增科普更新与团队动态栏目，支持草稿、发布、置顶、附件及安全图文/公式展示，维护入口按现有权限显示。
+- 优化地图工程摘要分页、按需读取、搜索及图层加载去重，支持多资源链接、范围定位和底图恢复。
+- 新增可编辑制图画布，支持拖动缩放、多选对齐、吸附锁定、文字、撤销重做及草稿自动保存；改进比例尺、底图和导出范围一致性，正式出图缺少真实瓦片时明确报错。
+- 增加账号能力说明、多标签会话同步和旧鉴权响应隔离，优化栏目导航与窄屏布局。
+- 升级说明：启动时执行新增 `content.0001_initial`；附件使用既有业务数据根目录下 `media/content/`，科研根目录不变，栅格仍由后端渲染。本地验收数据不自动导入生产。
+
 ## [V3.27] - 2026-10-30
 
 - 修复群落、种群、种质及分子模板被默认按个体类型校验的问题，支持按原始表头识别及明确选错类型的中文提示。

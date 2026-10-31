@@ -8,6 +8,7 @@ import {
 import { App as AntApp, ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { MemoryRouter, useLocation } from "react-router-dom";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppContext } from "../contexts/AppContext";
 import { appTheme } from "../theme";
@@ -189,8 +190,9 @@ function renderHeader(
   contextUser: User = user,
   setUser: (user: User | null) => void = vi.fn(),
   initialPath = "/",
+  strictMode = false,
 ) {
-  return render(
+  const content = (
     <ConfigProvider locale={zhCN} theme={appTheme}>
       <AntApp>
         <AppContext.Provider
@@ -214,8 +216,9 @@ function renderHeader(
           </MemoryRouter>
         </AppContext.Provider>
       </AntApp>
-    </ConfigProvider>,
+    </ConfigProvider>
   );
+  return render(strictMode ? <StrictMode>{content}</StrictMode> : content);
 }
 
 function CurrentPath() {
@@ -230,6 +233,63 @@ function sectionByTitle(title: string) {
 }
 
 describe("WorkspaceHeader", () => {
+  it("measures navigation after the StrictMode effect cleanup so trailing menus stay reachable", async () => {
+    renderHeader({}, user, vi.fn(), "/", true);
+    await waitFor(() =>
+      expect(document.querySelector(".workspace-header")).toHaveClass(
+        "workspace-header-search-compact",
+      ),
+    );
+  });
+  it("opens science updates from the science menu for editors", async () => {
+    renderHeader(
+      { activeTab: "knowledge" },
+      {
+        ...user,
+        permissions: { ...permissions, canManageAuth: true },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "胡杨科普" }));
+    const menu = await screen.findByRole("menu");
+    expect(
+      within(menu).getByRole("menuitem", { name: "胡杨科普" }),
+    ).toBeInTheDocument();
+    expect(within(menu).queryByText("团队动态")).not.toBeInTheDocument();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "科普更新" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-path")).toHaveTextContent(
+        "/science-updates",
+      ),
+    );
+  });
+
+  it("keeps the science maintenance entry hidden for readers and preserves original science navigation", async () => {
+    renderHeader();
+    fireEvent.click(screen.getByRole("button", { name: "胡杨科普" }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).queryByText("科普更新")).not.toBeInTheDocument();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "胡杨科普" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-path")).toHaveTextContent(
+        "/knowledge",
+      ),
+    );
+  });
+
+  it("opens team news from About us for readers without mixing it into science", async () => {
+    renderHeader({ activeTab: "about" });
+    fireEvent.click(screen.getByRole("button", { name: "关于我们" }));
+    const menu = await screen.findByRole("menu");
+    expect(
+      within(menu).getByRole("menuitem", { name: "平台简介" }),
+    ).toBeInTheDocument();
+    expect(within(menu).queryByText("科普更新")).not.toBeInTheDocument();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "团队动态" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-path")).toHaveTextContent("/news"),
+    );
+  });
+
   beforeEach(() => {
     for (const fn of Object.values(mockApi)) {
       fn.mockReset();
@@ -508,5 +568,26 @@ describe("WorkspaceHeader", () => {
     expect(clearCachedLayerGroupsMock.mock.invocationCallOrder[0]).toBeLessThan(
       setUser.mock.invocationCallOrder[0],
     );
+  });
+  it("searches projects beyond the supplied summary page", async () => {
+    mockApi.workspaces.mockResolvedValue({
+      items: [scene(99, "project", "远程旧工程")],
+      total: 1,
+    });
+    renderHeader(
+      { workspaceScenes: [scene(1, "project", "当前页工程")] },
+      { ...user, permissions: { ...permissions, canViewWorkspaces: true } },
+    );
+    const search = screen.getByPlaceholderText("搜索数据、工程、专题");
+    fireEvent.click(search);
+    fireEvent.change(search, { target: { value: "远程旧工程" } });
+    await waitFor(() =>
+      expect(mockApi.workspaces).toHaveBeenCalledWith({
+        q: "远程旧工程",
+        limit: 100,
+      }),
+    );
+    await screen.findByText("远程旧工程");
+    expect(screen.queryByText("当前页工程")).not.toBeInTheDocument();
   });
 });

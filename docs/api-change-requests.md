@@ -747,3 +747,13 @@ ResultArtifact 增加 canEditReport / canSubmitReview，由后端按草稿状态
 - 后端交接：按专业表头唯一识别，拒绝歧义；基因按原始文件名匹配、拒绝重复/混组并继续完整内容核查。沿用现有权限与路径配置。
 - Mock：沿用36-analysis现有示例；新增行为用真实服务集成测试及浏览器mock覆盖。
 - 验证：原表导入回查、错误类型提示、七类自动识别、整组gzip配套检查、重复/未知/混组拒绝及三步交互。
+
+
+## STISP所选优化接口（2026-10-31）
+
+工程列表增加q/limit/offset及total/limit/offset，items改为不含snapshot的WorkspaceSceneSummary；详情端点读取快照，保留原角色权限。工程和出图稿可提交expectedUpdatedAt，原子校验失败返回409。底图瓦片支持purpose=export、basemap、labels，导出缺瓦片返回503，缩略图仍可使用本地占位。Mock: mock/prism/examples/30-catalog-vector.json。实现后使用权限、分页与冲突回归测试验收。
+
+
+### 科普与动态内容维护（091—093、097）
+
+新增 `/api/content/articles/`、`/api/content/articles/{articleId}/`、`/api/content/articles/{articleId}/assets/`、`/api/content/assets/{assetId}/`。全部需要Django会话，读取仅已发布内容；维护复用core.manage_auth。附件暂存24小时、按编辑者隔离，正文revision和附件提交在同一事务中更新，冲突409；不引入项目、计算或知识库服务。前端仅安全Markdown/公式显示。未提交附件过期后不可读取，保留待人工检查，不运行批量清理。Mock：mock/prism/examples/content.json。

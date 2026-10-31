@@ -1,4 +1,8 @@
 import {
+  recordMapBasemap,
+  registerBasemapRestore,
+} from "../map/basemapSnapshot";
+import {
   FullscreenOutlined,
   HomeOutlined,
   RotateLeftOutlined,
@@ -298,6 +302,7 @@ export default function MapCanvas({
         snapshot?: StyleRestoreSnapshot;
       },
     ) => {
+      recordMapBasemap(map, definition.id);
       const postProcess = definition.postProcess;
       if (postProcess.applyExpressionSafety) {
         applyBasemapExpressionSafety(map);
@@ -695,6 +700,7 @@ export default function MapCanvas({
     window.addEventListener("resize", resizeAndEmitViewState);
     emitViewState();
     mapRef.current = map;
+    recordMapBasemap(map, activeBasemapRef.current.id);
     setMapObject(map);
     onMapReady?.(map);
 
@@ -975,6 +981,12 @@ export default function MapCanvas({
       message,
     ],
   );
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    return registerBasemapRestore(map, (id) => switchBasemap(id));
+  }, [switchBasemap, mapObject]);
 
   const recoverRateLimitedBasemap = useCallback(
     (
