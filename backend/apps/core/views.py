@@ -145,6 +145,7 @@ def map_thumbnail_tile(request, z: int, x: int, y: int):
             x,
             y,
             allow_fallback=purpose == "thumbnail",
+            referer=request.build_absolute_uri("/"),
             **(
                 {
                     "basemap": request.GET["basemap"],

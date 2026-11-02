@@ -1,3 +1,4 @@
+import KnowledgeUpdates from "../components/content/KnowledgeUpdates";
 import {
   ApartmentOutlined,
   ArrowLeftOutlined,
@@ -10,64 +11,25 @@ import {
   ExperimentOutlined,
   FileTextOutlined,
   GlobalOutlined,
-  InfoCircleOutlined,
   LinkOutlined,
   MailOutlined,
   ReadOutlined,
   SafetyCertificateOutlined,
-  TeamOutlined,
   UserOutlined,
   UsergroupAddOutlined,
 } from "@ant-design/icons";
 import { Button, Layout, Tag, Typography } from "antd";
 import type { ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { aboutAssets } from "../about/aboutSections";
+import { aboutAssets, aboutNavigationSections } from "../about/aboutSections";
+import AboutSidebar from "../components/AboutSidebar";
 import { institutionProfiles } from "../about/contentV2";
 import poplarWaterGoldenImage from "../assets/about/poplar-water-golden.jpeg";
 import xjafsMonitoringTowerImage from "../assets/about/xjafs-monitoring-tower.png";
-import knowledgeAncientPoplarImage from "../assets/portal/knowledge-ancient-poplar.png";
+import knowledgeAncientPoplarImage from "../assets/portal/knowledge-ancient-poplar.webp";
 import WorkspaceHeader from "../components/WorkspaceHeader";
 import { platformBrand } from "../config/platformBrand";
 import { useAppContext } from "../contexts/AppContext";
-
-const aboutSections = [
-  {
-    key: "system",
-    label: "Platform",
-    summary: "Mission and capabilities",
-    path: "/about/system",
-    icon: <InfoCircleOutlined />,
-  },
-  {
-    key: "team",
-    label: "Research Network",
-    summary: "Partner institutions",
-    path: "/about/team",
-    icon: <TeamOutlined />,
-  },
-  {
-    key: "members",
-    label: "Members",
-    summary: "Institutional directories",
-    path: "/about/members",
-    icon: <UsergroupAddOutlined />,
-  },
-  {
-    key: "contact",
-    label: "Contact",
-    summary: "Data and technical support",
-    path: "/about/contact",
-    icon: <MailOutlined />,
-  },
-  {
-    key: "docs",
-    label: "Help Center",
-    summary: "Workflows and guidance",
-    path: "/about/docs",
-    icon: <FileTextOutlined />,
-  },
-] as const;
 
 const serviceChain = [
   [
@@ -443,7 +405,9 @@ export function EnglishAboutPage() {
   const { user } = useAppContext();
   const navigate = useNavigate();
   const params = useParams();
-  const section = aboutSections.some((item) => item.key === params.section)
+  const section = aboutNavigationSections.some(
+    (item) => item.key === params.section,
+  )
     ? params.section!
     : "system";
   const institution = institutions.find(
@@ -456,27 +420,7 @@ export function EnglishAboutPage() {
         canBrowseData={Boolean(user?.permissions.canBrowseData)}
       />
       <div className="workspace-body workspace-body-about">
-        <aside className="about-page-nav-panel">
-          <div className="about-page-panel-head">
-            <Typography.Text strong>About Us</Typography.Text>
-          </div>
-          <div className="about-page-nav-list">
-            {aboutSections.map((item) => (
-              <button
-                aria-current={item.key === section ? "page" : undefined}
-                className={`about-page-nav-item${item.key === section ? " about-page-nav-item-active" : ""}`}
-                key={item.key}
-                type="button"
-                onClick={() => navigate(item.path)}
-              >
-                <span className="about-page-nav-icon">{item.icon}</span>
-                <span>
-                  <strong>{item.label}</strong>
-                  <small>{item.summary}</small>
-                </span>
-              </button>
-            ))}
-          </div>
+        <AboutSidebar activeKey={section}>
           {institution ? (
             <div className="about-v2-nav-context">
               <span>Current institution</span>
@@ -484,7 +428,7 @@ export function EnglishAboutPage() {
               <small>{institution.leader}'s team</small>
             </div>
           ) : null}
-        </aside>
+        </AboutSidebar>
         <main className="about-page-main-panel">
           {section === "system" ? <EnglishSystemOverview /> : null}
           {section === "team" || section === "members" ? (
@@ -1346,6 +1290,12 @@ export function EnglishKnowledgePage() {
                 "Papers, mechanisms, and applications",
                 "#knowledge-graph",
               ],
+              [
+                "04",
+                "More poplar knowledge",
+                "Additional ecology, conservation, and research articles",
+                "#other-knowledge",
+              ],
             ].map(([index, title, summary, href]) => (
               <a href={href} key={index}>
                 <span>{index}</span>
@@ -1717,6 +1667,7 @@ export function EnglishKnowledgePage() {
               </div>
             </section>
           </section>
+          <KnowledgeUpdates />
         </main>
       </div>
     </Layout>

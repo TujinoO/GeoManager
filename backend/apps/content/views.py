@@ -9,7 +9,8 @@ from PIL import Image, UnidentifiedImageError
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
-from django.http import JsonResponse, FileResponse
+from django.db.models.functions import Coalesce, TruncDate
+from django.http import JsonResponse, FileResponse, HttpResponseNotModified
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -71,23 +72,23 @@ def serialize_asset(asset):
     }
 
 
-def serialize(article, *, editor=True):
+def serialize(article, *, editor=True, summary_only=False):
     return {
         "id": article.pk,
         "kind": article.kind,
         "title": article.title,
         "summary": article.summary,
         "category": article.category,
-        "body": article.body,
+        "body": "" if summary_only else article.body,
         "status": article.status,
-        "source": article.source if editor else "",
-        "links": article.links,
+        "source": article.source if editor and not summary_only else "",
+        "links": [] if summary_only else article.links,
         "eventDate": article.event_date.isoformat() if article.event_date else "",
         "publishedAt": article.published_at.isoformat() if article.published_at else "",
         "coverUrl": asset_url(article.cover_asset) if article.cover_asset_id else "",
-        "assets": [
-            serialize_asset(a) for a in article.assets.all() if a.expires_at is None
-        ],
+        "assets": []
+        if summary_only
+        else [serialize_asset(a) for a in article.assets.all() if a.expires_at is None],
         "pinned": article.pinned,
         "revision": article.revision,
     }
@@ -116,6 +117,16 @@ def articles(request):
     if manage and not can_edit(request.user):
         return JsonResponse({"detail": "需要内容管理权限"}, status=403)
     query = article_query(request.user, manage)
+    if request.GET.get("kind") == "news":
+        query = query.order_by(
+            "-pinned",
+            Coalesce("event_date", TruncDate("published_at")).desc(nulls_last=True),
+            "-published_at",
+            "-id",
+        )
+    summary_only = request.GET.get("summaryOnly") == "1"
+    if summary_only:
+        query = query.prefetch_related(None).defer("body", "source", "links")
     for key in ("kind", "category"):
         if request.GET.get(key):
             query = query.filter(**{key: request.GET[key]})
@@ -132,7 +143,7 @@ def articles(request):
     return JsonResponse(
         {
             "items": [
-                serialize(a, editor=can_edit(request.user))
+                serialize(a, editor=can_edit(request.user), summary_only=summary_only)
                 for a in query[offset : offset + limit]
             ],
             "total": query.count(),
@@ -153,6 +164,7 @@ def article_detail(request, article_id):
         return JsonResponse({"detail": "需要内容管理权限"}, status=403)
     data = payload(request)
     article = get_object_or_404(Article, pk=article_id)
+    previous_status = article.status
     if type(data.get("revision")) is not int or data["revision"] != article.revision:
         return JsonResponse({"detail": "内容已更新，请重新加载后编辑"}, status=409)
     commit_ids = data.get("commitAssetIds", [])
@@ -214,7 +226,12 @@ def article_detail(request, article_id):
             transaction.on_commit(lambda target=target: target.unlink(missing_ok=True))
     article.refresh_from_db()
     log_operation(
-        request.user, "内容管理", "保存内容", "success", article.title, request
+        request.user,
+        "内容管理",
+        "保存内容",
+        "success",
+        f"{article.title} [{previous_status} → {article.status}]",
+        request,
     )
     return JsonResponse(serialize(article))
 
@@ -274,6 +291,10 @@ def set_values(article, data):
         )
     if article.status == "published" and not article.published_at:
         article.published_at = timezone.now()
+    if article.status in {"review", "published"} and not all(
+        value.strip() for value in (article.title, article.category, article.body)
+    ):
+        raise ValidationError("提交审核或发布前请填写标题、分类和正文")
 
 
 def store_asset(article, name, content, caption="", *, pending_owner=None):
@@ -375,9 +396,16 @@ def asset_file(request, asset_id):
     target = app_path(asset.path)
     if not target.is_file():
         return JsonResponse({"detail": "文件不存在"}, status=404)
-    response = FileResponse(
-        target.open("rb"), content_type=asset.mime_type, filename=asset.name
+    etag = f'"{asset.checksum}"'
+    response = (
+        HttpResponseNotModified()
+        if request.headers.get("If-None-Match") == etag
+        else FileResponse(
+            target.open("rb"), content_type=asset.mime_type, filename=asset.name
+        )
     )
     response["X-Content-Type-Options"] = "nosniff"
-    response["Cache-Control"] = "private, no-store"
+    response["ETag"] = etag
+    response["Cache-Control"] = "private, no-cache"
+    response["Vary"] = "Cookie"
     return response

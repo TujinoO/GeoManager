@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 
 const english: Record<string, string> = {
   科普更新: "Science updates",
+  其他科普知识: "More poplar knowledge",
+  更新科普知识: "Add poplar knowledge",
   团队动态: "Team news",
   胡杨科普: "Poplar knowledge",
   关于我们: "About us",
@@ -49,6 +51,12 @@ const english: Record<string, string> = {
   发布视图: "Published view",
   重新加载: "Reload",
   草稿: "Draft",
+  待审核: "Awaiting review",
+  荣誉表彰: "Honours",
+  媒体报道: "Media coverage",
+  新闻来源: "News sources",
+  "先保存草稿并补充图文，再设为“待审核”；审核正文、来源和图片后，设为“已发布”即可在前台展示。":
+    "Save a draft and add images, then submit for review. Check the text, sources and images before publishing.",
   已发布: "Published",
   已下架: "Archived",
   发布状态: "Status",

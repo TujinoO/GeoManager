@@ -42,7 +42,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api/client";
-import resultsPoplarReflectionImage from "../assets/portal/results-poplar-reflection.png";
+import resultsPoplarReflectionImage from "../assets/portal/results-poplar-reflection.webp";
 import WorkspaceHeader from "../components/WorkspaceHeader";
 import PdfPreview from "../components/PdfPreview";
 import { useAppContext } from "../contexts/AppContext";

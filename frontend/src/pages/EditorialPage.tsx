@@ -28,8 +28,14 @@ import {
   Upload,
 } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import WorkspaceHeader from "../components/WorkspaceHeader";
+import AboutSidebar from "../components/AboutSidebar";
 import {
   contentApi,
   type ContentArticle,
@@ -44,15 +50,25 @@ const knowledgeCategories = [
   "监测与数据",
   "研究方法",
 ];
-const newsCategories = ["学术会议", "学术交流", "科研进展", "团队活动"];
+const newsCategories = [
+  "荣誉表彰",
+  "媒体报道",
+  "学术会议",
+  "学术交流",
+  "科研进展",
+  "团队活动",
+];
 
 export default function EditorialPage({
   kind,
+  embedded = false,
 }: {
   kind: "knowledge" | "news";
+  embedded?: boolean;
 }) {
   const ui = useContentText();
   const { articleId } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAppContext();
   const { message } = App.useApp();
@@ -61,7 +77,9 @@ export default function EditorialPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState(
+    () => searchParams.get("category") ?? "",
+  );
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [manage, setManage] = useState(false);
@@ -73,10 +91,16 @@ export default function EditorialPage({
   const [form] = Form.useForm();
   const categories =
     kind === "knowledge" ? knowledgeCategories : newsCategories;
-  const base = kind === "knowledge" ? "/science-updates" : "/news";
+  const base = kind === "knowledge" ? "/knowledge" : "/news";
+  const listUrl = embedded ? `${base}#other-knowledge` : base;
+  const articleUrl = (id: number) =>
+    `${base}/${id}${embedded ? "#other-knowledge" : ""}`;
   const isScience = kind === "knowledge";
-  const title = ui(isScience ? "科普更新" : "团队动态");
-  const publishLabel = ui(isScience ? "发布科普" : "发布团队动态");
+  const title = ui(isScience ? "其他科普知识" : "团队动态");
+  const publishLabel = ui(isScience ? "更新科普知识" : "发布团队动态");
+  const hasAboutNavigation = kind === "news" && !embedded;
+  const Page = embedded ? "div" : Layout;
+  const Main = embedded ? "div" : "main";
   const sequence = useRef(0);
   const editSession = useRef(0);
   const pendingIds = useRef(new Set<number>());
@@ -92,6 +116,7 @@ export default function EditorialPage({
         category,
         offset: (page - 1) * 12,
         limit: 12,
+        summaryOnly: "1",
         ...(manage ? { manage: "1" } : {}),
       });
       if (generation !== sequence.current) return;
@@ -202,13 +227,16 @@ export default function EditorialPage({
         links,
         ...(editing && editing !== "new" ? { revision: editing.revision } : {}),
       };
-      await contentApi.saveArticle(
+      const saved = await contentApi.saveArticle(
         editing && editing !== "new" ? editing.id : null,
         body,
       );
       pendingIds.current.clear();
       editSession.current += 1;
-      setEditing(null);
+      if (editing === "new" && saved.status === "draft") {
+        // Retain the saved ID so a new story can immediately receive images.
+        setEditing(saved);
+      } else setEditing(null);
       await load();
       message.success(ui("内容已保存"));
     } catch (e) {
@@ -218,189 +246,233 @@ export default function EditorialPage({
     }
   }
   return (
-    <Layout className="editorial-page">
-      <WorkspaceHeader
-        activeTab={isScience ? "knowledge" : "about"}
-        canBrowseData={Boolean(user?.permissions.canBrowseData)}
-      />
-      <main className="editorial-main">
-        <nav className="editorial-breadcrumb" aria-label={ui("当前位置")}>
-          <Link to={isScience ? "/knowledge" : "/about/system"}>
-            {ui(isScience ? "胡杨科普" : "关于我们")}
-          </Link>
-          <span aria-hidden="true">/</span>
-          <Link to={base} aria-current={!articleId ? "page" : undefined}>
-            {title}
-          </Link>
-          {articleId && (
+    <Page
+      className={
+        embedded
+          ? "editorial-embedded"
+          : hasAboutNavigation
+            ? "workspace editorial-about-page"
+            : "editorial-page"
+      }
+    >
+      {!embedded && (
+        <WorkspaceHeader
+          activeTab={isScience ? "knowledge" : "about"}
+          canBrowseData={Boolean(user?.permissions.canBrowseData)}
+        />
+      )}
+      <div
+        className={
+          hasAboutNavigation ? "workspace-body workspace-body-about" : undefined
+        }
+      >
+        {hasAboutNavigation && <AboutSidebar activeKey="news" />}
+        <Main
+          className={
+            embedded
+              ? "editorial-embedded-main"
+              : hasAboutNavigation
+                ? "about-page-main-panel editorial-about-main"
+                : "editorial-main"
+          }
+        >
+          {!embedded && (
             <>
-              <span aria-hidden="true">/</span>
-              <span>{ui("正文")}</span>
+              <nav className="editorial-breadcrumb" aria-label={ui("当前位置")}>
+                <Link to={isScience ? "/knowledge" : "/about/system"}>
+                  {ui(isScience ? "胡杨科普" : "关于我们")}
+                </Link>
+                <span aria-hidden="true">/</span>
+                <Link to={base} aria-current={!articleId ? "page" : undefined}>
+                  {title}
+                </Link>
+                {articleId && (
+                  <>
+                    <span aria-hidden="true">/</span>
+                    <span>{ui("正文")}</span>
+                  </>
+                )}
+              </nav>
+              <section
+                className="editorial-hero"
+                style={{
+                  backgroundImage: `linear-gradient(90deg, rgba(5, 36, 29, .96), rgba(5, 36, 29, .75) 52%, rgba(5, 36, 29, .2)), url(${isScience ? aboutAssets.knowledgePopulusForestImage : aboutAssets.teamGreenhouseImage})`,
+                }}
+              >
+                <div className="editorial-hero-content">
+                  <span className="editorial-eyebrow">
+                    {isScience
+                      ? "POPLAR SCIENCE · EXPLORE & LEARN"
+                      : "OUR TEAM · RESEARCH & CONNECTION"}
+                  </span>
+                  <h1>{title}</h1>
+                  <p>
+                    {ui(
+                      isScience
+                        ? "从物种生态到保护实践，分享胡杨研究中的知识与发现。"
+                        : "记录科研进展与交流现场，分享团队成长的每一步。",
+                    )}
+                  </p>
+                  <div className="editorial-hero-bottom">
+                    <span className="editorial-hero-note">
+                      {isScience ? <ReadOutlined /> : <TeamOutlined />}
+                      {ui(
+                        isScience
+                          ? "认识胡杨 · 理解生态 · 共同守护"
+                          : "学术交流 · 科研协作 · 团队足迹",
+                      )}
+                    </span>
+                    {canEdit && (
+                      <Button
+                        type="primary"
+                        size="large"
+                        icon={<PlusOutlined aria-hidden="true" />}
+                        onClick={() => edit("new")}
+                      >
+                        {publishLabel}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </section>
             </>
           )}
-        </nav>
-        <section
-          className="editorial-hero"
-          style={{
-            backgroundImage: `linear-gradient(90deg, rgba(5, 36, 29, .96), rgba(5, 36, 29, .75) 52%, rgba(5, 36, 29, .2)), url(${isScience ? aboutAssets.knowledgePopulusForestImage : aboutAssets.teamGreenhouseImage})`,
-          }}
-        >
-          <div className="editorial-hero-content">
-            <span className="editorial-eyebrow">
-              {isScience
-                ? "POPLAR SCIENCE · EXPLORE & LEARN"
-                : "OUR TEAM · RESEARCH & CONNECTION"}
-            </span>
-            <h1>{title}</h1>
-            <p>
-              {ui(
-                isScience
-                  ? "从物种生态到保护实践，分享胡杨研究中的知识与发现。"
-                  : "记录科研进展与交流现场，分享团队成长的每一步。",
-              )}
-            </p>
-            <div className="editorial-hero-bottom">
-              <span className="editorial-hero-note">
-                {isScience ? <ReadOutlined /> : <TeamOutlined />}
-                {ui(
-                  isScience
-                    ? "认识胡杨 · 理解生态 · 共同守护"
-                    : "学术交流 · 科研协作 · 团队足迹",
-                )}
-              </span>
-              {canEdit && (
+          <section
+            className="editorial-content"
+            aria-label={ui("内容列表与阅读")}
+          >
+            <div className="editorial-section-heading">
+              <div>
+                <span className="editorial-section-icon">
+                  {isScience ? <ReadOutlined /> : <TeamOutlined />}
+                </span>
+                <h2>{ui(isScience ? "其他科普知识" : "最新动态")}</h2>
+              </div>
+              {embedded && canEdit && (
                 <Button
                   type="primary"
-                  size="large"
                   icon={<PlusOutlined aria-hidden="true" />}
                   onClick={() => edit("new")}
                 >
                   {publishLabel}
                 </Button>
               )}
+              {canEdit && (
+                <label className="editorial-manage">
+                  <Switch
+                    checked={manage}
+                    aria-label={ui("管理内容")}
+                    onChange={(value) => {
+                      setManage(value);
+                      setPage(1);
+                    }}
+                  />
+                  <span>{ui("显示草稿与已下架内容")}</span>
+                </label>
+              )}
             </div>
-          </div>
-        </section>
-        <section
-          className="editorial-content"
-          aria-label={ui("内容列表与阅读")}
-        >
-          <div className="editorial-section-heading">
-            <div>
-              <span className="editorial-section-icon">
-                {isScience ? <ReadOutlined /> : <TeamOutlined />}
-              </span>
-              <h2>{ui(isScience ? "科普文章" : "最新动态")}</h2>
-            </div>
-            {canEdit && (
-              <label className="editorial-manage">
-                <Switch
-                  checked={manage}
-                  aria-label={ui("管理内容")}
-                  onChange={(value) => {
-                    setManage(value);
-                    setPage(1);
-                  }}
-                />
-                <span>{ui("显示草稿与已下架内容")}</span>
-              </label>
-            )}
-          </div>
-          <div className="editorial-toolbar">
-            <div
-              className="editorial-categories"
-              role="group"
-              aria-label={ui("内容分类")}
-            >
-              <Button
-                type={!category ? "primary" : "default"}
-                aria-pressed={!category}
-                onClick={() => {
-                  setCategory("");
-                  setPage(1);
-                  navigate(base);
-                }}
-              >
-                {ui("全部")}
-              </Button>
-              {categories.map((c) => (
-                <Button
-                  key={ui(c)}
-                  type={category === c ? "primary" : "default"}
-                  aria-pressed={category === c}
-                  onClick={() => {
-                    setCategory(c);
-                    setPage(1);
-                    navigate(base);
-                  }}
-                >
-                  {ui(c)}
-                </Button>
-              ))}
-            </div>
-            <Input.Search
-              className="editorial-search"
-              aria-label={ui(isScience ? "搜索科普文章" : "搜索团队动态")}
-              placeholder={ui(isScience ? "搜索科普文章" : "搜索团队动态")}
-              allowClear
-              onSearch={(value) => {
-                setQ(value);
-                setPage(1);
-                navigate(base);
-              }}
-            />
-          </div>
-          {error ? (
-            <Card>
-              <Typography.Text type="danger">{error}</Typography.Text>
-              <Button onClick={() => void load()}>{ui("重新加载")}</Button>
-            </Card>
-          ) : loading ? (
-            <div className="editorial-loading">
-              <Spin size="large" />
-            </div>
-          ) : article ? (
-            <article className="editorial-detail">
-              <div className="editorial-detail-actions">
-                <Button
-                  icon={<ArrowLeftOutlined aria-hidden="true" />}
-                  onClick={() => navigate(base)}
-                >
-                  {ui("返回列表")}
-                </Button>
-                {canEdit && (
-                  <Button onClick={() => edit(article)}>
-                    {ui("编辑内容")}
-                  </Button>
-                )}
-              </div>
-              <Tag color="green">{ui(article.category)}</Tag>
-              <h1>{article.title}</h1>
-              <p className="editorial-meta">
-                {kind === "news" && article.eventDate
-                  ? `${ui("活动日期")} ${article.eventDate} / `
-                  : ""}
-                {ui(
-                  { draft: "草稿", published: "已发布", archived: "已下架" }[
-                    article.status
-                  ],
-                )}
-                {article.publishedAt
-                  ? ` ${article.publishedAt.slice(0, 10)}`
-                  : ""}
+            {embedded && (
+              <p className="editorial-section-intro">
+                {ui("从物种生态到保护实践，分享胡杨研究中的知识与发现。")}
               </p>
-              {article.summary && (
-                <p className="editorial-summary">{article.summary}</p>
-              )}
-              {article.coverUrl && (
-                <Image
-                  className="editorial-cover"
-                  src={article.coverUrl}
-                  alt={article.title}
-                />
-              )}
-              {kind === "knowledge" &&
-                article.assets.find((asset) => asset.url === article.coverUrl)
+            )}
+            <div className="editorial-toolbar">
+              <div
+                className="editorial-categories"
+                role="group"
+                aria-label={ui("内容分类")}
+              >
+                <Button
+                  type={!category ? "primary" : "default"}
+                  aria-pressed={!category}
+                  onClick={() => {
+                    setCategory("");
+                    setPage(1);
+                    navigate(listUrl);
+                  }}
+                >
+                  {ui("全部")}
+                </Button>
+                {categories.map((c) => (
+                  <Button
+                    key={ui(c)}
+                    type={category === c ? "primary" : "default"}
+                    aria-pressed={category === c}
+                    onClick={() => {
+                      setCategory(c);
+                      setPage(1);
+                      navigate(listUrl);
+                    }}
+                  >
+                    {ui(c)}
+                  </Button>
+                ))}
+              </div>
+              <Input.Search
+                className="editorial-search"
+                aria-label={ui(isScience ? "搜索科普文章" : "搜索团队动态")}
+                placeholder={ui(isScience ? "搜索科普文章" : "搜索团队动态")}
+                allowClear
+                onSearch={(value) => {
+                  setQ(value);
+                  setPage(1);
+                  navigate(listUrl);
+                }}
+              />
+            </div>
+            {error ? (
+              <Card>
+                <Typography.Text type="danger">{error}</Typography.Text>
+                <Button onClick={() => void load()}>{ui("重新加载")}</Button>
+              </Card>
+            ) : loading ? (
+              <div className="editorial-loading">
+                <Spin size="large" />
+              </div>
+            ) : article ? (
+              <article className="editorial-detail">
+                <div className="editorial-detail-actions">
+                  <Button
+                    icon={<ArrowLeftOutlined aria-hidden="true" />}
+                    onClick={() => navigate(listUrl)}
+                  >
+                    {ui("返回列表")}
+                  </Button>
+                  {canEdit && (
+                    <Button onClick={() => edit(article)}>
+                      {ui("编辑内容")}
+                    </Button>
+                  )}
+                </div>
+                <Tag color="green">{ui(article.category)}</Tag>
+                <h1>{article.title}</h1>
+                <p className="editorial-meta">
+                  {kind === "news" && article.eventDate
+                    ? `${ui("活动日期")} ${article.eventDate} / `
+                    : ""}
+                  {ui(
+                    {
+                      draft: "草稿",
+                      review: "待审核",
+                      published: "已发布",
+                      archived: "已下架",
+                    }[article.status],
+                  )}
+                  {article.publishedAt
+                    ? ` ${article.publishedAt.slice(0, 10)}`
+                    : ""}
+                </p>
+                {article.summary && (
+                  <p className="editorial-summary">{article.summary}</p>
+                )}
+                {article.coverUrl && (
+                  <Image
+                    className="editorial-cover"
+                    src={article.coverUrl}
+                    alt={article.title}
+                  />
+                )}
+                {article.assets.find((asset) => asset.url === article.coverUrl)
                   ?.caption && (
                   <p className="editorial-cover-caption">
                     {
@@ -410,159 +482,165 @@ export default function EditorialPage({
                     }
                   </p>
                 )}
-              <ArticleBody body={article.body} />
-              {article.assets.some(
-                (a) =>
-                  a.mimeType.startsWith("image/") && a.url !== article.coverUrl,
-              ) && (
-                <section className="editorial-gallery">
-                  <h2>{ui(kind === "news" ? "会议现场" : "图文资料")}</h2>
-                  <Image.PreviewGroup>
+                <ArticleBody body={article.body} />
+                {article.assets.some(
+                  (a) =>
+                    a.mimeType.startsWith("image/") &&
+                    a.url !== article.coverUrl,
+                ) && (
+                  <section className="editorial-gallery">
+                    <h2>{ui("图文资料")}</h2>
+                    <Image.PreviewGroup>
+                      {article.assets
+                        .filter(
+                          (a) =>
+                            a.mimeType.startsWith("image/") &&
+                            a.url !== article.coverUrl,
+                        )
+                        .map((a) => (
+                          <figure key={a.id}>
+                            <Image src={a.url} alt={a.caption || a.name} />
+                            <figcaption>{a.caption}</figcaption>
+                          </figure>
+                        ))}
+                    </Image.PreviewGroup>
+                  </section>
+                )}
+                {article.assets.some(
+                  (a) => a.mimeType === "application/pdf",
+                ) && (
+                  <section>
+                    <h2>{ui("相关资料")}</h2>
                     {article.assets
-                      .filter(
-                        (a) =>
-                          a.mimeType.startsWith("image/") &&
-                          a.url !== article.coverUrl,
-                      )
+                      .filter((a) => a.mimeType === "application/pdf")
                       .map((a) => (
-                        <figure key={a.id}>
-                          <Image src={a.url} alt={a.caption || a.name} />
-                          <figcaption>{a.caption}</figcaption>
-                        </figure>
+                        <p key={a.id}>
+                          <a href={a.url} target="_blank" rel="noreferrer">
+                            {kind === "news" ? a.caption || a.name : a.name}
+                            （PDF）
+                          </a>
+                        </p>
                       ))}
-                  </Image.PreviewGroup>
-                </section>
-              )}
-              {article.assets.some((a) => a.mimeType === "application/pdf") && (
-                <section>
-                  <h2>{ui("相关资料")}</h2>
-                  {article.assets
-                    .filter((a) => a.mimeType === "application/pdf")
-                    .map((a) => (
-                      <p key={a.id}>
-                        <a href={a.url} target="_blank" rel="noreferrer">
-                          {kind === "news" ? a.caption || a.name : a.name}
-                          （PDF）
-                        </a>
-                      </p>
-                    ))}
-                </section>
-              )}
-              {article.links.length > 0 && (
-                <section className="editorial-links">
-                  <h2>{ui("继续学习")}</h2>
-                  {article.links.map((l) => (
-                    <a
-                      key={`${l.title}:${l.url}`}
-                      href={safeLink(l.url)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {l.title}
-                      <span>{ui("访问资料 ↗")}</span>
-                    </a>
-                  ))}
-                </section>
-              )}
-            </article>
-          ) : (
-            <>
-              <div className="editorial-grid">
-                {items.map((item) => (
-                  <Card
-                    key={item.id}
-                    className="editorial-card"
-                    cover={
-                      item.coverUrl ? (
-                        <img
-                          loading="lazy"
-                          src={item.coverUrl}
-                          alt={item.title}
-                        />
-                      ) : (
-                        <div
-                          className={`editorial-card-placeholder${isScience ? "" : " editorial-card-placeholder-news"}`}
-                        >
-                          {isScience ? <ReadOutlined /> : <TeamOutlined />}
-                          <span>{ui(item.category)}</span>
-                        </div>
-                      )
-                    }
-                  >
-                    <div className="editorial-card-tags">
-                      <Tag color="green">{ui(item.category)}</Tag>
-                      {item.pinned && (
-                        <Tag icon={<PushpinOutlined />} color="gold">
-                          {ui("置顶")}
-                        </Tag>
-                      )}
-                      {manage && (
-                        <Tag>
-                          {ui(
-                            {
-                              draft: "草稿",
-                              published: "已发布",
-                              archived: "已下架",
-                            }[item.status],
-                          )}
-                        </Tag>
-                      )}
-                    </div>
-                    <Typography.Title level={3}>
-                      <button onClick={() => navigate(`${base}/${item.id}`)}>
-                        {item.title}
-                      </button>
-                    </Typography.Title>
-                    <p>{item.summary}</p>
-                    <div className="editorial-card-foot">
-                      <span>
-                        {item.eventDate || item.publishedAt.slice(0, 10)}
-                      </span>
-                      <Button
-                        type="link"
-                        onClick={() => navigate(`${base}/${item.id}`)}
+                  </section>
+                )}
+                {article.links.length > 0 && (
+                  <section className="editorial-links">
+                    <h2>{ui(kind === "news" ? "新闻来源" : "继续学习")}</h2>
+                    {article.links.map((l) => (
+                      <a
+                        key={`${l.title}:${l.url}`}
+                        href={safeLink(l.url)}
+                        target="_blank"
+                        rel="noreferrer"
                       >
-                        {ui("阅读全文 →")}
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-              {items.length === 0 && (
-                <div className="editorial-empty">
-                  <Empty
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description={
-                      q || category
-                        ? ui("没有找到匹配内容")
-                        : manage
-                          ? ui("暂无内容，可新建条目")
-                          : ui("暂无已发布内容")
-                    }
-                  />
-                  <p>
-                    {ui(
-                      q || category
-                        ? "请尝试其他关键词或分类。"
-                        : "新的分享将在这里呈现，欢迎持续关注。",
-                    )}
-                  </p>
+                        {l.title}
+                        <span>{ui("访问资料 ↗")}</span>
+                      </a>
+                    ))}
+                  </section>
+                )}
+              </article>
+            ) : (
+              <>
+                <div className="editorial-grid">
+                  {items.map((item) => (
+                    <Card
+                      key={item.id}
+                      className={`editorial-card${kind === "news" && item.pinned && item === items[0] ? " editorial-card-featured" : ""}`}
+                      cover={
+                        item.coverUrl ? (
+                          <img
+                            loading={item === items[0] ? "eager" : "lazy"}
+                            decoding="async"
+                            src={item.coverUrl}
+                            alt={item.title}
+                          />
+                        ) : (
+                          <div
+                            className={`editorial-card-placeholder${isScience ? "" : " editorial-card-placeholder-news"}`}
+                          >
+                            {isScience ? <ReadOutlined /> : <TeamOutlined />}
+                            <span>{ui(item.category)}</span>
+                          </div>
+                        )
+                      }
+                    >
+                      <div className="editorial-card-tags">
+                        <Tag color="green">{ui(item.category)}</Tag>
+                        {item.pinned && (
+                          <Tag icon={<PushpinOutlined />} color="gold">
+                            {ui("置顶")}
+                          </Tag>
+                        )}
+                        {manage && (
+                          <Tag>
+                            {ui(
+                              {
+                                draft: "草稿",
+                                review: "待审核",
+                                published: "已发布",
+                                archived: "已下架",
+                              }[item.status],
+                            )}
+                          </Tag>
+                        )}
+                      </div>
+                      <Typography.Title level={3}>
+                        <button onClick={() => navigate(articleUrl(item.id))}>
+                          {item.title}
+                        </button>
+                      </Typography.Title>
+                      <p>{item.summary}</p>
+                      <div className="editorial-card-foot">
+                        <span>
+                          {item.eventDate || item.publishedAt.slice(0, 10)}
+                        </span>
+                        <Button
+                          type="link"
+                          onClick={() => navigate(articleUrl(item.id))}
+                        >
+                          {ui("阅读全文 →")}
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
                 </div>
-              )}
-              {total > 12 && (
-                <Pagination
-                  className="editorial-pagination"
-                  current={page}
-                  total={total}
-                  pageSize={12}
-                  showSizeChanger={false}
-                  onChange={setPage}
-                />
-              )}
-            </>
-          )}
-        </section>
-      </main>
+                {items.length === 0 && (
+                  <div className="editorial-empty">
+                    <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description={
+                        q || category
+                          ? ui("没有找到匹配内容")
+                          : manage
+                            ? ui("暂无内容，可新建条目")
+                            : ui("暂无已发布内容")
+                      }
+                    />
+                    <p>
+                      {ui(
+                        q || category
+                          ? "请尝试其他关键词或分类。"
+                          : "新的分享将在这里呈现，欢迎持续关注。",
+                      )}
+                    </p>
+                  </div>
+                )}
+                {total > 12 && (
+                  <Pagination
+                    className="editorial-pagination"
+                    current={page}
+                    total={total}
+                    pageSize={12}
+                    showSizeChanger={false}
+                    onChange={setPage}
+                  />
+                )}
+              </>
+            )}
+          </section>
+        </Main>
+      </div>
       <Modal
         className="editorial-editor-modal"
         forceRender
@@ -584,7 +662,9 @@ export default function EditorialPage({
       >
         <Form form={form} layout="vertical">
           <p className="editorial-editor-hint">
-            {ui("可先保存草稿；确认内容后，将发布状态设为“已发布”并保存。")}
+            {ui(
+              "先保存草稿并补充图文，再设为“待审核”；审核正文、来源和图片后，设为“已发布”即可在前台展示。",
+            )}
           </p>
           <Form.Item hidden name="coverAssetId">
             <Input />
@@ -616,6 +696,7 @@ export default function EditorialPage({
               <Select
                 options={[
                   { value: "draft", label: ui("草稿") },
+                  { value: "review", label: ui("待审核") },
                   { value: "published", label: ui("已发布") },
                   { value: "archived", label: ui("已下架") },
                 ]}
@@ -761,9 +842,28 @@ export default function EditorialPage({
         width="min(850px, calc(100vw - 32px))"
         onCancel={() => setPreview(false)}
       >
+        {form.getFieldValue("summary") && (
+          <p className="editorial-summary">{form.getFieldValue("summary")}</p>
+        )}
+        {editing &&
+          editing !== "new" &&
+          editing.assets
+            .filter(
+              (a) =>
+                a.url ===
+                editing.assets.find(
+                  (x) => x.id === form.getFieldValue("coverAssetId"),
+                )?.url,
+            )
+            .map((a) => (
+              <figure key={a.id}>
+                <Image src={a.url} alt={a.caption || a.name} />
+                <figcaption>{a.caption}</figcaption>
+              </figure>
+            ))}
         <ArticleBody body={(editing ? form.getFieldValue("body") : "") ?? ""} />
       </Modal>
-    </Layout>
+    </Page>
   );
 }
 

@@ -27,7 +27,7 @@ import { builtinOrder } from "../../map-composition/editing";
 import CompositionSettings from "./CompositionSettings";
 import CompositionOutputPanel from "./CompositionOutputPanel";
 
-const autoPreviewDelayMs = 160;
+const autoPreviewDelayMs = 450;
 const previewDpi = 96;
 
 interface Props {
@@ -90,6 +90,10 @@ export default function MapCompositionEditor({
   const previewUrlRef = useRef("");
   const previewAbortController = useRef<AbortController | null>(null);
   const previewTimer = useRef<number | null>(null);
+  const previewPending = useRef(false);
+  const editorOpen = useRef(open);
+  editorOpen.current = open && !exporting;
+  const previewRefresh = useRef<() => Promise<void>>(async () => {});
   const legendItems = useMemo(() => compositionLegendItems(groups), [groups]);
   const issues = useMemo(
     () => compositionIssues(layout, legendItems, english),
@@ -150,6 +154,12 @@ export default function MapCompositionEditor({
   );
 
   const refreshPreview = useCallback(async () => {
+    if (!editorOpen.current) return;
+    if (previewAbortController.current) {
+      // Finish fetching the map once; the queued layout can reuse that image.
+      previewPending.current = true;
+      return;
+    }
     if (!map) {
       message.warning(english ? "The map is not ready" : "地图尚未准备好");
       return;
@@ -161,7 +171,6 @@ export default function MapCompositionEditor({
     const previewLayout = layoutRef.current;
     const sequence = previewSequence.current + 1;
     previewSequence.current = sequence;
-    previewAbortController.current?.abort();
     const controller = new AbortController();
     previewAbortController.current = controller;
     setPreviewing(true);
@@ -199,14 +208,20 @@ export default function MapCompositionEditor({
         previewAbortController.current = null;
       }
       if (sequence === previewSequence.current) setPreviewing(false);
+      if (previewPending.current && editorOpen.current) {
+        previewPending.current = false;
+        void previewRefresh.current();
+      }
     }
   }, [accessToken, english, legendItems, map, message]);
+  previewRefresh.current = refreshPreview;
 
   useEffect(() => {
-    previewAbortController.current?.abort();
-    previewAbortController.current = null;
     previewSequence.current += 1;
-    if (!open || !map || !composition) {
+    if (!open || !map || !composition || exporting) {
+      previewPending.current = false;
+      previewAbortController.current?.abort();
+      previewAbortController.current = null;
       setPreviewing(false);
       return;
     }
@@ -218,10 +233,8 @@ export default function MapCompositionEditor({
     return () => {
       window.clearTimeout(timer);
       if (previewTimer.current === timer) previewTimer.current = null;
-      previewAbortController.current?.abort();
-      previewAbortController.current = null;
     };
-  }, [composition?.id, layout, map, open, refreshPreview]);
+  }, [composition?.id, layout, map, open, exporting, refreshPreview]);
 
   useEffect(() => {
     if (!open || !map) return;
@@ -519,6 +532,7 @@ export default function MapCompositionEditor({
               </Button>
               <Button
                 type="primary"
+                disabled={exporting}
                 loading={previewing}
                 onClick={() => void refreshPreview()}
               >

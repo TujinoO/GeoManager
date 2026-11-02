@@ -2476,3 +2476,11 @@ POST /api/omics/import/ 支持multipart重复files字段一次提交2–5个配�
 ### 科普与动态内容维护（091—093、097）
 
 新增 `/api/content/articles/`、`/api/content/articles/{articleId}/`、`/api/content/articles/{articleId}/assets/`、`/api/content/assets/{assetId}/`。全部需要Django会话，读取仅已发布内容；维护复用core.manage_auth。附件暂存24小时、按编辑者隔离，正文revision和附件提交在同一事务中更新，冲突409；不引入项目、计算或知识库服务。内部素材备注仅向内容管理员返回；附件位于 TOML 业务数据根目录的 media/content/ 下，校验真实图片格式与扩展名。前端仅安全Markdown/公式显示。未提交附件过期后不可读取，保留待人工检查，不运行批量清理。Mock：mock/prism/examples/content.json。
+
+## 2026-11-01 内容审核及轻量列表
+
+`GET /api/content/articles/?summaryOnly=1` 只返回卡片信息，保留原结构但 body/source 为空字符串，assets/links 为空数组；阅读全文、编辑时必须 GET 详情。未指定时保持完整响应。新增 status=review（待审核），沿用 core.manage_auth 管理权限；普通用户不可读草稿、待审核、下架文章及其附件。审核者检查正文与来源后设为 published，发布时服务端拒绝空正文。状态变更记录审计日志。附件按权限读取，使用 private,no-cache 与 ETag，浏览器可保存图片但每次复用必须先向服务器核验登录和文章可见性。新闻置顶优先，其后按报道日期（无日期则按发布日期）、发布时间和编号倒序。
+
+天地图专题出图复用三维地图已配置的浏览器瓦片源与限流加载器，避免把浏览器类型 Key 转交服务器导致 301012 权限类型错误；不会自动替换用户选择的底图。Mapbox 出图继续使用平台缓存代理。出图缺瓦片仍报错，不能把缩略图占位作为正式成果。服务器代理对相同瓦片合并并发请求，原子写入磁盘，失败短暂退避，并校验真实图片。默认 Waitress 线程数调整为 8；已有服务器 TOML 的显式线程数必须在部署时同步调整，不因代码默认值更新而自动改变。
+
+跨栈交接：本轮由同一代理先维护 OpenAPI 与生成类型，再实现 Django 和 React；当前类型目录为 frontend/src/api/generated/，不手写 schema.d.ts。

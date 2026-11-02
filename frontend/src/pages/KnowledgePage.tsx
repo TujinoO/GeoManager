@@ -8,10 +8,11 @@ import {
 import { Layout, Typography } from "antd";
 import poplarWaterGoldenImage from "../assets/about/poplar-water-golden.jpeg";
 import xjafsMonitoringTowerImage from "../assets/about/xjafs-monitoring-tower.png";
-import knowledgeAncientPoplarImage from "../assets/portal/knowledge-ancient-poplar.png";
+import knowledgeAncientPoplarImage from "../assets/portal/knowledge-ancient-poplar.webp";
 import { aboutSectionByKey } from "../about/aboutSections";
 import { protectionCases, speciesArchiveSections } from "../about/contentV2";
 import WorkspaceHeader from "../components/WorkspaceHeader";
+import KnowledgeUpdates from "../components/content/KnowledgeUpdates";
 import { useAppContext } from "../contexts/AppContext";
 import { KnowledgeSection } from "./AboutPage";
 import { currentLocale } from "../i18n";
@@ -35,6 +36,12 @@ const navigation = [
     title: "胡杨知识图谱",
     summary: "保留原有论文、机制与联合交互图谱",
     href: "#knowledge-graph",
+  },
+  {
+    index: "04",
+    title: "其他科普知识",
+    summary: "新补充的物种生态、保护实践与研究方法",
+    href: "#other-knowledge",
   },
 ];
 
@@ -238,6 +245,7 @@ export default function KnowledgePage() {
             />
             <KnowledgeSection embedded section={section} />
           </section>
+          <KnowledgeUpdates />
         </main>
       </div>
     </Layout>

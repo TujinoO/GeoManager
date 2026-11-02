@@ -213,6 +213,34 @@ describe("MapCompositionEditor", () => {
     view.unmount();
     expect(map.off).toHaveBeenCalledWith("style.load", handler);
   });
+  it("finishes an in-flight preview and queues only the latest edits", async () => {
+    let complete!: (blob: Blob) => void;
+    renderCompositionPngMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    render(editor([80, 35, 90, 45], mapStub()));
+    await waitFor(() =>
+      expect(renderCompositionPngMock).toHaveBeenCalledTimes(1),
+    );
+    const firstOptions = renderCompositionPngMock.mock.calls[0]![4]!;
+    fireEvent.click(screen.getByRole("button", { name: "地图范围向右平移" }));
+    fireEvent.click(screen.getByRole("button", { name: "地图范围向右平移" }));
+    await new Promise((resolve) => window.setTimeout(resolve, 550));
+    expect(renderCompositionPngMock).toHaveBeenCalledTimes(1);
+    expect(firstOptions.signal?.aborted).toBe(false);
+    complete(new Blob(["first"], { type: "image/png" }));
+    await screen.findByRole("img", { name: "专题图预览" });
+    expect(renderCompositionPngMock).toHaveBeenCalledTimes(2);
+    expect(renderCompositionPngMock.mock.calls[1]![1].mapFrame.bounds).toEqual([
+      82.4, 35, 92.4, 45,
+    ]);
+    expect(renderCompositionPngMock.mock.calls[1]![4]!.imageCache).toBe(
+      firstOptions.imageCache,
+    );
+  });
   it("retains edits and disables autosave after a save conflict", async () => {
     vi.mocked(api.updateMapComposition).mockRejectedValueOnce(
       new Error("内容已更新"),

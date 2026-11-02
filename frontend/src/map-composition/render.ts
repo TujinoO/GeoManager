@@ -52,19 +52,15 @@ export async function renderCompositionPng(
   if (!context) throw new Error("浏览器不支持专题图画布");
   context.fillStyle = layout.page.backgroundColor;
   context.fillRect(0, 0, width, height);
+  // Large GeoJSON sources must be serialized once per render, not once per frame.
+  const sceneKey = JSON.stringify([map.getStyle?.(), layout.basemapId]);
 
   async function imageFor(
     bounds: [number, number, number, number],
     targetWidth: number,
     targetHeight: number,
   ) {
-    const key = JSON.stringify([
-      bounds,
-      targetWidth,
-      targetHeight,
-      map.getStyle?.(),
-      layout.basemapId,
-    ]);
+    const key = JSON.stringify([bounds, targetWidth, targetHeight, sceneKey]);
     const cached = options.imageCache?.get(key);
     if (cached) return createImageBitmap(cached);
     const result = await renderBoundsImage(

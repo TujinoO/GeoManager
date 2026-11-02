@@ -1,9 +1,16 @@
 {
   "GET /api/content/articles/": {
     "200": {
-      "items": [],
-      "total": 0,
+      "items": [{
+        "id": 1, "kind": "knowledge", "title": "胡杨林监测：如何记录同一片样地", "summary": "固定样地、调查时间与单位，让不同年份的数据能够比较。", "category": "监测与数据", "body": "", "source": "", "status": "published", "coverUrl": "", "eventDate": "", "publishedAt": "2026-11-01T09:00:00+08:00", "pinned": false, "revision": 1, "assets": [], "links": []
+      }],
+      "total": 1,
       "canEdit": false
+    }
+  },
+  "POST /api/content/articles/": {
+    "201": {
+      "id": 2, "kind": "knowledge", "title": "固定样地的重复观测", "summary": "监测时间、样方和单位的记录要点。", "category": "研究方法", "body": "## 观测准备\n\n复测同一样地时保留原编号并记录日期、方法和单位。", "source": "平台方法科普待审核稿", "status": "review", "coverUrl": "", "eventDate": "", "publishedAt": "", "pinned": false, "revision": 1, "assets": [], "links": []
     }
   }
 }

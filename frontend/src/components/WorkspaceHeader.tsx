@@ -1,6 +1,5 @@
 import "../styles/workspace-header-fit.css";
 import {
-  AlertOutlined,
   ApartmentOutlined,
   BookOutlined,
   DatabaseOutlined,
@@ -75,7 +74,6 @@ export type WorkspaceTab =
   | "map"
   | "nongeo"
   | "results"
-  | "warning"
   | "resources"
   | "admin"
   | "knowledge"
@@ -898,47 +896,29 @@ export default function WorkspaceHeader({
         label: t("navigation.knowledge"),
         onClick: () => navigateFromHeader("/knowledge"),
       },
-      ...(user?.permissions.canManageAuth
-        ? [
-            {
-              key: "science-updates",
-              label: t("navigation.scienceUpdates"),
-              onClick: () => navigateFromHeader("/science-updates"),
-            },
-          ]
-        : []),
     ],
-    [navigateFromHeader, t, user?.permissions.canManageAuth],
+    [navigateFromHeader, t],
   );
 
   const aboutMenuItems = useMemo<MenuProps["items"]>(
     () =>
-      aboutNavigationSections.flatMap((section) => [
-        {
-          key: section.key,
-          label: t(
-            section.key === "system"
-              ? "navigation.aboutSystem"
-              : section.key === "team"
-                ? "navigation.aboutTeam"
+      aboutNavigationSections.map((section) => ({
+        key: section.key,
+        label: t(
+          section.key === "system"
+            ? "navigation.aboutSystem"
+            : section.key === "team"
+              ? "navigation.aboutTeam"
+              : section.key === "news"
+                ? "navigation.teamNews"
                 : section.key === "members"
                   ? "navigation.aboutMembers"
                   : section.key === "contact"
                     ? "navigation.aboutContact"
                     : "navigation.aboutDocs",
-          ),
-          onClick: () => navigateFromHeader(section.path),
-        },
-        ...(section.key === "team"
-          ? [
-              {
-                key: "team-news",
-                label: t("navigation.teamNews"),
-                onClick: () => navigateFromHeader("/news"),
-              },
-            ]
-          : []),
-      ]),
+        ),
+        onClick: () => navigateFromHeader(section.path),
+      })),
     [navigateFromHeader, t],
   );
 
@@ -1332,20 +1312,6 @@ export default function WorkspaceHeader({
             <PictureOutlined aria-hidden="true" style={{ fontSize: 16 }} />
             <span className="tab-text">{t("navigation.results")}</span>
           </Button>
-          <Button
-            type="text"
-            className={tabClass(
-              activeTab === "warning",
-              expandedTabId === "warning",
-            )}
-            onClick={() => navigateFromHeader("/warning")}
-            onMouseEnter={() => scheduleTabHoverExpand("warning")}
-            onMouseLeave={collapseTabHover}
-            title={t("navigation.warning")}
-          >
-            <AlertOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-            <span className="tab-text">{t("navigation.warning")}</span>
-          </Button>
           {showAdminTab && (
             <Dropdown
               menu={{ items: adminMenuItems }}
@@ -1374,7 +1340,7 @@ export default function WorkspaceHeader({
           )}
           <Dropdown
             menu={{ items: knowledgeMenuItems }}
-            trigger={["hover", "click"]}
+            trigger={["hover"]}
             placement="bottom"
             classNames={{ root: "workspace-management-dropdown" }}
           >
@@ -1385,6 +1351,7 @@ export default function WorkspaceHeader({
                 expandedTabId === "knowledge",
               )}
               onMouseEnter={() => scheduleTabHoverExpand("knowledge")}
+              onClick={() => navigateFromHeader("/knowledge")}
               onMouseLeave={collapseTabHover}
               title={t("navigation.knowledge")}
             >
@@ -1397,7 +1364,7 @@ export default function WorkspaceHeader({
           </Dropdown>
           <Dropdown
             menu={{ items: aboutMenuItems }}
-            trigger={["hover", "click"]}
+            trigger={["hover"]}
             placement="bottom"
             classNames={{ root: "workspace-management-dropdown" }}
           >
@@ -1409,6 +1376,7 @@ export default function WorkspaceHeader({
                 expandedTabId === "about",
               )}
               onMouseEnter={() => scheduleTabHoverExpand("about")}
+              onClick={() => navigateFromHeader("/about/system")}
               onMouseLeave={collapseTabHover}
               title={t("navigation.about")}
             >

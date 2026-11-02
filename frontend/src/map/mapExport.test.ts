@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createBasemapCatalog } from "./basemapCatalog";
+import type { StyleSpecification } from "mapbox-gl";
 import {
   addJpegDpiMetadata,
   addPngDpiMetadata,
@@ -135,7 +137,7 @@ describe("mapExport", () => {
     ]);
   });
 
-  it("proxies Tianditu imagery and labels without changing provider", () => {
+  it("reuses browser Tianditu tiles and labels without the server key-type failure", () => {
     const style = createExportStyle({
       version: 8,
       sources: {
@@ -172,16 +174,53 @@ describe("mapExport", () => {
       ],
     });
 
-    expect(style.sources).not.toHaveProperty("basemap-tianditu-vector");
-    expect(style.sources).not.toHaveProperty("basemap-tianditu-labels");
-    expect(style.sources).toHaveProperty("map-export-platform-basemap");
-    expect(JSON.stringify(style)).not.toContain("test-browser-key");
+    expect(style.sources).toHaveProperty("basemap-tianditu-vector");
+    expect(style.sources).toHaveProperty("basemap-tianditu-labels");
+    expect(style.sources).not.toHaveProperty("map-export-platform-basemap");
+    expect(JSON.stringify(style)).not.toContain("/api/map/thumbnail-tiles");
     expect(style.layers.map((layer) => layer.id)).toEqual([
       "map-export-background",
-      "map-export-platform-basemap",
-      "map-export-platform-basemap-labels",
+      "basemap-tianditu-vector",
+      "basemap-tianditu-labels",
       "loaded-vector-fill",
     ]);
+  });
+
+  it.each(["tianditu-vector", "tianditu-imagery"])(
+    "retains the paced %s provider and prunes unused data",
+    (id) => {
+      const original = createBasemapCatalog({
+        tiandituKey: "browser-key",
+      }).find((b) => b.id === id)!.style as StyleSpecification;
+      original.sources.hidden = { type: "geojson", data: emptyFeatures() };
+      original.sources.unused = { type: "geojson", data: emptyFeatures() };
+      original.layers.push({
+        id: "hidden",
+        type: "circle",
+        source: "hidden",
+        layout: { visibility: "none" },
+      });
+      const exported = createExportStyle(original);
+      const sources = Object.entries(exported.sources);
+      expect(sources).toHaveLength(2);
+      for (const [sourceId, source] of sources) {
+        expect(source).toEqual(original.sources[sourceId]);
+        expect(source).toMatchObject({
+          provider: "geomanager-tianditu-paced-v1",
+        });
+      }
+      expect(original.sources).toHaveProperty("hidden");
+      expect(exported.layers.map((layer) => layer.id)).not.toContain("hidden");
+    },
+  );
+
+  it("rejects an unavailable selected Tianditu style instead of exporting a plain background", () => {
+    expect(() =>
+      createExportStyle(
+        { version: 8, sources: {}, layers: [] },
+        "tianditu-imagery",
+      ),
+    ).toThrow("完整加载所选天地图");
   });
 
   it("infers tile zoom options from basemap layers and excludes loaded data", () => {

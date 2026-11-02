@@ -59,15 +59,19 @@ const article: ContentArticle = {
     },
   ],
 };
-function show(kind: "knowledge" | "news" = "news", detail = true) {
-  const base = kind === "knowledge" ? "/science-updates" : "/news";
+function show(
+  kind: "knowledge" | "news" = "news",
+  detail = true,
+  embedded = false,
+) {
+  const base = kind === "knowledge" ? "/knowledge" : "/news";
   return render(
     <AntApp>
       <MemoryRouter initialEntries={[detail ? `${base}/1` : base]}>
         <Routes>
           <Route
             path={`${base}/:articleId?`}
-            element={<EditorialPage kind={kind} />}
+            element={<EditorialPage kind={kind} embedded={embedded} />}
           />
         </Routes>
       </MemoryRouter>
@@ -83,6 +87,42 @@ beforeEach(async () => {
   api.discardAsset.mockResolvedValue({ detail: "已撤销" });
 });
 describe("editorial content management", () => {
+  it("reads and edits science articles inside the existing knowledge page without a second navigation or hero", async () => {
+    const item = {
+      ...article,
+      kind: "knowledge" as const,
+      title: "胡杨异形叶",
+      status: "published" as const,
+    };
+    api.articles.mockResolvedValue({ items: [item], total: 1, canEdit: true });
+    api.article.mockResolvedValue(item);
+    show("knowledge", false, true);
+    await screen.findByRole("heading", { name: "其他科普知识", level: 2 });
+    expect(screen.queryByTestId("navigation")).not.toBeInTheDocument();
+    expect(document.querySelector(".editorial-hero")).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "胡杨异形叶" }));
+    await screen.findByText("原有正文");
+    fireEvent.click(screen.getByRole("button", { name: "返回列表" }));
+    await screen.findByRole("button", { name: "胡杨异形叶" });
+    fireEvent.click(screen.getByRole("button", { name: "更新科普知识" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(api.articles).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "knowledge", summaryOnly: "1" }),
+    );
+  });
+
+  it("does not expose the embedded science editor to readers", async () => {
+    api.articles.mockResolvedValue({ items: [], total: 0, canEdit: false });
+    show("knowledge", false, true);
+    await screen.findByText("暂无已发布内容");
+    expect(
+      screen.queryByRole("button", { name: "更新科普知识" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("switch", { name: "管理内容" }),
+    ).not.toBeInTheDocument();
+  });
+
   it.each(["knowledge", "news"] as const)(
     "lets editors create and publish %s content from its own page",
     async (kind) => {
@@ -93,7 +133,7 @@ describe("editorial content management", () => {
         canEdit: true,
       });
       show(kind, false);
-      const label = kind === "knowledge" ? "发布科普" : "发布团队动态";
+      const label = kind === "knowledge" ? "更新科普知识" : "发布团队动态";
       fireEvent.click(await screen.findByRole("button", { name: label }));
       expect(screen.getByTestId("navigation")).toHaveAttribute(
         "data-active-tab",
@@ -142,7 +182,7 @@ describe("editorial content management", () => {
       await screen.findByText("原有正文");
       expect(
         screen.queryByRole("button", {
-          name: /发布科普|发布团队动态|编辑内容/,
+          name: /更新科普知识|发布团队动态|编辑内容/,
         }),
       ).not.toBeInTheDocument();
       expect(

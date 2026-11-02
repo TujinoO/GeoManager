@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve unsaved map-composition edits when the live map view or source summary changes
 - Recommend usable geographic and Web Mercator grid intervals for both local and regional extents
 
+## [V3.29] - 2026-11-02
+
+- 合并胡杨科普阅读、检索与维护入口，补齐草稿、待审核、发布和下架流程；团队动态统一关于我们侧栏，优化置顶海报与新闻封面。
+- 优化页面导航、分析侧栏和窄屏布局，移除智能预警占位；展示图片使用保留原图的 WebP 副本，内容列表按需读取并启用压缩。
+- 修复天地图出图授权通道、高分屏导出尺寸及空白画布问题，优化瓦片请求合并、失败退避、原子缓存和制图预览调度。
+- 同步内容 API、生成客户端、文档和测试，新增可显式执行且不覆盖既有文章的内容导入命令。
+- 升级说明：启动执行 `content.0002_article_review_status`；部署前备份生产数据库与配置，Waitress 线程数同步为 8。权限体系、数据根目录和后端栅格渲染方式不变；保留既有新闻，不自动导入本地数据或样例。
+
 ## [V3.28] - 2026-10-31
 
 - 新增科普更新与团队动态栏目，支持草稿、发布、置顶、附件及安全图文/公式展示，维护入口按现有权限显示。

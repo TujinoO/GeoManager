@@ -328,7 +328,7 @@ def _runtime_config(raw: dict[str, Any]) -> RuntimeConfig:
             "runtime.waitress_port",
         ),
         waitress_threads=_positive_int(
-            raw.get("waitress_threads", 4),
+            raw.get("waitress_threads", 8),
             "runtime.waitress_threads",
         ),
         disable_catalog_startup_scan=_bool(

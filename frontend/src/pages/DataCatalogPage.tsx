@@ -37,7 +37,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { api } from "../api/client";
 import capfedLogoWhite from "../assets/capfed-logo-white.svg";
-import homePoplarNightImage from "../assets/portal/home-poplar-night.png";
+import homePoplarNightImage from "../assets/portal/home-poplar-night.webp";
 import WorkspaceHeader from "../components/WorkspaceHeader";
 import { platformBrand } from "../config/platformBrand";
 import { useAppContext } from "../contexts/AppContext";

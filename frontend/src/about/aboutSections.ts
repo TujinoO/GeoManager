@@ -1,13 +1,13 @@
 import helpGuidePreview from "../assets/about/help-guide-preview.png";
 import labLeavesImage from "../assets/about/lab-leaves.jpeg";
-import knowledgePopulusForestImage from "../assets/about/knowledge-populus-forest.png";
+import knowledgePopulusForestImage from "../assets/about/knowledge-populus-forest.webp";
 import liZhijunPortrait from "../assets/about/lizhijun-portrait.jpeg";
-import memberResearchSeedlingsImage from "../assets/about/member-research-seedlings.png";
-import populusForestImage from "../assets/about/populus-forest.png";
+import memberResearchSeedlingsImage from "../assets/about/member-research-seedlings.webp";
+import populusForestImage from "../assets/about/populus-forest.webp";
 import researchSeedlingsImage from "../assets/about/research-seedlings.jpeg";
 import tarimUniversitySeal from "../assets/about/tarim-university-seal.jpeg";
-import teamGreenhouseImage from "../assets/about/team-greenhouse.png";
-import aboutPoplarGroveImage from "../assets/portal/about-poplar-grove.png";
+import teamGreenhouseImage from "../assets/about/team-greenhouse.webp";
+import aboutPoplarGroveImage from "../assets/portal/about-poplar-grove.webp";
 import { platformBrand } from "../config/platformBrand";
 
 export type AboutSectionKey =
@@ -167,9 +167,21 @@ export const aboutSections: AboutSection[] = [
 ];
 
 /** “胡杨科普”已经升级为一级模块；关于我们保留平台、团队、联系与帮助内容。 */
-export const aboutNavigationSections = aboutSections.filter(
-  (section) => section.key !== "knowledge",
-);
+export const aboutNavigationSections = aboutSections
+  .filter((section) => section.key !== "knowledge")
+  .flatMap((section) => [
+    section,
+    ...(section.key === "team"
+      ? [
+          {
+            key: "news" as const,
+            title: "团队动态",
+            navSummary: "新闻与科研进展",
+            path: "/news",
+          },
+        ]
+      : []),
+  ]);
 
 export const systemIntroduction = {
   lead: "平台由塔里木大学李志军教授课题组牵头建设，面向全球胡杨林生态系统保护，提供数据共享与科研协同服务。",

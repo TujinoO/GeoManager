@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
+from concurrent.futures import Future
+from threading import Lock
+from time import monotonic
+from uuid import uuid4
 from io import BytesIO
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -25,6 +30,9 @@ MAPBOX_TILE_URL_TEMPLATE = (
     "?access_token={token}"
 )
 OSM_TILE_SUBDOMAINS = ("a", "b", "c")
+_tile_lock = Lock()
+_inflight_tiles: dict[str, Future] = {}
+_failed_tiles: dict[str, float] = {}
 
 
 class ThumbnailTileError(RuntimeError):
@@ -39,6 +47,7 @@ def thumbnail_tile(
     allow_fallback: bool = True,
     basemap: str | None = None,
     labels: bool = False,
+    referer: str | None = None,
 ) -> tuple[bytes, str, bool]:
     validate_tile_coordinates(z, x, y)
     url, cache_key = configured_tile_url(z, x, y, basemap=basemap, labels=labels)
@@ -47,24 +56,65 @@ def thumbnail_tile(
         data = cache_path.read_bytes()
         return data, detect_image_content_type(data), False
 
+    key = str(cache_path)
     try:
-        data, content_type = fetch_tile(
-            url,
-            timeout=THUMBNAIL_TILE_TIMEOUT_SECONDS
-            if allow_fallback
-            else EXPORT_TILE_TIMEOUT_SECONDS,
-        )
-    except ThumbnailTileError:
+        with _tile_lock:
+            now = monotonic()
+            # Keep failure backoff bounded without retaining failed Future tracebacks.
+            for failed_key, expiry in list(_failed_tiles.items()):
+                if expiry <= now:
+                    _failed_tiles.pop(failed_key, None)
+            if key in _failed_tiles:
+                raise ThumbnailTileError("底图服务暂不可用，请稍后重试")
+            future = _inflight_tiles.get(key)
+            owner = future is None
+            if owner:
+                future = Future()
+                _inflight_tiles[key] = future
+        if owner:
+            try:
+                # A second worker may have finished the same tile before we took ownership.
+                if cache_path.exists():
+                    data = cache_path.read_bytes()
+                    content_type = detect_image_content_type(data)
+                else:
+                    kwargs = {
+                        "timeout": THUMBNAIL_TILE_TIMEOUT_SECONDS
+                        if allow_fallback
+                        else EXPORT_TILE_TIMEOUT_SECONDS
+                    }
+                    if referer:
+                        kwargs["referer"] = referer
+                    data, content_type = fetch_tile(url, **kwargs)
+                    cache_path.parent.mkdir(parents=True, exist_ok=True)
+                    temporary = cache_path.with_name(
+                        f".{cache_path.name}.{uuid4().hex}.tmp"
+                    )
+                    try:
+                        temporary.write_bytes(data)
+                        os.replace(temporary, cache_path)
+                    finally:
+                        temporary.unlink(missing_ok=True)
+                future.set_result((data, content_type))
+            except Exception as exc:
+                with _tile_lock:
+                    if len(_failed_tiles) >= 512:
+                        _failed_tiles.pop(next(iter(_failed_tiles)))
+                    _failed_tiles[key] = monotonic() + 3
+                future.set_exception(exc)
+            finally:
+                with _tile_lock:
+                    _inflight_tiles.pop(key, None)
+        data, content_type = future.result(timeout=EXPORT_TILE_TIMEOUT_SECONDS + 1)
+    except (ThumbnailTileError, TimeoutError, OSError) as exc:
         stale = latest_cached_tile(cache_key, z, x, y)
         if stale is not None:
             data = stale.read_bytes()
             return data, detect_image_content_type(data), False
         if not allow_fallback:
-            raise
+            raise ThumbnailTileError("底图瓦片加载失败或超时") from exc
         return generated_local_tile(z, x, y), "image/png", True
 
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    cache_path.write_bytes(data)
     return data, content_type, False
 
 
@@ -135,13 +185,17 @@ def configured_tile_url(
 
 
 def fetch_tile(
-    url: str, *, timeout: int = THUMBNAIL_TILE_TIMEOUT_SECONDS
+    url: str,
+    *,
+    timeout: int = THUMBNAIL_TILE_TIMEOUT_SECONDS,
+    referer: str | None = None,
 ) -> tuple[bytes, str]:
     request = Request(
         url,
         headers={
             "User-Agent": "GeoManager thumbnail tile proxy",
             "Accept": "image/png,image/*;q=0.8,*/*;q=0.5",
+            **({"Referer": referer} if referer else {}),
         },
     )
     try:
@@ -159,6 +213,11 @@ def fetch_tile(
     detected_type = detect_image_content_type(data, declared_type)
     if detected_type == "image/svg+xml":
         raise ThumbnailTileError("缩略图瓦片源返回了不受支持的 SVG 内容")
+    try:
+        with Image.open(BytesIO(data)) as image:
+            image.verify()
+    except (OSError, ValueError, SyntaxError) as exc:
+        raise ThumbnailTileError("底图服务返回了无效图片") from exc
     return data, detected_type
 
 

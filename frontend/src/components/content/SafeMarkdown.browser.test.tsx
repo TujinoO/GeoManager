@@ -2,6 +2,16 @@ import { render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import SafeMarkdown from "./SafeMarkdown";
 
+it("renders attributed quotations as text without interpreting embedded HTML", () => {
+  const { container } = render(
+    <SafeMarkdown text={"> “我的根在这里。” <img src=x onerror=alert(1)>"} />,
+  );
+  expect(container.querySelector("blockquote")?.textContent).toBe(
+    "“我的根在这里。” <img src=x onerror=alert(1)>",
+  );
+  expect(container.querySelector("img")).toBeNull();
+});
+
 it("shows escaped catalog names exactly without splitting cells or creating markup", () => {
   const name =
     "haze1_ndvi|样区*A*`v1`[目录](修订)\\路径 <script>alert(1)</script> &lt;&gt;&amp;";

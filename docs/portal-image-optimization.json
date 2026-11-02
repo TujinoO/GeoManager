@@ -1,0 +1,134 @@
+[
+  {
+    "source": "frontend/src/assets/about/knowledge-populus-forest.png",
+    "display": "frontend/src/assets/about/knowledge-populus-forest.webp",
+    "sourceBytes": 2719974,
+    "displayBytes": 247940,
+    "displaySize": [
+      1920,
+      640
+    ],
+    "sourceSha256": "b3ea77c1e305d0fb6c149829ea63c25faaf6c9a3dbb80314275289aede6ed17f",
+    "displaySha256": "bc94106924e2d3ec76320270ebcb303935fcfc76c14809b7cb8f0af09850f028"
+  },
+  {
+    "source": "frontend/src/assets/about/member-research-seedlings.png",
+    "display": "frontend/src/assets/about/member-research-seedlings.webp",
+    "sourceBytes": 1002117,
+    "displayBytes": 56456,
+    "displaySize": [
+      864,
+      576
+    ],
+    "sourceSha256": "24612ee00148387fe9d4c8a368b1f301736ba6ff0e45b303fa7948065fbb847f",
+    "displaySha256": "f698fb01e440e1a8318527e4ea3fe3cf9f66b688c32eb1f196f34408b1bf99d9"
+  },
+  {
+    "source": "frontend/src/assets/about/populus-forest.png",
+    "display": "frontend/src/assets/about/populus-forest.webp",
+    "sourceBytes": 989249,
+    "displayBytes": 102568,
+    "displaySize": [
+      1080,
+      608
+    ],
+    "sourceSha256": "e6fe4b724fd0ef28dfd4d406ccbb1b05642ad5486a9b9e079b658bc9e50a23d7",
+    "displaySha256": "ed0902a8d3e18e3f3e4ccb6472abe628fc055a04b682c394e11a048f9060ae28"
+  },
+  {
+    "source": "frontend/src/assets/about/team-greenhouse.png",
+    "display": "frontend/src/assets/about/team-greenhouse.webp",
+    "sourceBytes": 769495,
+    "displayBytes": 89142,
+    "displaySize": [
+      1000,
+      568
+    ],
+    "sourceSha256": "aa5325de72a97d6b662509ddc8dbe10c25b4126900d80dd07379487c9809f00c",
+    "displaySha256": "faf24249226a8adfb215965ced6505b8e5d3335cf75361db6472c5d8fc72ec8a"
+  },
+  {
+    "source": "frontend/src/assets/about/xjafs-seed-base.png",
+    "display": "frontend/src/assets/about/xjafs-seed-base.webp",
+    "sourceBytes": 683698,
+    "displayBytes": 88272,
+    "displaySize": [
+      656,
+      494
+    ],
+    "sourceSha256": "6df950cabf0cbe5e8aaa2754d3149d7d9ab39d748b776d3feccfa824c048b800",
+    "displaySha256": "ffc0a69436acee62820ce0bb719e5bbcacd530b8b57481bb7a2958660c27cd1c"
+  },
+  {
+    "source": "frontend/src/assets/portal/about-poplar-grove.png",
+    "display": "frontend/src/assets/portal/about-poplar-grove.webp",
+    "sourceBytes": 1044759,
+    "displayBytes": 71314,
+    "displaySize": [
+      865,
+      487
+    ],
+    "sourceSha256": "ff741a22d51474dd209fc0de1db77b2d97d09f28cae5bbe88ad9f8f836078b9e",
+    "displaySha256": "185f561cb28433b011efc6f9c5ffe840ff8a8173b92e78ff883274faf518114a"
+  },
+  {
+    "source": "frontend/src/assets/portal/home-poplar-night.png",
+    "display": "frontend/src/assets/portal/home-poplar-night.webp",
+    "sourceBytes": 2678804,
+    "displayBytes": 275738,
+    "displaySize": [
+      1672,
+      941
+    ],
+    "sourceSha256": "1ad3a7e41ec53b30344874cab8a4caedce6e5150f86f09a1c4506455fba1b6ba",
+    "displaySha256": "db1ab42e2dd3d03b786e252f7ae39dd6af7b4798c241fcc120abbcfdb5a49184"
+  },
+  {
+    "source": "frontend/src/assets/portal/knowledge-ancient-poplar.png",
+    "display": "frontend/src/assets/portal/knowledge-ancient-poplar.webp",
+    "sourceBytes": 3266909,
+    "displayBytes": 488980,
+    "displaySize": [
+      1672,
+      941
+    ],
+    "sourceSha256": "00b2f87f95397b4b0fce8d41a4c1fb6dd3a8ab0a2c46dfb1ceb855498d0df250",
+    "displaySha256": "1a2b36a7c06d5fe075a9b7a08ee718aaa68ac3555fc1ed968407c9c96c4d8801"
+  },
+  {
+    "source": "frontend/src/assets/portal/results-poplar-reflection.png",
+    "display": "frontend/src/assets/portal/results-poplar-reflection.webp",
+    "sourceBytes": 2724773,
+    "displayBytes": 331580,
+    "displaySize": [
+      1672,
+      941
+    ],
+    "sourceSha256": "bb3dda89e98cf41059f9fedd01fed7fe1e1ca29e230c88bdad079fe2b5e8b361",
+    "displaySha256": "2f14e9c44a787a513593234f1664b208051adac887dd73907751a3f54b5ca9ce"
+  },
+  {
+    "source": "frontend/src/assets/login-carousel-05.webp",
+    "display": "frontend/src/assets/login-carousel-05-display.webp",
+    "sourceBytes": 1705980,
+    "displayBytes": 779716,
+    "displaySize": [
+      1920,
+      1080
+    ],
+    "sourceSha256": "0e32a80c00b4682c01498742cf03335e1bc77db35480f90ee0eb6598f467115e",
+    "displaySha256": "0c2242fb65eae0b4cdee874f84869b4f32b2d5d4990905eb622fef1a68acee45"
+  },
+  {
+    "source": "frontend/src/assets/login-carousel-06.webp",
+    "display": "frontend/src/assets/login-carousel-06-display.webp",
+    "sourceBytes": 1635568,
+    "displayBytes": 762514,
+    "displaySize": [
+      1920,
+      1080
+    ],
+    "sourceSha256": "33f68c97a68e7d27f5b665cd751b7421a5da372594d835f14fc54d7244834be5",
+    "displaySha256": "9afb1b76973a726e16ac9ab94d38f600e12f56759a8de27b18f35bf232f14b07"
+  }
+]

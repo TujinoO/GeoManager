@@ -241,7 +241,7 @@ describe("WorkspaceHeader", () => {
       ),
     );
   });
-  it("opens science updates from the science menu for editors", async () => {
+  it("opens poplar knowledge directly for editors without a separate updates menu", async () => {
     renderHeader(
       { activeTab: "knowledge" },
       {
@@ -250,25 +250,19 @@ describe("WorkspaceHeader", () => {
       },
     );
     fireEvent.click(screen.getByRole("button", { name: "胡杨科普" }));
-    const menu = await screen.findByRole("menu");
-    expect(
-      within(menu).getByRole("menuitem", { name: "胡杨科普" }),
-    ).toBeInTheDocument();
-    expect(within(menu).queryByText("团队动态")).not.toBeInTheDocument();
-    fireEvent.click(within(menu).getByRole("menuitem", { name: "科普更新" }));
     await waitFor(() =>
       expect(screen.getByTestId("location-path")).toHaveTextContent(
-        "/science-updates",
+        "/knowledge",
       ),
     );
+    expect(
+      screen.queryByRole("menuitem", { name: "科普更新" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the science maintenance entry hidden for readers and preserves original science navigation", async () => {
     renderHeader();
     fireEvent.click(screen.getByRole("button", { name: "胡杨科普" }));
-    const menu = await screen.findByRole("menu");
-    expect(within(menu).queryByText("科普更新")).not.toBeInTheDocument();
-    fireEvent.click(within(menu).getByRole("menuitem", { name: "胡杨科普" }));
     await waitFor(() =>
       expect(screen.getByTestId("location-path")).toHaveTextContent(
         "/knowledge",
@@ -279,6 +273,12 @@ describe("WorkspaceHeader", () => {
   it("opens team news from About us for readers without mixing it into science", async () => {
     renderHeader({ activeTab: "about" });
     fireEvent.click(screen.getByRole("button", { name: "关于我们" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-path")).toHaveTextContent(
+        "/about/system",
+      ),
+    );
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "关于我们" }));
     const menu = await screen.findByRole("menu");
     expect(
       within(menu).getByRole("menuitem", { name: "平台简介" }),
@@ -526,12 +526,12 @@ describe("WorkspaceHeader", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("opens the reserved intelligent warning page", () => {
+  it("removes the intelligent warning placeholder from navigation", () => {
     renderHeader();
 
-    fireEvent.click(screen.getByRole("button", { name: "智能预警" }));
-
-    expect(screen.getByTestId("location-path")).toHaveTextContent("/warning");
+    expect(
+      screen.queryByRole("button", { name: "智能预警" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps first-entry map navigation available and opens guidance on demand", async () => {

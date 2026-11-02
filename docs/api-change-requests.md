@@ -757,3 +757,10 @@ ResultArtifact 增加 canEditReport / canSubmitReview，由后端按草稿状态
 ### 科普与动态内容维护（091—093、097）
 
 新增 `/api/content/articles/`、`/api/content/articles/{articleId}/`、`/api/content/articles/{articleId}/assets/`、`/api/content/assets/{assetId}/`。全部需要Django会话，读取仅已发布内容；维护复用core.manage_auth。附件暂存24小时、按编辑者隔离，正文revision和附件提交在同一事务中更新，冲突409；不引入项目、计算或知识库服务。前端仅安全Markdown/公式显示。未提交附件过期后不可读取，保留待人工检查，不运行批量清理。Mock：mock/prism/examples/content.json。
+
+## 2026-11-01 内容审核与摘要读取（本轮实现）
+
+- 接口：/api/content/articles/、/api/content/articles/{articleId}/、/api/content/assets/{assetId}/。
+- 列表新增 summaryOnly=1，正文/备注/附件/学习链接留空，详情维持完整；减少卡片传输和数据库读取。
+- status 扩充 review，待审核仅 core.manage_auth 可见；发布校验非空正文，状态审计；附件条件缓存先过权限。
+- 示例：mock/prism/examples/content.json；服务端、生成类型与 React 同步实现，验证轻量列表、审核发布、普通用户可见性、附件缓存与撤回。

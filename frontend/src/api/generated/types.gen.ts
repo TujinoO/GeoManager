@@ -33,9 +33,9 @@ export type ContentArticle = {
      */
     body: string;
     /**
-     * 草稿、发布或下架。
+     * 草稿、待审核、发布或下架；review 仅管理员可读，发布需完整标题、分类和正文。
      */
-    status: 'draft' | 'published' | 'archived';
+    status: 'draft' | 'review' | 'published' | 'archived';
     /**
      * 受控封面地址。
      */
@@ -152,9 +152,9 @@ export type ContentArticleInput = {
      */
     body: string;
     /**
-     * 草稿、发布或下架。
+     * 草稿、待审核、发布或下架；review 仅管理员可读，发布需完整标题、分类和正文。
      */
-    status: 'draft' | 'published' | 'archived';
+    status: 'draft' | 'review' | 'published' | 'archived';
     /**
      * 事件日期 YYYY-MM-DD，允许空字符串。
      */
@@ -11615,6 +11615,10 @@ export type ListContentArticlesData = {
     };
     path?: never;
     query?: {
+        /**
+         * 1 表示轻量列表，body/source 返回空字符串，assets/links 返回空数组；阅读全文和编辑须读取详情。默认返回完整条目。
+         */
+        summaryOnly?: '0' | '1';
         /**
          * knowledge 或 news。
          */

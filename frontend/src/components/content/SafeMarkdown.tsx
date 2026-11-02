@@ -168,6 +168,12 @@ export default function SafeMarkdown({
           ))}
         </ul>,
       );
+    } else if (/^>\s?/.test(line)) {
+      result.push(
+        <blockquote key={key}>
+          {inline(line.replace(/^>\s?/, ""), wikiLink, math)}
+        </blockquote>,
+      );
     } else if (/^#{1,4} /.test(line)) {
       result.push(
         <h3 key={key}>{inline(line.replace(/^#+ /, ""), wikiLink, math)}</h3>,

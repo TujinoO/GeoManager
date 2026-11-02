@@ -1,10 +1,10 @@
 import liJunliPortrait from "../assets/about/lijunli-portrait.jpeg";
 import liZhijunPortrait from "../assets/about/lizhijun-portrait.jpeg";
-import memberResearchSeedlingsImage from "../assets/about/member-research-seedlings.png";
+import memberResearchSeedlingsImage from "../assets/about/member-research-seedlings.webp";
 import poplarWaterGoldenImage from "../assets/about/poplar-water-golden.jpeg";
 import siJianhuaPortrait from "../assets/about/sijianhua-portrait.jpeg";
 import tarimCarbonAnalysisImage from "../assets/about/tarim-carbon-analysis.png";
-import teamGreenhouseImage from "../assets/about/team-greenhouse.png";
+import teamGreenhouseImage from "../assets/about/team-greenhouse.webp";
 import xiegDengRuiPortrait from "../assets/about/xieg-deng-rui.jpg";
 import xiegFanJingchaoPortrait from "../assets/about/xieg-fan-jingchao.jpg";
 import xiegLiRuonanPortrait from "../assets/about/xieg-li-ruonan.jpg";
@@ -14,7 +14,7 @@ import xiegYanYanghaoPortrait from "../assets/about/xieg-yan-yanghao.jpg";
 import xiegZhangJiudanPortrait from "../assets/about/xieg-zhang-jiudan.jpg";
 import xiegZhangTianPortrait from "../assets/about/xieg-zhang-tian.jpg";
 import xjafsMonitoringTowerImage from "../assets/about/xjafs-monitoring-tower.png";
-import xjafsSeedBaseImage from "../assets/about/xjafs-seed-base.png";
+import xjafsSeedBaseImage from "../assets/about/xjafs-seed-base.webp";
 
 export type InstitutionMember = {
   name: string;

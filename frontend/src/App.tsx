@@ -8,7 +8,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from "react-router-dom";
 import {
   api,
   registerForbiddenHandler,
@@ -63,7 +69,6 @@ const KnowledgePage = lazy(() => import("./pages/KnowledgePage"));
 const MapPage = lazy(() => import("./pages/MapPage"));
 const NonGeoPage = lazy(() => import("./pages/AnalysisPage"));
 const ResultsPage = lazy(() => import("./pages/ResultsPage"));
-const WarningPage = lazy(() => import("./pages/WarningPage"));
 const ResourceLayout = lazy(() => import("./resource/ResourceLayout"));
 
 /** 为路由页面添加淡入过渡效果的包装组件 */
@@ -85,6 +90,17 @@ function RouteLoading() {
 }
 
 const startupRetryDelaysMs = [300, 700, 1200, 2000];
+
+function ScienceArticleRedirect() {
+  const { articleId } = useParams();
+  const { search } = useLocation();
+  return (
+    <Navigate
+      to={`/knowledge${articleId ? `/${articleId}` : ""}${search}#other-knowledge`}
+      replace
+    />
+  );
+}
 
 export default function App({
   locale,
@@ -219,7 +235,7 @@ export default function App({
           <Route element={<RequireAuth />}>
             <Route
               path="/science-updates/:articleId?"
-              element={<EditorialPage key="science-updates" kind="knowledge" />}
+              element={<ScienceArticleRedirect />}
             />
             <Route
               path="/news/:articleId?"
@@ -261,16 +277,9 @@ export default function App({
                 </RouteTransition>
               }
             />
+            <Route path="/warning" element={<Navigate to="/" replace />} />
             <Route
-              path="/warning"
-              element={
-                <RouteTransition>
-                  <WarningPage />
-                </RouteTransition>
-              }
-            />
-            <Route
-              path="/knowledge"
+              path="/knowledge/:articleId?"
               element={
                 <RouteTransition>
                   <KnowledgePage />

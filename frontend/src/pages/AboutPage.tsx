@@ -9,11 +9,8 @@ import {
   ExperimentOutlined,
   FileSearchOutlined,
   FilePdfOutlined,
-  FileTextOutlined,
   GlobalOutlined,
-  InfoCircleOutlined,
   LinkOutlined,
-  MailOutlined,
   ReadOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
@@ -22,11 +19,10 @@ import {
   UsergroupAddOutlined,
 } from "@ant-design/icons";
 import { Button, Input, Layout, Tag, Typography } from "antd";
-import { useEffect, useState, type ReactNode } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import {
   aboutAssets,
-  aboutNavigationSections,
   aboutSectionByKey,
   contactRows,
   coreMembers,
@@ -58,19 +54,10 @@ import {
   teamLeaderCard,
   teamNewsItems,
   type AboutSection,
-  type AboutSectionKey,
 } from "../about/aboutSections";
 import WorkspaceHeader from "../components/WorkspaceHeader";
+import AboutSidebar from "../components/AboutSidebar";
 import { useAppContext } from "../contexts/AppContext";
-
-const sectionIcons: Record<AboutSectionKey, ReactNode> = {
-  system: <InfoCircleOutlined />,
-  team: <TeamOutlined />,
-  members: <UsergroupAddOutlined />,
-  knowledge: <ReadOutlined />,
-  contact: <MailOutlined />,
-  docs: <FileTextOutlined />,
-};
 
 const capabilityIcons = [
   <DatabaseOutlined key="database" />,
@@ -88,7 +75,6 @@ const teamFocusIcons = [
 
 export default function AboutPage() {
   const { user } = useAppContext();
-  const navigate = useNavigate();
   const params = useParams();
   const activeSection = aboutSectionByKey(params.section);
   const permissions = user?.permissions;
@@ -98,36 +84,7 @@ export default function AboutPage() {
     <Layout className="workspace">
       <WorkspaceHeader activeTab="about" canBrowseData={canBrowseData} />
       <div className="workspace-body workspace-body-about">
-        <aside className="about-page-nav-panel">
-          <div className="about-page-panel-head">
-            <Typography.Text strong>关于我们</Typography.Text>
-          </div>
-          <div className="about-page-nav-list">
-            {aboutNavigationSections.map((section) => (
-              <button
-                aria-current={
-                  section.key === activeSection.key ? "page" : undefined
-                }
-                className={`about-page-nav-item${
-                  section.key === activeSection.key
-                    ? " about-page-nav-item-active"
-                    : ""
-                }`}
-                key={section.key}
-                type="button"
-                onClick={() => navigate(section.path)}
-              >
-                <span className="about-page-nav-icon">
-                  {sectionIcons[section.key]}
-                </span>
-                <span>
-                  <strong>{section.title}</strong>
-                  <small>{section.navSummary}</small>
-                </span>
-              </button>
-            ))}
-          </div>
-        </aside>
+        <AboutSidebar activeKey={activeSection.key} />
 
         <main className="about-page-main-panel">
           {renderAboutContent(activeSection)}

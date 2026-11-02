@@ -19726,8 +19726,26 @@
                   "$ref": "#/components/schemas/ContentArticleList"
                 },
                 "example": {
-                  "items": [],
-                  "total": 0,
+                  "items": [
+                    {
+                      "id": 1,
+                      "kind": "knowledge",
+                      "title": "胡杨林监测：如何记录同一片样地",
+                      "summary": "固定样地、调查时间与单位，让不同年份的数据能够比较。",
+                      "category": "监测与数据",
+                      "body": "",
+                      "source": "",
+                      "status": "published",
+                      "coverUrl": "",
+                      "eventDate": "",
+                      "publishedAt": "2026-11-01T09:00:00+08:00",
+                      "pinned": false,
+                      "revision": 1,
+                      "assets": [],
+                      "links": []
+                    }
+                  ],
+                  "total": 1,
                   "canEdit": false
                 }
               }
@@ -19754,6 +19772,18 @@
           }
         },
         "parameters": [
+          {
+            "name": "summaryOnly",
+            "in": "query",
+            "description": "1 表示轻量列表，body/source 返回空字符串，assets/links 返回空数组；阅读全文和编辑须读取详情。默认返回完整条目。",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1"
+              ]
+            }
+          },
           {
             "name": "kind",
             "in": "query",
@@ -19832,6 +19862,23 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ContentArticle"
+                },
+                "example": {
+                  "id": 2,
+                  "kind": "knowledge",
+                  "title": "固定样地的重复观测",
+                  "summary": "监测时间、样方和单位的记录要点。",
+                  "category": "研究方法",
+                  "body": "## 观测准备\n\n复测同一样地时保留原编号并记录日期、方法和单位。",
+                  "source": "平台方法科普待审核稿",
+                  "status": "review",
+                  "coverUrl": "",
+                  "eventDate": "",
+                  "publishedAt": "",
+                  "pinned": false,
+                  "revision": 1,
+                  "assets": [],
+                  "links": []
                 }
               }
             }
@@ -20484,10 +20531,11 @@
             "type": "string",
             "enum": [
               "draft",
+              "review",
               "published",
               "archived"
             ],
-            "description": "草稿、发布或下架。"
+            "description": "草稿、待审核、发布或下架；review 仅管理员可读，发布需完整标题、分类和正文。"
           },
           "coverUrl": {
             "type": "string",
@@ -20647,10 +20695,11 @@
             "type": "string",
             "enum": [
               "draft",
+              "review",
               "published",
               "archived"
             ],
-            "description": "草稿、发布或下架。"
+            "description": "草稿、待审核、发布或下架；review 仅管理员可读，发布需完整标题、分类和正文。"
           },
           "eventDate": {
             "type": "string",

@@ -19,12 +19,8 @@
   overflow: hidden;
   border: 1px solid #74cfc3a0;
   border-radius: 10px;
-  color: #e2fff7;
-  background:
-    radial-gradient(ellipse at 0 15%, #74e1c540, transparent 65%),
-    radial-gradient(ellipse at 95% 90%, #42d5cc24, transparent 50%),
-    linear-gradient(145deg, #164f54eb, #1e5b58de);
-  backdrop-filter: blur(24px) saturate(1.35);
+  color: #183f34;
+  background: linear-gradient(150deg, #f8fcf9, #e8f4ed);
   box-shadow:
     inset 0 1px 0 #c9fff567,
     0 12px 30px #24675c26,
@@ -35,12 +31,12 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #8af4d943;
+  border-bottom: 1px solid #c4ddcd;
 }
 .analysis-sidebar-brand h2 {
   margin: 0;
-  font-size: 19px;
-  color: #e0fff5;
+  font-size: 22px;
+  color: #123e30;
   font-weight: 600;
 }
 .analysis-sidebar-content {
@@ -58,9 +54,9 @@
   align-items: center;
   gap: 8px;
   margin: 0 6px 10px;
-  color: #b6f3e5;
-  font-size: 13px;
-  font-weight: 500;
+  color: #245640;
+  font-size: 15px;
+  font-weight: 600;
 }
 .analysis-type-section nav {
   display: grid;
@@ -70,34 +66,34 @@
   padding: 11px 12px;
   margin: 0;
   border-radius: 7px;
-  color: #e1fff8;
+  color: #214d3c;
   gap: 12px;
   transition:
     background 0.18s,
     box-shadow 0.18s;
 }
 .analysis-nav-item strong {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
 }
 .analysis-nav-item small {
   margin-top: 3px;
-  color: #a4cfc7;
-  font-size: 11px;
+  color: #526b60;
+  font-size: 12px;
 }
 .analysis-nav-item:hover {
-  background: #78e4c41f;
+  background: #e1efe4;
 }
 .analysis-nav-item.is-active {
-  color: #edfff8;
-  background: linear-gradient(105deg, #37bfa373, #53d3b02b);
-  border-color: #83ebcb9c;
+  color: #104b32;
+  background: linear-gradient(105deg, #d2ecd7, #e4f3e8);
+  border-color: #7cb58c;
   box-shadow:
-    inset 3px 0 0 #b9ffb4,
+    inset 3px 0 0 #2c8052,
     0 0 18px #44dfba32;
 }
 .analysis-nav-item.is-active small {
-  color: #d5f8de;
+  color: #325f47;
 }
 .analysis-resource-section {
   flex: 1;
@@ -106,26 +102,26 @@
   flex-direction: column;
   padding: 16px 15px 12px;
   margin: 0;
-  border-color: #a5f5dd40;
+  border-color: #c4ddcd;
 }
 .analysis-resource-section h3 span {
   margin-left: auto;
-  color: #d3ffef;
+  color: #28583f;
 }
 .analysis-sidebar .ant-input-affix-wrapper,
 .analysis-sidebar .ant-input-group-addon,
 .analysis-sidebar .ant-select-outlined .ant-select-selector {
-  background: #143e4250;
-  border-color: #8bd9c15c;
-  color: #e4fff5;
+  background: #ffffff;
+  border-color: #a9c9b5;
+  color: #244d3b;
 }
 .analysis-sidebar .ant-input,
 .analysis-sidebar .ant-input-search-button {
-  color: #e3fff6;
+  color: #244d3b;
   background: transparent;
 }
 .analysis-sidebar .ant-input::placeholder {
-  color: #b4d5cd;
+  color: #5c7568;
 }
 .analysis-sidebar .ant-select {
   margin-top: 10px;
@@ -133,7 +129,7 @@
 .analysis-sidebar .ant-select-content,
 .analysis-sidebar .ant-select-suffix,
 .analysis-sidebar .ant-input-clear-icon {
-  color: #d5f4e8;
+  color: #4b6d5a;
 }
 .analysis-resource-list {
   max-height: none;
@@ -145,30 +141,30 @@
 }
 .analysis-resource {
   border: 0;
-  border-bottom: 1px solid #97ebd52b;
+  border-bottom: 1px solid #c9dfcf;
   border-radius: 4px;
   background: transparent;
-  color: #e4fff6;
+  color: #244d3b;
   margin: 0;
   padding: 13px 8px;
 }
 .analysis-resource strong {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
 }
 .analysis-resource small {
-  color: #9ac9be;
-  font-size: 11px;
+  color: #526d5d;
+  font-size: 12px;
 }
 .analysis-resource:hover {
-  background: #90efcb14;
+  background: #e1efe4;
 }
 .analysis-resource.is-selected {
-  background: linear-gradient(95deg, #6ce3b52b, #65d9cd19);
-  box-shadow: inset 2px 0 #adfda2;
+  background: linear-gradient(95deg, #d8ecdd, #e7f3e9);
+  box-shadow: inset 2px 0 #2c8052;
 }
 .analysis-sidebar p {
-  color: #bbdcd2;
+  color: #4c6958;
 }
 .analysis-main {
   border: 1px solid #c1dfd5;
@@ -382,9 +378,9 @@
   }
   .analysis-sidebar .analysis-mobile-menu-toggle {
     display: inline-flex;
-    background: #baf7d51f;
-    color: #e4fff6;
-    border-color: #aaf0d26e;
+    background: #f4fbf5;
+    color: #244d3b;
+    border-color: #a9c9b5;
   }
   .analysis-main {
     flex: 1 0 auto;
@@ -402,12 +398,12 @@
 }
 
 .analysis-sidebar .ant-select-outlined {
-  --ant-select-selector-bg: #234e50;
-  --ant-select-color-text: #e4fff5;
-  background: #234e50;
+  --ant-select-selector-bg: #ffffff;
+  --ant-select-color-text: #244d3b;
+  background: #ffffff;
 }
 .analysis-sidebar .ant-select-content {
-  color: #e4fff5;
+  color: #244d3b;
 }
 
 @media (max-height: 650px) and (min-width: 651px) {

@@ -27,7 +27,7 @@ const tiandituSourcePathPattern = /^\/(vec|cva|img|cia)_w\/wmts$/i;
 const tiandituAttribution = "© 天地图";
 const tiandituDefaultMaxZoom = 18;
 const tiandituImageryReliableMaxZoom = 16;
-const credentialServiceCodes = new Set(["301007", "301018"]);
+const credentialServiceCodes = new Set(["301007", "301012", "301018"]);
 const credentialConfirmationServiceCodes = new Set(["301018"]);
 
 export class TiandituTileHttpError extends Error {

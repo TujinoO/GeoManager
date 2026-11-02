@@ -30,8 +30,8 @@ import loginBackground01 from "../assets/login-carousel-01.webp";
 import loginBackground02 from "../assets/login-carousel-02.webp";
 import loginBackground03 from "../assets/login-carousel-03.webp";
 import loginBackground04 from "../assets/login-carousel-04.webp";
-import loginBackground05 from "../assets/login-carousel-05.webp";
-import loginBackground06 from "../assets/login-carousel-06.webp";
+import loginBackground05 from "../assets/login-carousel-05-display.webp";
+import loginBackground06 from "../assets/login-carousel-06-display.webp";
 import { oceanBorderBeam } from "../components/oceanBorderBeam";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { platformBrand } from "../config/platformBrand";
@@ -259,6 +259,10 @@ export default function LoginPage() {
         {loginBackgrounds.map((background, index) => {
           const isActive = index === activeBackgroundIndex;
           const isOutgoing = index === outgoingBackgroundIndex;
+          const shouldLoad =
+            isActive ||
+            isOutgoing ||
+            index === (activeBackgroundIndex + 1) % loginBackgrounds.length;
           return (
             <div
               className={[
@@ -271,7 +275,11 @@ export default function LoginPage() {
               data-active={isActive}
               data-outgoing={isOutgoing}
               key={background}
-              style={{ backgroundImage: `url("${background}")` }}
+              style={
+                shouldLoad
+                  ? { backgroundImage: `url("${background}")` }
+                  : undefined
+              }
             />
           );
         })}

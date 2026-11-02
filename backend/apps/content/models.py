@@ -13,7 +13,12 @@ class Article(models.Model):
     status = models.CharField(
         max_length=16,
         default="draft",
-        choices=[("draft", "草稿"), ("published", "已发布"), ("archived", "已下架")],
+        choices=[
+            ("draft", "草稿"),
+            ("review", "待审核"),
+            ("published", "已发布"),
+            ("archived", "已下架"),
+        ],
     )
     source = models.TextField(blank=True)
     links = models.JSONField(default=list, blank=True)

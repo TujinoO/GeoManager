@@ -7,11 +7,9 @@ import {
   DatabaseOutlined,
   FileTextOutlined,
   GlobalOutlined,
-  InfoCircleOutlined,
   LinkOutlined,
   MailOutlined,
   SafetyCertificateOutlined,
-  TeamOutlined,
   UserOutlined,
   UsergroupAddOutlined,
 } from "@ant-design/icons";
@@ -20,14 +18,12 @@ import type { ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   aboutAssets,
-  aboutNavigationSections,
   aboutSectionByKey,
   platformDisplayName,
   systemCapabilities,
   systemIntroduction,
   systemRoadmap,
   type AboutSection,
-  type AboutSectionKey,
 } from "../about/aboutSections";
 import {
   contactChannels,
@@ -38,19 +34,11 @@ import {
   type InstitutionProfile,
 } from "../about/contentV2";
 import WorkspaceHeader from "../components/WorkspaceHeader";
+import AboutSidebar from "../components/AboutSidebar";
 import { useAppContext } from "../contexts/AppContext";
 import { DocsSection } from "./AboutPage";
 import { currentLocale } from "../i18n";
 import { EnglishAboutPage } from "./EnglishEditorialPages";
-
-const sectionIcons: Record<AboutSectionKey, ReactNode> = {
-  system: <InfoCircleOutlined />,
-  team: <TeamOutlined />,
-  members: <UsergroupAddOutlined />,
-  knowledge: <GlobalOutlined />,
-  contact: <MailOutlined />,
-  docs: <FileTextOutlined />,
-};
 
 const capabilityIcons = [
   <DatabaseOutlined key="database" />,
@@ -77,35 +65,7 @@ export default function AboutV2Page() {
         canBrowseData={Boolean(user?.permissions.canBrowseData)}
       />
       <div className="workspace-body workspace-body-about">
-        <aside className="about-page-nav-panel">
-          <div className="about-page-panel-head">
-            <Typography.Text strong>关于我们</Typography.Text>
-          </div>
-          <div className="about-page-nav-list">
-            {aboutNavigationSections.map((section) => (
-              <button
-                aria-current={
-                  section.key === activeSection.key ? "page" : undefined
-                }
-                className={`about-page-nav-item${
-                  section.key === activeSection.key
-                    ? " about-page-nav-item-active"
-                    : ""
-                }`}
-                key={section.key}
-                type="button"
-                onClick={() => navigate(section.path)}
-              >
-                <span className="about-page-nav-icon">
-                  {sectionIcons[section.key]}
-                </span>
-                <span>
-                  <strong>{section.title}</strong>
-                  <small>{section.navSummary}</small>
-                </span>
-              </button>
-            ))}
-          </div>
+        <AboutSidebar activeKey={activeSection.key}>
           {activeInstitution ? (
             <div className="about-v2-nav-context">
               <span>当前单位</span>
@@ -113,7 +73,7 @@ export default function AboutV2Page() {
               <small>{activeInstitution.leader}团队</small>
             </div>
           ) : null}
-        </aside>
+        </AboutSidebar>
 
         <main className="about-page-main-panel">
           {renderContent(activeSection, activeInstitution, navigate)}

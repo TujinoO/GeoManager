@@ -3,6 +3,60 @@
   color: var(--c-text);
   background: var(--c-bg-page);
 }
+.editorial-card-featured.ant-card {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid #c6aa63;
+  background: linear-gradient(120deg, #fff8e9, #fffdf7);
+}
+.editorial-card-featured.ant-card .ant-card-cover img {
+  width: auto;
+  max-width: 100%;
+  height: 320px;
+  object-fit: contain;
+  border-radius: 0;
+}
+.editorial-card-featured.ant-card .ant-card-cover {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+  background: transparent;
+}
+.editorial-card-featured.ant-card h3 {
+  font-size: clamp(22px, 2.5vw, 32px);
+  line-height: 1.5;
+}
+.editorial-card-featured.ant-card .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(20px, 3vw, 44px);
+}
+@media (max-width: 650px) {
+  .editorial-card-featured.ant-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .editorial-card-featured.ant-card .ant-card-cover img {
+    height: 300px;
+  }
+}
+.editorial-embedded {
+  min-width: 0;
+}
+.editorial-embedded .editorial-content {
+  margin-top: 0;
+}
+.editorial-embedded .editorial-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.editorial-section-intro {
+  margin: 16px 0 0;
+  color: #496b58;
+  line-height: 1.8;
+}
 .editorial-page .workspace-header {
   position: sticky;
   top: 8px;
@@ -14,6 +68,9 @@
 .editorial-main {
   width: min(1440px, calc(100% - 48px));
   margin: 0 auto 48px;
+}
+.editorial-about-main {
+  display: block;
 }
 .editorial-breadcrumb {
   display: flex;
@@ -192,6 +249,23 @@
   object-fit: cover;
   background: #edf4ef;
 }
+.editorial-about-page
+  .editorial-card:not(.editorial-card-featured)
+  .ant-card-cover
+  img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+.editorial-about-page
+  .editorial-card:not(.editorial-card-featured)
+  .ant-card-cover
+  .editorial-card-placeholder {
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
 .editorial-card .ant-card-cover .editorial-card-placeholder {
   height: 180px;
   display: flex;
@@ -344,6 +418,14 @@
   font-size: 13px;
   margin: 8px 0;
 }
+.editorial-card-featured.ant-card h3 button {
+  font-size: clamp(22px, 2vw, 28px);
+  line-height: 1.5;
+}
+.editorial-card-featured .ant-card-body > p {
+  font-size: 15px;
+  color: #3d594b;
+}
 .editorial-links a {
   display: flex;
   flex-wrap: wrap;
@@ -394,6 +476,14 @@
 }
 .content-markdown {
   overflow-wrap: anywhere;
+}
+.editorial-body blockquote {
+  margin: 22px 0;
+  padding: 14px 20px;
+  border-left: 4px solid #559274;
+  background: #f1f7f2;
+  color: #244c39;
+  line-height: 1.9;
 }
 .content-markdown img {
   max-width: 100%;
@@ -446,6 +536,9 @@
     width: 100%;
   }
   .editorial-grid {
+    grid-template-columns: 1fr;
+  }
+  .editorial-embedded .editorial-grid {
     grid-template-columns: 1fr;
   }
   .editorial-detail {

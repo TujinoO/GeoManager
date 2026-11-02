@@ -1,0 +1,44 @@
+[
+  {
+    "file": "assets/teacher-2026.webp",
+    "source": "C:/Users/Administrator/AppData/Local/Temp/codex-clipboard-e015d7ea-1dc8-40c5-9f1d-7e51c70d5a50.png",
+    "originalSha256": "05879cbebe1a4d2573753d5f2006bd850917df0c45cb187b505b0a72cb3e5ef0",
+    "sha256": "17b45a4b8604ad8c3be105181d7823eea302e646c9d7f394899725bb55c274f5",
+    "caption": "2026年“最美教师”李志军主题海报。用户提供原图；画面署名：新疆日报、石榴云、天山网。"
+  },
+  {
+    "file": "assets/research-history.webp",
+    "source": "https://www.taru.edu.cn/__local/9/7C/94/16FA440AC9859094ED6808BF1C7_B9937F54_2F866.jpg",
+    "originalSha256": "58059f245fe31b70bf9599bfad0e93b04e5d64290fa3766123fb74512da6ef6a",
+    "sha256": "6c065f993428f97e8e626dbdb1eb76b076aa067103b1a81aed72d795acbb4518",
+    "caption": "塔里木大学2022年人物报道原文配图：李志军胡杨保护研究资料。"
+  },
+  {
+    "file": "assets/interview.webp",
+    "source": "https://imgpai.thepaper.cn/pphimage/20260131/7e6ae05b-876c-4a0e-949d-b87d08fbd16f.jpg",
+    "originalSha256": "251d8cecc34e3fbb0681463136fe2cbb1bd0ae2a4fadd1b3cb0bf727b1fe148e",
+    "sha256": "37f846e78608fbe49193fa1c10c82aa499ee2648534849c1304661a9888bf594",
+    "caption": "《叩问初心》访谈预告原文资料图。来源：澎湃新闻·兵纷女声，2026-01-31。"
+  },
+  {
+    "file": "assets/nursery.webp",
+    "source": "https://www.cwdpa.org.cn/uploads/20251003/e88f3cd0-6b09-421b-a727-bd3d1e523e52.jpg",
+    "originalSha256": "7b22a374a514efd0b3f795b0b18c7c6577e9753262a810b11af843b393ea4530",
+    "sha256": "f971ed46e6ad7b2674d49bce2a9bc3d6558f45298c9b8f401a69c085e3d4e357",
+    "caption": "李志军在新疆阿拉尔国家农业科技园区讲解胡杨幼苗培育要点。董宁摄，来源：人民日报2025年10月2日报道。"
+  },
+  {
+    "file": "assets/poplar-forest.webp",
+    "source": "D:\\Code\\GeoManager-main260619\\GeoManager-main\\frontend\\src\\assets\\about\\poplar-water-golden.jpeg",
+    "originalSha256": "8478f4057056dbb59055abe119c4f2f59e76a759478e366d2deb62e83e2f6be7",
+    "sha256": "866da82508c370cca57772f07beee682a65ebeac5c8c264aed9ac0d300e464ea",
+    "caption": "平台既有胡杨林资料图，用于生态科普；不对应某次新闻活动。"
+  },
+  {
+    "file": "assets/monitoring.webp",
+    "source": "D:\\Code\\GeoManager-main260619\\GeoManager-main\\frontend\\src\\assets\\about\\xjafs-monitoring-tower.png",
+    "originalSha256": "2e63daf7ec3d1bba5f685d09aa99ccd4bcea956372ec99abc964724d0872094e",
+    "sha256": "8c8ac01fabef4fec352446710d9f4f9093497e4c64a34a9f0267b23ae1447afa",
+    "caption": "平台既有生态监测设施资料图，用于介绍连续观测与数据记录。"
+  }
+]

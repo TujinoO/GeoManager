@@ -185,6 +185,11 @@ describe("TiandituTileProvider", () => {
 
   it.each([
     ["JSON status", '{"status":"301007"}', "301007"],
+    [
+      "key permission type",
+      '{"code":"301012","message":"权限类型错误"}',
+      "301012",
+    ],
     ["XML status", "<response><status>301018</status></response>", "301018"],
     ["plain text", "service rejected request: 301007", "301007"],
   ])(

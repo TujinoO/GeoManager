@@ -97,10 +97,17 @@ async function exportMapRangeImageAttempt(
   plan: MapRangeExportPlan,
   options: MapImageExportOptions,
 ): Promise<Blob> {
-  const container = createExportContainer(plan);
+  const pixelScale = 1 / Math.max(1, window.devicePixelRatio || 1);
+  const renderZoom = plan.tileZoom + Math.log2(pixelScale);
+  const container = createExportContainer(plan, pixelScale);
   const exportStyle = createExportStyle(sourceStyle, options.basemapId);
   let exportMap: MapboxMap | null = null;
   let unbindSymbolFallback: (() => void) | null = null;
+  const loadErrors: string[] = [];
+  const collectError = (event: { error?: unknown }) => {
+    const text = mapLoadErrorText(event.error);
+    if (!loadErrors.includes(text)) loadErrors.push(text);
+  };
 
   document.body.appendChild(container);
   try {
@@ -108,15 +115,19 @@ async function exportMapRangeImageAttempt(
       container,
       style: exportStyle,
       center: plan.center,
-      zoom: plan.tileZoom,
+      zoom: renderZoom,
       pitch: 0,
       bearing: 0,
       projection: "mercator",
       interactive: false,
       attributionControl: false,
       preserveDrawingBuffer: true,
+      // Compensate for device DPR using the supported CSS viewport and symbol
+      // scale options, keeping the framebuffer at the requested pixel size.
+      scaleFactor: pixelScale,
       performanceMetricsCollection: false,
       fadeDuration: 0,
+      renderWorldCopies: false,
       localIdeographFontFamily: '"Microsoft YaHei", "PingFang SC", sans-serif',
     };
     if (options.accessToken) {
@@ -124,21 +135,29 @@ async function exportMapRangeImageAttempt(
     }
 
     exportMap = new mapboxgl.Map(mapOptions);
+    // Keep errors from the first tile requests; they can precede style.load.
+    exportMap.on("error", collectError);
     unbindSymbolFallback = bindPlatformSymbolImageFallback(exportMap);
     await waitForStyleLoad(exportMap, mapStyleLoadTimeoutMs, options.signal);
     registerPlatformSymbolImages(exportMap);
     exportMap.setProjection("mercator");
     exportMap.jumpTo({
       center: plan.center,
-      zoom: plan.tileZoom,
+      zoom: renderZoom,
       pitch: 0,
       bearing: 0,
     });
-    await waitForMapReady(exportMap, mapTileLoadTimeoutMs, options.signal);
+    await waitForMapReady(
+      exportMap,
+      mapTileLoadTimeoutMs,
+      options.signal,
+      loadErrors,
+    );
     await nextAnimationFrame();
     throwIfAborted(options.signal);
     return await mapCanvasToImageBlob(exportMap.getCanvas(), plan, options);
   } finally {
+    exportMap?.off("error", collectError);
     unbindSymbolFallback?.();
     exportMap?.remove();
     container.remove();
@@ -350,10 +369,28 @@ export function createExportStyle(
 ): StyleSpecification {
   const next = sanitizeStyleNumericAssertions(style);
   const basemapId = selectedBasemapId ?? basemapIdFromStyle(style);
+  // Browser-type Tianditu keys cannot be used by the server tile proxy.
+  // Reuse the globe's sources, including the paced provider and browser cache.
+  const keepBrowserBasemap = basemapId.startsWith("tianditu-");
+  const browserBasemapSources = new Set(
+    basemapId === "tianditu-imagery"
+      ? ["basemap-tianditu-imagery", "basemap-tianditu-imagery-labels"]
+      : ["basemap-tianditu-vector", "basemap-tianditu-labels"],
+  );
+  if (
+    keepBrowserBasemap &&
+    [...browserBasemapSources].some((id) => !next.sources?.[id])
+  ) {
+    throw new Error("请先完整加载所选天地图底图，再生成出图预览");
+  }
   next.projection = { name: "mercator" };
   const basemapSourceIds = new Set(
     Object.entries(next.sources ?? {})
-      .filter(([sourceId, source]) => isExternalBasemapSource(sourceId, source))
+      .filter(
+        ([sourceId, source]) =>
+          isExternalBasemapSource(sourceId, source) &&
+          !(keepBrowserBasemap && browserBasemapSources.has(sourceId)),
+      )
       .map(([sourceId]) => sourceId),
   );
   const usesSatelliteBasemap = selectedBasemapId
@@ -363,7 +400,11 @@ export function createExportStyle(
       );
   next.sources ??= {};
   next.layers = (next.layers ?? []).filter((layer) => {
-    if (isRangeOverlayId(layer.id) || layer.type === "background") {
+    if (
+      isRangeOverlayId(layer.id) ||
+      layer.type === "background" ||
+      layer.layout?.visibility === "none"
+    ) {
       return false;
     }
     const sourceId = sourceIdForStyleLayer(layer);
@@ -374,52 +415,54 @@ export function createExportStyle(
       delete next.sources[sourceId];
     }
   }
-  next.sources[platformBasemapSourceId] = {
-    type: "raster",
-    tiles: [`${platformBasemapTileUrl}&basemap=${basemapId}`],
-    tileSize: 256,
-    minzoom: 0,
-    maxzoom: basemapMaxZoom(basemapId),
-    attribution: basemapId.startsWith("mapbox")
-      ? "© Mapbox © OpenStreetMap"
-      : basemapId.startsWith("tianditu")
-        ? "© 天地图"
-        : "© OpenStreetMap contributors",
-  };
+  if (!keepBrowserBasemap)
+    next.sources[platformBasemapSourceId] = {
+      type: "raster",
+      tiles: [`${platformBasemapTileUrl}&basemap=${basemapId}`],
+      tileSize: 256,
+      minzoom: 0,
+      maxzoom: basemapMaxZoom(basemapId),
+      attribution: basemapId.startsWith("mapbox")
+        ? "© Mapbox © OpenStreetMap"
+        : basemapId.startsWith("tianditu")
+          ? "© 天地图"
+          : "© OpenStreetMap contributors",
+    };
   next.layers = [
     {
       id: platformBasemapBackgroundLayerId,
       type: "background",
       paint: { "background-color": "#d9e0e3" },
     },
-    {
-      id: platformBasemapLayerId,
-      type: "raster",
-      source: platformBasemapSourceId,
-      paint: {
-        "raster-fade-duration": 0,
-        ...(usesSatelliteBasemap ? satelliteBasemapColorCorrection : {}),
-      },
-    },
+    ...(!keepBrowserBasemap
+      ? [
+          {
+            id: platformBasemapLayerId,
+            type: "raster" as const,
+            source: platformBasemapSourceId,
+            paint: {
+              "raster-fade-duration": 0,
+              ...(usesSatelliteBasemap ? satelliteBasemapColorCorrection : {}),
+            },
+          },
+        ]
+      : []),
     ...(next.layers ?? []),
   ];
-  if (basemapId.startsWith("tianditu-")) {
-    const labelId = `${platformBasemapSourceId}-labels`;
-    next.sources[labelId] = {
-      type: "raster",
-      tiles: [`${platformBasemapTileUrl}&basemap=${basemapId}&labels=1`],
-      tileSize: 256,
-      maxzoom: 18,
-    };
-    next.layers.splice(2, 0, {
-      id: labelId,
-      type: "raster",
-      source: labelId,
-      paint: { "raster-fade-duration": 0 },
-    });
+  for (const layer of next.layers) {
+    if (layer.type === "raster") {
+      layer.paint = { ...layer.paint, "raster-fade-duration": 0 };
+    }
   }
   if (next.terrain && basemapSourceIds.has(next.terrain.source)) {
     delete next.terrain;
+  }
+  const usedSources = new Set(
+    next.layers.map(sourceIdForStyleLayer).filter(Boolean),
+  );
+  if (next.terrain) usedSources.add(next.terrain.source);
+  for (const id of Object.keys(next.sources)) {
+    if (!usedSources.has(id)) delete next.sources[id];
   }
   return next;
 }
@@ -489,13 +532,13 @@ function unprojectMercatorPixel(
   return [lng, lat];
 }
 
-function createExportContainer(plan: MapRangeExportPlan) {
+function createExportContainer(plan: MapRangeExportPlan, pixelScale = 1) {
   const container = document.createElement("div");
   container.style.position = "fixed";
   container.style.left = "-100000px";
   container.style.top = "0";
-  container.style.width = `${plan.cssWidth}px`;
-  container.style.height = `${plan.cssHeight}px`;
+  container.style.width = `${plan.cssWidth * pixelScale}px`;
+  container.style.height = `${plan.cssHeight * pixelScale}px`;
   container.style.pointerEvents = "none";
   container.style.opacity = "0";
   return container;
@@ -513,11 +556,25 @@ async function mapCanvasToImageBlob(
   if (!context) {
     throw new Error("浏览器不支持地图导出画布");
   }
+  // Mapbox may revoke the WebGL framebuffer after an authentication/context
+  // failure even when the source reports loaded. Do not save a blank result.
+  context.drawImage(source, 0, 0, plan.outputWidth, plan.outputHeight);
+  if (
+    context.getImageData(
+      Math.floor(plan.outputWidth / 2),
+      Math.floor(plan.outputHeight / 2),
+      1,
+      1,
+    ).data[3] === 0
+  ) {
+    throw new Error("地图画布为空，请检查底图授权或浏览器图形状态后重试");
+  }
   if (options.format === "jpg") {
+    context.globalCompositeOperation = "destination-over";
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, plan.outputWidth, plan.outputHeight);
+    context.globalCompositeOperation = "source-over";
   }
-  context.drawImage(source, 0, 0, plan.outputWidth, plan.outputHeight);
   const blob = await canvasToImageBlob(output, options.format);
   const bytes = new Uint8Array(await blob.arrayBuffer());
   const metadataBytes =
@@ -593,10 +650,10 @@ function waitForMapReady(
   map: MapboxMap,
   timeoutMs: number,
   signal?: AbortSignal,
+  loadErrors: string[] = [],
 ) {
   return new Promise<void>((resolve, reject) => {
     let settled = false;
-    const loadErrors: string[] = [];
     const finish = (error?: Error) => {
       if (settled) return;
       settled = true;
