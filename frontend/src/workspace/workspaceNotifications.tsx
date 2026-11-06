@@ -73,7 +73,7 @@ export function showWorkspaceRestoreIssues(
           <div key={`${issue.layerName}-${issue.reason}`}>
             {issue.layerName}：{issue.reason}
             {issue.action === "restored-with-warning"
-              ? "，已保留快照中的图层引用"
+              ? "，已保留图层，请检查数据后重试"
               : "，已跳过"}
           </div>
         ))}

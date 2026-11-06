@@ -31,6 +31,7 @@ interface UseWorkspaceScenesOptions {
   canQueryData: boolean;
   canLoadVectorLayer: boolean;
   canLoadRasterLayer: boolean;
+  canUseCustomSymbolization?: boolean;
   queryResultLimit: number;
   groups: LoadedLayerGroup[];
   selectedLayerId: string | null;
@@ -46,6 +47,7 @@ export function useWorkspaceScenes({
   canQueryData,
   canLoadVectorLayer,
   canLoadRasterLayer,
+  canUseCustomSymbolization = false,
   queryResultLimit,
   groups,
   selectedLayerId,
@@ -283,6 +285,7 @@ export function useWorkspaceScenes({
         canQueryData,
         canLoadVectorLayer,
         canLoadRasterLayer,
+        canUseCustomSymbolization,
         queryResultLimit,
         notification,
         onProgress: (state) => {
@@ -350,6 +353,7 @@ export function useWorkspaceScenes({
       replaceGroups,
       canLoadVectorLayer,
       canLoadRasterLayer,
+      canUseCustomSymbolization,
       canQueryData,
       queryResultLimit,
       setSelectedLayerId,

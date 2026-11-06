@@ -770,6 +770,7 @@ export default function MapPage() {
     canQueryData: permissions.canQueryData,
     canLoadVectorLayer: permissions.canLoadVectorLayer,
     canLoadRasterLayer: permissions.canLoadRasterLayer,
+    canUseCustomSymbolization: permissions.canUseCustomSymbolization,
     queryResultLimit: bootstrap.limits.queryResultLimit,
     groups: layerGroups.groups,
     selectedLayerId,

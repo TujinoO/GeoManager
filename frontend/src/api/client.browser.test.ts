@@ -201,6 +201,29 @@ describe("api client", () => {
     );
   });
 
+  it("loads the contracted raster inventory for checksum-based snapshot recovery", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ items: [] }));
+    await expect(api.rasterDatasets()).resolves.toEqual({ items: [] });
+    expect(requestPath(capturedRequest(fetchMock))).toBe(
+      "/api/raster/datasets/",
+    );
+  });
+
+  it("preserves the 404 status needed to recover missing snapshot resources", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        "<!DOCTYPE html><html><head><title>Not Found</title></head></html>",
+        { status: 404, headers: { "Content-Type": "text/html" } },
+      ),
+    );
+    await expect(
+      api.resourceProfile({ id: 158 } as ResourceListItem),
+    ).rejects.toMatchObject({
+      status: 404,
+      message: "请求的资源不存在或已停用（404）",
+    });
+  });
+
   it("serializes import validation payload into multipart form data", async () => {
     setTestCookie("csrftoken=validate-token");
     fetchMock.mockResolvedValue(

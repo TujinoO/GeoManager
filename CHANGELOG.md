@@ -24,6 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve unsaved map-composition edits when the live map view or source summary changes
 - Recommend usable geographic and Web Mercator grid intervals for both local and regional extents
 
+## [V3.30] - 2026-11-06
+
+- 修复工程恢复继续使用失效栅格瓦片地址的问题；按当前数据集重新登记保存的样式，覆盖影像、连续栅格和分类栅格。
+- 原资源已删除但存在唯一相同SHA-256、栅格类型和空间范围的重新导入数据时，重新验证访问权限并恢复引用；匹配不唯一或验证失败时保留失败图层供重试，停止请求旧瓦片。
+- 恢复渲染遵循账号的自定义符号化权限；资源404明确提示不存在或已停用。
+- 生产环江油田工程与草稿专题图的引用修复单独备份、核对和记录，不通过数据库迁移自动修改业务数据。
+
 ## [V3.29] - 2026-11-02
 
 - 合并胡杨科普阅读、检索与维护入口，补齐草稿、待审核、发布和下架流程；团队动态统一关于我们侧栏，优化置顶海报与新闻封面。

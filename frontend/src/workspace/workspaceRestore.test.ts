@@ -19,6 +19,7 @@ const { mockApi } = vi.hoisted(() => ({
     renderRaster: vi.fn(),
     renderRasterAsync: vi.fn(),
     rasterJob: vi.fn(),
+    rasterDatasets: vi.fn(),
   },
 }));
 
@@ -120,6 +121,7 @@ describe("restoreWorkspaceGroups", () => {
     mockApi.renderRaster.mockReset();
     mockApi.renderRasterAsync.mockReset();
     mockApi.rasterJob.mockReset();
+    mockApi.rasterDatasets.mockReset();
   });
 
   it("reports skipped vector layers when query metadata is missing", async () => {
@@ -128,6 +130,7 @@ describe("restoreWorkspaceGroups", () => {
       canQueryData: true,
       canLoadVectorLayer: true,
       canLoadRasterLayer: true,
+      canUseCustomSymbolization: true,
       queryResultLimit: 30000,
       notification,
     });
@@ -150,6 +153,7 @@ describe("restoreWorkspaceGroups", () => {
       canQueryData: true,
       canLoadVectorLayer: true,
       canLoadRasterLayer: true,
+      canUseCustomSymbolization: true,
       queryResultLimit: 30000,
       notification,
     });
@@ -179,6 +183,7 @@ describe("restoreWorkspaceGroups", () => {
       canQueryData: true,
       canLoadVectorLayer: true,
       canLoadRasterLayer: true,
+      canUseCustomSymbolization: true,
       queryResultLimit: 30000,
       notification,
     });
@@ -250,6 +255,7 @@ describe("restoreWorkspaceGroups", () => {
       canQueryData: true,
       canLoadVectorLayer: true,
       canLoadRasterLayer: true,
+      canUseCustomSymbolization: true,
       queryResultLimit: 30000,
       notification,
     });
@@ -299,6 +305,237 @@ describe("restoreWorkspaceGroups", () => {
     ]);
   });
 
+  const renderResult = {
+    delivery: "xyz",
+    datasetId: 8,
+    layerId: 10,
+    styleHash: "current-file-style",
+    tileUrl: "/api/raster/tiles/8/current-file-style/{z}/{x}/{y}.png?rv=4",
+    status: "ready",
+    minZoom: 0,
+    maxZoom: 15,
+    rules: cloneDefaultRasterSymbolization(),
+  };
+  const restoreRaster = (layer = makeSavedRasterLayer()) =>
+    restoreWorkspaceGroups({
+      savedGroups: [makeGroup([layer])],
+      canQueryData: true,
+      canLoadVectorLayer: true,
+      canLoadRasterLayer: true,
+      canUseCustomSymbolization: true,
+      queryResultLimit: 30000,
+      notification,
+    });
+
+  it.each(["imagery", "continuous", "categorical"])(
+    "registers saved %s rules even when a stale hash already has rv=4",
+    async (rasterKind) => {
+      mockApi.resourceProfile.mockResolvedValue({
+        resource: makeResource({ dataType: "raster" }),
+        raster: { id: 8, mapLayerId: 10, rasterKind },
+      });
+      mockApi.renderRasterAsync.mockResolvedValue({
+        status: "queued",
+        id: "job",
+      });
+      mockApi.rasterJob.mockResolvedValue({
+        status: "ready",
+        result: renderResult,
+      });
+      const saved = makeSavedRasterLayer({
+        tileUrl: "/api/raster/tiles/7/old-file-style/{z}/{x}/{y}.png?rv=4",
+      });
+      const result = await restoreRaster(saved);
+      expect(mockApi.renderRasterAsync).toHaveBeenCalledWith({
+        datasetId: 8,
+        layerId: 10,
+        rules: saved.symbolization,
+        rulesMode: "custom",
+      });
+      expect(mockApi.rasterJob).toHaveBeenCalledWith("job");
+      expect(result.groups[0].children[0]).toMatchObject({
+        rasterDatasetId: 8,
+        rasterLayerId: 10,
+        tileUrl: renderResult.tileUrl,
+        renderStatus: "ready",
+      });
+      expect(result.issues).toEqual([]);
+    },
+  );
+
+  const checksum = "a".repeat(64);
+  const originalDataset = {
+    id: 7,
+    dataResourceId: null,
+    sourceChecksumSha256: checksum,
+    rasterKind: "categorical",
+    bounds4326: [106, 36, 107, 37],
+  };
+  const replacementDataset = {
+    ...originalDataset,
+    id: 8,
+    dataResourceId: 159,
+    status: "ready",
+  };
+  const missingResource = () =>
+    Object.assign(new Error("资源不存在"), { status: 404 });
+
+  it("recovers a deleted resource only through a unique identical source checksum", async () => {
+    const resource = makeResource({
+      id: 159,
+      name: "重新导入的资源",
+      dataType: "raster",
+    });
+    mockApi.resourceProfile
+      .mockRejectedValueOnce(missingResource())
+      .mockResolvedValue({
+        resource,
+        raster: { ...replacementDataset, mapLayerId: 10 },
+      });
+    mockApi.rasterDatasets.mockResolvedValue({
+      items: [originalDataset, replacementDataset],
+    });
+    mockApi.renderRasterAsync.mockResolvedValue({
+      status: "ready",
+      result: renderResult,
+    });
+    const result = await restoreRaster();
+    expect(mockApi.resourceProfile).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: 159 }),
+    );
+    expect(result.groups[0].children[0]).toMatchObject({
+      sourceResource: resource,
+      rasterDatasetId: 8,
+      rasterLayerId: 10,
+      tileUrl: renderResult.tileUrl,
+    });
+    expect(result.issues).toEqual([]);
+  });
+
+  it.each([
+    [
+      "different content",
+      { ...replacementDataset, sourceChecksumSha256: "b".repeat(64) },
+    ],
+    [
+      "different bounds",
+      { ...replacementDataset, bounds4326: [100, 30, 101, 31] },
+    ],
+    ["different raster kind", { ...replacementDataset, rasterKind: "imagery" }],
+    ["failed import", { ...replacementDataset, status: "failed" }],
+  ])(
+    "does not rebind %s or keep requesting stale tiles",
+    async (_, candidate) => {
+      mockApi.resourceProfile.mockRejectedValue(missingResource());
+      mockApi.rasterDatasets.mockResolvedValue({
+        items: [originalDataset, candidate],
+      });
+      const result = await restoreRaster();
+      expect(mockApi.renderRasterAsync).not.toHaveBeenCalled();
+      expect(result.groups[0].children[0]).toMatchObject({
+        tileUrl: undefined,
+        renderStatus: "failed",
+      });
+      expect(result.issues).toHaveLength(1);
+    },
+  );
+
+  it("refuses ambiguous identical reimports", async () => {
+    mockApi.resourceProfile.mockRejectedValue(missingResource());
+    mockApi.rasterDatasets.mockResolvedValue({
+      items: [
+        originalDataset,
+        replacementDataset,
+        { ...replacementDataset, id: 9, dataResourceId: 160 },
+      ],
+    });
+    const result = await restoreRaster();
+    expect(mockApi.resourceProfile).toHaveBeenCalledTimes(1);
+    expect(result.groups[0].children[0]).toMatchObject({
+      tileUrl: undefined,
+      renderStatus: "failed",
+    });
+  });
+
+  it("rechecks access to the replacement resource", async () => {
+    mockApi.resourceProfile
+      .mockRejectedValueOnce(missingResource())
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Forbidden"), { status: 403 }),
+      );
+    mockApi.rasterDatasets.mockResolvedValue({
+      items: [originalDataset, replacementDataset],
+    });
+    const result = await restoreRaster();
+    expect(result.groups).toEqual([]);
+    expect(mockApi.renderRasterAsync).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed render retryable without exposing its obsolete tiles", async () => {
+    mockApi.resourceProfile.mockResolvedValue({
+      resource: makeResource({ dataType: "raster" }),
+      raster: { id: 8, mapLayerId: 10, rasterKind: "categorical" },
+    });
+    mockApi.renderRasterAsync.mockResolvedValue({
+      status: "failed",
+      error: "生成失败",
+    });
+    const result = await restoreRaster();
+    expect(result.groups[0].children[0]).toMatchObject({
+      tileUrl: undefined,
+      renderStatus: "failed",
+    });
+    expect(result.issues).toEqual([
+      expect.objectContaining({ reason: "生成失败" }),
+    ]);
+  });
+
+  it("rejects a completed job that still returns an obsolete renderer", async () => {
+    mockApi.resourceProfile.mockResolvedValue({
+      resource: makeResource({ dataType: "raster" }),
+      raster: { id: 8, mapLayerId: 10, rasterKind: "categorical" },
+    });
+    mockApi.renderRasterAsync.mockResolvedValue({
+      status: "ready",
+      result: {
+        ...renderResult,
+        tileUrl: "/api/raster/tiles/8/old/{z}/{x}/{y}.png?rv=3",
+      },
+    });
+    const result = await restoreRaster();
+    expect(result.groups[0].children[0]).toMatchObject({
+      tileUrl: undefined,
+      renderStatus: "failed",
+    });
+  });
+
+  it("uses server defaults when the account cannot customize symbolization", async () => {
+    mockApi.resourceProfile.mockResolvedValue({
+      resource: makeResource({ dataType: "raster" }),
+      raster: { id: 8, mapLayerId: 10, rasterKind: "categorical" },
+    });
+    mockApi.renderRasterAsync.mockResolvedValue({
+      status: "ready",
+      result: renderResult,
+    });
+    const result = await restoreWorkspaceGroups({
+      savedGroups: [makeGroup([makeSavedRasterLayer()])],
+      canQueryData: true,
+      canLoadVectorLayer: true,
+      canLoadRasterLayer: true,
+      canUseCustomSymbolization: false,
+      queryResultLimit: 30000,
+      notification,
+    });
+    expect(mockApi.renderRasterAsync).toHaveBeenCalledWith({
+      datasetId: 8,
+      layerId: 10,
+      rules: undefined,
+      rulesMode: "default",
+    });
+    expect(result.issues).toEqual([]);
+  });
+
   it("skips forbidden raster snapshot references instead of requesting stale tiles", async () => {
     mockApi.resourceProfile.mockRejectedValue(
       Object.assign(new Error("Forbidden"), { status: 403 }),
@@ -309,6 +546,7 @@ describe("restoreWorkspaceGroups", () => {
       canQueryData: true,
       canLoadVectorLayer: true,
       canLoadRasterLayer: true,
+      canUseCustomSymbolization: true,
       queryResultLimit: 30000,
       notification,
     });
@@ -329,6 +567,7 @@ describe("restoreWorkspaceGroups", () => {
       canQueryData: true,
       canLoadVectorLayer: true,
       canLoadRasterLayer: true,
+      canUseCustomSymbolization: true,
       queryResultLimit: 30000,
       notification,
     });

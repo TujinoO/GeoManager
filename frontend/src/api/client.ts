@@ -104,6 +104,7 @@ import type {
   WorkspaceSceneUpdateRequest,
 } from "../types";
 import type * as sdkTypes from "./generated/sdk.gen";
+import type { RasterDataset } from "./generated/types.gen";
 import { filenameFromHeaders } from "./downloadFilename";
 import i18n, { currentLocale } from "../i18n";
 
@@ -316,6 +317,11 @@ function localizedServerDetail(detail: string) {
 function readableErrorText(text: string, status: number) {
   const trimmed = text.trim();
   if (/^<!doctype html/i.test(trimmed) || /^<html[\s>]/i.test(trimmed)) {
+    if (status === 404) {
+      return currentLocale() === "en-US"
+        ? "The requested resource does not exist or is inactive (404)"
+        : "请求的资源不存在或已停用（404）";
+    }
     const title = trimmed.match(/<title>(.*?)<\/title>/is)?.[1];
     const cleanedTitle = title ? stripHtml(title).trim() : "";
     return cleanedTitle
@@ -941,6 +947,8 @@ export const api = {
       onUploadProgress,
     });
   },
+  rasterDatasets: () =>
+    unwrap<ListResponse<RasterDataset>>(sdk.getRasterDatasets()),
   resourceProfile: (resource: ResourceListItem) =>
     unwrap<DataResourceProfile>(
       sdk.getResourceProfile({ path: { id: resource.id } }),

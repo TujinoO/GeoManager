@@ -3,13 +3,16 @@ import { rasterTileRendererVersion } from "../map/rasterLayerSync";
 import { rasterSymbolizationFromRules } from "../symbolization";
 import type {
   DataResource,
+  DataResourceProfile,
   LoadedLayer,
   LoadedLayerGroup,
   LoadedRasterLayer,
   LoadedVectorLayer,
   RasterRenderResult,
+  SavedWorkspaceLayer,
   WorkspaceSceneSnapshot,
 } from "../types";
+import type { RasterDataset } from "../api/generated/types.gen";
 import { createVectorLayerGroup } from "../utils/layerFactory";
 import type { AppNotification } from "./workspaceNotifications";
 import { showGeojsonWarnings } from "./workspaceNotifications";
@@ -37,6 +40,7 @@ interface RestoreWorkspaceGroupsOptions {
   canQueryData: boolean;
   canLoadVectorLayer: boolean;
   canLoadRasterLayer: boolean;
+  canUseCustomSymbolization?: boolean;
   queryResultLimit: number;
   notification: AppNotification;
   onProgress?: (state: WorkspaceRestoreProgress) => void;
@@ -47,6 +51,7 @@ export async function restoreWorkspaceGroups({
   canQueryData,
   canLoadVectorLayer,
   canLoadRasterLayer,
+  canUseCustomSymbolization = false,
   queryResultLimit,
   notification,
   onProgress,
@@ -72,6 +77,8 @@ export async function restoreWorkspaceGroups({
   };
   const restored: LoadedLayerGroup[] = [];
   const issues: WorkspaceRestoreIssue[] = [];
+  let datasetsRequest: Promise<{ items: RasterDataset[] }> | undefined;
+  const datasets = () => (datasetsRequest ??= api.rasterDatasets());
   for (const savedGroup of savedGroups) {
     const restoredChildren: LoadedLayer[] = [];
     for (const savedLayer of savedGroup.children ?? []) {
@@ -158,11 +165,13 @@ export async function restoreWorkspaceGroups({
         continue;
       }
       let rasterKind = savedLayer.rasterKind;
+      let sourceResource = savedLayer.sourceResource as DataResource;
       let currentRaster:
         | Awaited<ReturnType<typeof api.resourceProfile>>["raster"]
         | undefined;
       try {
-        const profile = await api.resourceProfile(savedLayer.sourceResource);
+        const profile = await rasterSnapshotProfile(savedLayer, datasets);
+        sourceResource = profile.resource;
         currentRaster = profile.raster ?? undefined;
         rasterKind = profile.raster?.rasterKind ?? rasterKind;
         if (!profile.raster) {
@@ -170,16 +179,6 @@ export async function restoreWorkspaceGroups({
             layerName: savedLayer.name,
             resourceName: savedLayer.sourceResource.name,
             reason: "原始栅格数据未就绪或已不可用",
-            action: "restored-with-warning",
-          });
-        } else if (
-          savedLayer.rasterDatasetId &&
-          profile.raster.id !== savedLayer.rasterDatasetId
-        ) {
-          issues.push({
-            layerName: savedLayer.name,
-            resourceName: savedLayer.sourceResource.name,
-            reason: "原始栅格数据已变更，已使用快照中的瓦片引用恢复",
             action: "restored-with-warning",
           });
         }
@@ -203,28 +202,29 @@ export async function restoreWorkspaceGroups({
           action: "restored-with-warning",
         });
       }
-      const refreshLegacyCategoricalTiles =
-        rasterKind === "categorical" &&
-        !usesCurrentRasterRenderer(savedLayer.tileUrl);
+      // A renderer query parameter cannot validate a content-addressed style
+      // hash. Register the saved rules against the current file on every restore.
+      const refreshRasterTiles = Boolean(currentRaster);
       let refreshedRender: RasterRenderResult | undefined;
-      let refreshError =
-        refreshLegacyCategoricalTiles && !currentRaster
-          ? "无法校验原始分类栅格，已停止加载旧版瓦片"
-          : undefined;
-      if (refreshLegacyCategoricalTiles && currentRaster) {
-        updateRestoreProgress(`正在升级分类栅格瓦片：${savedLayer.name}`);
+      let refreshError = !currentRaster
+        ? "无法校验原始栅格，已停止加载旧版瓦片"
+        : undefined;
+      if (currentRaster) {
+        updateRestoreProgress(`正在准备栅格瓦片：${savedLayer.name}`);
         try {
-          refreshedRender = await renderCategoricalSnapshot(
+          refreshedRender = await renderRasterSnapshot(
             currentRaster.id,
             currentRaster.mapLayerId,
             savedLayer.symbolization as LoadedRasterLayer["symbolization"],
+            canUseCustomSymbolization,
           );
           if (!usesCurrentRasterRenderer(refreshedRender.tileUrl)) {
-            throw new Error("分类栅格服务返回了旧版瓦片地址");
+            throw new Error("栅格服务返回了旧版瓦片地址");
           }
         } catch (error) {
+          refreshedRender = undefined;
           refreshError =
-            error instanceof Error ? error.message : "分类栅格瓦片升级失败";
+            error instanceof Error ? error.message : "栅格瓦片恢复失败";
           issues.push({
             layerName: savedLayer.name,
             resourceName: savedLayer.sourceResource.name,
@@ -245,10 +245,8 @@ export async function restoreWorkspaceGroups({
         id: savedLayer.id,
         name: savedLayer.name,
         layerType: "raster",
-        sourceResource: savedLayer.sourceResource as DataResource,
-        tileUrl: refreshLegacyCategoricalTiles
-          ? refreshedRender?.tileUrl
-          : savedLayer.tileUrl,
+        sourceResource,
+        tileUrl: refreshedRender?.tileUrl,
         tileMinZoom: refreshedRender?.minZoom ?? savedLayer.tileMinZoom,
         tileMaxZoom: refreshedRender?.maxZoom ?? savedLayer.tileMaxZoom,
         tileSampling:
@@ -257,10 +255,10 @@ export async function restoreWorkspaceGroups({
           (rasterKind === "categorical" ? "nearest" : undefined),
         imageCoordinates:
           refreshedRender?.imageCoordinates ?? savedLayer.imageCoordinates,
-        rasterDatasetId: refreshLegacyCategoricalTiles
+        rasterDatasetId: refreshRasterTiles
           ? currentRaster?.id
           : savedLayer.rasterDatasetId,
-        rasterLayerId: refreshLegacyCategoricalTiles
+        rasterLayerId: refreshRasterTiles
           ? currentRaster?.mapLayerId
           : savedLayer.rasterLayerId,
         rasterKind,
@@ -276,7 +274,7 @@ export async function restoreWorkspaceGroups({
             ? 0
             : savedLayer.renderProgress,
         renderMessages: refreshedRender
-          ? ["分类栅格静态瓦片已升级并就绪"]
+          ? ["栅格瓦片已校验并就绪"]
           : refreshError
             ? [refreshError]
             : savedLayer.renderMessages,
@@ -285,7 +283,7 @@ export async function restoreWorkspaceGroups({
         summary: refreshedRender
           ? "XYZ 瓦片已就绪"
           : refreshError
-            ? "分类栅格瓦片升级失败"
+            ? "栅格瓦片恢复失败"
             : savedLayer.summary,
         metadata: refreshedRender
           ? {
@@ -307,22 +305,66 @@ export async function restoreWorkspaceGroups({
   return { groups: restored, issues };
 }
 
-async function renderCategoricalSnapshot(
+async function rasterSnapshotProfile(
+  savedLayer: SavedWorkspaceLayer,
+  datasets: () => Promise<{ items: RasterDataset[] }>,
+): Promise<DataResourceProfile> {
+  try {
+    return await api.resourceProfile(savedLayer.sourceResource);
+  } catch (error) {
+    if (!hasErrorStatus(error, 404) || !savedLayer.rasterDatasetId) throw error;
+    const { items } = await datasets();
+    const original = items.find(
+      (item) => item.id === savedLayer.rasterDatasetId,
+    );
+    if (
+      !original ||
+      original.dataResourceId !== null ||
+      !/^[a-f0-9]{64}$/i.test(original.sourceChecksumSha256)
+    )
+      throw error;
+    const matches = items.filter(
+      (item) =>
+        item.dataResourceId !== null &&
+        item.status === "ready" &&
+        item.sourceChecksumSha256 === original.sourceChecksumSha256 &&
+        item.rasterKind === original.rasterKind &&
+        JSON.stringify(item.bounds4326) === JSON.stringify(original.bounds4326),
+    );
+    if (matches.length !== 1) throw error;
+    const replacement = matches[0];
+    if (!replacement || replacement.dataResourceId === null) throw error;
+    const profile = await api.resourceProfile({
+      ...savedLayer.sourceResource,
+      id: replacement.dataResourceId,
+    });
+    if (
+      !profile.raster ||
+      profile.raster.id !== replacement.id ||
+      profile.raster.sourceChecksumSha256 !== original.sourceChecksumSha256
+    )
+      throw error;
+    return profile;
+  }
+}
+
+async function renderRasterSnapshot(
   datasetId: number,
   layerId: number | null,
   symbolization: LoadedRasterLayer["symbolization"],
+  canUseCustomSymbolization: boolean,
 ): Promise<RasterRenderResult> {
   const rules = symbolization as unknown as Record<string, unknown>;
   let job = await api.renderRasterAsync({
     datasetId,
     layerId,
-    rules,
-    rulesMode: "custom",
+    rules: canUseCustomSymbolization ? rules : undefined,
+    rulesMode: canUseCustomSymbolization ? "custom" : "default",
   });
   const deadline = Date.now() + 120_000;
   while (job.status === "queued" || job.status === "running") {
     if (Date.now() >= deadline) {
-      throw new Error("分类栅格瓦片升级等待超时");
+      throw new Error("栅格瓦片恢复等待超时");
     }
     await new Promise((resolve) => globalThis.setTimeout(resolve, 900));
     job = await api.rasterJob(job.id);
@@ -335,7 +377,7 @@ async function renderCategoricalSnapshot(
   ) {
     return job.result as RasterRenderResult;
   }
-  throw new Error(job.error || "分类栅格瓦片升级失败");
+  throw new Error(job.error || "栅格瓦片恢复失败");
 }
 
 function usesCurrentRasterRenderer(tileUrl: string | undefined) {
@@ -348,10 +390,14 @@ function usesCurrentRasterRenderer(tileUrl: string | undefined) {
 }
 
 function isForbiddenError(error: unknown) {
+  return hasErrorStatus(error, 403);
+}
+
+function hasErrorStatus(error: unknown, status: number) {
   return (
     typeof error === "object" &&
     error !== null &&
     "status" in error &&
-    error.status === 403
+    error.status === status
   );
 }
