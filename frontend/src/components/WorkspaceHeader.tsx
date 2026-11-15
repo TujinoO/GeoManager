@@ -3,7 +3,6 @@ import {
   ApartmentOutlined,
   BookOutlined,
   DatabaseOutlined,
-  DownOutlined,
   FolderOpenOutlined,
   HomeOutlined,
   InfoCircleOutlined,
@@ -80,7 +79,6 @@ export type WorkspaceTab =
   | "about";
 
 const platformChineseName = platformBrand.chineseName;
-const hoverExpandDelayMs = 100;
 const searchOpenDelayMs = 400;
 
 interface WorkspaceHeaderProps {
@@ -141,8 +139,6 @@ export default function WorkspaceHeader({
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchCompact, setSearchCompact] = useState(false);
   const [navCompressed, setNavCompressed] = useState(false);
-  const [navMeasured, setNavMeasured] = useState(false);
-  const [expandedTabId, setExpandedTabId] = useState<string | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
   const [userPopoverOpen, setUserPopoverOpen] = useState(false);
   const [searchPopoverWidth, setSearchPopoverWidth] = useState<
@@ -158,11 +154,7 @@ export default function WorkspaceHeader({
   const aboutTabRef = useRef<HTMLButtonElement | null>(null);
   const userButtonRef = useRef<HTMLButtonElement | null>(null);
   const searchOpenTimerRef = useRef<number | null>(null);
-  const tabHoverTimerRef = useRef<number | null>(null);
-  const navMeasureTimerRef = useRef<number | null>(null);
   const layoutMeasureFrameRef = useRef<number | null>(null);
-  const fullPrimaryNavWidthRef = useRef(0);
-  const lastMeasuredLanguageRef = useRef(translationI18n.resolvedLanguage);
   const effectiveResources = resources ?? localResources;
   const effectiveWorkspaceScenes = workspaceScenes ?? localWorkspaceScenes;
   const effectiveMapCompositions = mapCompositions ?? localMapCompositions;
@@ -285,19 +277,6 @@ export default function WorkspaceHeader({
     };
   }, [canBrowseData, dataSchema]);
 
-  useEffect(() => {
-    navMeasureTimerRef.current = window.setTimeout(() => {
-      setNavMeasured(true);
-      navMeasureTimerRef.current = null;
-    }, 120);
-    return () => {
-      if (navMeasureTimerRef.current !== null) {
-        window.clearTimeout(navMeasureTimerRef.current);
-        navMeasureTimerRef.current = null;
-      }
-    };
-  }, []);
-
   const syncSearchPopoverWidth = useCallback(() => {
     const width = searchContainerRef.current?.getBoundingClientRect().width;
     if (width && Number.isFinite(width)) {
@@ -311,14 +290,6 @@ export default function WorkspaceHeader({
     const primaryNav = primaryNavRef.current;
     if (!nav || !search || !primaryNav) return;
 
-    const primaryNavWidth = primaryNav.scrollWidth;
-    if (!navCompressed || !searchExpanded) {
-      fullPrimaryNavWidthRef.current = Math.max(
-        fullPrimaryNavWidthRef.current,
-        primaryNavWidth,
-      );
-    }
-
     const navStyle = window.getComputedStyle(nav);
     const navGap =
       Number.parseFloat(navStyle.columnGap || navStyle.gap || "0") || 0;
@@ -326,7 +297,7 @@ export default function WorkspaceHeader({
       Number.parseFloat(
         window.getComputedStyle(document.documentElement).fontSize,
       ) || 16;
-    const navWidth = nav.clientWidth;
+    const navWidth = nav.getBoundingClientRect().width;
     const searchMinWidth = clampNumber(
       3.75 * rootFontSize,
       0.08 * navWidth,
@@ -342,20 +313,22 @@ export default function WorkspaceHeader({
       0.44 * navWidth,
       22 * rootFontSize,
     );
-    const fullTabsWidth = fullPrimaryNavWidthRef.current;
-    const expandedFits =
-      fullTabsWidth + searchMaxWidth + navGap <= navWidth + 1;
-    const compactFits = fullTabsWidth + searchMinWidth + navGap <= navWidth + 1;
-    const shouldCompactSearch = !searchExpanded && !expandedFits;
-    const shouldCompressTabs = searchExpanded ? !expandedFits : !compactFits;
-
-    setSearchCompact((current) =>
-      current === shouldCompactSearch ? current : shouldCompactSearch,
+    // Measure intrinsic text, not the animated/clipped navigation box. The
+    // decision must not depend on the compressed layout it produces.
+    const fullTabsWidth = intrinsicNavWidth(primaryNav);
+    const expandedWidth = fullTabsWidth + searchMaxWidth + navGap;
+    const compactWidth = fullTabsWidth + searchMinWidth + navGap;
+    // A small dead band absorbs fractional CSS pixels at browser zoom levels.
+    setSearchCompact(
+      (current) =>
+        !searchExpanded && expandedWidth > navWidth - (current ? 12 : 0),
     );
-    setNavCompressed((current) =>
-      current === shouldCompressTabs ? current : shouldCompressTabs,
+    setNavCompressed(
+      (current) =>
+        (searchExpanded ? expandedWidth : compactWidth) >
+        navWidth - (current ? 12 : 0),
     );
-  }, [navCompressed, searchExpanded]);
+  }, [searchExpanded]);
 
   const scheduleLayoutMeasure = useCallback(() => {
     if (layoutMeasureFrameRef.current !== null) {
@@ -370,8 +343,7 @@ export default function WorkspaceHeader({
 
   const expandSearch = useCallback(() => {
     setSearchExpanded(true);
-    scheduleLayoutMeasure();
-  }, [scheduleLayoutMeasure]);
+  }, []);
 
   const scheduleSearchOpen = useCallback(
     (delay = 0) => {
@@ -403,41 +375,16 @@ export default function WorkspaceHeader({
     }
     setSearchOpen(false);
     setSearchExpanded(false);
-    setExpandedTabId(null);
-    scheduleLayoutMeasure();
-  }, [scheduleLayoutMeasure]);
-
-  const clearTabHoverTimer = useCallback(() => {
-    if (tabHoverTimerRef.current !== null) {
-      window.clearTimeout(tabHoverTimerRef.current);
-      tabHoverTimerRef.current = null;
-    }
   }, []);
-
-  const scheduleTabHoverExpand = useCallback(
-    (tabId: string) => {
-      clearTabHoverTimer();
-      tabHoverTimerRef.current = window.setTimeout(() => {
-        setExpandedTabId(tabId);
-        tabHoverTimerRef.current = null;
-      }, hoverExpandDelayMs);
-    },
-    [clearTabHoverTimer],
-  );
-
-  const collapseTabHover = useCallback(() => {
-    clearTabHoverTimer();
-    setExpandedTabId(null);
-  }, [clearTabHoverTimer]);
 
   useLayoutEffect(() => {
     const container = searchContainerRef.current;
     if (!container) return;
     scheduleLayoutMeasure();
-    const observer = new ResizeObserver(scheduleLayoutMeasure);
+    const observer = new ResizeObserver(syncSearchPopoverWidth);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [scheduleLayoutMeasure]);
+  }, [scheduleLayoutMeasure, syncSearchPopoverWidth]);
 
   useLayoutEffect(() => {
     const nav = searchNavRef.current;
@@ -448,39 +395,35 @@ export default function WorkspaceHeader({
     scheduleLayoutMeasure();
     const observer = new ResizeObserver(scheduleLayoutMeasure);
     observer.observe(nav);
-    observer.observe(search);
-    observer.observe(primaryNav);
     return () => observer.disconnect();
   }, [scheduleLayoutMeasure]);
 
   useLayoutEffect(() => {
-    scheduleLayoutMeasure();
-  }, [scheduleLayoutMeasure]);
-
-  useLayoutEffect(() => {
-    if (lastMeasuredLanguageRef.current === translationI18n.resolvedLanguage) {
-      return;
+    if (layoutMeasureFrameRef.current !== null) {
+      window.cancelAnimationFrame(layoutMeasureFrameRef.current);
+      layoutMeasureFrameRef.current = null;
     }
-    lastMeasuredLanguageRef.current = translationI18n.resolvedLanguage;
-    fullPrimaryNavWidthRef.current = 0;
-    setNavCompressed(false);
-    setSearchCompact(false);
-    const frame = window.requestAnimationFrame(() => {
-      scheduleLayoutMeasure();
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [scheduleLayoutMeasure, translationI18n.resolvedLanguage]);
+    measureNavFit();
+    syncSearchPopoverWidth();
+  }, [
+    measureNavFit,
+    syncSearchPopoverWidth,
+    translationI18n.resolvedLanguage,
+    showAdminTab,
+    showResourceCenter,
+  ]);
+
+  useEffect(() => {
+    const fonts = document.fonts;
+    fonts.addEventListener("loadingdone", scheduleLayoutMeasure);
+    return () =>
+      fonts.removeEventListener("loadingdone", scheduleLayoutMeasure);
+  }, [scheduleLayoutMeasure]);
 
   useEffect(() => {
     return () => {
       if (searchOpenTimerRef.current !== null) {
         window.clearTimeout(searchOpenTimerRef.current);
-      }
-      if (tabHoverTimerRef.current !== null) {
-        window.clearTimeout(tabHoverTimerRef.current);
-      }
-      if (navMeasureTimerRef.current !== null) {
-        window.clearTimeout(navMeasureTimerRef.current);
       }
       if (layoutMeasureFrameRef.current !== null) {
         window.cancelAnimationFrame(layoutMeasureFrameRef.current);
@@ -889,17 +832,6 @@ export default function WorkspaceHeader({
     user?.permissions.canViewOwnOperationLogs,
   ]);
 
-  const knowledgeMenuItems = useMemo<MenuProps["items"]>(
-    () => [
-      {
-        key: "knowledge",
-        label: t("navigation.knowledge"),
-        onClick: () => navigateFromHeader("/knowledge"),
-      },
-    ],
-    [navigateFromHeader, t],
-  );
-
   const aboutMenuItems = useMemo<MenuProps["items"]>(
     () =>
       aboutNavigationSections.map((section) => ({
@@ -1016,13 +948,8 @@ export default function WorkspaceHeader({
       <Button
         ref={resourcesTabRef}
         type="text"
-        className={`${tabClass(
-          activeTab === "resources",
-          expandedTabId === "resource",
-        )} workspace-switch-card-data-management`}
+        className={`${tabClass(activeTab === "resources")} workspace-switch-card-data-management`}
         onClick={handleResourceCenter}
-        onMouseEnter={() => scheduleTabHoverExpand("resource")}
-        onMouseLeave={collapseTabHover}
         title={t("navigation.dataResources")}
       >
         <FolderOpenOutlined aria-hidden="true" style={{ fontSize: 16 }} />
@@ -1178,7 +1105,7 @@ export default function WorkspaceHeader({
 
   return (
     <header
-      className={`workspace-header${navMeasured ? " workspace-header-nav-measured" : " workspace-header-nav-measuring"}${searchExpanded ? " workspace-header-search-active" : ""}${searchCompact ? " workspace-header-search-compact" : ""}${navCompressed ? " workspace-header-nav-compressed" : ""}`}
+      className={`workspace-header${searchExpanded ? " workspace-header-search-active" : ""}${searchCompact ? " workspace-header-search-compact" : ""}${navCompressed ? " workspace-header-nav-compressed" : ""}`}
     >
       <button
         type="button"
@@ -1246,10 +1173,8 @@ export default function WorkspaceHeader({
         >
           <Button
             type="text"
-            className={tabClass(activeTab === "home", expandedTabId === "home")}
+            className={tabClass(activeTab === "home")}
             onClick={() => navigateFromHeader("/data")}
-            onMouseEnter={() => scheduleTabHoverExpand("home")}
-            onMouseLeave={collapseTabHover}
             title={t("navigation.home")}
           >
             <HomeOutlined aria-hidden="true" style={{ fontSize: 16 }} />
@@ -1265,10 +1190,8 @@ export default function WorkspaceHeader({
             <Button
               ref={mapTabRef}
               type="text"
-              className={tabClass(activeTab === "map", expandedTabId === "map")}
+              className={tabClass(activeTab === "map")}
               onClick={() => navigateFromHeader("/map")}
-              onMouseEnter={() => scheduleTabHoverExpand("map")}
-              onMouseLeave={collapseTabHover}
               title={t("navigation.mapWorkspace")}
             >
               <ApartmentOutlined aria-hidden="true" style={{ fontSize: 16 }} />
@@ -1284,13 +1207,8 @@ export default function WorkspaceHeader({
             <Button
               ref={nonGeoTabRef}
               type="text"
-              className={tabClass(
-                activeTab === "nongeo",
-                expandedTabId === "nongeo",
-              )}
+              className={tabClass(activeTab === "nongeo")}
               onClick={() => navigateFromHeader("/nongeo")}
-              onMouseEnter={() => scheduleTabHoverExpand("nongeo")}
-              onMouseLeave={collapseTabHover}
               title={t("navigation.analytics")}
             >
               <BookOutlined aria-hidden="true" style={{ fontSize: 16 }} />
@@ -1300,13 +1218,8 @@ export default function WorkspaceHeader({
           <Button
             type="text"
             data-nav-key="results"
-            className={tabClass(
-              activeTab === "results",
-              expandedTabId === "results",
-            )}
+            className={tabClass(activeTab === "results")}
             onClick={() => navigateFromHeader("/results")}
-            onMouseEnter={() => scheduleTabHoverExpand("results")}
-            onMouseLeave={collapseTabHover}
             title={t("navigation.results")}
           >
             <PictureOutlined aria-hidden="true" style={{ fontSize: 16 }} />
@@ -1322,13 +1235,8 @@ export default function WorkspaceHeader({
               <Button
                 ref={adminTabRef}
                 type="text"
-                className={tabClass(
-                  activeTab === "admin",
-                  expandedTabId === "admin",
-                )}
+                className={tabClass(activeTab === "admin")}
                 onClick={() => navigateFromHeader("/admin")}
-                onMouseEnter={() => scheduleTabHoverExpand("admin")}
-                onMouseLeave={collapseTabHover}
                 title={t("navigation.administration")}
               >
                 <SettingOutlined aria-hidden="true" style={{ fontSize: 16 }} />
@@ -1338,30 +1246,15 @@ export default function WorkspaceHeader({
               </Button>
             </Dropdown>
           )}
-          <Dropdown
-            menu={{ items: knowledgeMenuItems }}
-            trigger={["hover"]}
-            placement="bottom"
-            classNames={{ root: "workspace-management-dropdown" }}
+          <Button
+            type="text"
+            className={tabClass(activeTab === "knowledge")}
+            onClick={() => navigateFromHeader("/knowledge")}
+            title={t("navigation.knowledge")}
           >
-            <Button
-              type="text"
-              className={tabClass(
-                activeTab === "knowledge",
-                expandedTabId === "knowledge",
-              )}
-              onMouseEnter={() => scheduleTabHoverExpand("knowledge")}
-              onClick={() => navigateFromHeader("/knowledge")}
-              onMouseLeave={collapseTabHover}
-              title={t("navigation.knowledge")}
-            >
-              <ReadOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-              <span className="tab-text">
-                {t("navigation.knowledge")}{" "}
-                <DownOutlined aria-hidden="true" style={{ fontSize: 10 }} />
-              </span>
-            </Button>
-          </Dropdown>
+            <ReadOutlined aria-hidden="true" style={{ fontSize: 16 }} />
+            <span className="tab-text">{t("navigation.knowledge")}</span>
+          </Button>
           <Dropdown
             menu={{ items: aboutMenuItems }}
             trigger={["hover"]}
@@ -1371,20 +1264,12 @@ export default function WorkspaceHeader({
             <Button
               ref={aboutTabRef}
               type="text"
-              className={tabClass(
-                activeTab === "about",
-                expandedTabId === "about",
-              )}
-              onMouseEnter={() => scheduleTabHoverExpand("about")}
+              className={tabClass(activeTab === "about")}
               onClick={() => navigateFromHeader("/about/system")}
-              onMouseLeave={collapseTabHover}
               title={t("navigation.about")}
             >
               <InfoCircleOutlined aria-hidden="true" style={{ fontSize: 16 }} />
-              <span className="tab-text">
-                {t("navigation.about")}{" "}
-                <DownOutlined aria-hidden="true" style={{ fontSize: 10 }} />
-              </span>
+              <span className="tab-text">{t("navigation.about")}</span>
             </Button>
           </Dropdown>
         </nav>
@@ -1544,12 +1429,8 @@ function workspaceCategoryMenuItems(
   ];
 }
 
-function tabClass(active: boolean, hoverExpanded = false) {
-  return [
-    "workspace-switch-card",
-    active ? "workspace-switch-card-active" : "",
-    hoverExpanded ? "workspace-switch-card-hover-expanded" : "",
-  ]
+function tabClass(active: boolean) {
+  return ["workspace-switch-card", active ? "workspace-switch-card-active" : ""]
     .filter(Boolean)
     .join(" ");
 }
@@ -1571,6 +1452,35 @@ function localizedBuiltInDisplayName(value: string, t: TFunction) {
 
 function clampNumber(min: number, value: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function intrinsicNavWidth(nav: HTMLElement) {
+  const style = window.getComputedStyle(nav);
+  const length = (name: string) =>
+    Number.parseFloat(style.getPropertyValue(name)) || 0;
+  const buttons = Array.from(
+    nav.querySelectorAll<HTMLElement>(".workspace-switch-card"),
+  );
+  const range = document.createRange();
+  const contentWidth = buttons.reduce((total, button) => {
+    const label = button.querySelector(".tab-text");
+    const icon = button.querySelector(":scope > .anticon");
+    if (label) range.selectNodeContents(label);
+    return (
+      total +
+      (label ? range.getBoundingClientRect().width : 0) +
+      (icon?.getBoundingClientRect().width ?? 0) +
+      length("--workspace-nav-button-gap") +
+      2 * length("--workspace-nav-button-padding") +
+      2
+    );
+  }, 0);
+  return (
+    contentWidth +
+    Math.max(0, buttons.length - 1) * length("--workspace-nav-gap") +
+    length("--workspace-nav-padding-start") +
+    length("--workspace-nav-padding-end")
+  );
 }
 
 function SearchResultSection({

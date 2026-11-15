@@ -9,7 +9,9 @@ import { App as AntApp, ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { StrictMode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { page } from "vitest/browser";
+import { setLocale } from "../i18n";
 import { AppContext } from "../contexts/AppContext";
 import { appTheme } from "../theme";
 import type {
@@ -20,6 +22,8 @@ import type {
   WorkspaceScene,
 } from "../types";
 import WorkspaceHeader from "./WorkspaceHeader";
+import "antd/dist/reset.css";
+import "../styles.css";
 
 const { clearCachedLayerGroupsMock, mockApi } = vi.hoisted(() => ({
   clearCachedLayerGroupsMock: vi.fn(),
@@ -233,12 +237,114 @@ function sectionByTitle(title: string) {
 }
 
 describe("WorkspaceHeader", () => {
+  afterEach(async () => {
+    document.body.style.zoom = "";
+    await page.viewport(1600, 900);
+  });
+
+  it.each(["zh-CN", "en-US"] as const)(
+    "keeps menu geometry stable through zoom, resize and hover in %s",
+    async (locale) => {
+      await setLocale(locale);
+      renderHeader(
+        {},
+        {
+          ...user,
+          displayName: "超级管理员",
+          permissions: { ...permissions, canUploadData: true },
+        },
+        vi.fn(),
+        "/",
+        true,
+      );
+      const header = document.querySelector<HTMLElement>(".workspace-header")!;
+      const nav = header.querySelector<HTMLElement>(".header-primary-actions")!;
+      const account = header.querySelector<HTMLElement>(
+        ".header-account-actions",
+      )!;
+      const buttons = Array.from(nav.querySelectorAll<HTMLElement>("button"));
+      const sample = () =>
+        [header, account, ...buttons].map((element) => {
+          const { x, y, width, height } = element.getBoundingClientRect();
+          return [x, y, width, height];
+        });
+      const settle = async () => {
+        for (let i = 0; i < 4; i++) {
+          await new Promise(requestAnimationFrame);
+        }
+      };
+      for (const width of [
+        1920, 1536, 1280, 1097, 960, 768, 640, 390, 1280, 1920,
+      ]) {
+        await page.viewport(width, 900);
+        await settle();
+        const before = sample();
+        fireEvent.mouseEnter(buttons[2]);
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        expect(sample(), `hover at ${width}px`).toEqual(before);
+        fireEvent.mouseLeave(buttons[2]);
+        const classes = header.className;
+        await settle();
+        expect(header.className).toBe(classes);
+        expect(sample()).toEqual(before);
+        expect(account.getBoundingClientRect().right).toBeLessThanOrEqual(
+          header.getBoundingClientRect().right,
+        );
+        const brand = header.querySelector<HTMLElement>(".brand-copy")!;
+        if (getComputedStyle(brand).display !== "none") {
+          expect(brand.getBoundingClientRect().right).toBeLessThanOrEqual(
+            header.querySelector(".brand-block")!.getBoundingClientRect()
+              .right + 1,
+          );
+        }
+        const last = buttons.at(-1)!;
+        last.scrollIntoView({ block: "nearest", inline: "nearest" });
+        const lastRect = last.getBoundingClientRect();
+        const clip = header
+          .querySelector(".workspace-search-nav")!
+          .getBoundingClientRect();
+        expect(lastRect.right).toBeLessThanOrEqual(clip.right + 1);
+      }
+      // CSS zoom also exercises fractional font/box metrics in the real engine.
+      for (const zoom of [0.8, 1, 1.1, 1.25, 1.5, 2, 1]) {
+        document.body.style.zoom = String(zoom);
+        await settle();
+        const before = sample();
+        const classes = header.className;
+        await new Promise((resolve) => setTimeout(resolve, 180));
+        expect(header.className).toBe(classes);
+        expect(sample()).toEqual(before);
+        if (zoom === 1.25) {
+          await page.screenshot({
+            path: `../../output/playwright/header-zoom-125-${locale}.png`,
+          });
+        }
+      }
+    },
+  );
+
   it("measures navigation after the StrictMode effect cleanup so trailing menus stay reachable", async () => {
     renderHeader({}, user, vi.fn(), "/", true);
     await waitFor(() =>
       expect(document.querySelector(".workspace-header")).toHaveClass(
         "workspace-header-search-compact",
       ),
+    );
+  });
+
+  it("recalculates compression when search opens and closes without a viewport resize", async () => {
+    renderHeader({}, user, vi.fn(), "/", true);
+    const header = document.querySelector(".workspace-header")!;
+    await waitFor(() =>
+      expect(header).not.toHaveClass("workspace-header-nav-compressed"),
+    );
+    fireEvent.focus(screen.getByPlaceholderText("搜索数据、工程、专题"));
+    await waitFor(() =>
+      expect(header).toHaveClass("workspace-header-nav-compressed"),
+    );
+    fireEvent.pointerDown(document.body);
+    await waitFor(() =>
+      expect(header).not.toHaveClass("workspace-header-nav-compressed"),
     );
   });
   it("opens poplar knowledge directly for editors without a separate updates menu", async () => {
@@ -258,6 +364,19 @@ describe("WorkspaceHeader", () => {
     expect(
       screen.queryByRole("menuitem", { name: "科普更新" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("uses no chevrons in the main navigation and opens no dropdown on knowledge hover", async () => {
+    renderHeader({ activeTab: "knowledge" });
+    const nav = screen.getByRole("navigation", { name: "主导航" });
+    expect(nav.querySelector('[data-icon="down"]')).toBeNull();
+    const knowledge = within(nav).getByRole("button", { name: "胡杨科普" });
+    expect(knowledge).not.toHaveClass("ant-dropdown-trigger");
+    fireEvent.mouseEnter(knowledge);
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    fireEvent.click(knowledge);
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/knowledge");
   });
 
   it("keeps the science maintenance entry hidden for readers and preserves original science navigation", async () => {
@@ -356,6 +475,7 @@ describe("WorkspaceHeader", () => {
   });
 
   it("opens the global search panel from the mobile trigger", async () => {
+    await page.viewport(390, 844);
     renderHeader();
 
     fireEvent.click(screen.getByRole("button", { name: "打开全局搜索" }));

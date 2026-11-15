@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Button, Space, Spin } from "antd";
+import { Alert, Button, Segmented, Space, Spin } from "antd";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import "./pdf-preview.css";
 
 export default function PdfPreview({
@@ -18,16 +18,23 @@ export default function PdfPreview({
   const [width, setWidth] = useState(600);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
+  const [quality, setQuality] = useState<"fast" | "clear">("fast");
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
     let disposed = false;
     let loading:
-      | ReturnType<(typeof import("pdfjs-dist"))["getDocument"]>
+      | ReturnType<
+          (typeof import("pdfjs-dist/legacy/build/pdf.mjs"))["getDocument"]
+        >
       | undefined;
     setDocument(undefined);
     setPage(1);
+    setQuality("fast");
     setBusy(true);
     setError("");
-    void import("pdfjs-dist")
+    if (canvas.current) canvas.current.hidden = true;
+    // The compatibility build includes the Map methods missing in Edge 142.
+    void import("pdfjs-dist/legacy/build/pdf.mjs")
       .then(async (pdfjs) => {
         if (disposed) return;
         pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -46,9 +53,9 @@ export default function PdfPreview({
       });
     return () => {
       disposed = true;
-      void loading?.destroy();
+      void loading?.destroy().catch(() => {});
     };
-  }, [src]);
+  }, [src, retry]);
   useEffect(() => {
     if (!container.current) return;
     const observer = new ResizeObserver(([entry]) => {
@@ -65,21 +72,33 @@ export default function PdfPreview({
       | undefined;
     setBusy(true);
     setError("");
-    const surface = canvas.current;
+    canvas.current.hidden = true;
+    // Give each render its own canvas so cancelled/late work cannot overwrite
+    // a newer page when the drawer resizes or the user changes pages quickly.
+    const surface = window.document.createElement("canvas");
     void document
       .getPage(page)
       .then(async (pdfPage) => {
         if (disposed) return;
         const base = pdfPage.getViewport({ scale: 1 });
-        const ratio = Math.min(2, window.devicePixelRatio || 1);
+        const ratio =
+          quality === "fast" ? 1 : Math.min(2, window.devicePixelRatio || 1);
         const viewport = pdfPage.getViewport({
-          scale: (Math.min(1400, width) / base.width) * ratio,
+          scale:
+            (Math.min(quality === "fast" ? 480 : 1400, width) / base.width) *
+            ratio,
         });
         surface.width = Math.ceil(viewport.width);
         surface.height = Math.ceil(viewport.height);
         rendering = pdfPage.render({ canvas: surface, viewport });
         await rendering.promise;
-        if (!disposed) setBusy(false);
+        if (!disposed && canvas.current) {
+          canvas.current.width = surface.width;
+          canvas.current.height = surface.height;
+          canvas.current.getContext("2d")!.drawImage(surface, 0, 0);
+          canvas.current.hidden = false;
+          setBusy(false);
+        }
       })
       .catch((failure: unknown) => {
         if (
@@ -97,29 +116,51 @@ export default function PdfPreview({
       disposed = true;
       rendering?.cancel();
     };
-  }, [document, page, width]);
+  }, [document, page, width, quality]);
   return (
     <section className="pdf-document-preview" aria-label={title}>
       <Space wrap className="pdf-document-toolbar">
-        <Button
-          disabled={!document || page <= 1}
-          onClick={() => setPage(page - 1)}
-        >
-          上一页
-        </Button>
-        <span aria-live="polite">
-          {document ? `第 ${page} / ${document.numPages} 页` : "正在读取PDF"}
-        </span>
-        <Button
-          disabled={!document || page >= document.numPages}
-          onClick={() => setPage(page + 1)}
-        >
-          下一页
-        </Button>
+        <Space>
+          <Button
+            disabled={!document || page <= 1}
+            onClick={() => setPage((current) => current - 1)}
+          >
+            上一页
+          </Button>
+          <span aria-live="polite">
+            {document ? `第 ${page} / ${document.numPages} 页` : "正在读取PDF"}
+          </span>
+          <Button
+            disabled={!document || page >= document.numPages}
+            onClick={() => setPage((current) => current + 1)}
+          >
+            下一页
+          </Button>
+        </Space>
+        <Segmented
+          aria-label="PDF预览清晰度"
+          value={quality}
+          onChange={setQuality}
+          options={[
+            { label: "快速预览（低清）", value: "fast" },
+            { label: "清晰预览", value: "clear" },
+          ]}
+        />
       </Space>
-      {error && <Alert type="error" title={error} showIcon />}
+      {error && (
+        <Alert
+          type="error"
+          title={error}
+          showIcon
+          action={
+            <Button size="small" onClick={() => setRetry((value) => value + 1)}>
+              重新加载
+            </Button>
+          }
+        />
+      )}
       <Spin spinning={busy}>
-        <div className="pdf-document-sheet" ref={container}>
+        <div className="pdf-document-sheet" ref={container} aria-busy={busy}>
           <canvas ref={canvas} role="img" aria-label={`${title} 第${page}页`} />
         </div>
       </Spin>

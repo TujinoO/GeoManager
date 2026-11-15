@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { defineConfig } from "vitest/config";
 
 const windowsChromePath =
+  process.env.VITEST_CHROMIUM_EXECUTABLE_PATH ||
   "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const localLaunchOptions =
   process.platform === "win32" && existsSync(windowsChromePath)
@@ -30,6 +31,7 @@ export default defineConfig({
       "dayjs/locale/zh-cn",
       "react",
       "react-dom/client",
+      "pdfjs-dist/legacy/build/pdf.mjs",
     ],
   },
   test: {

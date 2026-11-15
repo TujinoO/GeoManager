@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve unsaved map-composition edits when the live map view or source summary changes
 - Recommend usable geographic and Web Mercator grid intervals for both local and regional extents
 
+## [V3.31] - 2026-11-15
+
+- 修复顶部菜单在缩放、窗口调整、悬停及搜索展开时反复压缩、位移的问题，改进中英文品牌文字截断；主导航统一去掉下拉箭头，胡杨科普点击直达。
+- 修复部分 Edge 浏览器的 PDF 绘制兼容问题，新增快速低清/清晰预览切换、失败重试和过期绘制隔离，原始 PDF 下载不变。
+- 成果卡片新增 PDF 首页缩略图，按可见范围延迟加载，支持失败重试并释放绘制资源。
+- 更新四篇科普种子内容的航拍景观封面及来源哈希，补充本机数据恢复记录；此次代码发布不覆盖生产既有文章或导入本机恢复数据。
+- 升级说明：无新增 API、数据库迁移、权限规则、运行配置、数据根目录或栅格渲染变更。
+
 ## [V3.30] - 2026-11-06
 
 - 修复工程恢复继续使用失效栅格瓦片地址的问题；按当前数据集重新登记保存的样式，覆盖影像、连续栅格和分类栅格。

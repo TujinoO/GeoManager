@@ -45,6 +45,7 @@ import { api } from "../api/client";
 import resultsPoplarReflectionImage from "../assets/portal/results-poplar-reflection.webp";
 import WorkspaceHeader from "../components/WorkspaceHeader";
 import PdfPreview from "../components/PdfPreview";
+import PdfThumbnail from "../components/PdfThumbnail";
 import { useAppContext } from "../contexts/AppContext";
 import type { MapComposition, ResultArtifact } from "../types";
 import { downloadBlob } from "../utils/download";
@@ -770,6 +771,12 @@ function ResultCover({ item }: { item: PublishedResult }) {
           alt={t("results.previewAlt", { name: resultName(item) })}
           preview={false}
           src={previewUrl}
+        />
+      ) : previewUrl && format === "pdf" ? (
+        <PdfThumbnail
+          key={previewUrl}
+          src={previewUrl}
+          title={t("results.previewAlt", { name: resultName(item) })}
         />
       ) : (
         <div className="result-file-cover-placeholder">

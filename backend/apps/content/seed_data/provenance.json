@@ -40,5 +40,33 @@
     "originalSha256": "2e63daf7ec3d1bba5f685d09aa99ccd4bcea956372ec99abc964724d0872094e",
     "sha256": "8c8ac01fabef4fec352446710d9f4f9093497e4c64a34a9f0267b23ae1447afa",
     "caption": "平台既有生态监测设施资料图，用于介绍连续观测与数据记录。"
+  },
+  {
+    "file": "assets/knowledge-map-river.webp",
+    "caption": "胡杨林与河流俯视景观。来源：用户提供的胡杨素材（航拍图）；用作科普封面景观配图。",
+    "source": "E:\\GRP Docs\\2026.07 CAPFED中亚胡杨林生态系统保护数据共享平台\\胡杨素材\\胡杨素材\\无人机影像\\hero_01_river_topdown_web_2560x1440.jpg",
+    "originalSha256": "ba9ee2ddc10fdad12aeb455d23d6fbc3416a252e4547eafdb8c3a25c61b0ab34",
+    "sha256": "68b613029beb48c0695c938df5bc928c05f15945c31be5265f0618af28c7bacc"
+  },
+  {
+    "file": "assets/knowledge-leaves-forest.webp",
+    "caption": "胡杨林秋季全景。来源：用户提供的胡杨素材（航拍图）；用作科普封面景观配图。",
+    "source": "E:\\GRP Docs\\2026.07 CAPFED中亚胡杨林生态系统保护数据共享平台\\胡杨素材\\胡杨素材\\无人机影像\\hero_02_forest_panorama_web_2560x1440.jpg",
+    "originalSha256": "0c6d451eff4f38577abca89fba5b22d40abc0a426cb22e007f437080fd2e8f01",
+    "sha256": "f466f9e76c682e43db1d09c003a65ca3db8e72cdedfb4e7d208ddff0971ddd89"
+  },
+  {
+    "file": "assets/knowledge-water-corridor.webp",
+    "caption": "河流廊道与沿岸胡杨林。来源：用户提供的胡杨素材（航拍图）；用作科普封面景观配图。",
+    "source": "E:\\GRP Docs\\2026.07 CAPFED中亚胡杨林生态系统保护数据共享平台\\胡杨素材\\胡杨素材\\无人机影像\\hero_03_river_corridor_web_2560x1440.jpg",
+    "originalSha256": "c5b95170202fb46e335e43339b58109d2ce49b65124270ee87d693e0cbe9b71a",
+    "sha256": "125d3d74832bb64e12b5759cae2d34d72add08bd125b1cec6fed05d40432fda5"
+  },
+  {
+    "file": "assets/knowledge-monitoring-grove.webp",
+    "caption": "水域环绕的成片胡杨林。来源：用户提供的胡杨素材（航拍图）；用作科普封面景观配图。",
+    "source": "E:\\GRP Docs\\2026.07 CAPFED中亚胡杨林生态系统保护数据共享平台\\胡杨素材\\胡杨素材\\无人机影像\\hero_04_island_grove_web_2560x1440.jpg",
+    "originalSha256": "be09ce2fd30b12732b0807e3a52c800bfdb2aaf8fae497d9213d69af9ae0a55c",
+    "sha256": "deaba2bf8b89c0ab4407ef44777a15aaad614a6873979ccea595bff7ae1f3ba2"
   }
 ]

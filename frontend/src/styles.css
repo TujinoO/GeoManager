@@ -6150,7 +6150,7 @@ body:has(.login-shell),
 }
 
 .brand-copy {
-  min-width: max-content;
+  min-width: 0;
   display: grid;
   gap: 2px;
 
@@ -6162,9 +6162,9 @@ body:has(.login-shell),
   }
 
   & h4.ant-typography {
-    max-width: none;
-    overflow: visible;
-    text-overflow: clip;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 }
@@ -6179,11 +6179,6 @@ body:has(.login-shell),
   align-items: stretch;
   height: var(--workspace-search-height);
   overflow: hidden;
-  transition:
-    flex 0.72s cubic-bezier(0.22, 1, 0.36, 1),
-    width 0.72s cubic-bezier(0.22, 1, 0.36, 1),
-    min-width 0.72s cubic-bezier(0.22, 1, 0.36, 1),
-    max-width 0.72s cubic-bezier(0.22, 1, 0.36, 1);
 
   & .workspace-global-input {
     flex: 1;
@@ -6347,16 +6342,18 @@ body:has(.login-shell),
   overflow: visible;
 }
 
-.workspace-search-nav-compressed:has(.workspace-switch-card-hover-expanded) {
-  overflow: visible;
-}
-
 .header-primary-actions {
+  --workspace-nav-gap: 6px;
+  --workspace-nav-button-gap: 5px;
+  --workspace-nav-button-padding: 7px;
+  --workspace-nav-padding-start: 4px;
+  --workspace-nav-padding-end: 8px;
+  gap: var(--workspace-nav-gap);
   flex: 0 0 auto;
   min-width: 0;
   justify-content: flex-start;
-  padding-left: clamp(2px, 0.3vw, 8px);
-  padding-right: clamp(4px, 0.5vw, 10px);
+  padding-left: var(--workspace-nav-padding-start);
+  padding-right: var(--workspace-nav-padding-end);
 }
 
 .header-account-actions {
@@ -6399,6 +6396,11 @@ body:has(.login-shell),
   background: rgb(var(--c-surface-rgb) / 0.1);
   color: var(--c-white);
   border-radius: 20px;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
 
   &:hover,
   &:focus {
@@ -6455,8 +6457,8 @@ body:has(.login-shell),
   max-width: min(100%, 12rem);
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 0 7px;
+  gap: var(--workspace-nav-button-gap);
+  padding: 0 var(--workspace-nav-button-padding);
   color: var(--c-white);
   background: transparent;
   border: 1px solid transparent;
@@ -6467,13 +6469,7 @@ body:has(.login-shell),
   white-space: nowrap;
   transition:
     background 0.18s ease,
-    border-color 0.18s ease,
-    transform 0.18s ease,
-    width 0.72s cubic-bezier(0.22, 1, 0.36, 1),
-    min-width 0.72s cubic-bezier(0.22, 1, 0.36, 1),
-    max-width 0.72s cubic-bezier(0.22, 1, 0.36, 1),
-    padding 0.72s cubic-bezier(0.22, 1, 0.36, 1),
-    gap 0.72s cubic-bezier(0.22, 1, 0.36, 1);
+    border-color 0.18s ease;
 
   &:hover,
   &:focus-visible {
@@ -6481,7 +6477,6 @@ body:has(.login-shell),
     background: rgb(var(--c-surface-rgb) / 0.12);
     border-color: rgb(var(--c-surface-rgb) / 0.22);
     outline: none;
-    transform: translateY(-1px);
   }
 }
 
@@ -6500,7 +6495,6 @@ body:has(.login-shell),
   color: var(--c-white);
   background: rgb(var(--c-surface-rgb) / 0.12);
   border-color: rgb(var(--c-surface-rgb) / 0.22);
-  transform: translateY(-1px);
 }
 
 .header-primary-actions
@@ -6514,7 +6508,6 @@ body:has(.login-shell),
   color: var(--c-workspace-text-inverse);
   background: var(--c-white);
   border-color: var(--c-white);
-  transform: translateY(-1px);
 }
 
 .header-primary-actions .workspace-switch-card-data-management {
@@ -6638,24 +6631,6 @@ body:has(.login-shell),
   overflow: hidden;
   opacity: 1;
   text-overflow: ellipsis;
-  transition:
-    max-width 0.72s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1),
-    margin 0.72s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.header-primary-actions {
-  transition:
-    flex 0.72s cubic-bezier(0.22, 1, 0.36, 1),
-    margin-left 0.72s cubic-bezier(0.22, 1, 0.36, 1),
-    gap 0.72s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.workspace-header-nav-measuring .workspace-global-search,
-.workspace-header-nav-measuring .header-primary-actions,
-.workspace-header-nav-measuring .header-primary-actions .workspace-switch-card,
-.workspace-header-nav-measuring .header-primary-actions .tab-text {
-  transition: none;
 }
 
 .workspace-header.workspace-header-search-active
@@ -6714,40 +6689,6 @@ body:has(.login-shell),
   justify-content: center;
   padding: 0;
   gap: 0;
-}
-
-.workspace-header:not(.workspace-header-search-active)
-  .workspace-search-nav-compressed:has(.workspace-switch-card-hover-expanded)
-  .workspace-global-search {
-  flex: 0 1 var(--workspace-search-compact-min);
-  min-width: var(--workspace-search-compact-min);
-  max-width: var(--workspace-search-compact-min);
-}
-
-.workspace-search-nav-compressed:has(.workspace-switch-card-hover-expanded)
-  .header-primary-actions
-  .workspace-switch-card-hover-expanded {
-  width: auto;
-  min-width: max-content;
-  max-width: max-content;
-  gap: 0.375rem;
-  padding: 0 0.5rem;
-}
-
-.workspace-search-nav-compressed:has(.workspace-switch-card-hover-expanded)
-  .header-primary-actions
-  .workspace-switch-card-hover-expanded
-  .tab-text {
-  max-width: max-content;
-  opacity: 1;
-}
-
-@container (min-width: 62.001rem) {
-  .workspace-search-nav-compressed:has(.workspace-switch-card-hover-expanded)
-    .header-primary-actions
-    .workspace-switch-card-hover-expanded {
-    max-width: max-content;
-  }
 }
 
 @media (min-width: 761px) and (max-width: 1120px) {
