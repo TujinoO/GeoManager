@@ -1,10 +1,8 @@
 import {
   EyeOutlined,
   FileOutlined,
-  FileImageOutlined,
   GlobalOutlined,
   ReloadOutlined,
-  UploadOutlined,
 } from "@ant-design/icons";
 import { ProCard, StatisticCard } from "@ant-design/pro-components";
 import {
@@ -20,12 +18,11 @@ import {
   Space,
   Table,
   Tag,
-  Tabs,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useAppContext } from "../contexts/AppContext";
 import { localText, useEnglishLanguage } from "../i18n/useEnglishLanguage";
@@ -51,7 +48,15 @@ const statusLabels: Record<
   published: { text: "已发布", color: "green" },
 };
 
-type StatusFilter = "all" | MapComposition["status"];
+type StatusFilter =
+  | "all"
+  | "pending"
+  | "unpublished"
+  | ResultArtifact["status"];
+type SourceFilter = "all" | "mapping" | ResultArtifact["sourceType"];
+type ManagedResult =
+  | { key: string; kind: "mapping"; item: MapComposition }
+  | { key: string; kind: "artifact"; item: ResultArtifact };
 
 const resultStatusLabels = {
   draft: { text: "草稿", color: "default" },
@@ -107,7 +112,20 @@ export default function AdminTopicCompositionManagementPage() {
   const [resultItems, setResultItems] = useState<ResultArtifact[]>([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<StatusFilter>("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedStatus = searchParams.get("status");
+  const status: StatusFilter =
+    requestedStatus === "pending" ||
+    requestedStatus === "unpublished" ||
+    requestedStatus === "draft" ||
+    requestedStatus === "in_review" ||
+    requestedStatus === "published"
+      ? requestedStatus
+      : "all";
+  const [source, setSource] = useState<SourceFilter>("all");
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [status]);
+  const [pageSize, setPageSize] = useState(10);
   const [previewUrl, setPreviewUrl] = useState("");
   const [previewTitle, setPreviewTitle] = useState("");
   const [previewFormat, setPreviewFormat] = useState("");
@@ -131,6 +149,7 @@ export default function AdminTopicCompositionManagementPage() {
   const loadItems = useCallback(async () => {
     if (!canOpen) {
       setItems([]);
+      setResultItems([]);
       return;
     }
     setLoading(true);
@@ -154,7 +173,12 @@ export default function AdminTopicCompositionManagementPage() {
       setResultItems(artifactResponse.value.items);
     } else {
       setResultItems([]);
-      message.error(l("导入成果加载失败", "Failed to load imported results"));
+      message.error(
+        l(
+          "导入及分析成果加载失败",
+          "Failed to load imported and analysis results",
+        ),
+      );
     }
     const compositionGroups =
       compositionResponse.status === "fulfilled"
@@ -224,52 +248,81 @@ export default function AdminTopicCompositionManagementPage() {
     [previewUrl],
   );
 
-  const filteredItems = useMemo(() => {
-    const keyword = query.trim().toLocaleLowerCase("zh-CN");
-    return items.filter((item) => {
-      const statusMatched = status === "all" || item.status === status;
-      if (!statusMatched) return false;
-      if (!keyword) return true;
-      return [
-        item.name,
-        item.description,
-        item.projectName,
-        item.owner.displayName,
-        item.owner.username,
-      ].some((value) =>
-        (value ?? "").toLocaleLowerCase("zh-CN").includes(keyword),
-      );
-    });
-  }, [items, query, status]);
+  const allResults = useMemo<ManagedResult[]>(
+    () =>
+      [
+        ...items.map(
+          (item): ManagedResult => ({
+            key: `mapping-${item.id}`,
+            kind: "mapping",
+            item,
+          }),
+        ),
+        ...resultItems.map(
+          (item): ManagedResult => ({
+            key: `artifact-${item.id}`,
+            kind: "artifact",
+            item,
+          }),
+        ),
+      ].sort(
+        (a, b) =>
+          Date.parse(b.item.updatedAt) - Date.parse(a.item.updatedAt) ||
+          a.key.localeCompare(b.key),
+      ),
+    [items, resultItems],
+  );
 
-  const filteredResultItems = useMemo(() => {
+  const filteredResults = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase("zh-CN");
-    return resultItems.filter((item) => {
-      if (status !== "all" && item.status !== status) return false;
-      if (!keyword) return true;
-      return [
-        item.name,
-        item.description,
-        item.provider,
-        item.fileName,
-        item.owner.displayName,
-        item.owner.username,
-      ].some((value) =>
-        (value ?? "").toLocaleLowerCase("zh-CN").includes(keyword),
+    return allResults.filter((row) => {
+      const item = row.item;
+      if (status === "pending") {
+        if (
+          !item.canPublish ||
+          !(row.kind === "mapping"
+            ? item.status === "completed" && row.item.currentVersion
+            : item.status === "in_review")
+        )
+          return false;
+      } else if (status === "unpublished") {
+        if (item.status !== "draft" && item.status !== "completed")
+          return false;
+      } else if (status !== "all" && item.status !== status) return false;
+      const rowSource =
+        row.kind === "mapping" ? "mapping" : row.item.sourceType;
+      if (source !== "all" && rowSource !== source) return false;
+      const details =
+        row.kind === "mapping"
+          ? [row.item.projectName]
+          : [row.item.provider, row.item.fileName];
+      return (
+        !keyword ||
+        [
+          item.name,
+          item.description,
+          item.owner.displayName,
+          item.owner.username,
+          ...details,
+        ].some((value) =>
+          (value ?? "").toLocaleLowerCase("zh-CN").includes(keyword),
+        )
       );
     });
-  }, [query, resultItems, status]);
+  }, [allResults, query, source, status]);
 
   const metrics = useMemo(
     () => ({
-      total: items.length + resultItems.length,
-      mapping: items.length,
-      imported: resultItems.length,
-      published:
-        items.filter((item) => item.status === "published").length +
-        resultItems.filter((item) => item.status === "published").length,
+      total: allResults.length,
+      reviewing: allResults.filter(({ item }) => item.status === "in_review")
+        .length,
+      unpublished: allResults.filter(
+        ({ item }) => item.status === "draft" || item.status === "completed",
+      ).length,
+      published: allResults.filter(({ item }) => item.status === "published")
+        .length,
     }),
-    [items, resultItems],
+    [allResults],
   );
 
   if (!canOpen) {
@@ -415,7 +468,7 @@ export default function AdminTopicCompositionManagementPage() {
       message.error(
         error instanceof Error
           ? error.message
-          : l("专题发布失败", "Failed to publish result"),
+          : l("成果发布失败", "Failed to publish result"),
       );
     } finally {
       setPublishing(false);
@@ -533,333 +586,314 @@ export default function AdminTopicCompositionManagementPage() {
     }
   }
 
-  const columns: ColumnsType<MapComposition> = [
-    {
-      title: l("专题名称", "Thematic-map name"),
-      dataIndex: "name",
-      key: "name",
-      width: 260,
-      render: (_, record) => (
-        <Space orientation="vertical" size={2}>
-          <Typography.Text strong>{record.name}</Typography.Text>
-          <Typography.Text type="secondary" className="admin-table-subtext">
-            {l("来源工程：", "Source project: ")}
-            {record.projectName}
-          </Typography.Text>
-        </Space>
-      ),
-    },
-    {
-      title: l("类型", "Type"),
-      key: "type",
-      width: 96,
-      render: () => <Tag>{l("专题出图", "Thematic map")}</Tag>,
-    },
-    {
-      title: l("状态", "Status"),
-      dataIndex: "status",
-      key: "status",
-      width: 112,
-      render: (value: MapComposition["status"]) => (
-        <Tag color={statusLabels[value].color}>{statusText(value)}</Tag>
-      ),
-    },
-    {
-      title: l("所属用户", "Owner"),
-      key: "owner",
-      width: 160,
-      render: (_, record) => (
-        <Space orientation="vertical" size={0}>
-          <span>{record.owner.displayName || record.owner.username}</span>
-          <Typography.Text type="secondary" className="admin-table-subtext">
-            {record.owner.username}
-          </Typography.Text>
-        </Space>
-      ),
-    },
-    {
-      title: l("成果版本", "Result version"),
-      key: "version",
-      width: 112,
-      render: (_, record) =>
-        record.currentVersion
-          ? `V${record.currentVersion.versionNumber}`
-          : l("未生成", "Not generated"),
-    },
-    {
-      title: l("更新时间", "Updated at"),
-      dataIndex: "updatedAt",
-      key: "updatedAt",
-      width: 190,
-      render: (value: string) =>
-        new Date(value).toLocaleString(english ? "en-US" : "zh-CN"),
-    },
-    {
-      title: l("操作", "Actions"),
-      key: "actions",
-      width: 360,
-      render: (_, record) => (
-        <Space wrap>
-          <Button
-            type="link"
-            icon={<GlobalOutlined />}
-            onClick={() => navigate(`/map?sceneId=${record.projectId}`)}
-          >
-            {l("打开工程", "Open project")}
+  function compositionActions(record: MapComposition) {
+    return (
+      <Space wrap>
+        <Button
+          type="link"
+          icon={<GlobalOutlined />}
+          onClick={() => navigate(`/map?sceneId=${record.projectId}`)}
+        >
+          {l("打开工程", "Open project")}
+        </Button>
+        <Button
+          type="link"
+          icon={<EyeOutlined />}
+          loading={previewingKey === `mapping-${record.id}`}
+          disabled={!record.canPreview || !record.currentVersion}
+          onClick={() => void preview(record)}
+        >
+          {l("预览", "Preview")}
+        </Button>
+        <Button
+          type="link"
+          disabled={!record.canDownload || !record.currentVersion}
+          onClick={() => void download(record)}
+        >
+          {l("下载", "Download")}
+        </Button>
+        <Button
+          type="link"
+          disabled={!record.canPublish}
+          onClick={() => openPublish(record)}
+        >
+          {record.status === "published"
+            ? l("更新发布", "Update publication")
+            : l("发布", "Publish")}
+        </Button>
+        {record.canUnpublish ? (
+          <Button type="link" onClick={() => void unpublish(record)}>
+            {l("下架", "Unpublish")}
           </Button>
-          <Button
-            type="link"
-            icon={<EyeOutlined />}
-            loading={previewingKey === `mapping-${record.id}`}
-            disabled={!record.canPreview || !record.currentVersion}
-            onClick={() => void preview(record)}
-          >
-            {l("预览", "Preview")}
+        ) : null}
+        <Popconfirm
+          title={l("删除专题", "Delete thematic map")}
+          description={l(
+            `确认删除“${record.name}”？专题、全部版本记录和成果文件将被永久删除且不可恢复。`,
+            `Delete “${record.name}”? The thematic map, all version records, and result files will be permanently deleted.`,
+          )}
+          okText={l("删除", "Delete")}
+          cancelText={l("取消", "Cancel")}
+          okButtonProps={{ danger: true }}
+          disabled={!record.canDelete}
+          onConfirm={() => void deleteComposition(record)}
+        >
+          <Button type="link" danger disabled={!record.canDelete}>
+            {l("删除", "Delete")}
           </Button>
-          <Button
-            type="link"
-            disabled={!record.canDownload || !record.currentVersion}
-            onClick={() => void download(record)}
-          >
-            {l("下载", "Download")}
-          </Button>
-          <Button
-            type="link"
-            disabled={!record.canPublish}
-            onClick={() => openPublish(record)}
-          >
-            {record.status === "published"
-              ? l("更新发布", "Update publication")
-              : l("发布", "Publish")}
-          </Button>
-          {record.canUnpublish ? (
-            <Button type="link" onClick={() => void unpublish(record)}>
-              {l("下架", "Unpublish")}
-            </Button>
-          ) : null}
-          <Popconfirm
-            title={l("删除专题", "Delete thematic map")}
-            description={l(
-              `确认删除“${record.name}”？专题、全部版本记录和成果文件将被永久删除且不可恢复。`,
-              `Delete “${record.name}”? The thematic map, all version records, and result files will be permanently deleted.`,
-            )}
-            okText={l("删除", "Delete")}
-            cancelText={l("取消", "Cancel")}
-            okButtonProps={{ danger: true }}
-            disabled={!record.canDelete}
-            onConfirm={() => void deleteComposition(record)}
-          >
-            <Button type="link" danger disabled={!record.canDelete}>
-              {l("删除", "Delete")}
-            </Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
+        </Popconfirm>
+      </Space>
+    );
+  }
 
-  const resultColumns: ColumnsType<ResultArtifact> = [
+  function artifactActions(record: ResultArtifact) {
+    return (
+      <Space wrap>
+        {record.canEditReport && (
+          <Button
+            type="link"
+            onClick={() =>
+              navigate(
+                `/nongeo?resourceId=${record.sourceResourceId}&reportId=${record.id}`,
+              )
+            }
+          >
+            {l("编辑报告", "Edit report")}
+          </Button>
+        )}
+        {record.canSubmitReview && (
+          <Button
+            type="link"
+            onClick={async () => {
+              try {
+                await api.updateResultArtifact(record.id, {
+                  action: "submit_review",
+                });
+                await loadItems();
+                message.success("已提交审核");
+              } catch (error) {
+                message.error(
+                  error instanceof Error ? error.message : "提交失败",
+                );
+              }
+            }}
+          >
+            {l("提交审核", "Submit for review")}
+          </Button>
+        )}
+        {record.requiresReview &&
+          record.status === "in_review" &&
+          record.canPublish && (
+            <Button
+              type="link"
+              onClick={() => {
+                let reason = "";
+                Modal.confirm({
+                  title: l("退回成果修改", "Return result for revision"),
+                  okText: l("确认退回", "Return for revision"),
+                  cancelText: l("取消", "Cancel"),
+                  content: (
+                    <Input.TextArea
+                      aria-label={l("退回意见", "Review feedback")}
+                      placeholder={l("请填写修改意见", "Enter review feedback")}
+                      onChange={(event) => {
+                        reason = event.target.value;
+                      }}
+                    />
+                  ),
+                  onOk: async () => {
+                    if (!reason.trim()) {
+                      message.warning("请填写退回意见");
+                      throw new Error("请填写退回意见");
+                    }
+                    try {
+                      await api.updateResultArtifact(record.id, {
+                        action: "reject",
+                        reviewNote: reason.trim(),
+                      });
+                      await loadItems();
+                      message.success("已退回修改");
+                    } catch (error) {
+                      message.error(
+                        error instanceof Error ? error.message : "退回失败",
+                      );
+                      throw error;
+                    }
+                  },
+                });
+              }}
+            >
+              {l("退回修改", "Return for revision")}
+            </Button>
+          )}
+        <Button
+          type="link"
+          icon={<EyeOutlined />}
+          loading={previewingKey === `artifact-${record.id}`}
+          disabled={!record.canPreview}
+          onClick={() => void previewArtifact(record)}
+        >
+          {l("预览", "Preview")}
+        </Button>
+        <Button
+          type="link"
+          disabled={!record.canDownload}
+          onClick={() => void downloadArtifact(record)}
+        >
+          {l("下载", "Download")}
+        </Button>
+        <Button
+          type="link"
+          disabled={!record.canPublish}
+          onClick={() => openArtifactPublish(record)}
+        >
+          {record.status === "published"
+            ? l("更新范围", "Update audience")
+            : record.requiresReview
+              ? l("审核发布", "Approve and publish")
+              : l("发布", "Publish")}
+        </Button>
+        {record.canUnpublish ? (
+          <Button type="link" onClick={() => void unpublishArtifact(record)}>
+            {l("下架", "Unpublish")}
+          </Button>
+        ) : null}
+        <Popconfirm
+          title={l("删除成果文件", "Delete result file")}
+          description={l(
+            `确认删除“${record.name}”？成果记录和文件将被永久删除且不可恢复。`,
+            `Delete “${record.name}”? The result record and file will be permanently deleted.`,
+          )}
+          okText={l("删除", "Delete")}
+          cancelText={l("取消", "Cancel")}
+          okButtonProps={{ danger: true }}
+          disabled={!record.canDelete}
+          onConfirm={() => void deleteArtifact(record)}
+        >
+          <Button type="link" danger disabled={!record.canDelete}>
+            {l("删除", "Delete")}
+          </Button>
+        </Popconfirm>
+      </Space>
+    );
+  }
+
+  const columns: ColumnsType<ManagedResult> = [
     {
       title: l("成果名称", "Result name"),
-      dataIndex: "name",
       key: "name",
       width: 280,
-      render: (_, record) => (
+      render: (_, row) => (
         <Space orientation="vertical" size={2}>
-          <Typography.Text strong>{record.name}</Typography.Text>
+          <Typography.Text strong>{row.item.name}</Typography.Text>
           <Typography.Text type="secondary" className="admin-table-subtext">
-            {record.provider || record.fileName}
+            {row.kind === "mapping"
+              ? `${l("来源工程：", "Source project: ")}${row.item.projectName}`
+              : row.item.provider || row.item.fileName}
           </Typography.Text>
+          {row.kind === "artifact" && row.item.reviewNote && (
+            <Typography.Text
+              type={row.item.status === "draft" ? "warning" : "secondary"}
+              className="admin-table-subtext"
+            >
+              {l("审核意见：", "Review feedback: ")}
+              {row.item.reviewNote}
+            </Typography.Text>
+          )}
         </Space>
       ),
     },
     {
       title: l("来源 / 类型", "Source / type"),
-      key: "type",
-      width: 190,
-      render: (_, record) => (
-        <Space wrap size={4}>
-          <Tag color={record.sourceType === "analysis" ? "blue" : "gold"}>
-            {record.sourceType === "analysis"
-              ? l("平台分析", "Platform analysis")
-              : l("直接导入", "Direct import")}
-          </Tag>
-          <Tag>{resultTypeText(record.resultType)}</Tag>
-        </Space>
-      ),
+      key: "source",
+      width: 185,
+      render: (_, row) =>
+        row.kind === "mapping" ? (
+          <Space wrap size={4}>
+            <Tag color="green">{l("专题制图", "Thematic mapping")}</Tag>
+            <Tag>{l("地图", "Map")}</Tag>
+          </Space>
+        ) : (
+          <Space wrap size={4}>
+            <Tag color={row.item.sourceType === "analysis" ? "blue" : "gold"}>
+              {row.item.sourceType === "analysis"
+                ? l("平台分析", "Platform analysis")
+                : l("直接导入", "Direct import")}
+            </Tag>
+            <Tag>{resultTypeText(row.item.resultType)}</Tag>
+          </Space>
+        ),
     },
     {
       title: l("状态", "Status"),
-      dataIndex: "status",
       key: "status",
-      width: 140,
-      render: (value: ResultArtifact["status"]) => (
-        <Tag color={resultStatusLabels[value].color}>
-          {resultStatusText(value)}
-        </Tag>
-      ),
+      width: 112,
+      render: (_, row) =>
+        row.kind === "mapping" ? (
+          <Tag color={statusLabels[row.item.status].color}>
+            {statusText(row.item.status)}
+          </Tag>
+        ) : (
+          <Tag color={resultStatusLabels[row.item.status].color}>
+            {resultStatusText(row.item.status)}
+          </Tag>
+        ),
     },
     {
       title: l("创建者", "Creator"),
       key: "owner",
-      width: 160,
-      render: (_, record) =>
-        record.owner.displayName ||
-        record.owner.username ||
+      width: 150,
+      render: (_, row) =>
+        row.item.owner.displayName ||
+        row.item.owner.username ||
         l("系统维护", "System maintenance"),
     },
     {
-      title: l("文件", "File"),
+      title: l("文件 / 版本", "File / version"),
       key: "file",
       width: 140,
-      render: (_, record) => (
-        <Space orientation="vertical" size={0}>
-          <Typography.Text>{record.fileFormat.toUpperCase()}</Typography.Text>
-          <Typography.Text type="secondary">
-            {formatFileSize(record.sizeBytes)}
-          </Typography.Text>
-        </Space>
-      ),
+      render: (_, row) =>
+        row.kind === "mapping" ? (
+          row.item.currentVersion ? (
+            <Space orientation="vertical" size={0}>
+              <Typography.Text>
+                {row.item.currentVersion.format.toUpperCase()}
+              </Typography.Text>
+              <Typography.Text type="secondary">
+                V{row.item.currentVersion.versionNumber}
+              </Typography.Text>
+            </Space>
+          ) : (
+            l("未生成", "Not generated")
+          )
+        ) : (
+          <Space orientation="vertical" size={0}>
+            <Typography.Text>
+              {row.item.fileFormat.toUpperCase()}
+            </Typography.Text>
+            <Typography.Text type="secondary">
+              {formatFileSize(row.item.sizeBytes)}
+            </Typography.Text>
+          </Space>
+        ),
     },
     {
       title: l("更新时间", "Updated at"),
-      dataIndex: "updatedAt",
       key: "updatedAt",
       width: 190,
-      render: (value: string) =>
-        new Date(value).toLocaleString(english ? "en-US" : "zh-CN"),
+      render: (_, row) =>
+        new Date(row.item.updatedAt).toLocaleString(
+          english ? "en-US" : "zh-CN",
+        ),
     },
     {
       title: l("操作", "Actions"),
       key: "actions",
-      width: 340,
-      render: (_, record) => (
-        <Space wrap>
-          {record.canEditReport && (
-            <Button
-              type="link"
-              onClick={() =>
-                navigate(
-                  `/nongeo?resourceId=${record.sourceResourceId}&reportId=${record.id}`,
-                )
-              }
-            >
-              编辑报告
-            </Button>
-          )}
-          {record.canSubmitReview && (
-            <Button
-              type="link"
-              onClick={async () => {
-                try {
-                  await api.updateResultArtifact(record.id, {
-                    action: "submit_review",
-                  });
-                  await loadItems();
-                  message.success("已提交审核");
-                } catch (error) {
-                  message.error(
-                    error instanceof Error ? error.message : "提交失败",
-                  );
-                }
-              }}
-            >
-              提交审核
-            </Button>
-          )}
-          {record.requiresReview &&
-            record.status === "in_review" &&
-            record.canPublish && (
-              <Button
-                type="link"
-                onClick={() => {
-                  let reason = "";
-                  Modal.confirm({
-                    title: "退回报告修改",
-                    content: (
-                      <Input.TextArea
-                        aria-label="退回意见"
-                        placeholder="请填写修改意见"
-                        onChange={(event) => {
-                          reason = event.target.value;
-                        }}
-                      />
-                    ),
-                    onOk: async () => {
-                      if (!reason.trim()) {
-                        message.warning("请填写退回意见");
-                        throw new Error("请填写退回意见");
-                      }
-                      try {
-                        await api.updateResultArtifact(record.id, {
-                          action: "reject",
-                          reviewNote: reason.trim(),
-                        });
-                        await loadItems();
-                        message.success("已退回修改");
-                      } catch (error) {
-                        message.error(
-                          error instanceof Error ? error.message : "退回失败",
-                        );
-                        throw error;
-                      }
-                    },
-                  });
-                }}
-              >
-                退回修改
-              </Button>
-            )}
-          <Button
-            type="link"
-            icon={<EyeOutlined />}
-            loading={previewingKey === `artifact-${record.id}`}
-            disabled={!record.canPreview}
-            onClick={() => void previewArtifact(record)}
-          >
-            {l("预览", "Preview")}
-          </Button>
-          <Button
-            type="link"
-            disabled={!record.canDownload}
-            onClick={() => void downloadArtifact(record)}
-          >
-            {l("下载", "Download")}
-          </Button>
-          <Button
-            type="link"
-            disabled={!record.canPublish}
-            onClick={() => openArtifactPublish(record)}
-          >
-            {record.status === "published"
-              ? l("更新范围", "Update audience")
-              : record.requiresReview
-                ? l("审核发布", "Approve and publish")
-                : l("发布", "Publish")}
-          </Button>
-          {record.canUnpublish ? (
-            <Button type="link" onClick={() => void unpublishArtifact(record)}>
-              {l("下架", "Unpublish")}
-            </Button>
-          ) : null}
-          <Popconfirm
-            title={l("删除成果文件", "Delete result file")}
-            description={l(
-              `确认删除“${record.name}”？成果记录和文件将被永久删除且不可恢复。`,
-              `Delete “${record.name}”? The result record and file will be permanently deleted.`,
-            )}
-            okText={l("删除", "Delete")}
-            cancelText={l("取消", "Cancel")}
-            okButtonProps={{ danger: true }}
-            disabled={!record.canDelete}
-            onConfirm={() => void deleteArtifact(record)}
-          >
-            <Button type="link" danger disabled={!record.canDelete}>
-              {l("删除", "Delete")}
-            </Button>
-          </Popconfirm>
-        </Space>
-      ),
+      width: 390,
+      render: (_, row) =>
+        row.kind === "mapping"
+          ? compositionActions(row.item)
+          : artifactActions(row.item),
     },
   ];
 
@@ -871,8 +905,8 @@ export default function AdminTopicCompositionManagementPage() {
           type="info"
           title={l("统一成果管理", "Unified result management")}
           description={l(
-            "专题图成果沿用制图查看、导出和发布权限；导入成果使用独立的查看、导入、下载、发布和删除权限。对象所属用户只能执行已获授权操作，平台管理主体可管理全部成果。",
-            "Thematic-map results use map-composition view, export, and publish permissions. Imported results use separate view, import, download, publish, and delete permissions. Owners may perform only authorized actions; platform administrators can manage all results.",
+            "专题图、直接导入成果和分析报告在同一列表中管理。可按来源和状态筛选，并在成果所在行预览、提交审核、退回、发布或下架。",
+            "Manage thematic maps, imported results, and analysis reports in one list. Filter by source and status, then preview, submit for review, return, publish, or unpublish each result in its row.",
           )}
           style={{ marginBottom: 16 }}
         />
@@ -886,21 +920,65 @@ export default function AdminTopicCompositionManagementPage() {
                   "按成果名称、来源工程、文件、单位或创建者快速搜索",
                   "Search by result name, source project, file, provider, or creator",
                 )}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(1);
+                }}
               />
             </Form.Item>
             <Space wrap>
+              <Select<SourceFilter>
+                aria-label={l("成果来源", "Result source")}
+                value={source}
+                style={{ width: 160 }}
+                onChange={(value) => {
+                  setSource(value);
+                  setPage(1);
+                }}
+                options={[
+                  { value: "all", label: l("全部来源", "All sources") },
+                  {
+                    value: "mapping",
+                    label: l("专题制图", "Thematic mapping"),
+                  },
+                  {
+                    value: "analysis",
+                    label: l("平台分析", "Platform analysis"),
+                  },
+                  {
+                    value: "direct_import",
+                    label: l("直接导入", "Direct import"),
+                  },
+                ]}
+              />
               <Select<StatusFilter>
+                aria-label={l("成果状态", "Result status")}
                 value={status}
-                style={{ width: 144 }}
-                onChange={setStatus}
+                style={{ width: 164 }}
+                onChange={(value) => {
+                  setSearchParams((current) => {
+                    const next = new URLSearchParams(current);
+                    if (value === "all") next.delete("status");
+                    else next.set("status", value);
+                    return next;
+                  });
+                  setPage(1);
+                }}
                 options={[
                   { value: "all", label: l("全部状态", "All statuses") },
                   {
-                    value: "draft",
-                    label: l("草稿 / 已下架", "Draft / unpublished"),
+                    value: "pending",
+                    label: l("待审核/发布", "Review / publish"),
                   },
-                  { value: "completed", label: l("未发布", "Unpublished") },
+                  { value: "draft", label: l("草稿", "Draft") },
+                  {
+                    value: "unpublished",
+                    label: l(
+                      "未发布（含草稿）",
+                      "Unpublished (including drafts)",
+                    ),
+                  },
+                  { value: "in_review", label: l("待审核", "Awaiting review") },
                   { value: "published", label: l("已发布", "Published") },
                 ]}
               />
@@ -926,16 +1004,14 @@ export default function AdminTopicCompositionManagementPage() {
         />
         <StatisticCard
           statistic={{
-            title: l("专题图成果", "Thematic-map results"),
-            value: metrics.mapping,
-            prefix: <FileImageOutlined />,
+            title: l("待审核", "Awaiting review"),
+            value: metrics.reviewing,
           }}
         />
         <StatisticCard
           statistic={{
-            title: l("导入成果", "Imported results"),
-            value: metrics.imported,
-            prefix: <UploadOutlined />,
+            title: l("未发布", "Unpublished"),
+            value: metrics.unpublished,
           }}
         />
         <StatisticCard
@@ -947,76 +1023,28 @@ export default function AdminTopicCompositionManagementPage() {
       </StatisticCard.Group>
 
       <ProCard className="admin-section-card inventory-table-card">
-        <Tabs
-          items={[
-            ...(canManageCompositions
-              ? [
-                  {
-                    key: "mapping",
-                    label: l(
-                      `专题图成果（${filteredItems.length}）`,
-                      `Thematic-map results (${filteredItems.length})`,
-                    ),
-                    children: (
-                      <div className="inventory-table-scroll">
-                        <Table<MapComposition>
-                          rowKey="id"
-                          loading={loading}
-                          columns={columns}
-                          dataSource={filteredItems}
-                          scroll={{ x: 1280 }}
-                          pagination={{
-                            pageSize: 10,
-                            showSizeChanger: true,
-                            showTotal: (total) =>
-                              l(`共 ${total} 条`, `${total} items`),
-                          }}
-                          locale={{
-                            emptyText: (
-                              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                            ),
-                          }}
-                        />
-                      </div>
-                    ),
-                  },
-                ]
-              : []),
-            ...(canManageArtifacts
-              ? [
-                  {
-                    key: "artifacts",
-                    label: l(
-                      `导入成果（${filteredResultItems.length}）`,
-                      `Imported results (${filteredResultItems.length})`,
-                    ),
-                    children: (
-                      <div className="inventory-table-scroll">
-                        <Table<ResultArtifact>
-                          rowKey="id"
-                          loading={loading}
-                          columns={resultColumns}
-                          dataSource={filteredResultItems}
-                          scroll={{ x: 1440 }}
-                          pagination={{
-                            pageSize: 10,
-                            showSizeChanger: true,
-                            showTotal: (total) =>
-                              l(`共 ${total} 条`, `${total} items`),
-                          }}
-                          locale={{
-                            emptyText: (
-                              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                            ),
-                          }}
-                        />
-                      </div>
-                    ),
-                  },
-                ]
-              : []),
-          ]}
-        />
+        <div className="inventory-table-scroll">
+          <Table<ManagedResult>
+            rowKey="key"
+            loading={loading}
+            columns={columns}
+            dataSource={filteredResults}
+            scroll={{ x: 1440 }}
+            pagination={{
+              current: page,
+              pageSize,
+              showSizeChanger: true,
+              onChange: (nextPage, nextPageSize) => {
+                setPage(nextPage);
+                setPageSize(nextPageSize);
+              },
+              showTotal: (total) => l(`共 ${total} 条`, `${total} items`),
+            }}
+            locale={{
+              emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />,
+            }}
+          />
+        </div>
       </ProCard>
 
       <Modal
@@ -1038,9 +1066,10 @@ export default function AdminTopicCompositionManagementPage() {
       </Modal>
       <Modal
         title={
-          publishingArtifact
-            ? l("发布导入成果", "Publish imported result")
-            : l("发布专题图成果", "Publish thematic-map result")
+          publishingArtifact?.requiresReview &&
+          publishingArtifact.status === "in_review"
+            ? l("审核发布成果", "Approve and publish result")
+            : l("发布成果", "Publish result")
         }
         open={Boolean(publishingComposition || publishingArtifact)}
         okText={l("确认发布", "Confirm publish")}

@@ -23,6 +23,11 @@ urlpatterns = [
     path("catalog/resources/", views.resources, name="catalog-resources"),
     path("catalog/results/", results.result_artifacts, name="catalog-results"),
     path(
+        "catalog/results/review-summary/",
+        results.result_review_summary,
+        name="catalog-result-review-summary",
+    ),
+    path(
         "catalog/results/<int:result_id>/",
         results.result_artifact_detail,
         name="catalog-result-detail",

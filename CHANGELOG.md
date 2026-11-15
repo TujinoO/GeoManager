@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve unsaved map-composition edits when the live map view or source summary changes
 - Recommend usable geographic and Web Mercator grid intervals for both local and regional extents
 
+## [V3.32] - 2026-11-15
+
+- 专题图、导入成果和分析报告统一管理，支持来源/状态筛选、搜索、分页及逐项审核发布，保留原有操作权限。
+- 成果展示新增审核快捷入口与待办角标，可直达待审核/发布列表，支持焦点、跨标签页和定时刷新。
+- 图片及 PDF 成果封面改用服务端按需生成的低清 JPEG 缩略图，减少整份 PDF 和高清图片的封面传输；详情与原文件下载不变。
+- 专题制图默认完整适应画布，支持手动缩放和窗口自适应；成果页顶部菜单滚动时保持固定。
+- 升级说明：新增审核计数接口、thumbnail 文件变体及 pypdfium2 依赖，API 文档与生成客户端同步；无需数据库迁移，不扩大权限，不修改数据根目录、原始成果或栅格符号化。
+
 ## [V3.31] - 2026-11-15
 
 - 修复顶部菜单在缩放、窗口调整、悬停及搜索展开时反复压缩、位移的问题，改进中英文品牌文字截断；主导航统一去掉下拉箭头，胡杨科普点击直达。

@@ -17,7 +17,8 @@ from django.views.decorators.http import require_GET, require_http_methods
 from PIL import Image, UnidentifiedImageError
 
 from apps.audit.service import log_operation
-from apps.catalog.models import ResultArtifact
+from apps.catalog.models import MapComposition, ResultArtifact
+from apps.catalog.result_thumbnails import thumbnail_response
 from apps.catalog.permissions import (
     effective_access_group_ids,
     user_has_full_data_access,
@@ -51,6 +52,42 @@ TRUSTED_RESULT_MIME_TYPES = {
 }
 
 logger = logging.getLogger(__name__)
+
+
+@require_GET
+@api_login_required
+def result_review_summary(request):
+    user = request.user
+    can_review_maps = has_feature_perm(
+        user, "catalog.view_mapcomposition"
+    ) and has_feature_perm(user, "catalog.publish_mapcomposition")
+    can_review_artifacts = has_feature_perm(
+        user, "catalog.view_resultartifact"
+    ) and has_feature_perm(user, "catalog.publish_resultartifact")
+    if not (can_review_maps or can_review_artifacts):
+        return feature_denied_response(user)
+    pending_maps = 0
+    if can_review_maps:
+        maps = MapComposition.objects.filter(
+            status=MapComposition.Status.COMPLETED, versions__isnull=False
+        )
+        if not user_has_full_data_access(user):
+            maps = maps.filter(owner=user)
+        pending_maps = maps.values("pk").distinct().count()
+    pending_artifacts = (
+        _result_queryset(user).filter(status=ResultArtifact.Status.IN_REVIEW).count()
+        if can_review_artifacts
+        else 0
+    )
+    response = JsonResponse(
+        {
+            "pendingCount": pending_maps + pending_artifacts,
+            "pendingMapCount": pending_maps,
+            "pendingArtifactCount": pending_artifacts,
+        }
+    )
+    response["Cache-Control"] = "private, no-store"
+    return response
 
 
 @require_http_methods(["GET", "POST"])
@@ -394,12 +431,15 @@ def result_artifact_file(request, result_id: int):
     if artifact is None:
         return JsonResponse({"detail": "成果不存在"}, status=404)
     variant = str(request.GET.get("variant", "artifact")).strip()
-    if variant not in {"artifact", "preview"}:
+    if variant not in {"artifact", "preview", "thumbnail"}:
         return JsonResponse(
-            {"detail": "variant 仅支持 artifact 或 preview"}, status=400
+            {"detail": "variant 仅支持 artifact、preview 或 thumbnail"}, status=400
         )
     extension = Path(artifact.file_name).suffix.lower()
-    if variant == "preview" and extension not in PREVIEWABLE_RESULT_EXTENSIONS:
+    if (
+        variant in {"preview", "thumbnail"}
+        and extension not in PREVIEWABLE_RESULT_EXTENSIONS
+    ):
         return JsonResponse({"detail": "该成果格式不支持在线预览"}, status=400)
     if variant == "artifact" and not has_feature_perm(
         request.user, "catalog.download_resultartifact"
@@ -408,6 +448,8 @@ def result_artifact_file(request, result_id: int):
     path = app_path(*artifact.file_path.split("/"))
     if not path.is_file():
         return JsonResponse({"detail": "成果文件不存在"}, status=404)
+    if variant == "thumbnail":
+        return thumbnail_response(request, path, artifact.file_name)
     response = FileResponse(
         path.open("rb"),
         as_attachment=variant == "artifact",

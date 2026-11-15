@@ -15831,13 +15831,51 @@
         }
       }
     },
+    "/api/catalog/results/review-summary/": {
+      "get": {
+        "tags": [
+          "成果展示"
+        ],
+        "summary": "获取当前账号可审核发布的成果待办数量",
+        "description": "需要专题图查看与发布权限，或成果文件查看与发布权限中的至少一组；只统计具备对应权限且当前账号可执行发布的对象。\npendingMapCount 为已生成版本、状态 completed 的未发布专题图（普通发布者仅本人，平台/超级管理员全部）；pendingArtifactCount 为状态 in_review 的分析及导入成果，沿用成果管理可见范围与审核权限。\n不计入编辑中的草稿或已发布成果，不包含文件、版式或报告正文。pendingCount 为两者之和。响应使用 Cache-Control: private, no-store。\n",
+        "operationId": "getResultReviewSummary",
+        "security": [
+          {
+            "sessionAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "当前账号可处理的待审核及待发布数量",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultReviewSummary"
+                },
+                "example": {
+                  "pendingCount": 5,
+                  "pendingMapCount": 2,
+                  "pendingArtifactCount": 3
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
     "/api/catalog/results/{resultId}/file/": {
       "get": {
         "tags": [
           "成果展示"
         ],
         "summary": "预览或下载成果文件",
-        "description": "对具备 `catalog.view_resultartifact` 且处于成果访问范围内的用户返回文件。variant=preview 仅支持 PNG、JPG/JPEG 和 PDF，使用 inline 响应并增加 CSP 沙箱与禁止来源泄露响应头；variant=artifact 还需要 `catalog.download_resultartifact` 并触发下载。\n所有成功响应均包含 `X-Content-Type-Options: nosniff`，并使用后端验证后的可信 MIME。\n",
+        "description": "对具备 `catalog.view_resultartifact` 且处于成果访问范围内的用户返回文件。variant=preview 仅支持 PNG、JPG/JPEG 和 PDF，使用 inline 响应并增加 CSP 沙箱与禁止来源泄露响应头；variant=artifact 还需要 `catalog.download_resultartifact` 并触发下载。\nvariant=thumbnail 对图片或 PDF 首页返回最长边不超过 480px、质量 60 的 JPEG，按原文件标识与修改时间缓存，首次请求生成。沿用查看及对象访问权限，无需下载权限；不支持的格式或无法生成时返回 400。所有成功响应均包含 `X-Content-Type-Options: nosniff`，并使用后端验证后的可信 MIME。缩略图使用 private, no-cache 与 ETag，每次复用前重新鉴权，匹配 If-None-Match 时返回 304。\n",
         "operationId": "downloadResultArtifact",
         "security": [
           {
@@ -15861,11 +15899,12 @@
               "type": "string",
               "enum": [
                 "artifact",
-                "preview"
+                "preview",
+                "thumbnail"
               ],
               "default": "artifact"
             },
-            "description": "artifact 下载原文件，preview 在浏览器内预览"
+            "description": "artifact 下载原文件，preview 在浏览器内预览，thumbnail 返回低清 JPEG 封面"
           }
         ],
         "responses": {
@@ -15890,17 +15929,23 @@
                   "type": "string",
                   "const": "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'"
                 },
-                "description": "仅 variant=preview 返回的沙箱策略"
+                "description": "variant=preview 或 thumbnail 返回的沙箱策略"
               },
               "Referrer-Policy": {
                 "schema": {
                   "type": "string",
                   "const": "no-referrer"
                 },
-                "description": "仅 variant=preview 返回，禁止预览请求泄露来源地址"
+                "description": "variant=preview 或 thumbnail 返回，禁止预览请求泄露来源地址"
               }
             },
             "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
               "application/octet-stream": {
                 "schema": {
                   "type": "string",
@@ -15908,6 +15953,9 @@
                 }
               }
             }
+          },
+          "304": {
+            "description": "仅缩略图；已鉴权且 If-None-Match 与当前文件标识匹配，无响应体"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -16670,7 +16718,7 @@
           "专题制图"
         ],
         "summary": "下载或预览专题成果文件",
-        "description": "返回指定版本的正式成果文件或 PNG 预览图。需要 `catalog.view_mapcomposition`；正式成果下载还需要 `catalog.export_mapcomposition`。",
+        "description": "返回指定版本的正式成果文件、PNG 预览图或最长边不超过 480px、质量 60 的 JPEG 缩略图。thumbnail 从该版本 PNG 生成并按原文件标识与修改时间缓存，首次请求生成；无法生成时返回 400。需要 `catalog.view_mapcomposition` 并通过版本访问校验；正式成果下载还需要 `catalog.export_mapcomposition`。缩略图使用 private, no-cache 与 ETag，每次复用前重新鉴权，匹配 If-None-Match 时返回 304。",
         "operationId": "downloadMapCompositionVersion",
         "security": [
           {
@@ -16704,11 +16752,12 @@
               "type": "string",
               "enum": [
                 "artifact",
-                "preview"
+                "preview",
+                "thumbnail"
               ],
               "default": "artifact"
             },
-            "description": "artifact 返回正式成果并触发下载；preview 返回 PNG 预览"
+            "description": "artifact 返回正式成果并触发下载；preview 返回原 PNG 预览；thumbnail 返回低清 JPEG 封面"
           }
         ],
         "responses": {
@@ -16723,6 +16772,12 @@
               }
             },
             "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
               "application/octet-stream": {
                 "schema": {
                   "type": "string",
@@ -16730,6 +16785,9 @@
                 }
               }
             }
+          },
+          "304": {
+            "description": "仅缩略图；已鉴权且 If-None-Match 与当前文件标识匹配，无响应体"
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
@@ -26292,6 +26350,32 @@
           "detail": {
             "type": "string",
             "description": "删除结果说明"
+          }
+        }
+      },
+      "ResultReviewSummary": {
+        "type": "object",
+        "description": "当前账号可审核或发布的成果待办，按成果记录计数，同一专题的多个版本只计一份",
+        "required": [
+          "pendingCount",
+          "pendingMapCount",
+          "pendingArtifactCount"
+        ],
+        "properties": {
+          "pendingCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "可处理总数，等于 pendingMapCount 加 pendingArtifactCount"
+          },
+          "pendingMapCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "可发布、已有版本且状态为 completed 的专题图数量"
+          },
+          "pendingArtifactCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "可审核发布、状态为 in_review 的分析及直接导入成果数量"
           }
         }
       },

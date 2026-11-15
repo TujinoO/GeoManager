@@ -153,6 +153,22 @@ class MapCompositionApiTests(TestCase):
                 b"".join(preview_response.streaming_content)
                 preview_response.close()
 
+                thumbnail_url = version["previewUrl"].replace(
+                    "variant=preview", "variant=thumbnail"
+                )
+                thumbnail = self.client.get(thumbnail_url)
+                self.assertEqual(thumbnail.status_code, 200)
+                self.assertEqual(thumbnail["Content-Type"], "image/jpeg")
+                with Image.open(
+                    io.BytesIO(b"".join(thumbnail.streaming_content))
+                ) as cover:
+                    self.assertEqual(cover.size, (320, 240))
+                thumbnail.close()
+                cached = self.client.get(
+                    thumbnail_url, HTTP_IF_NONE_MATCH=thumbnail["ETag"]
+                )
+                self.assertEqual(cached.status_code, 304)
+
                 download_response = self.client.get(version["downloadUrl"])
                 self.assertEqual(download_response.status_code, 200)
                 self.assertEqual(
@@ -479,6 +495,18 @@ class MapCompositionApiTests(TestCase):
                 preview_content = b"".join(published_preview_response.streaming_content)
                 self.assertTrue(preview_content.startswith(b"\x89PNG\r\n\x1a\n"))
                 published_preview_response.close()
+                cover_url = results_item["publishedVersion"]["previewUrl"].replace(
+                    "variant=preview", "variant=thumbnail"
+                )
+                cover = self.client.get(cover_url)
+                self.assertEqual(cover.status_code, 200)
+                self.assertEqual(cover["Content-Type"], "image/jpeg")
+                b"".join(cover.streaming_content)
+                cover.close()
+                viewer.groups.clear()
+                denied = self.client.get(cover_url, HTTP_IF_NONE_MATCH=cover["ETag"])
+                self.assertEqual(denied.status_code, 404)
+                viewer.groups.add(self.audience_group)
 
                 private_response = self.client.get(
                     f"/api/catalog/map-compositions/{private_composition.id}/"

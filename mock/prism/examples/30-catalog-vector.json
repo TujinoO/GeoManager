@@ -1457,5 +1457,12 @@
     "409": {
       "detail": "导出任务尚未完成"
     }
+  },
+  "GET /api/catalog/results/review-summary/": {
+    "200": {
+      "pendingCount": 5,
+      "pendingMapCount": 2,
+      "pendingArtifactCount": 3
+    }
   }
 }

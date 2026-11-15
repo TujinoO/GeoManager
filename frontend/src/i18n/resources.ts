@@ -347,7 +347,8 @@ export const zhCN = {
       inventorySubtitle:
         "查看已登记数据，并按权限管理状态、默认可视化、可见范围与导出",
       projectsSubtitle: "维护工程信息、启用状态、可见范围与删除确认",
-      resultsSubtitle: "统一管理工作台专题图与导入成果的发布、预览、下载和删除",
+      resultsSubtitle:
+        "统一管理专题图、直接导入成果与分析报告的审核、发布和共享",
     },
     warning: {
       phaseTwo: "二期建设预留",
@@ -390,6 +391,14 @@ export const zhCN = {
       downloadStarted: "成果下载已开始，请查看浏览器下载列表",
       downloadFailed: "成果下载失败",
       heroTag: "平台成果中心",
+      reviewEntry: "成果管理与审核",
+      reviewKicker: "审核工作台",
+      reviewLoading: "正在获取待审核/发布数量…",
+      reviewBreakdown: "{{maps}} 份专题图待发布 · {{artifacts}} 份成果待审核",
+      reviewEmpty: "当前暂无待审核或待发布成果，可进入管理全部成果。",
+      reviewPending: "待审核/发布 {{count}} 份",
+      reviewUnavailable: "待办数量暂不可用，仍可进入成果管理。",
+      reviewRetry: "重新获取数量",
       title: "成果展示",
       summary:
         "统一汇聚平台生成的专题图件、数据分析成果和直接导入成果，仅展示已正式发布且当前账号具备访问权限的内容。",
@@ -1345,7 +1354,7 @@ export const enUS = {
       projectsSubtitle:
         "Maintain project information, status, visibility, and deletion controls",
       resultsSubtitle:
-        "Manage publication, preview, download, and deletion of maps and imported results",
+        "Review, publish, and share thematic maps, directly imported results, and analysis reports in one list",
     },
     warning: {
       phaseTwo: "Reserved for Phase 2",
@@ -1392,6 +1401,17 @@ export const enUS = {
       downloadStarted: "Download started. Check your browser downloads.",
       downloadFailed: "Failed to download result",
       heroTag: "Platform Results Center",
+      reviewEntry: "Manage & review results",
+      reviewKicker: "Review workspace",
+      reviewLoading: "Loading pending reviews and publications…",
+      reviewBreakdown:
+        "{{maps}} maps awaiting publication · {{artifacts}} results awaiting review",
+      reviewEmpty:
+        "No pending reviews or publications. Open management to view all results.",
+      reviewPending: "{{count}} pending reviews / publications",
+      reviewUnavailable:
+        "Pending count unavailable. Result management is still accessible.",
+      reviewRetry: "Retry pending count",
       title: "Results",
       summary:
         "A unified collection of thematic maps, platform analysis outputs, and directly imported results. Only formally published items accessible to the current account are shown.",

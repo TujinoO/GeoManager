@@ -2998,8 +2998,13 @@ describe("admin routes", () => {
 
     expect(await screen.findByText("胡杨退化专题")).toBeInTheDocument();
     expect(screen.getByText("全部成果")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("tab", { name: "导入成果（1）" }));
-    expect(await screen.findByText("胡杨监测年度报告")).toBeInTheDocument();
+    const importedResult = await screen.findByText("胡杨监测年度报告");
+    expect(importedResult.closest("table")).toBe(
+      screen.getByText("胡杨退化专题").closest("table"),
+    );
+    expect(
+      screen.queryByRole("tab", { name: /导入成果/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("applies record-level workspace permissions for research users", async () => {

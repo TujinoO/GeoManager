@@ -21928,8 +21928,91 @@ body:has(.login-shell),
   text-shadow: 0 2px 11px rgba(0, 0, 0, 0.58);
 }
 
+.results-page-shell > .workspace-header {
+  position: fixed;
+}
+
 .results-page-hero {
   background-position: center 38%;
+}
+
+.results-management-shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 18px 24px;
+  margin-top: 22px;
+  padding: 16px 20px;
+  border: 1px solid rgba(255, 207, 115, 0.6);
+  border-radius: 14px;
+  background: rgba(5, 28, 25, 0.76);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.results-management-shortcut > div:first-child {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.results-management-shortcut .results-review-kicker {
+  color: #ffe4a8;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.results-management-shortcut .results-review-hint {
+  margin: 5px 0 0;
+  color: #f2fff7;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.results-management-shortcut .ant-btn-link {
+  padding-left: 0;
+  color: #ffe4a8;
+}
+
+.results-review-badge {
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.results-review-badge .ant-badge-count {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  border: 2px solid #fff;
+  background: #cc342b;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 22px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+.results-management-shortcut .results-review-button {
+  height: auto;
+  min-height: 48px;
+  padding: 10px 20px;
+  border-color: #ffd47a;
+  border-radius: 10px;
+  background: linear-gradient(120deg, #ffe3a1, #ffbe52);
+  color: #283e2d;
+  font-size: 16px;
+  font-weight: 800;
+  box-shadow: 0 5px 16px rgba(255, 186, 68, 0.24);
+  white-space: normal;
+}
+
+.results-review-badge-clear .ant-badge-count {
+  background: #287b63;
+}
+
+.results-management-shortcut .results-review-button:hover,
+.results-management-shortcut .results-review-button:focus-visible {
+  border-color: #fff0c7;
+  background: #ffe3a1;
+  color: #173d2b;
 }
 
 .warning-page-hero {
@@ -22337,6 +22420,11 @@ body:has(.login-shell),
   top: 12px;
   right: 12px;
   margin: 0;
+}
+
+.result-card-cover img.result-cover-document {
+  object-fit: contain;
+  background: #fff;
 }
 
 .result-card-cover-file {

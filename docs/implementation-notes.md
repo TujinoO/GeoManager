@@ -927,3 +927,53 @@ CREATE TABLE gpkg_data_columns (
 - Chrome 的页头23项及关于导航/首页布局/分析页布局18项通过；Edge 的页头23项通过，新增无箭头、科普悬停无菜单及点击直达检查。`pnpm run typecheck`、`pnpm run build`、定向 oxlint/oxfmt 及 `git diff --check` 通过。
 - 已在本机真实科普页目视检查四张封面及列表裁切，并进入异形叶详情确认新封面与说明正常显示，再返回列表。截图为 `frontend/output/playwright/knowledge-covers-top-20261115.png` 和 `knowledge-covers-bottom-20261115.png`。
 - 本次修改本机内容数据和待发布源码；未部署公网。权限规则、配置数据根及栅格渲染未变，保留其他任务的 PDF、数据恢复和此前缩放稳定性改动。
+
+## 2026-11-15 成果管理与审核统一列表
+
+- `/resources/manage/topics` 移除“专题图成果 / 导入成果”页签，将工作台专题图、直接导入成果和平台分析报告按更新时间倒序排列在同一表格。两类对象的 UI 行键添加来源前缀，防止相同 ID 覆盖或误操作；数据继续来自现有专题图和成果接口，不迁移文件或数据库记录。
+- 统一名称、来源/类型、状态、创建者、文件/版本、更新时间与操作列；来源筛选、状态筛选、关键词搜索和分页作用于全部成果。新增待审核筛选；“未发布（含草稿）”同时包含报告/导入草稿与已生成未发布专题图，和未发布统计一致。改变筛选或搜索后回到第一页。统计为全部成果、待审核、未发布及已发布。
+- 在成果所在行保留原有预览、下载、工程打开、报告编辑、提交审核、退回、审核发布、版本发布、范围调整、下架及删除能力；操作继续遵循服务端返回的记录级权限和原有接口。审核意见就地展示，草稿意见用提示色；已发布成果的历史意见使用中性样式，避免误认当前被退回。退回弹窗显式本地化确认/取消按钮，发布弹窗使用统一名称。
+- 保留按来源权限加载及部分失败可用行为：一个来源失败时仍展示另一个来源，不因列表合并扩大权限。同步开发指南、帮助说明及中英文页面副标题；无 API 契约、鉴权、数据根、原始文件或栅格渲染变更。
+- 验证：`pnpm test` 45 文件 / 426 项通过；Chrome 成果管理、后台路由、成果展示及报告编辑共 64 项浏览器测试通过，Edge 的统一成果管理 9 项通过。覆盖混合列表、ID 相同、组合筛选、统一分页、预览路由、专题版本发布、平台及外部 PDF 审核发布、退回、提交、下架、权限和来源失败；使用 mock 服务验证变更操作，未对真实成果执行发布或删除。
+- `pnpm run check:api`、`pnpm run i18n:check`、`pnpm run typecheck`、`pnpm run build`、5 份改动 TS/TSX 的 oxlint/oxfmt 和 `git diff --check` 通过。API 检查有既有的 6 个未使用 schema 警告；全量 `pnpm run check` 被现有 `frontend/output/playwright/pdf-edge-verify.js`、`pdf-card-verify.js`、`pdf-repro.js` 的无效表达式拦截，保留这些过程文件，未为本次改动清理或修改。
+- 本机真实管理页只读确认 16 条成果统一展示，第二页包含专题图及分析报告，原页签不再存在。截图 `frontend/output/playwright/results-unified-local-20261115.png`；混合来源回归截图 `frontend/output/playwright/results-unified-mixed.png`。已目视检查，无生产部署、提交或推送。
+
+## 2026-11-15 专题制图初始画布完整显示
+
+- 根因：编辑画布默认用容器宽度的 100% 显示纸张，但滚动区只限制最高 62vh；宽屏、纵向纸张或工具栏换行时，纸张高度超过实际可用区域，底部需滚动才能看到，且 280px 最小纸宽会妨碍窄屏适配。
+- 默认增加“适应画布”，在布局阶段测量滚动区扣除留白后的可用宽高，以纸张毫米宽高比计算完整纸张尺寸。ResizeObserver 仅观察可用区域，尺寸变化后重新适配；移除最小纸宽，使用独立居中承载层，手动放大时仍能滚动到纸张各边。保留原 50%–200% 宽度比例选项，恢复适配时回到滚动原点。
+- 中间编辑器改为纵向弹性布局，工具栏及选中属性保留独立空间，画布使用剩余高度；选中属性过长时内部滚动。刷新预览不重置手动缩放。缩放是临时视图状态，不写入版式，不触发草稿保存，不改变地图范围、毫米坐标、DPI、导出结果或后端栅格处理。
+- Chrome 和 Edge 各 14 项专题制图浏览器测试通过：实际编辑器首开覆盖 1920×1080、1920×800、1440×900、1280×720、1024×768、390×844 与 A4/A3 横纵向；校验纸张四边、比例和无画布滚动溢出，桌面校验画布仍在视口内。新增 StrictMode、窗口变动、纸张方向变化、手动 150%、带预览刷新及恢复适配检查；既有拖动、键盘、锁定、自动预览与保存回归通过。
+- `pnpm test` 426 项、`pnpm run typecheck`、`pnpm run build`、`pnpm run check:api`、改动源码 oxlint/oxfmt 和 `git diff --check` 通过。全量 `pnpm run check` 仍被已有 output/playwright 下 3 个 PDF 临时验证脚本的无效表达式拦住，未清理这些过程文件；API 检查保留既有 6 个未使用 schema 警告。
+- 本机加载已有 test6 工程并打开/重新打开专题图，确认真实预览 1123×794、完整纸张 360×254.5，位于可用画布内且两方向溢出均为 0。已目视检查，截图 `frontend/output/playwright/composition-fit-local-20261115.png`；浏览器回归截图 `frontend/output/playwright/composition-initial-fit.png`。未修改真实版式或生成新成果版本。
+- 本次仅修改前端画布、样式、浏览器测试、帮助及开发记录；API、权限、数据路径和栅格渲染未变，保留此前成果统一管理的全部改动。未提交、推送或部署生产。
+
+## 2026-11-15 成果展示菜单滚动固定
+
+- `/results` 原先继承共享菜单的绝对定位，正文向下滚动时菜单会移出视口。仅为 `.results-page-shell > .workspace-header` 设置固定定位，复用现有顶部/左右留白、层级和门户顶部安全区；不改变其他模块的定位方式，也不增加滚动监听。
+- 浏览器测试先复现向下滚动 900px 后菜单顶部从 8px 变为 -892px，再验证修复。Chrome、Edge 的成果页各 2 项测试通过；滚动回归覆盖 1600×900、1024×768、390×844 的卡片及列表视图，确认页头位置不变、顶部正文留空、菜单未被正文覆盖。
+- 本机真实成果页向下滚动 720px，菜单仍位于视口顶部 8px，已目视检查；截图 `frontend/output/playwright/results-fixed-menu-scrolled-20261115.png`。
+- `pnpm test` 426 项、`pnpm run typecheck`、`pnpm run build`、`pnpm run check:api`、定向 oxlint/oxfmt 和 `git diff --check` 通过。全量 `pnpm run check` 仍受已有 3 个 PDF 临时验证脚本影响，API 检查仍有既有 6 个未使用 schema 警告。保留全部此前工作区改动及过程文件。
+- 仅修改成果页 CSS、浏览器测试及本条记录；API、权限、数据路径及栅格渲染未变，未提交、推送或部署生产。
+
+## 2026-11-15 成果展示低清JPEG封面
+
+- 根因：专题图封面直接加载高清PNG，报告封面则下载整份PDF后在浏览器通过PDF.js生成首页。成果卡片/列表统一请求 `variant=thumbnail`，最长边480px、JPEG质量60，不放大小图；lazy/async加载。报告首页等比完整显示，失败显示格式占位，不回退下载原文件。仅在打开详情时使用原预览，原下载保持完整。
+- 单代理按合同→后端→前端→测试交接。同步OpenAPI、API变更记录、开发指南、生成类型/SDK、Redoc与Prism生成产物；二进制响应不新增JSON mock。新增Pillow/pypdfium2服务，PDF只渲染首页，PDFium进程内串行，同源并发请求合并，临时文件原子写入。pypdfium2 5.15.2已锁定Linux/macOS/Windows依赖。
+- 派生缓存保存到TOML业务根 `cache/result-thumbnails`，键包含源路径、mtime_ns、字节数及生成参数/版本。每次先按原逻辑校验登录、查看权限、对象和版本范围及源文件存在性，再返回JPEG或304。private,no-cache、ETag、Vary:Cookie支持校验复用，权限/共享范围撤回后拒绝读取缓存。不修改原文件、成果状态、下载权限或栅格符号化；无数据库迁移。
+- 后端相关测试25项与4个subtests、生态报告流程6项通过；覆盖图片体积及尺寸、PDF多页取首页、透明图白底、小图不放大、并发只生成一次、缓存命中/源变更失效、无下载权限可查看、匹配ETag仍需鉴权、权限撤回/未登录拒绝、源缺失404、不支持/坏PDF400和原文件不变。运行 `python -m pytest` 对应缩略图单元、成果/专题/生态报告集成文件，六份改动Python的ruff检查通过。本机Pixi未预装，使用现有geomanager Conda环境运行测试；下载官方Pixi仅用于生成依赖锁，未重建本机全部依赖。
+- 前端 `pnpm test` 426项通过；Chrome/Edge成果页各4项通过，覆盖图片及PDF的卡片/列表轻量请求、无PDF fetch/canvas、lazy/async、失败占位、详情/下载和既有滚动固定。`pnpm run typecheck`、`build`、`check:api`、`api:changes:check`、`api:docs`、`mock:build`、定向oxlint/oxfmt、git diff --check通过。API仍有既有6个unused schema警告；全量 `pnpm run check` 仍被已有 `output/playwright/pdf-card-verify.js`、`pdf-edge-verify.js`、`pdf-repro.js`无效表达式拦截，保留过程文件。
+- 重启本机原 --noreload 开发后台使新接口生效，随后只读验证3项已发布成果，全部返回JPEG并完整解码。两个专题图预览由3,692,914/6,313,991字节降为14,158/15,100字节（480×339）；报告由821,054字节PDF降为10,906字节JPEG（340×480）。三个源文件SHA256前后一致，条件请求304。这里是封面传输字节数及本机验证，不代表公网加载时延。
+- 证据：`frontend/output/playwright/results-thumbnail-local-20261115.json`、同名PNG截图（已目视检查三张封面）；后台请求日志确认页面只请求thumbnail文件。测试脚本 `tmp/verify_result_thumbnails_20261115.py` 只读取已发布成果并创建派生缓存，未发布/下架/删除成果。保留此前所有工作区改动及过程文件；未提交、推送或部署生产。
+
+## 2026-11-15 成果展示审核快捷入口与待办角标
+
+- 在 `/results` 顶部主视觉区新增金色“成果管理与审核”主按钮，独立深色审核工作台提示带，红色上标显示待处理总数；同时明确专题图待发布与分析/导入成果待审核各多少份。零待办显示绿色0，进入全部管理；加载中显示进度图标，失败显示未知及重试，不伪装为0。桌面并排、窄屏自动换行，按钮触控高度至少48px。仅具备同一来源查看+发布权限的账号显示。
+- 为避免为了角标下载全量版式/报告，新增只做数据库计数的 `/api/catalog/results/review-summary/`。专题图口径是completed、已有版本且当前账号可发布；普通发布者仅本人，平台/超级管理员全部。分析/导入口径是in_review且可审核发布，复用已有结果可见范围。按成果记录去重，不按版本计数；草稿、已发布、无权限来源/对象不计入。响应private,no-store；无配置、数据库迁移、文件或栅格渲染变化，不扩大原权限。
+- 同一代理按合同→后端→前端→测试跨栈交接，记录于API变更文档；同步OpenAPI、开发指南、30-catalog-vector mock、生成类型/SDK、Redoc及Prism产物。生成DTO从现行 `frontend/src/api/generated` 导出，未手写重复类型。
+- 点击有待办的入口直达 `/resources/manage/topics?status=pending`；统一管理列表新增“待审核/发布”筛选，只显示可执行发布的completed专题图或in_review成果，与服务端计数口径一致。状态筛选同步URL并重置分页，支持刷新与后退，原“全部状态”“待审核”“未发布（含草稿）”等筛选及审核操作保留。
+- 待办数量进入页时加载，并在窗口聚焦、页面恢复可见、成果/专题变化事件及跨标签页storage通知时刷新；可见页面每60秒轻量刷新。使用请求序号及卸载清理避免旧响应覆盖新数、离开后继续监听；沿用既有workspaceSync事件，仅补齐其TypeScript类型守卫声明。
+- `python -m pytest` 的成果待办、成果文件、专题图、生态报告四份集成测试34项及8个subtests通过，新增计数用例覆盖登录/权限组合、对象范围、专题多版本去重、草稿/已发布排除、审核发布及退回后数量下降、权限撤回与管理列表口径一致。改动Python的ruff检查通过。本机后端测试继续使用现有Conda geomanager环境。
+- `pnpm test` 426项通过；Chrome成果展示/统一管理19项、Edge加后台路由69项通过。覆盖入口显隐、角标、失败重试、焦点和跨标签刷新、退出清理、跳转/零待办、统一待办筛选及1600/1024/390px布局。TypeScript、生产构建、i18n、API生成/一致性/变更记录/文档/Prism与定向oxlint/oxfmt通过；OpenAPI保留原6个unused schema警告。全量check仍被已有 `output/playwright/pdf-repro.js`、`pdf-edge-verify.js`、`pdf-card-verify.js`无效表达式阻挡，保留过程文件。
+- 本机重启原noreload开发后台使新接口生效，以真实管理员只读确认角标1（1份专题图待发布、0份成果待审核），点击后管理页应用pending筛选且只显示test4专题图，共1条。未执行真实成果发布、退回、下架或删除。截图 `frontend/output/playwright/results-review-shortcut-local-20261115.png` 和 `results-review-pending-local-20261115.png`；浏览器mock设计回归另有desktop/mobile截图。已目视检查本机入口及两种响应布局。
+- 保留此前全部源码改动及 `_work`、`output`、`tmp` 等过程文件；未提交、推送或部署生产。

@@ -3625,6 +3625,24 @@ export type ResultArtifactDeleteResponse = {
     detail: string;
 };
 
+/**
+ * 当前账号可审核或发布的成果待办，按成果记录计数，同一专题的多个版本只计一份
+ */
+export type ResultReviewSummary = {
+    /**
+     * 可处理总数，等于 pendingMapCount 加 pendingArtifactCount
+     */
+    pendingCount: number;
+    /**
+     * 可发布、已有版本且状态为 completed 的专题图数量
+     */
+    pendingMapCount: number;
+    /**
+     * 可审核发布、状态为 in_review 的分析及直接导入成果数量
+     */
+    pendingArtifactCount: number;
+};
+
 export type ResultArtifact = {
     /**
      * 成果文件 ID
@@ -10438,6 +10456,35 @@ export type UpdateResultArtifactResponses = {
 
 export type UpdateResultArtifactResponse = UpdateResultArtifactResponses[keyof UpdateResultArtifactResponses];
 
+export type GetResultReviewSummaryData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/catalog/results/review-summary/';
+};
+
+export type GetResultReviewSummaryErrors = {
+    /**
+     * 未认证
+     */
+    401: ErrorResponse;
+    /**
+     * 权限不足或 CSRF 校验失败
+     */
+    403: ErrorResponse;
+};
+
+export type GetResultReviewSummaryError = GetResultReviewSummaryErrors[keyof GetResultReviewSummaryErrors];
+
+export type GetResultReviewSummaryResponses = {
+    /**
+     * 当前账号可处理的待审核及待发布数量
+     */
+    200: ResultReviewSummary;
+};
+
+export type GetResultReviewSummaryResponse = GetResultReviewSummaryResponses[keyof GetResultReviewSummaryResponses];
+
 export type DownloadResultArtifactData = {
     body?: never;
     path: {
@@ -10448,9 +10495,9 @@ export type DownloadResultArtifactData = {
     };
     query?: {
         /**
-         * artifact 下载原文件，preview 在浏览器内预览
+         * artifact 下载原文件，preview 在浏览器内预览，thumbnail 返回低清 JPEG 封面
          */
-        variant?: 'artifact' | 'preview';
+        variant?: 'artifact' | 'preview' | 'thumbnail';
     };
     url: '/api/catalog/results/{resultId}/file/';
 };
@@ -10826,9 +10873,9 @@ export type DownloadMapCompositionVersionData = {
     };
     query?: {
         /**
-         * artifact 返回正式成果并触发下载；preview 返回 PNG 预览
+         * artifact 返回正式成果并触发下载；preview 返回原 PNG 预览；thumbnail 返回低清 JPEG 封面
          */
-        variant?: 'artifact' | 'preview';
+        variant?: 'artifact' | 'preview' | 'thumbnail';
     };
     url: '/api/catalog/map-compositions/{compositionId}/versions/{versionNumber}/file/';
 };

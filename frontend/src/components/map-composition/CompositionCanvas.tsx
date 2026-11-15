@@ -1,5 +1,12 @@
 import { Button, Checkbox, Input, Select, Space, Switch } from "antd";
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+} from "react";
+import { useEnglishLanguage } from "../../i18n/useEnglishLanguage";
 import {
   panMapBounds,
   type MapCompositionLayout,
@@ -39,7 +46,10 @@ export default function CompositionCanvas({
   const [selected, setSelected] = useState<string[]>([]);
   const [draft, setDraft] = useState<MapCompositionLayout | null>(null);
   const [snap, setSnap] = useState(true);
-  const [zoom, setZoom] = useState(100);
+  const [zoom, setZoom] = useState<"fit" | number>("fit");
+  const english = useEnglishLanguage();
+  const viewport = useRef<HTMLDivElement>(null);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [mapContentMode, setMapContentMode] = useState(false);
   const page = useRef<HTMLDivElement>(null);
   const gesture = useRef<{
@@ -56,6 +66,45 @@ export default function CompositionCanvas({
   const order = elementOrder(current);
   const active = selected[0] ? elementBox(current, selected[0]) : undefined;
   const locked = selected.some((id) => layout.editor.locked.includes(id));
+  useLayoutEffect(() => {
+    const element = viewport.current;
+    if (!element) return;
+    const measure = () => {
+      const style = getComputedStyle(element);
+      const width = Math.max(
+        0,
+        element.clientWidth -
+          parseFloat(style.paddingLeft) -
+          parseFloat(style.paddingRight),
+      );
+      const height = Math.max(
+        0,
+        element.clientHeight -
+          parseFloat(style.paddingTop) -
+          parseFloat(style.paddingBottom),
+      );
+      setViewportSize((previous) =>
+        previous.width === width && previous.height === height
+          ? previous
+          : { width, height },
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  useLayoutEffect(() => {
+    if (zoom === "fit") viewport.current?.scrollTo({ top: 0, left: 0 });
+  }, [zoom, layout.page.widthMm, layout.page.heightMm]);
+  const paperWidth = Math.floor(
+    zoom === "fit"
+      ? Math.min(
+          viewportSize.width,
+          (viewportSize.height * layout.page.widthMm) / layout.page.heightMm,
+        )
+      : (viewportSize.width * zoom) / 100,
+  );
   useEffect(() => {
     const valid = new Set(elementOrder(layout));
     setSelected((ids) =>
@@ -343,76 +392,83 @@ export default function CompositionCanvas({
         >
           垂直分布
         </Button>
-        <Select
+        <Select<"fit" | number>
           aria-label="画布缩放"
           value={zoom}
           onChange={setZoom}
-          options={[50, 75, 100, 125, 150, 200].map((value) => ({
-            value,
-            label: `${value}%`,
-          }))}
+          style={{ minWidth: 120 }}
+          options={[
+            { value: "fit", label: english ? "Fit page" : "适应画布" },
+            ...[50, 75, 100, 125, 150, 200].map((value) => ({
+              value,
+              label: `${value}%`,
+            })),
+          ]}
         />
       </Space>
-      <div className="composition-canvas-scroll">
-        <div
-          ref={page}
-          className="composition-editable-paper"
-          style={{
-            width: `${zoom}%`,
-            aspectRatio: `${layout.page.widthMm}/${layout.page.heightMm}`,
-            backgroundColor: layout.page.backgroundColor,
-          }}
-          onPointerDown={() => setSelected([])}
-        >
-          {previewUrl && (
-            <img
-              draggable={false}
-              src={previewUrl}
-              alt="专题图预览"
-              className="composition-canvas-image"
-            />
-          )}
-          {order.map((id) => {
-            const b = elementBox(current, id);
-            if (!b || b.enabled === false) return null;
-            const isSelected = selected.includes(id);
-            return (
-              <div
-                key={id}
-                role="button"
-                tabIndex={0}
-                aria-label={`制图要素：${elementNames[id] ?? b.text ?? "文字"}`}
-                aria-pressed={isSelected}
-                className={`composition-element ${isSelected ? "selected" : ""} ${current.editor.locked.includes(id) ? "locked" : ""}`}
-                style={{
-                  left: `${(b.xMm / layout.page.widthMm) * 100}%`,
-                  top: `${(b.yMm / layout.page.heightMm) * 100}%`,
-                  width: `${(b.widthMm / layout.page.widthMm) * 100}%`,
-                  height: `${(b.heightMm / layout.page.heightMm) * 100}%`,
-                }}
-                onPointerDown={(e) => begin(e, id)}
-                onPointerMove={move}
-                onPointerUp={() => end()}
-                onPointerCancel={() => end(true)}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {(isSelected || !previewUrl) && (
-                  <span className="composition-element-name">
-                    {elementNames[id] ?? "文字"}
-                    {current.editor.locked.includes(id) ? "，已锁定" : ""}
-                  </span>
-                )}
-                {isSelected && selected.length === 1 && !locked && (
-                  <span
-                    role="button"
-                    aria-label="缩放选中要素"
-                    className="composition-resize-handle"
-                    onPointerDown={(e) => begin(e, id, true)}
-                  />
-                )}
-              </div>
-            );
-          })}
+      <div ref={viewport} className="composition-canvas-scroll">
+        <div className="composition-canvas-surface">
+          <div
+            ref={page}
+            className="composition-editable-paper"
+            style={{
+              width: paperWidth,
+              height: (paperWidth * layout.page.heightMm) / layout.page.widthMm,
+              aspectRatio: `${layout.page.widthMm}/${layout.page.heightMm}`,
+              backgroundColor: layout.page.backgroundColor,
+            }}
+            onPointerDown={() => setSelected([])}
+          >
+            {previewUrl && (
+              <img
+                draggable={false}
+                src={previewUrl}
+                alt="专题图预览"
+                className="composition-canvas-image"
+              />
+            )}
+            {order.map((id) => {
+              const b = elementBox(current, id);
+              if (!b || b.enabled === false) return null;
+              const isSelected = selected.includes(id);
+              return (
+                <div
+                  key={id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`制图要素：${elementNames[id] ?? b.text ?? "文字"}`}
+                  aria-pressed={isSelected}
+                  className={`composition-element ${isSelected ? "selected" : ""} ${current.editor.locked.includes(id) ? "locked" : ""}`}
+                  style={{
+                    left: `${(b.xMm / layout.page.widthMm) * 100}%`,
+                    top: `${(b.yMm / layout.page.heightMm) * 100}%`,
+                    width: `${(b.widthMm / layout.page.widthMm) * 100}%`,
+                    height: `${(b.heightMm / layout.page.heightMm) * 100}%`,
+                  }}
+                  onPointerDown={(e) => begin(e, id)}
+                  onPointerMove={move}
+                  onPointerUp={() => end()}
+                  onPointerCancel={() => end(true)}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {(isSelected || !previewUrl) && (
+                    <span className="composition-element-name">
+                      {elementNames[id] ?? "文字"}
+                      {current.editor.locked.includes(id) ? "，已锁定" : ""}
+                    </span>
+                  )}
+                  {isSelected && selected.length === 1 && !locked && (
+                    <span
+                      role="button"
+                      aria-label="缩放选中要素"
+                      className="composition-resize-handle"
+                      onPointerDown={(e) => begin(e, id, true)}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
       <div className="composition-selection-properties">

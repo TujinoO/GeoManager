@@ -8,12 +8,16 @@ import {
   within,
 } from "@testing-library/react";
 import type { Map as MapboxMap } from "mapbox-gl";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { page } from "vitest/browser";
 import { api } from "../../api/client";
 import { defaultCompositionLayout } from "../../map-composition/layout";
+import { applyPaperPreset } from "../../map-composition/layoutPaper";
 import { renderCompositionPng } from "../../map-composition/render";
 import type { MapComposition } from "../../types";
 import MapCompositionEditor from "./MapCompositionEditor";
+import "antd/dist/reset.css";
+import "../../styles.css";
 
 vi.mock("../../api/client", () => ({
   api: {
@@ -68,13 +72,14 @@ const composition: MapComposition = {
 function editor(
   bounds: [number, number, number, number],
   map: MapboxMap | null = null,
+  value: MapComposition = composition,
 ) {
   return (
     <ConfigProvider locale={zhCN}>
       <AntApp>
         <MapCompositionEditor
           open
-          composition={composition}
+          composition={value}
           map={map}
           groups={[]}
           workspaceSnapshot={{
@@ -95,6 +100,9 @@ function editor(
 }
 
 describe("MapCompositionEditor", () => {
+  afterEach(async () => {
+    await page.viewport(1600, 900);
+  });
   beforeEach(() => {
     vi.mocked(api.updateMapComposition).mockReset();
     vi.mocked(api.updateMapComposition).mockResolvedValue({
@@ -105,6 +113,73 @@ describe("MapCompositionEditor", () => {
     renderCompositionPngMock.mockResolvedValue(
       new Blob(["preview"], { type: "image/png" }),
     );
+  });
+
+  it("fits the entire paper on first opening across viewport sizes and paper formats", async () => {
+    const cases = [
+      { width: 1920, height: 1080, preset: "A4", orientation: "landscape" },
+      { width: 1920, height: 800, preset: "A3", orientation: "portrait" },
+      { width: 1440, height: 900, preset: "A4", orientation: "portrait" },
+      { width: 1280, height: 720, preset: "A3", orientation: "landscape" },
+      { width: 1024, height: 768, preset: "A4", orientation: "landscape" },
+      { width: 390, height: 844, preset: "A4", orientation: "portrait" },
+    ] as const;
+    for (const scenario of cases) {
+      await page.viewport(scenario.width, scenario.height);
+      const layout = applyPaperPreset(
+        defaultCompositionLayout("完整纸张预览", [80, 35, 90, 45]),
+        scenario.preset,
+        scenario.orientation,
+      );
+      const view = render(
+        editor([80, 35, 90, 45], null, { ...composition, layout }),
+      );
+      await screen.findByText("适应画布");
+      await waitFor(() => {
+        const viewport = document.querySelector<HTMLElement>(
+          ".composition-canvas-scroll",
+        )!;
+        const paper = document.querySelector<HTMLElement>(
+          ".composition-editable-paper",
+        )!;
+        const frame = viewport.getBoundingClientRect();
+        const rect = paper.getBoundingClientRect();
+        const style = getComputedStyle(viewport);
+        expect(rect.width).toBeGreaterThan(80);
+        expect(rect.width / rect.height).toBeCloseTo(
+          layout.page.widthMm / layout.page.heightMm,
+          2,
+        );
+        expect(rect.left).toBeGreaterThanOrEqual(
+          frame.left + parseFloat(style.paddingLeft) - 1,
+        );
+        expect(rect.top).toBeGreaterThanOrEqual(
+          frame.top + parseFloat(style.paddingTop) - 1,
+        );
+        expect(rect.right).toBeLessThanOrEqual(
+          frame.right - parseFloat(style.paddingRight) + 1,
+        );
+        expect(rect.bottom).toBeLessThanOrEqual(
+          frame.bottom - parseFloat(style.paddingBottom) + 1,
+        );
+        expect(viewport.scrollWidth).toBeLessThanOrEqual(
+          viewport.clientWidth + 1,
+        );
+        expect(viewport.scrollHeight).toBeLessThanOrEqual(
+          viewport.clientHeight + 1,
+        );
+        if (scenario.width > 760) {
+          expect(frame.bottom).toBeLessThan(scenario.height);
+        }
+      });
+      if (scenario.width === 1920 && scenario.preset === "A4") {
+        await page.screenshot({
+          path: "../../../output/playwright/composition-initial-fit.png",
+        });
+      }
+      view.unmount();
+    }
+    expect(api.updateMapComposition).not.toHaveBeenCalled();
   });
 
   it("keeps unsaved layout edits when the live map bounds change", async () => {

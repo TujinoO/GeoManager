@@ -25,6 +25,9 @@ waitress = "*"
 whitenoise = ">=6.8"
 xlrd = ">=2.0"
 
+[pypi-dependencies]
+pypdfium2 = ">=5.15,<6"
+
 [tasks]
 test = "python -m pytest"
 format = "ruff format ."

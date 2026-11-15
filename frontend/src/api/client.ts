@@ -104,7 +104,7 @@ import type {
   WorkspaceSceneUpdateRequest,
 } from "../types";
 import type * as sdkTypes from "./generated/sdk.gen";
-import type { RasterDataset } from "./generated/types.gen";
+import type { RasterDataset, ResultReviewSummary } from "./generated/types.gen";
 import { filenameFromHeaders } from "./downloadFilename";
 import i18n, { currentLocale } from "../i18n";
 
@@ -778,6 +778,8 @@ export const api = {
     unwrap<MapCompositionListResponse>(
       sdk.listMapCompositions({ query: filters }),
     ),
+  resultReviewSummary: () =>
+    unwrap<ResultReviewSummary>(sdk.getResultReviewSummary()),
   resultArtifacts: (
     filters: {
       q?: string;

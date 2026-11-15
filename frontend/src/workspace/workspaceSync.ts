@@ -26,7 +26,9 @@ export function notifyWorkspaceInventoryChanged(kind: WorkspaceInventoryKind) {
   }
 }
 
-export function isWorkspaceInventoryChange(value: unknown) {
+export function isWorkspaceInventoryChange(
+  value: unknown,
+): value is WorkspaceInventoryChangeDetail {
   return (
     typeof value === "object" &&
     value !== null &&

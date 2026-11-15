@@ -308,6 +308,119 @@ class ResultArtifactApiTests(TestCase):
             self.assertFalse(ResultArtifact.objects.filter(pk=artifact.id).exists())
             self.assertFalse(path.exists())
 
+    def test_thumbnail_is_small_jpeg_and_preserves_original_without_download_permission(
+        self,
+    ):
+        buffer = BytesIO()
+        Image.effect_noise((2400, 1600), 60).convert("RGB").save(buffer, format="PNG")
+        original = buffer.getvalue()
+        with self.result_storage():
+            payload = self.create_result(
+                file=uploaded("large.png", original, "image/png")
+            ).json()
+            url = payload["previewUrl"].replace("variant=preview", "variant=thumbnail")
+            self.viewer.user_permissions.remove(
+                Permission.objects.get(codename="download_resultartifact")
+            )
+            self.client.force_login(self.viewer)
+            thumbnail = self.client.get(url)
+            self.assertEqual(thumbnail.status_code, 200)
+            data = b"".join(thumbnail.streaming_content)
+            self.assertEqual(thumbnail["Content-Type"], "image/jpeg")
+            self.assertIn("inline", thumbnail["Content-Disposition"])
+            self.assertEqual(thumbnail["Cache-Control"], "private, no-cache")
+            self.assertIn("Cookie", thumbnail["Vary"])
+            self.assertLess(len(data), len(original) // 10)
+            with Image.open(BytesIO(data)) as cover:
+                self.assertEqual(cover.size, (480, 320))
+            thumbnail.close()
+            with patch(
+                "apps.catalog.result_thumbnails._generate",
+                side_effect=AssertionError("cache miss"),
+            ):
+                cached = self.client.get(url)
+                self.assertEqual(b"".join(cached.streaming_content), data)
+                cached.close()
+                validated = self.client.get(url, HTTP_IF_NONE_MATCH=thumbnail["ETag"])
+                self.assertEqual(validated.status_code, 304)
+            preview = self.client.get(payload["previewUrl"])
+            self.assertEqual(b"".join(preview.streaming_content), original)
+            preview.close()
+            self.assertEqual(self.client.get(payload["downloadUrl"]).status_code, 403)
+            self.client.force_login(self.owner)
+            download = self.client.get(payload["downloadUrl"])
+            self.assertEqual(b"".join(download.streaming_content), original)
+            download.close()
+            self.client.force_login(self.viewer)
+            self.viewer.groups.clear()
+            self.assertEqual(
+                self.client.get(url, HTTP_IF_NONE_MATCH=thumbnail["ETag"]).status_code,
+                404,
+            )
+            self.client.logout()
+            self.assertEqual(
+                self.client.get(url, HTTP_IF_NONE_MATCH=thumbnail["ETag"]).status_code,
+                401,
+            )
+
+    def test_pdf_thumbnail_uses_first_page_and_invalidates_after_file_change(self):
+        buffer = BytesIO()
+        first = Image.new("RGB", (800, 1200), "green")
+        second = Image.new("RGB", (800, 1200), "red")
+        first.save(buffer, format="PDF", save_all=True, append_images=[second])
+        original = buffer.getvalue()
+        with self.result_storage() as config:
+            payload = self.create_result(
+                file=uploaded("report.pdf", original, "application/pdf")
+            ).json()
+            url = payload["previewUrl"].replace("variant=preview", "variant=thumbnail")
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            data = b"".join(response.streaming_content)
+            etag = response["ETag"]
+            response.close()
+            with Image.open(BytesIO(data)) as cover:
+                self.assertEqual(cover.format, "JPEG")
+                self.assertEqual(cover.size, (320, 480))
+                r, g, b = cover.getpixel((160, 240))
+                self.assertGreater(g, r + 80)
+            artifact = ResultArtifact.objects.get(pk=payload["id"])
+            source = config.app_path(*artifact.file_path.split("/"))
+            self.assertEqual(source.read_bytes(), original)
+            second.save(source, format="PDF")
+            changed = self.client.get(url, HTTP_IF_NONE_MATCH=etag)
+            self.assertEqual(changed.status_code, 200)
+            self.assertNotEqual(changed["ETag"], etag)
+            with Image.open(BytesIO(b"".join(changed.streaming_content))) as cover:
+                r, g, b = cover.getpixel((160, 240))
+                self.assertGreater(r, g + 80)
+            changed.close()
+            source.unlink()
+            self.assertEqual(
+                self.client.get(url, HTTP_IF_NONE_MATCH=etag).status_code, 404
+            )
+
+    def test_thumbnail_rejects_unsupported_or_unrenderable_files(self):
+        with self.result_storage():
+            for name, content, mime in [
+                ("values.csv", b"value\n1\n", "text/csv"),
+                ("bad.pdf", valid_pdf(), "application/pdf"),
+            ]:
+                with self.subTest(name=name):
+                    payload = self.create_result(
+                        file=uploaded(name, content, mime)
+                    ).json()
+                    url = (
+                        payload["previewUrl"].replace(
+                            "variant=preview", "variant=thumbnail"
+                        )
+                        if payload["previewUrl"]
+                        else f"/api/catalog/results/{payload['id']}/file/?variant=thumbnail"
+                    )
+                    response = self.client.get(url)
+                    self.assertEqual(response.status_code, 400)
+                    self.assertIn("detail", response.json())
+
     def create_result(
         self,
         *,

@@ -108,6 +108,7 @@ export type {
   RoleApplicationStatus,
   ResourceListItem,
   ResultArtifact,
+  ResultReviewSummary,
   ResultArtifactCreatePayload,
   ResultArtifactDeleteResponse,
   ResultArtifactListResponse,

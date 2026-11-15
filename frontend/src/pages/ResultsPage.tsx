@@ -45,7 +45,7 @@ import { api } from "../api/client";
 import resultsPoplarReflectionImage from "../assets/portal/results-poplar-reflection.webp";
 import WorkspaceHeader from "../components/WorkspaceHeader";
 import PdfPreview from "../components/PdfPreview";
-import PdfThumbnail from "../components/PdfThumbnail";
+import ResultsManagementShortcut from "../components/ResultsManagementShortcut";
 import { useAppContext } from "../contexts/AppContext";
 import type { MapComposition, ResultArtifact } from "../types";
 import { downloadBlob } from "../utils/download";
@@ -237,6 +237,7 @@ export default function ResultsPage() {
             <Tag color="green">{t("results.heroTag")}</Tag>
             <Typography.Title level={1}>{t("results.title")}</Typography.Title>
             <Typography.Paragraph>{t("results.summary")}</Typography.Paragraph>
+            <ResultsManagementShortcut key={user?.id} />
           </div>
           <div className="results-page-stats">
             <Statistic
@@ -761,22 +762,30 @@ function ResultCover({ item }: { item: PublishedResult }) {
   const { t } = useTranslation();
   const previewUrl = resultPreviewUrl(item);
   const format = resultFormat(item);
-  const imagePreview = resultPreviewIsImage(item);
+  const thumbnailUrl =
+    previewUrl && (resultPreviewIsImage(item) || format === "pdf")
+      ? previewUrl.replace(
+          /([?&])variant=preview(?=&|$)/,
+          "$1variant=thumbnail",
+        )
+      : "";
+  const [failedUrl, setFailedUrl] = useState("");
   return (
     <div
-      className={`result-card-cover${imagePreview ? "" : " result-card-cover-file"}`}
+      className={`result-card-cover${resultPreviewIsImage(item) ? "" : " result-card-cover-file"}`}
     >
-      {previewUrl && imagePreview ? (
-        <Image
+      {thumbnailUrl && failedUrl !== thumbnailUrl ? (
+        <img
           alt={t("results.previewAlt", { name: resultName(item) })}
-          preview={false}
-          src={previewUrl}
-        />
-      ) : previewUrl && format === "pdf" ? (
-        <PdfThumbnail
-          key={previewUrl}
-          src={previewUrl}
-          title={t("results.previewAlt", { name: resultName(item) })}
+          className={
+            item.kind === "artifact" && format === "pdf"
+              ? "result-cover-document"
+              : undefined
+          }
+          src={thumbnailUrl}
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailedUrl(thumbnailUrl)}
         />
       ) : (
         <div className="result-file-cover-placeholder">

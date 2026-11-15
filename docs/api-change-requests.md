@@ -764,3 +764,25 @@ ResultArtifact 增加 canEditReport / canSubmitReview，由后端按草稿状态
 - 列表新增 summaryOnly=1，正文/备注/附件/学习链接留空，详情维持完整；减少卡片传输和数据库读取。
 - status 扩充 review，待审核仅 core.manage_auth 可见；发布校验非空正文，状态审计；附件条件缓存先过权限。
 - 示例：mock/prism/examples/content.json；服务端、生成类型与 React 同步实现，验证轻量列表、审核发布、普通用户可见性、附件缓存与撤回。
+
+## 2026-11-15 成果列表低清封面
+
+- 单代理按合同→后端→前端→验证顺序跨栈交接；本条是明确的前后端实现交接。
+- 接口：GET /api/catalog/results/{resultId}/file/、GET /api/catalog/map-compositions/{compositionId}/versions/{versionNumber}/file/。variant 新增 thumbnail，返回最长边480px、quality60的 JPEG，PDF 只取首页，原 preview/artifact 语义不变。
+- 目的：成果列表不再下载高清 PNG 或整份 PDF 来生成封面。服务端懒生成以兼容历史成果，缓存放在 TOML 业务根 cache/result-thumbnails；文件标识、mtime_ns、大小及生成参数决定缓存键。
+- 权限：先通过现有查看权限、对象/版本可见范围，再访问缓存或返回304；缩略图无需下载权限。private,no-cache + ETag + Vary:Cookie，原文件不变；不支持或生成失败400，文件缺失404。
+- Mock：二进制响应不新增JSON示例，沿用 mock/prism/examples 的成果元数据；由真实端点集成测试验证JPEG、304及拒绝越权。
+- 后端交接：共用Pillow和pypdfium2生成，原子写入，同进程并发合并，PDFium串行；更新pixi依赖及锁。前端接收交接后仅封面使用thumbnail，详情保持原preview。
+- 验证：小图尺寸/体积、PDF首页、透明图、缓存命中与失效、304重新鉴权、原文件保持、前端不请求PDF/高清图，API生成与检查。
+
+- 2026-11-15 验收状态：已实现。相关后端31项与4个subtests、前端426项及Chrome/Edge各4项通过；API契约、生成类型、文档和Prism检查通过。本机3项历史已发布成果返回10.9–15.1KB JPEG，原文件校验不变，条件请求304；未部署生产。
+
+## 2026-11-15 成果审核快捷入口与轻量待办数
+
+- 单代理按合同→后端→前端→验证顺序明确跨栈交接。新增 GET /api/catalog/results/review-summary/，返回 pendingCount、pendingMapCount、pendingArtifactCount，三项非负整数。
+- 至少具备一组查看+发布权限。专题图统计当前账号可发布的completed且已有版本的记录；分析/导入统计当前账号可审核发布的in_review记录。草稿/已发布不计入，不泄露无权限来源/对象数量，不返回版式、快照、正文或文件；private,no-store。
+- Mock：mock/prism/examples/30-catalog-vector.json。后端接收上述契约实现计数及权限测试，再交接前端使用生成类型/客户端。
+- 前端：成果展示顶部显眼入口和红色上标；有待办跳转 /resources/manage/topics?status=pending，统一列表增加“待审核/发布”筛选，与接口口径一致。零待办显示0并进入全部成果，失败显示未知而非0，提供重试。刷新跟随焦点、可见性、成果事件及可见时60秒轮询。
+- 验证：来源组合权限、对象范围、同专题多版本去重、草稿/已发布排除、审核后计数下降；入口显隐、数量/失败/重试、路由筛选、事件刷新、窄屏布局及API配套检查。
+
+- 2026-11-15 验收：已实现。后端相关34项与8个subtests、前端426项、Chrome相关19项及Edge含路由69项通过；API生成、类型、契约一致性、变更记录、Redoc和Prism检查通过。本机真实角标1与pending管理列表1条一致，未执行成果发布或部署生产。
