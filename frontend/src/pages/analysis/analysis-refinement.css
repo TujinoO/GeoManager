@@ -481,6 +481,12 @@
   padding: 18px;
   border-radius: 10px;
 }
+.analysis-report-preview-status {
+  margin: 0 0 12px;
+  color: #435e57;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
 .analysis-report-preview > img {
   display: block;
   width: 100%;

@@ -139,6 +139,30 @@ describe("syncLoadedLayers", () => {
     );
   });
 
+  it("registers feature picking for the visible query layer, not its hidden original", () => {
+    const map = createMap();
+    const source = makeVectorLayer("source", true);
+    const result = makeVectorLayer("filtered-result", true);
+    const onFeatureSelect = vi.fn();
+    syncLoadedLayers(map.value, [source], onFeatureSelect);
+
+    syncLoadedLayers(
+      map.value,
+      [{ ...source, visible: false }, result],
+      onFeatureSelect,
+    );
+    expect(mocks.setLoadedLayerGroupVisibility).toHaveBeenCalledWith(
+      map.value,
+      sourceIdFor(source.id),
+      false,
+    );
+    expect(mocks.syncVectorInteractions).toHaveBeenLastCalledWith(
+      map.value,
+      [result],
+      onFeatureSelect,
+    );
+  });
+
   it("defers sources that have never been shown until they become visible", () => {
     const map = createMap();
     const vector = makeVectorLayer("vector", false);

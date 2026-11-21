@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { userEvent } from "vitest/browser";
 import { App as AntApp, ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
@@ -49,6 +55,7 @@ const { MockApiError, mockApi } = vi.hoisted(() => {
       scanCatalogSources: vi.fn(),
       scanRasterSources: vi.fn(),
       renderRasterAsync: vi.fn(),
+      classifyRasterUniqueValues: vi.fn(),
       rasterJob: vi.fn(),
       adminOperationLogs: vi.fn(),
       adminSystemLogs: vi.fn(),
@@ -86,10 +93,26 @@ vi.mock("./components/MapCanvas", () => ({
   default: ({
     loadedLayers = [],
   }: {
-    loadedLayers?: Array<{ layerType?: string; tileUrl?: string }>;
+    loadedLayers?: import("./types").LoadedLayer[];
   }) => (
     <div
       data-testid="map-canvas"
+      data-visible-dbh={JSON.stringify(
+        loadedLayers.flatMap((layer) =>
+          layer.visible && layer.layerType === "vector"
+            ? layer.geojson.features.map(
+                (feature) => feature.properties?.dbh_cm,
+              )
+            : [],
+        ),
+      )}
+      data-vector-layer-count={
+        loadedLayers.filter((layer) => layer.layerType === "vector").length
+      }
+      data-raster-mode={
+        loadedLayers.find((layer) => layer.layerType === "raster")
+          ?.symbolization.mode ?? ""
+      }
       data-raster-tile-url={
         loadedLayers.find((layer) => layer.layerType === "raster")?.tileUrl ??
         ""
@@ -382,7 +405,7 @@ const tarimVectorProfile: DataResourceProfile = {
     },
     {
       name: "dbh_cm",
-      type: "float",
+      type: "number",
       nullable: false,
       sampleValues: [32.5],
       description: "胸径",
@@ -704,6 +727,19 @@ describe("application critical flows", () => {
     });
   });
 
+  it("displays a clickable email for manual password recovery on the sign-in page", async () => {
+    renderApp("/");
+    fireEvent.click(await screen.findByRole("button", { name: "忘记密码" }));
+
+    const email = await screen.findByRole("link", {
+      name: "lizhijun0202@126.com",
+    });
+    expect(email).toHaveAttribute("href", "mailto:lizhijun0202@126.com");
+    expect(screen.getByText(/申请人工重置密码/)).toBeInTheDocument();
+    expect(screen.getByText(/不要填写现用密码或验证码/)).toBeInTheDocument();
+    expect(mockApi.login).not.toHaveBeenCalled();
+  });
+
   it("redirects unauthenticated users to login and enters the data catalog after login", async () => {
     renderApp("/");
 
@@ -958,40 +994,97 @@ describe("application critical flows", () => {
     ).toBeInTheDocument();
   });
 
-  it("runs a representative vector query flow from resource selection to layer loading", async () => {
+  it("submits the visible attribute condition directly and isolates fresh and empty results on the map", async () => {
+    window.localStorage.setItem(
+      `huyang-system.workspace-tour.v1.${normalUser.id}.${normalUser.username}`,
+      "completed",
+    );
     mockApi.me.mockResolvedValue({ authenticated: true, user: normalUser });
     mockApi.resources.mockResolvedValue({ items: [tarimVectorResource] });
-
+    const matchedFeature = tarimQueryResult.geojson.features[0]!;
+    const lowFeature = {
+      ...matchedFeature,
+      properties: { sample_id: "LOW", dbh_cm: 1 },
+    };
+    mockApi.queryResource
+      .mockResolvedValueOnce({
+        ...tarimQueryResult,
+        returnedCount: 2,
+        totalCount: 2,
+        geojson: {
+          type: "FeatureCollection",
+          features: [lowFeature, matchedFeature],
+        },
+      })
+      .mockResolvedValueOnce({
+        ...tarimQueryResult,
+        returnedCount: 1,
+        totalCount: 1,
+      })
+      .mockRejectedValueOnce(new Error("查询暂不可用"))
+      .mockResolvedValueOnce({
+        ...tarimQueryResult,
+        returnedCount: 0,
+        totalCount: 0,
+        geojson: { type: "FeatureCollection", features: [] },
+      });
     renderApp("/map");
 
     expect(
-      await screen.findByText("塔里木河胡杨样地监测点", {}, { timeout: 10000 }),
+      await screen.findByText(tarimVectorResource.name, {}, { timeout: 10000 }),
     ).toBeInTheDocument();
-    await clickFirstResourceSelectButton();
+    fireEvent.click(await screen.findByRole("button", { name: "快速加载" }));
+    const map = await screen.findByTestId("map-canvas");
+    await waitFor(() =>
+      expect(map).toHaveAttribute("data-visible-dbh", "[1,32.5]"),
+    );
 
-    await waitFor(() => {
-      expect(mockApi.resourceProfile).toHaveBeenCalledWith(tarimVectorResource);
-    });
-    expect(await screen.findByText("sample_id")).toBeInTheDocument();
+    const field = await screen.findByRole("combobox", { name: "选择字段 1" });
+    fireEvent.mouseDown(field);
+    fireEvent.click(
+      await screen.findByText("胸径 (dbh_cm)", {
+        selector: ".ant-select-item-option-content",
+      }),
+    );
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "比较方式 1" }));
+    fireEvent.click(
+      await screen.findByText("大于", {
+        selector: ".ant-select-item-option-content",
+      }),
+    );
+    const value = screen.getByRole("textbox", { name: "字段值 1" });
+    fireEvent.change(value, { target: { value: "20" } });
+    const submit = screen.getByRole("button", { name: "查询并加载" });
+    fireEvent.click(submit);
 
-    fireEvent.click(screen.getByRole("button", { name: "查询并加载" }));
+    await waitFor(() =>
+      expect(mockApi.queryResource).toHaveBeenLastCalledWith(
+        tarimVectorResource,
+        {
+          attributeFilters: [
+            { id: "0", field: "dbh_cm", operator: "gt", value: "20" },
+          ],
+          spatialFilter: null,
+          limit: 30000,
+        },
+      ),
+    );
+    expect(
+      await screen.findByText("命中 1 条，地图加载 1 条"),
+    ).toBeInTheDocument();
+    expect(map).toHaveAttribute("data-visible-dbh", "[32.5]");
+    expect(map).toHaveAttribute("data-vector-layer-count", "2");
 
-    await waitFor(() => {
-      expect(mockApi.queryResource).toHaveBeenCalledWith(tarimVectorResource, {
-        attributeFilters: [],
-        spatialFilter: null,
-        limit: 30000,
-      });
-    });
-    fireEvent.click(screen.getByRole("tab", { name: /图层/ }));
-    await waitFor(() => {
-      const layerItems = screen.getAllByRole("treeitem");
-      expect(
-        layerItems.some((item) =>
-          item.textContent?.includes("塔里木河胡杨样地监测点"),
-        ),
-      ).toBe(true);
-    });
+    // A failed refresh must keep the previous result and visibility intact.
+    fireEvent.click(submit);
+    expect(await screen.findByText("查询暂不可用")).toBeInTheDocument();
+    expect(map).toHaveAttribute("data-visible-dbh", "[32.5]");
+
+    fireEvent.change(value, { target: { value: "99" } });
+    fireEvent.click(submit);
+    expect(await screen.findByText("没有符合条件的要素")).toBeInTheDocument();
+    expect(map).toHaveAttribute("data-visible-dbh", "[]");
+    expect(map).toHaveAttribute("data-vector-layer-count", "3");
   });
 
   it("quick-loads a raster into the map without a manual symbolization click", async () => {
@@ -1058,6 +1151,114 @@ describe("application critical flows", () => {
         ),
       ).toBe(true);
     });
+  });
+
+  it("keeps the previous raster through unique-style failures and replaces it after a successful retry", async () => {
+    mockApi.me.mockResolvedValue({
+      authenticated: true,
+      user: {
+        ...normalUser,
+        permissions: { ...basePermissions, canUseCustomSymbolization: true },
+      },
+    });
+    mockApi.resources.mockResolvedValue({ items: [tarimRasterResource] });
+    mockApi.resourceProfile.mockResolvedValue(tarimRasterProfile);
+    const colors = [{ value: 43, label: "43", color: "#a05a31" }];
+    mockApi.classifyRasterUniqueValues.mockResolvedValue({
+      band: 1,
+      items: colors,
+    });
+    renderApp("/map");
+
+    expect(
+      await screen.findByText(tarimRasterResource.name),
+    ).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "快速加载" }));
+    const map = screen.getByTestId("map-canvas");
+    const oldUrl = tarimRasterRenderResult.tileUrl;
+    await waitFor(() =>
+      expect(map).toHaveAttribute("data-raster-tile-url", oldUrl),
+    );
+    const previousMode = map.getAttribute("data-raster-mode");
+    fireEvent.click(screen.getByRole("tab", { name: /图层/ }));
+
+    const title = `${tarimRasterResource.name}符号化`;
+    async function openEditor() {
+      fireEvent.click(await screen.findByRole("button", { name: title }));
+      const editor = within(await screen.findByRole("dialog"));
+      fireEvent.click(await editor.findByRole("radio", { name: "唯一值" }));
+      const apply = editor.getByRole("button", { name: "确定" });
+      expect(apply).toBeDisabled();
+      fireEvent.click(await editor.findByRole("button", { name: /^分\s*类$/ }));
+      await waitFor(() => expect(apply).toBeEnabled());
+      return apply;
+    }
+
+    const submit = await openEditor();
+    mockApi.renderRasterAsync.mockResolvedValueOnce({
+      id: "unique-job-failed",
+      status: "queued",
+      progressPercent: 0,
+      messages: [],
+    });
+    mockApi.rasterJob.mockResolvedValueOnce({
+      id: "unique-job-failed",
+      status: "failed",
+      progressPercent: 100,
+      messages: [],
+      error: "唯一值色表与当前波段的有效像元不匹配，请重新分类",
+    });
+    fireEvent.click(submit);
+    expect(map).toHaveAttribute("data-raster-tile-url", oldUrl);
+    expect(map).toHaveAttribute("data-raster-mode", previousMode);
+    await screen.findAllByText(
+      "唯一值色表与当前波段的有效像元不匹配，请重新分类",
+      {},
+      { timeout: 3000 },
+    );
+    expect(map).toHaveAttribute("data-raster-tile-url", oldUrl);
+    expect(map).toHaveAttribute("data-raster-mode", previousMode);
+
+    const retry = await openEditor();
+    const newUrl = "/api/raster/tiles/24/tarim-unique/{z}/{x}/{y}.png";
+    mockApi.renderRasterAsync.mockResolvedValueOnce({
+      id: "unique-job-ready",
+      status: "queued",
+      progressPercent: 0,
+      messages: [],
+    });
+    mockApi.rasterJob.mockResolvedValueOnce({
+      id: "unique-job-ready",
+      status: "ready",
+      progressPercent: 100,
+      messages: [],
+      result: {
+        ...tarimRasterRenderResult,
+        styleHash: "tarim-unique",
+        tileUrl: newUrl,
+        tileSampling: "nearest",
+        rules: {
+          ...tarimRasterRules,
+          mode: "unique",
+          bands: [1],
+          uniqueValues: colors,
+        },
+      },
+    });
+    fireEvent.click(retry);
+    expect(map).toHaveAttribute("data-raster-tile-url", oldUrl);
+    await waitFor(
+      () => expect(map).toHaveAttribute("data-raster-tile-url", newUrl),
+      { timeout: 3000 },
+    );
+    expect(map).toHaveAttribute("data-raster-mode", "unique");
+    expect(mockApi.renderRasterAsync).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        rulesMode: "custom",
+        rules: expect.objectContaining({ bands: [1], uniqueValues: colors }),
+      }),
+      expect.anything(),
+    );
   });
 
   it("collapses workbench panels without replacing the map or thumbnail", async () => {
@@ -1372,7 +1573,7 @@ describe("application critical flows", () => {
     expect(screen.queryByText("superadmin")).not.toBeInTheDocument();
     await clickFirstResourceSelectButton();
     expect(await screen.findByText("sample_id")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "查询并加载" }));
+    fireEvent.click(screen.getByRole("button", { name: "快速加载" }));
 
     await waitFor(() => {
       expect(mockApi.queryResource).toHaveBeenCalledWith(tarimVectorResource, {

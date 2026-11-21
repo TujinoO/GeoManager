@@ -329,6 +329,168 @@ class GeopackageQueryPushdownTests(SimpleTestCase):
                 result["geojson"]["features"][0]["properties"]["longitude"], float
             )
 
+    def test_numeric_text_rejects_late_outliers_and_keeps_strict_and_between_semantics(
+        self,
+    ):
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        # The first 256 rows identify the field as number; later bad text must
+        # not turn into a numeric zero or prefix that satisfies the condition.
+        field = "株数（数量）"
+        counts = ["1", "20"] * 128 + [
+            "21",
+            "2.5e1",
+            "1,000",
+            None,
+            "",
+            "N/A",
+            "35株",
+            "2e++2",
+            "9e999",
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "vector.gpkg"
+            gpd.GeoDataFrame(
+                {
+                    field: counts,
+                    "habitat": ["荒漠"] * 258 + ["河岸"] + ["荒漠"] * 6,
+                    "geometry": [Point(87.6, 43.8)] * len(counts),
+                },
+                crs="EPSG:4326",
+            ).to_file(path, layer="sample_points", driver="GPKG")
+            resource = DataResource(
+                id=7,
+                name="sample",
+                data_type=DataResource.DataType.VECTOR,
+                storage_path="sample_points",
+            )
+            with (
+                patch(
+                    "apps.catalog.vector_store.vector_geopackage_path",
+                    return_value=path,
+                ),
+                patch(
+                    "apps.catalog.vector_store.runtime_query_result_limit",
+                    return_value=30_000,
+                ),
+            ):
+                strict = query_resource(
+                    resource,
+                    {
+                        "attributeFilters": [
+                            {"field": field, "operator": "gt", "value": "20"}
+                        ]
+                    },
+                )
+                bounded = query_resource(
+                    resource,
+                    {
+                        "attributeFilters": [
+                            {
+                                "field": field,
+                                "operator": "between",
+                                "value": "20",
+                                "valueTo": "25",
+                            },
+                            {"field": "habitat", "operator": "eq", "value": "荒漠"},
+                        ]
+                    },
+                )
+                zero = query_resource(
+                    resource,
+                    {
+                        "attributeFilters": [
+                            {"field": field, "operator": "lte", "value": "0"}
+                        ]
+                    },
+                )
+            self.assertEqual(strict["totalCount"], 3)
+            self.assertEqual(
+                [row["properties"][field] for row in strict["geojson"]["features"]],
+                ["21", "2.5e1", "1,000"],
+            )
+            self.assertEqual(bounded["totalCount"], 130)
+            self.assertEqual(bounded["returnedCount"], 130)
+            self.assertEqual(zero["returnedCount"], 0)
+
+    def test_dates_booleans_and_literal_text_conditions_use_geopackage_types(self):
+        import geopandas as gpd
+        import pandas as pd
+        from shapely.geometry import Point
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "vector.gpkg"
+            gpd.GeoDataFrame(
+                {
+                    "observed": pd.to_datetime(
+                        [
+                            "2026-11-19 05:00:00",
+                            "2026-11-19 14:00:00",
+                            "2026-11-20 00:00:00",
+                        ]
+                    ),
+                    "verified": [True, False, True],
+                    "note": ["tag%_\\", "tag abc", "tag%_\\"],
+                    "geometry": [Point(87.6, 43.8)] * 3,
+                },
+                crs="EPSG:4326",
+            ).to_file(path, layer="sample_points", driver="GPKG")
+            resource = DataResource(
+                id=7,
+                name="sample",
+                data_type=DataResource.DataType.VECTOR,
+                storage_path="sample_points",
+            )
+            with (
+                patch(
+                    "apps.catalog.vector_store.vector_geopackage_path",
+                    return_value=path,
+                ),
+                patch(
+                    "apps.catalog.vector_store.runtime_query_result_limit",
+                    return_value=30_000,
+                ),
+            ):
+                dates = query_resource(
+                    resource,
+                    {
+                        "attributeFilters": [
+                            {
+                                "field": "observed",
+                                "operator": "eq",
+                                "value": "2026-11-19",
+                            }
+                        ]
+                    },
+                )
+                combined = query_resource(
+                    resource,
+                    {
+                        "attributeFilters": [
+                            {
+                                "field": "observed",
+                                "operator": "eq",
+                                "value": "2026-11-19",
+                            },
+                            {"field": "verified", "operator": "eq", "value": "true"},
+                            {"field": "note", "operator": "contains", "value": "%_\\"},
+                        ]
+                    },
+                )
+                literal = query_resource(
+                    resource,
+                    {
+                        "attributeFilters": [
+                            {"field": "note", "operator": "contains", "value": "%_\\"}
+                        ]
+                    },
+                )
+            self.assertEqual(dates["totalCount"], 2)
+            self.assertEqual(combined["totalCount"], 1)
+            self.assertEqual(combined["returnedCount"], 1)
+            self.assertEqual(literal["totalCount"], 2)
+
     def test_spatial_query_pages_candidates_without_changing_exact_counts(self):
         import geopandas as gpd
         from shapely.geometry import Point

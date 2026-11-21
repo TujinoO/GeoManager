@@ -1016,9 +1016,16 @@ export const api = {
         signal: options.signal,
       }),
     ),
-  classifyRasterUniqueValues: (datasetId: number, band: number) =>
+  classifyRasterUniqueValues: (
+    datasetId: number,
+    band: number,
+    options: RequestLifecycleOptions = {},
+  ) =>
     unwrap<RasterUniqueValuesResult>(
-      sdk.getUniqueValues({ body: { datasetId, band } }),
+      sdk.getUniqueValues({
+        body: { datasetId, band },
+        signal: options.signal,
+      }),
     ),
   scanRasterSources: () => unwrap<RasterJob>(sdk.scanRasterSources()),
 };

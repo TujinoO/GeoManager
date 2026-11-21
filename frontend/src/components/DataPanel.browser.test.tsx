@@ -269,7 +269,7 @@ describe("DataPanel", () => {
     fireEvent.change(screen.getByPlaceholderText("数据来源"), {
       target: { value: "野外调查" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /筛选数据/ }));
+    fireEvent.click(screen.getByRole("button", { name: /筛选资源列表/ }));
 
     expect(onFilterResources).toHaveBeenCalledWith(
       expect.objectContaining({ q: "胡杨", source: "野外调查" }),
@@ -298,7 +298,7 @@ describe("DataPanel", () => {
     );
 
     expect(screen.getByText("全部分类")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /筛选数据/ }));
+    fireEvent.click(screen.getByRole("button", { name: /筛选资源列表/ }));
 
     expect(onFilterResources).toHaveBeenCalledWith({});
   });
@@ -328,7 +328,7 @@ describe("DataPanel", () => {
     expect(
       screen.getByText(/胡杨专题数据.*群落.*GeoPackage/),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /筛选数据/ }));
+    fireEvent.click(screen.getByRole("button", { name: /筛选资源列表/ }));
 
     expect(onFilterResources).toHaveBeenCalledWith(
       expect.objectContaining({ categoryCode: "thematic_community" }),
@@ -497,6 +497,89 @@ describe("DataPanel", () => {
 
     resolvers.get(secondResource.id)?.();
     await waitFor(() => expect(buttons[1]).not.toHaveClass("ant-btn-loading"));
+  });
+
+  it("blocks incomplete and reversed ranges and submits all visible rows together", async () => {
+    const onQueryAndLoad = vi.fn();
+    const profile: DataResourceProfile = {
+      resource: vectorResource,
+      fields: [
+        {
+          name: "株数（数量）",
+          type: "number",
+          nullable: true,
+          sampleValues: [20],
+        },
+        {
+          name: "生境",
+          type: "string",
+          nullable: false,
+          sampleValues: ["河岸"],
+        },
+      ],
+      featureCount: 8,
+      geometryType: "Point",
+      bounds: [],
+    };
+    renderWithAntd(
+      <DataPanel
+        resources={[vectorResource]}
+        profile={profile}
+        selectedResourceId={vectorResource.id}
+        loadingProfile={false}
+        querying={false}
+        permissions={permissions}
+        onFilterResources={vi.fn()}
+        onSelectResource={vi.fn()}
+        onQuickLoadResource={vi.fn()}
+        onQueryAndLoad={onQueryAndLoad}
+        onLoadRaster={vi.fn()}
+      />,
+    );
+    const submit = screen.getByRole("button", { name: "查询并加载" });
+    fireEvent.click(submit);
+    expect(await screen.findByText(/请填写第 1 条/)).toBeInTheDocument();
+    async function choose(control: string, option: string) {
+      fireEvent.mouseDown(screen.getByRole("combobox", { name: control }));
+      fireEvent.click(
+        await screen.findByText(option, {
+          selector:
+            ".ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content",
+        }),
+      );
+    }
+    await choose("选择字段 1", "株数（数量）");
+    await choose("比较方式 1", "介于");
+    const start = screen.getByRole("textbox", { name: "起始值 1" });
+    const end = screen.getByRole("textbox", { name: "结束值 1" });
+    fireEvent.change(start, { target: { value: "20" } });
+    fireEvent.click(submit);
+    expect(await screen.findByText(/区间须填写两端/)).toBeInTheDocument();
+    fireEvent.change(end, { target: { value: "xyz" } });
+    fireEvent.click(submit);
+    expect(await screen.findByText(/必须填写有效数字/)).toBeInTheDocument();
+    fireEvent.change(end, { target: { value: "10" } });
+    fireEvent.click(submit);
+    expect(await screen.findByText(/起始值不能大于结束值/)).toBeInTheDocument();
+    expect(onQueryAndLoad).not.toHaveBeenCalled();
+
+    fireEvent.change(end, { target: { value: "25" } });
+    fireEvent.click(screen.getByRole("button", { name: "添加条件" }));
+    await choose("选择字段 2", "生境");
+    fireEvent.change(screen.getByRole("textbox", { name: "字段值 2" }), {
+      target: { value: "河岸" },
+    });
+    fireEvent.click(submit);
+    expect(onQueryAndLoad).toHaveBeenCalledWith([
+      {
+        id: "0",
+        field: "株数（数量）",
+        operator: "between",
+        value: "20",
+        valueTo: "25",
+      },
+      { id: "1", field: "生境", operator: "contains", value: "河岸" },
+    ]);
   });
 
   it("hides vector query execution when the user lacks query permissions", () => {

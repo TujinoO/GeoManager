@@ -137,19 +137,27 @@ async function runDemoScenario(page) {
   await page.getByText("sample_id").waitFor();
   await pause("查看数据资源字段与元信息");
 
-  // 查询加载：执行属性/空间条件为空的默认查询，并把结果加载为临时矢量图层。
+  // 属性查询：当前条件直接提交，加载过滤后的临时矢量图层。
+  await page.getByRole("combobox", { name: "选择字段 1" }).click();
+  await page
+    .locator(
+      ".ant-select-dropdown:not(.ant-select-dropdown-hidden) .ant-select-item-option-content",
+    )
+    .filter({ hasText: "sample_id" })
+    .click();
+  await page.getByRole("textbox", { name: "字段值 1" }).fill("TP");
   await page.getByRole("button", { name: "查询并加载" }).click();
   await page
-    .getByText(/查询命中 \d+ 条/)
+    .getByText(/命中 \d+ 条，地图加载 \d+ 条/)
     .first()
     .waitFor();
-  await pause("查询样地数据并加载到地图");
+  await pause("按样地编号筛选并加载地图结果");
 
   // 图层管理：切换到图层面板，展示已加载图层、显隐控制和图层操作入口。
   await page.getByRole("tab", { name: /图层/ }).click();
   await page
     .getByRole("tree", { name: /已加载图层/ })
-    .getByText("塔里木河胡杨样地监测点")
+    .getByText("塔里木河胡杨样地监测点 · 属性查询结果")
     .waitFor();
   await pause("展示图层管理面板");
 

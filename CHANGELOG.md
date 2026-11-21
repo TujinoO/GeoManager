@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve unsaved map-composition edits when the live map view or source summary changes
 - Recommend usable geographic and Web Mercator grid intervals for both local and regional extents
 
+## [V3.33] - 2026-11-21
+
+- 优化地图属性查询：支持多条件校验与组合筛选，先过滤再统计和分页，查询结果独立显示并保留原图层。
+- 改进栅格唯一值分类与渲染，校验波段、类别颜色和有效像元，避免无效样式造成图层空白。
+- 分析报告编辑后自动刷新预览，生成期间保留已有页面，保存时使用当前内容对应的预览。
+- 精简数据分类展示，优化登录页、地图工作区和图层操作界面。
+- 升级说明：同步属性查询 API 描述和生成客户端；无数据库迁移或权限、数据根目录变更，栅格符号化仍由后端处理。
+
 ## [V3.32] - 2026-11-15
 
 - 专题图、导入成果和分析报告统一管理，支持来源/状态筛选、搜索、分页及逐项审核发布，保留原有操作权限。

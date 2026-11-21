@@ -1,23 +1,29 @@
+import io
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group, Permission
-from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
-
+import numpy as np
+import rasterio
 from apps.audit.models import OperationLog
 from apps.catalog.models import DataResource, MapLayer
 from apps.core.config import load_project_config
-from apps.raster.models import RasterDataset
+from apps.core.storage import raster_processed_path
+from apps.raster.models import RasterDataset, RasterStyle
 from apps.raster.services import (
     RasterTileOutsideExtent,
     scan_unprocessed_source_files,
     validate_raster_pixel_size,
     validate_raster_upload_size,
 )
+from apps.raster.services.constants import WEB_MERCATOR_HALF_WORLD
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group, Permission
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
+from PIL import Image
+from rasterio.transform import from_bounds
 
 
 class RasterPermissionApiTests(TestCase):
@@ -435,6 +441,141 @@ class RasterPermissionApiTests(TestCase):
 
         self.assertEqual(response.status_code, 204)
         self.assertEqual(response.content, b"")
+
+    def test_worldview_unique_render_publishes_only_a_style_with_visible_pixels(self):
+        grant(
+            self.user, ("core", "load_raster_layer"), ("core", "custom_symbolization")
+        )
+        resource = DataResource.objects.create(
+            name="八波段遥感影像",
+            code="worldview-unique-resource",
+            data_type=DataResource.DataType.RASTER,
+            status=DataResource.Status.ACTIVE,
+            maintainer=self.user,
+        )
+        half_world = WEB_MERCATOR_HALF_WORLD
+        bounds = [-half_world, -half_world, half_world, half_world]
+        transform = from_bounds(*bounds, 256, 256)
+        dataset = self._dataset("worldview-unique", resource)
+        dataset.map_layer = MapLayer.objects.create(
+            name=dataset.name,
+            code=dataset.code,
+            layer_type=MapLayer.LayerType.RASTER,
+            data_resource=resource,
+            is_active=True,
+        )
+        dataset.band_count = 8
+        dataset.bounds_3857 = bounds
+        dataset.processed_gdalinfo = {
+            "geoTransform": transform.to_gdal(),
+            "bands": [{"band": band, "type": "Byte"} for band in range(1, 9)],
+        }
+        dataset.default_rules = {"mode": "rgb", "bands": [1, 2, 3]}
+        dataset.save()
+
+        def submit(rules=None):
+            payload = {"datasetId": dataset.id, "rulesMode": "default"}
+            if rules is not None:
+                payload.update(rulesMode="custom", rules=rules)
+            response = self.client.post(
+                "/api/raster/render/async/",
+                data=payload,
+                content_type="application/json",
+            )
+            self.assertEqual(response.status_code, 202, response.content)
+            return response.json()
+
+        def load_tile(job):
+            self.assertEqual(job["status"], "ready", job.get("error"))
+            tile_url = job["result"]["tileUrl"].format(z=0, x=0, y=0)
+            response = self.client.get(tile_url)
+            self.assertEqual(response.status_code, 200, response.content)
+            with Image.open(io.BytesIO(response.content)) as image:
+                return np.asarray(image.convert("RGBA"))
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir))
+            with (
+                override_settings(PROJECT_CONFIG=config),
+                patch(
+                    "apps.raster.services.jobs._submit_job",
+                    side_effect=lambda job, runner: runner(),
+                ),
+            ):
+                path = raster_processed_path(dataset.processed_relative_path)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                data = np.full((8, 256, 256), 19, dtype="uint8")
+                data[2, :, :20] = 0  # NoData
+                data[2, :, 20:128] = 43
+                data[2, :, 128:] = 73
+                with rasterio.open(
+                    path,
+                    "w",
+                    driver="GTiff",
+                    width=256,
+                    height=256,
+                    count=8,
+                    dtype="uint8",
+                    crs="EPSG:3857",
+                    transform=transform,
+                    nodata=0,
+                ) as src:
+                    src.write(data)
+                original_job = submit()
+                original = load_tile(original_job)
+                self.assertEqual(original[128, 128, 3], 255)
+
+                for palette, hint in [
+                    ([], "缺少唯一值色表"),
+                    ([{"value": 19, "color": "#4e945c"}], "不匹配"),
+                    ([{"value": 0, "color": "#4e945c"}], "不匹配"),
+                    ([{"value": 43, "color": "#4e945c00"}], "全部透明"),
+                ]:
+                    with self.subTest(palette=palette):
+                        bad_rules = {
+                            "mode": "unique",
+                            "bands": [3],
+                            "uniqueValues": palette,
+                        }
+                        failed_job = submit(bad_rules)
+                        self.assertEqual(failed_job["status"], "failed")
+                        self.assertIn(hint, failed_job["error"])
+                        self.assertIsNone(failed_job["result"])
+                        sync_response = self.client.post(
+                            "/api/raster/render/",
+                            data={
+                                "layerId": dataset.map_layer_id,
+                                "rulesMode": "custom",
+                                "rules": bad_rules,
+                            },
+                            content_type="application/json",
+                        )
+                        self.assertEqual(sync_response.status_code, 400)
+                        self.assertIn(hint, sync_response.json()["detail"])
+                self.assertEqual(RasterStyle.objects.filter(dataset=dataset).count(), 1)
+                np.testing.assert_array_equal(load_tile(original_job), original)
+
+                classification = self.client.post(
+                    "/api/raster/unique-values/",
+                    data={"datasetId": dataset.id, "band": 3},
+                    content_type="application/json",
+                )
+                self.assertEqual(classification.status_code, 200)
+                palette = classification.json()["items"]
+                self.assertEqual([item["value"] for item in palette], [43, 73])
+                palette[0]["color"] = "#a05a31"
+                palette[1]["color"] = "#59a678"
+                unique_job = submit(
+                    {"mode": "unique", "bands": [3], "uniqueValues": palette}
+                )
+                pixels = load_tile(unique_job)
+                self.assertNotEqual(
+                    unique_job["result"]["tileUrl"], original_job["result"]["tileUrl"]
+                )
+                self.assertEqual(unique_job["result"]["tileSampling"], "nearest")
+                self.assertEqual(pixels[128, 10, 3], 0)
+                np.testing.assert_array_equal(pixels[128, 64], [160, 90, 49, 255])
+                np.testing.assert_array_equal(pixels[128, 192], [89, 166, 120, 255])
 
     def _dataset(self, code: str, resource: DataResource) -> RasterDataset:
         return RasterDataset.objects.create(

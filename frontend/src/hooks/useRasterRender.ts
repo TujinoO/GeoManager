@@ -3,7 +3,11 @@ import type { Map as MapboxMap } from "mapbox-gl";
 import { useCallback, useEffect, useRef } from "react";
 import { api } from "../api/client";
 import type { RasterSymbolization } from "../symbolization";
-import { rasterSymbolizationFromRules } from "../symbolization";
+import i18n from "../i18n";
+import {
+  hasVisibleRasterUniqueValues,
+  rasterSymbolizationFromRules,
+} from "../symbolization";
 import type {
   LoadedRasterLayer,
   RasterJob,
@@ -21,6 +25,7 @@ export type RasterRenderProgressHandler = (job: RasterJob) => void;
 export function rasterLayerWithRenderResult(
   current: LoadedRasterLayer,
   result: RasterRenderResult,
+  opacity = current.symbolization.opacity,
 ): LoadedRasterLayer {
   return {
     ...current,
@@ -34,7 +39,7 @@ export function rasterLayerWithRenderResult(
     renderProgress: 100,
     symbolization: {
       ...rasterSymbolizationFromRules(result.rules),
-      opacity: current.symbolization.opacity,
+      opacity,
     },
     metadata: {
       ...current.metadata,
@@ -75,9 +80,14 @@ export function useRasterRender(
   useEffect(() => cancelAllRasterTasks, [cancelAllRasterTasks]);
 
   const applyResult = useCallback(
-    (groupId: string, layerId: string, result: RasterRenderResult) => {
+    (
+      groupId: string,
+      layerId: string,
+      result: RasterRenderResult,
+      opacity: number,
+    ) => {
       updateLayer(groupId, layerId, (current) =>
-        rasterLayerWithRenderResult(current, result),
+        rasterLayerWithRenderResult(current, result, opacity),
       );
     },
     [updateLayer],
@@ -185,16 +195,16 @@ export function useRasterRender(
     ) => {
       const isUniqueValueRender =
         rulesMode === "custom" && symbolization.mode === "unique";
-      const completionMessage = isUniqueValueRender
-        ? `${layer.name}唯一值颜色渲染完成，地图已自动更新`
-        : null;
+      if (isUniqueValueRender && !hasVisibleRasterUniqueValues(symbolization)) {
+        message.warning(i18n.t("symbolization.classifyBeforeApply"));
+        return;
+      }
       updateLayer(groupId, layerId, (current) => ({
         ...current,
         summary: "后台符号化中",
         renderStatus: "running",
         renderProgress: 5,
         renderMessages: ["提交符号化任务"],
-        tileUrl: current.tileUrl,
       }));
       if (isUniqueValueRender) {
         message.info(
@@ -213,15 +223,15 @@ export function useRasterRender(
             updateLayer(groupId, layerId, (current) => ({
               ...current,
               renderJobId: job.id,
-              renderStatus: job.status,
+              renderStatus: job.status === "ready" ? "running" : job.status,
               renderProgress: job.progressPercent,
               renderMessages: job.messages,
             }));
           },
         );
-        applyResult(groupId, layerId, result);
-        if (completionMessage) {
-          message.success(completionMessage);
+        applyResult(groupId, layerId, result, symbolization.opacity);
+        if (isUniqueValueRender) {
+          message.info(`${layer.name}唯一值样式已生成，地图正在加载新瓦片`);
         }
       } catch (error) {
         if (isAbortError(error)) {

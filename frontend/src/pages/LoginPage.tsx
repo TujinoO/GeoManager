@@ -49,6 +49,7 @@ const platformEnglishName = platformBrand.englishName;
 const platformShortName = platformBrand.shortName;
 const platformEdition = platformBrand.edition;
 const platformVersion = "v1.0.0";
+const passwordRecoveryContactEmail = "lizhijun0202@126.com";
 const loginBackgrounds = [
   loginBackground01,
   loginBackground02,
@@ -233,7 +234,24 @@ export default function LoginPage() {
   function handleForgotPassword() {
     modal.info({
       title: t("auth.contactAdminTitle"),
-      content: t("auth.contactAdminDescription"),
+      content: (
+        <>
+          <Typography.Paragraph>
+            {t("auth.contactAdminDescription")}
+          </Typography.Paragraph>
+          <Typography.Paragraph>
+            <Typography.Link
+              href={`mailto:${passwordRecoveryContactEmail}`}
+              strong
+            >
+              {passwordRecoveryContactEmail}
+            </Typography.Link>
+          </Typography.Paragraph>
+          <Typography.Text type="secondary">
+            {t("auth.contactAdminNote")}
+          </Typography.Text>
+        </>
+      ),
       okText: t("auth.understood"),
     });
   }

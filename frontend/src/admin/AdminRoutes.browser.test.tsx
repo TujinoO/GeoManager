@@ -1468,7 +1468,7 @@ describe("admin routes", () => {
     expect(await screen.findByText("胡杨林样地点")).toBeInTheDocument();
     expect(
       await screen.findByRole("heading", {
-        name: "平台数据分为四个大类和十五个小类",
+        name: "平台数据分类",
       }),
     ).toBeInTheDocument();
     expect(screen.getAllByText("基础地理信息数据").length).toBeGreaterThan(0);
@@ -1476,7 +1476,9 @@ describe("admin routes", () => {
     expect(screen.getAllByText("胡杨空间分布信息").length).toBeGreaterThan(0);
     expect(screen.getAllByText("胡杨专题数据").length).toBeGreaterThan(0);
     expect(screen.getByText("未分组（其他）数据")).toBeInTheDocument();
-    expect(screen.getByText("等待补充分类")).toBeInTheDocument();
+    expect(
+      screen.getByText(/暂未确定分类的数据仍可在下方列表查看/),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/v2026\.07/)).not.toBeInTheDocument();
     expect(screen.queryByText("体系落地情况")).not.toBeInTheDocument();
     expect(document.querySelectorAll(".data-schema-category")).toHaveLength(4);

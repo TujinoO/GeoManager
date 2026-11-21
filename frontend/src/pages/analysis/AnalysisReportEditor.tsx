@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Alert,
   App,
@@ -26,6 +32,14 @@ import type {
 import { useAppContext } from "../../contexts/AppContext";
 import { captureReportFigures, renderReportPages } from "./report-render";
 
+const autoPreviewDelayMs = 450;
+
+type ReportPreview = { document: AnalysisReportDocument; pages: Blob[] };
+type ReportRenderJob = {
+  document: AnalysisReportDocument;
+  pages: Promise<Blob[]>;
+};
+
 export default function AnalysisReportEditor({
   open,
   onClose,
@@ -50,7 +64,7 @@ export default function AnalysisReportEditor({
   const { message } = App.useApp();
   const { user } = useAppContext();
   const captureRef = useRef<HTMLDivElement>(null);
-  const revision = useRef(0);
+  const renderJob = useRef<ReportRenderJob>(undefined);
   const savedId = useRef<number | undefined>(initialReportId);
   const paragraphIds = useRef<string[]>([]);
   const nextParagraphId = () =>
@@ -58,7 +72,11 @@ export default function AnalysisReportEditor({
   const [doc, setDoc] = useState<AnalysisReportDocument>();
   const [artifact, setArtifact] = useState<ResultArtifact>();
   const [sourceId, setSourceId] = useState(resourceId);
-  const [pages, setPages] = useState<Blob[]>([]);
+  const [preview, setPreview] = useState<ReportPreview>();
+  const [refreshRequest, setRefreshRequest] = useState<{
+    document: AnalysisReportDocument;
+  }>();
+  const [previewError, setPreviewError] = useState("");
   const [urls, setUrls] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -67,19 +85,26 @@ export default function AnalysisReportEditor({
     user.permissions.canExportData &&
     user.permissions.canViewResultArtifacts,
   );
+  const previewIsCurrent = Boolean(doc && preview?.document === doc);
+  const previewPages = preview?.pages;
   useEffect(() => {
-    const next = pages.map((p) => URL.createObjectURL(p));
+    const next = open
+      ? (previewPages ?? []).map((p) => URL.createObjectURL(p))
+      : [];
     setUrls(next);
     return () => next.forEach((url) => URL.revokeObjectURL(url));
-  }, [pages]);
+  }, [open, previewPages]);
+
   useEffect(() => {
-    if (!open) return;
-    let ignore = false;
-    setBusy(true);
+    setBusy(open);
     setError("");
     setDoc(undefined);
     setArtifact(undefined);
-    setPages([]);
+    setPreview(undefined);
+    setPreviewError("");
+    setRefreshRequest(undefined);
+    if (!open) return;
+    let ignore = false;
     async function initialize() {
       if (initialReportId) {
         const report = await analysisApi.report(initialReportId);
@@ -92,7 +117,6 @@ export default function AnalysisReportEditor({
           setArtifact(report);
           setSourceId(report.sourceResourceId ?? undefined);
           setDoc(report.reportDocument);
-          setPages(await renderReportPages(report.reportDocument));
         }
       } else {
         await new Promise<void>((resolve) =>
@@ -100,6 +124,7 @@ export default function AnalysisReportEditor({
             requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
           ),
         );
+        if (ignore) return;
         const figures = await captureReportFigures(
           charts ? captureRef.current : (scope?.() ?? null),
         );
@@ -114,7 +139,6 @@ export default function AnalysisReportEditor({
             figures,
           };
           setDoc(initial);
-          setPages(await renderReportPages(initial));
         }
       }
     }
@@ -129,33 +153,63 @@ export default function AnalysisReportEditor({
       ignore = true;
     };
   }, [open, initialReportId, resourceId]);
+  const renderDocument = useCallback((document: AnalysisReportDocument) => {
+    const active = renderJob.current;
+    if (active?.document === document) return active.pages;
+    const pages = (async () => {
+      // Serialize full-resolution renders; each may allocate several A4 canvases.
+      if (active) await active.pages.catch(() => {});
+      return renderReportPages(document);
+    })().finally(() => {
+      if (renderJob.current?.pages === pages) renderJob.current = undefined;
+    });
+    renderJob.current = { document, pages };
+    return pages;
+  }, []);
+
+  useEffect(() => {
+    if (!open || !doc || busy || previewIsCurrent) return;
+    let ignore = false;
+    const timer = window.setTimeout(
+      async () => {
+        const active = renderJob.current;
+        if (active && active.document !== doc) {
+          await active.pages.catch(() => {});
+        }
+        // A newer edit, save or close may have superseded this preview.
+        if (ignore) return;
+        try {
+          const pages = await renderDocument(doc);
+          if (!ignore) setPreview({ document: doc, pages });
+        } catch (e) {
+          if (!ignore)
+            setPreviewError(e instanceof Error ? e.message : "预览生成失败");
+        }
+      },
+      refreshRequest?.document === doc ? 0 : autoPreviewDelayMs,
+    );
+    return () => {
+      ignore = true;
+      window.clearTimeout(timer);
+    };
+  }, [busy, doc, open, previewIsCurrent, refreshRequest, renderDocument]);
+
   function update(next: AnalysisReportDocument) {
-    revision.current++;
     setDoc(next);
-    setPages([]);
+    setPreviewError("");
+    setRefreshRequest(undefined);
     setArtifact(undefined);
-  }
-  async function preview() {
-    if (!doc) return;
-    const version = revision.current;
-    setBusy(true);
-    setError("");
-    try {
-      const result = await renderReportPages(doc);
-      if (version === revision.current) setPages(result);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "预览生成失败");
-    } finally {
-      setBusy(false);
-    }
   }
   async function save() {
     if (!doc || !sourceId) return;
     setBusy(true);
     setError("");
+    setPreviewError("");
     try {
-      const output = pages.length ? pages : await renderReportPages(doc);
-      setPages(output);
+      const output =
+        preview?.document === doc ? preview.pages : await renderDocument(doc);
+      if (preview?.document !== doc)
+        setPreview({ document: doc, pages: output });
       const body = new FormData();
       body.set("resourceId", String(sourceId));
       body.set("document", JSON.stringify(doc));
@@ -204,7 +258,9 @@ export default function AnalysisReportEditor({
   return (
     <Modal
       open={open}
-      onCancel={onClose}
+      onCancel={() => {
+        if (!busy) onClose();
+      }}
       title="生成数据分析报告"
       width={1440}
       style={{ maxWidth: "calc(100vw - 32px)", top: 24 }}
@@ -219,9 +275,12 @@ export default function AnalysisReportEditor({
           </Button>
           <Button
             aria-label="更新预览"
-            onClick={() => void preview()}
-            loading={busy}
-            disabled={!doc || busy}
+            onClick={() => {
+              if (!doc) return;
+              setPreviewError("");
+              setRefreshRequest({ document: doc });
+            }}
+            disabled={!doc || busy || previewIsCurrent}
           >
             更新预览
           </Button>
@@ -425,12 +484,29 @@ export default function AnalysisReportEditor({
             )}
           </section>
           <section className="analysis-report-preview" aria-label="报告预览">
+            {doc && (
+              <p className="analysis-report-preview-status" role="status">
+                {previewError
+                  ? urls.length
+                    ? `预览更新失败，当前显示上一次的预览：${previewError}`
+                    : `预览生成失败：${previewError}`
+                  : previewIsCurrent
+                    ? "修改后自动预览"
+                    : "正在自动更新预览…"}
+              </p>
+            )}
             {urls.length ? (
               urls.map((url, i) => (
                 <img key={url} src={url} alt={`报告第${i + 1}页`} />
               ))
             ) : (
-              <Empty description="调整图表和文字后，点击“更新预览”查看正式版式" />
+              <Empty
+                description={
+                  previewError || (!doc && error)
+                    ? "暂无可用预览"
+                    : "正在准备报告页面"
+                }
+              />
             )}
           </section>
         </div>

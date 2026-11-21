@@ -35,6 +35,7 @@ import {
   type RasterSymbolization,
 } from "../symbolization";
 import FeatureDetailPanel from "./FeatureDetailPanel";
+import { combinedFeatureBounds } from "../utils/geometry";
 
 const thumbnailMinIndicatorSizePx = 10;
 const thumbnailTileSize = 256;
@@ -3871,6 +3872,11 @@ function createInsightStats(
   profile: DataResourceProfile | null,
   resource: ResourceListItem | null,
 ): InsightStats {
+  if (layer?.layerType === "vector" && layer.query?.attributeFilters?.length) {
+    // Catalog statistics describe the whole resource, not this result subset.
+    summary = null;
+    profile = null;
+  }
   const localCategories = buildLocalCategoryStats(layer);
   const localNumerics = buildLocalNumericStats(layer);
   const localProfile = buildLocalProfile(layer, profile, resource);
@@ -5032,7 +5038,9 @@ function buildLocalProfile(
       featureCount: layer.geojson.features.length,
       fieldCount: layer.fields.length,
       geometryType: layer.geometryType,
-      bounds: parseBounds(layer.sourceResource.spatialExtent),
+      bounds: layer.query?.attributeFilters?.length
+        ? (combinedFeatureBounds([layer.geojson])?.toArray().flat() ?? [])
+        : parseBounds(layer.sourceResource.spatialExtent),
     };
   }
   if (layer?.layerType === "raster") {

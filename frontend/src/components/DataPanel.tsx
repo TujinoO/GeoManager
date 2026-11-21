@@ -1,7 +1,6 @@
 import {
   EnvironmentOutlined,
   FilterOutlined,
-  PlusOutlined,
   SearchOutlined,
   UnorderedListOutlined,
 } from "@ant-design/icons";
@@ -22,12 +21,14 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
-  AttributeFilter,
   DataResourceProfile,
   ResourceFilters,
   ResourceListItem,
   User,
 } from "../types";
+import AttributeQueryForm, {
+  type AttributeQuerySubmit,
+} from "./AttributeQueryForm";
 import {
   resourceCategoryName,
   resourceFormatLabel,
@@ -61,7 +62,7 @@ interface Props {
     resource: ResourceListItem,
     reportProgress: DataResourceLoadReporter,
   ) => Promise<void> | void;
-  onQueryAndLoad: (filters: AttributeFilter[]) => void;
+  onQueryAndLoad: AttributeQuerySubmit;
   onLoadRaster: (
     reportProgress: DataResourceLoadReporter,
   ) => Promise<void> | void;
@@ -88,14 +89,6 @@ export default function DataPanel({
 }: Props) {
   const { t } = useTranslation();
   const [resourceFilters, setResourceFilters] = useState<ResourceFilters>({});
-  const [attributeFilters, setAttributeFilters] = useState<AttributeFilter[]>(
-    [],
-  );
-  const [field, setField] = useState<string>();
-  const [operator, setOperator] =
-    useState<AttributeFilter["operator"]>("contains");
-  const [value, setValue] = useState("");
-  const [valueTo, setValueTo] = useState("");
   const [resourceLoadProgress, setResourceLoadProgress] = useState(
     () => new Map<ResourceListItem["id"], DataResourceLoadProgress>(),
   );
@@ -107,27 +100,11 @@ export default function DataPanel({
     ],
     [categoryOptions, t],
   );
-  const operatorOptions = useMemo(
-    () => [
-      { label: t("map.contains"), value: "contains" },
-      { label: t("map.equals"), value: "eq" },
-      { label: t("map.notEquals"), value: "ne" },
-      { label: t("map.greaterThan"), value: "gt" },
-      { label: t("map.greaterThanOrEqual"), value: "gte" },
-      { label: t("map.lessThan"), value: "lt" },
-      { label: t("map.lessThanOrEqual"), value: "lte" },
-      { label: t("map.between"), value: "between" },
-    ],
-    [t],
-  );
-
-  const fieldOptions = (profile?.fields ?? []).map((item) => ({
-    value: item.name,
-    label: `${item.name} (${item.type})`,
-  }));
   const selectedIsRaster = profile?.resource.dataType === "raster";
   const canQueryAndLoadVector =
     permissions.canQueryData && permissions.canLoadVectorLayer;
+  const selectedProfile =
+    profile?.resource.id === selectedResourceId ? profile : null;
 
   useEffect(() => {
     const nextQuery = searchKeyword?.trim() || undefined;
@@ -174,28 +151,6 @@ export default function DataPanel({
       resource.categoryPath?.map((item) => item.name).join(" / ") ||
       resourceCategoryName(resource)
     );
-  }
-
-  function addAttributeFilter() {
-    if (!field || !value.trim()) {
-      return;
-    }
-    setAttributeFilters((current) => [
-      ...current,
-      {
-        id: `${Date.now()}-${field}`,
-        field,
-        operator,
-        value: value.trim(),
-        valueTo: operator === "between" ? valueTo.trim() : undefined,
-      },
-    ]);
-    setValue("");
-    setValueTo("");
-  }
-
-  function removeAttributeFilter(id: string) {
-    setAttributeFilters((current) => current.filter((item) => item.id !== id));
   }
 
   function reportResourceLoad(
@@ -366,7 +321,12 @@ export default function DataPanel({
                   type="primary"
                   ghost
                   className="resource-quick-load-button"
-                  disabled={!resource.isQueryable && !resource.isRenderable}
+                  disabled={
+                    resource.dataType === "raster"
+                      ? !resource.isRenderable ||
+                        !permissions.canLoadRasterLayer
+                      : !resource.isQueryable || !canQueryAndLoadVector
+                  }
                   loading={Boolean(loadProgress)}
                   onClick={() => void quickLoadResource(resource)}
                 >
@@ -395,6 +355,19 @@ export default function DataPanel({
           description={t("map.noResources")}
         />
       )}
+
+      {canQueryAndLoadVector &&
+        !loadingProfile &&
+        selectedProfile?.resource.dataType === "vector" &&
+        selectedProfile.resource.isQueryable &&
+        selectedProfile.fields.length > 0 && (
+          <AttributeQueryForm
+            key={selectedProfile.resource.id}
+            fields={selectedProfile.fields}
+            querying={querying}
+            onSubmit={onQueryAndLoad}
+          />
+        )}
 
       {profile && (
         <>
@@ -452,75 +425,6 @@ export default function DataPanel({
               ))}
             </ul>
           )}
-        </>
-      )}
-
-      {!selectedIsRaster && (
-        <>
-          <div className="subsection-title">
-            <PlusOutlined style={{ fontSize: 15 }} />
-            <Typography.Text strong>{t("map.attributeQuery")}</Typography.Text>
-          </div>
-          <Space orientation="vertical" className="full-width compact-stack">
-            <div className="attribute-filter-row">
-              <Select
-                placeholder={t("map.selectField")}
-                value={field}
-                options={fieldOptions}
-                onChange={setField}
-                disabled={!profile}
-              />
-              <Select
-                value={operator}
-                options={operatorOptions}
-                onChange={setOperator}
-              />
-            </div>
-            <Input
-              placeholder={t("map.fieldValue")}
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-            />
-            {operator === "between" && (
-              <Input
-                placeholder={t("map.endValue")}
-                value={valueTo}
-                onChange={(event) => setValueTo(event.target.value)}
-              />
-            )}
-            <div className="attribute-action-row">
-              <Button
-                icon={<PlusOutlined style={{ fontSize: 15 }} />}
-                disabled={!field || !value.trim()}
-                onClick={addAttributeFilter}
-              >
-                {t("map.addCondition")}
-              </Button>
-              {canQueryAndLoadVector && (
-                <Button
-                  type="primary"
-                  loading={querying}
-                  disabled={!profile}
-                  onClick={() => onQueryAndLoad(attributeFilters)}
-                >
-                  {t("map.queryAndLoad")}
-                </Button>
-              )}
-            </div>
-          </Space>
-          <Space wrap className="filter-tags">
-            {attributeFilters.map((item) => (
-              <Tag
-                key={item.id}
-                closable
-                onClose={() => removeAttributeFilter(item.id)}
-              >
-                {item.field} {operatorLabel(item.operator, operatorOptions)}{" "}
-                {item.value}
-                {item.valueTo ? ` - ${item.valueTo}` : ""}
-              </Tag>
-            ))}
-          </Space>
         </>
       )}
 
@@ -599,13 +503,4 @@ function cleanResourceFilters(filters: ResourceFilters): ResourceFilters {
     }
   });
   return next;
-}
-
-function operatorLabel(
-  operator: AttributeFilter["operator"],
-  operatorOptions: Array<{ label: string; value: string }>,
-) {
-  return (
-    operatorOptions.find((item) => item.value === operator)?.label ?? operator
-  );
 }

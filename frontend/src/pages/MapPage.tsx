@@ -690,6 +690,8 @@ export default function MapPage() {
   const resourceProfileRequestSequenceRef = useRef(0);
   const spatialProfileRequestSequenceRef = useRef(0);
   const spatialQuerySequenceRef = useRef(0);
+  const attributeQuerySequenceRef = useRef(0);
+  const attributeQueryPendingRef = useRef(false);
   const latestResourceFiltersRef = useRef<ResourceFilters>({});
   const loadedSceneIdRef = useRef<number | null>(null);
   const loadedCompositionIdRef = useRef<number | null>(null);
@@ -751,6 +753,9 @@ export default function MapPage() {
     message,
   });
   const handleWorkspaceLoaded = useCallback(() => {
+    attributeQuerySequenceRef.current += 1;
+    attributeQueryPendingRef.current = false;
+    setQuerying(false);
     setTableLayer(null);
     setSelectedFeature(null);
   }, []);
@@ -995,12 +1000,18 @@ export default function MapPage() {
     rememberedGeoInsight?.profile?.resource.id === rightPanelSelectedResource.id
       ? rememberedGeoInsight.profile
       : null);
-  const rightPanelVisualizationSummary =
-    visualizationSummary ??
-    (rightPanelSelectedResource &&
-    rememberedGeoInsight?.summary?.resource.id === rightPanelSelectedResource.id
-      ? rememberedGeoInsight.summary
-      : null);
+  const showingAttributeResult = Boolean(
+    rightPanelSelectedLayer?.layerType === "vector" &&
+    rightPanelSelectedLayer.query?.attributeFilters?.length,
+  );
+  const rightPanelVisualizationSummary = showingAttributeResult
+    ? null
+    : (visualizationSummary ??
+      (rightPanelSelectedResource &&
+      rememberedGeoInsight?.summary?.resource.id ===
+        rightPanelSelectedResource.id
+        ? rememberedGeoInsight.summary
+        : null));
   const rightPanelSelectedFeature = (() => {
     const feature = selectedFeature ?? rememberedGeoInsight?.feature ?? null;
     if (!feature) {
@@ -1012,7 +1023,9 @@ export default function MapPage() {
       : null;
   })();
   const rightPanelVisualizationSummaryLoading =
-    Boolean(activeInsightResource) && visualizationSummaryLoading;
+    !showingAttributeResult &&
+    Boolean(activeInsightResource) &&
+    visualizationSummaryLoading;
 
   const spatialWorkbenchStatus = activeDraw
     ? english
@@ -1035,7 +1048,11 @@ export default function MapPage() {
             : "范围绘制、查询对象与结果加载";
 
   useEffect(() => {
-    if (!permissions.canBrowseData || !activeInsightResource) {
+    if (
+      !permissions.canBrowseData ||
+      !activeInsightResource ||
+      showingAttributeResult
+    ) {
       setVisualizationSummary(null);
       setVisualizationSummaryError(null);
       setVisualizationSummaryLoading(false);
@@ -1075,7 +1092,11 @@ export default function MapPage() {
     return () => {
       ignore = true;
     };
-  }, [activeInsightResource, permissions.canBrowseData]);
+  }, [
+    activeInsightResource,
+    permissions.canBrowseData,
+    showingAttributeResult,
+  ]);
 
   const setLayerExtentVisibility = useCallback(
     (layerId: string, visible: boolean) => {
@@ -1228,6 +1249,9 @@ export default function MapPage() {
   }, [loadResources, permissions.canBrowseData, urlResourceFilters]);
 
   async function fetchResourceProfile(resource: ResourceListItem) {
+    attributeQuerySequenceRef.current += 1;
+    attributeQueryPendingRef.current = false;
+    setQuerying(false);
     const requestSequence = ++resourceProfileRequestSequenceRef.current;
     setSelectedResource(resource);
     setResourceProfile(null);
@@ -1323,37 +1347,117 @@ export default function MapPage() {
   async function handleQueryAndLoad(attributeFilters: AttributeFilter[]) {
     if (!permissions.canQueryData || !permissions.canLoadVectorLayer) {
       message.warning(permissionDeniedMessage);
-      return;
+      return null;
     }
-    if (!selectedResource) {
-      message.warning(
-        english ? "Select a data resource first" : "请先选择数据资源",
+    if (
+      !selectedResource?.isQueryable ||
+      selectedResource.dataType !== "vector" ||
+      resourceProfile?.resource.id !== selectedResource.id ||
+      !attributeFilters.length ||
+      attributeQueryPendingRef.current
+    )
+      return null;
+
+    const sequence = ++attributeQuerySequenceRef.current;
+    attributeQueryPendingRef.current = true;
+    setQuerying(true);
+    try {
+      // Attribute query is scoped to this resource. Drawn areas are applied only
+      // through the spatial workbench, not implicitly from an earlier drawing.
+      const result = await api.queryResource(selectedResource, {
+        attributeFilters,
+        spatialFilter: null,
+        limit: bootstrap.limits.queryResultLimit,
+      });
+      if (sequence !== attributeQuerySequenceRef.current) return null;
+      showGeojsonWarnings(notification, result.warnings);
+      const group = createVectorLayerGroup(
+        selectedResource,
+        resourceProfile,
+        result,
+        {
+          attributeFilters,
+          spatialFilter: null,
+        },
+        {
+          name: english
+            ? `${selectedResource.name} · Attribute results`
+            : `${selectedResource.name} · 属性查询结果`,
+          metadata: { 空间范围: result.bounds?.join(",") ?? "" },
+        },
       );
-      return;
-    }
-    if (!resourceProfile) {
-      message.warning(
-        english
-          ? "Wait for fields and metadata to finish loading"
-          : "请先等待字段和元信息加载完成",
+      layerGroups.addAttributeQueryResult(group);
+      setVisibleLayerExtentIds((current) => {
+        const next = new Set(current);
+        for (const layer of allLayers) {
+          if (
+            layer.layerType === "vector" &&
+            layer.sourceResource.id === selectedResource.id
+          )
+            next.delete(layer.id);
+        }
+        return next.size === current.size ? current : next;
+      });
+      setTableLayer((current) =>
+        current?.sourceResource.id === selectedResource.id ? null : current,
       );
-      return;
+      setSelectedFeature(null);
+      setRememberedGeoInsight((current) =>
+        current ? { ...current, feature: null } : current,
+      );
+      setSelectedLayerId(group.children[0]?.id ?? null);
+      const map = mapInstanceRef.current;
+      if (map) {
+        clearFeatureState(map, "selectedFeature", "selected");
+        if (result.returnedCount > 0) {
+          void mapFitBoundsOptions(map).then((fitOptions) => {
+            if (
+              mapInstanceRef.current !== map ||
+              sequence !== attributeQuerySequenceRef.current
+            )
+              return;
+            fitGeojsonBounds(
+              map,
+              result.geojson,
+              bootstrap.map.defaultCenter,
+              bootstrap.map.defaultZoom,
+              fitOptions,
+            );
+          });
+        }
+      }
+      return result;
+    } catch (error) {
+      if (sequence === attributeQuerySequenceRef.current) {
+        message.error(
+          error instanceof Error
+            ? error.message
+            : english
+              ? "Query and load failed"
+              : "查询并加载失败",
+        );
+      }
+      return null;
+    } finally {
+      if (sequence === attributeQuerySequenceRef.current) {
+        attributeQueryPendingRef.current = false;
+        setQuerying(false);
+      }
     }
-    await loadVectorResource(
-      selectedResource,
-      resourceProfile,
-      attributeFilters,
-      {
-        spatialFilter,
-        errorMessage: english ? "Query and load failed" : "查询并加载失败",
-      },
-    );
   }
 
   async function handleQuickLoadResource(
     resource: ResourceListItem,
     reportProgress: DataResourceLoadReporter = () => undefined,
   ) {
+    const canLoad =
+      resource.dataType === "raster"
+        ? permissions.canLoadRasterLayer
+        : permissions.canQueryData && permissions.canLoadVectorLayer;
+    if (!canLoad) {
+      message.warning(permissionDeniedMessage);
+      return false;
+    }
     if (
       await uniqueLayerLoad.showExisting(
         resourceLayerKey({
@@ -1388,12 +1492,10 @@ export default function MapPage() {
           ? "Querying and building vector layer"
           : "正在查询并构建矢量图层",
       });
-      return await loadVectorResource(resource, profile, [], {
-        spatialFilter: null,
-        errorMessage: english ? "Load failed" : "加载失败",
-        trackQuerying: false,
-        reportProgress,
-      });
+      return await uniqueLayerLoad.load(
+        resourceLayerKey({ sourceResource: resource, layerType: "vector" }),
+        () => loadFullVectorResource(resource, profile, reportProgress),
+      );
     }
     return false;
   }
@@ -1543,52 +1645,18 @@ export default function MapPage() {
     return true;
   }
 
-  async function loadVectorResource(
+  async function loadFullVectorResource(
     resource: ResourceListItem,
     profile: DataResourceProfile,
-    attributeFilters: AttributeFilter[],
-    options: {
-      spatialFilter: SpatialFilter | null;
-      errorMessage: string;
-      trackQuerying?: boolean;
-      reportProgress?: DataResourceLoadReporter;
-    },
+    reportProgress: DataResourceLoadReporter,
   ) {
-    if (!permissions.canQueryData || !permissions.canLoadVectorLayer) {
-      message.warning(permissionDeniedMessage);
-      return false;
-    }
-    return uniqueLayerLoad.load(
-      resourceLayerKey({
-        sourceResource: resource,
-        layerType: "vector",
-        query: { attributeFilters, spatialFilter: options.spatialFilter },
-      }),
-      async () =>
-        loadNewVectorResource(resource, profile, attributeFilters, options),
-    );
-  }
-
-  async function loadNewVectorResource(
-    resource: ResourceListItem,
-    profile: DataResourceProfile,
-    attributeFilters: AttributeFilter[],
-    options: {
-      spatialFilter: SpatialFilter | null;
-      errorMessage: string;
-      trackQuerying?: boolean;
-      reportProgress?: DataResourceLoadReporter;
-    },
-  ) {
-    const trackQuerying = options.trackQuerying !== false;
-    if (trackQuerying) setQuerying(true);
     try {
       const result = await api.queryResource(resource, {
-        attributeFilters,
-        spatialFilter: options.spatialFilter,
+        attributeFilters: [],
+        spatialFilter: null,
         limit: bootstrap.limits.queryResultLimit,
       });
-      options.reportProgress?.({
+      reportProgress({
         percent: 82,
         message: english
           ? "Query complete; creating map layer"
@@ -1602,10 +1670,7 @@ export default function MapPage() {
         message.warning(resultMessage);
         return false;
       }
-      const group = createVectorLayerGroup(resource, profile, result, {
-        attributeFilters,
-        spatialFilter: options.spatialFilter,
-      });
+      const group = createVectorLayerGroup(resource, profile, result);
       layerGroups.addGroup(group);
       setSelectedLayerId(group.children[0]?.id ?? null);
       const map = mapInstanceRef.current;
@@ -1621,7 +1686,7 @@ export default function MapPage() {
           );
         });
       }
-      options.reportProgress?.({
+      reportProgress({
         percent: 100,
         message: english
           ? "Vector data loaded on the 3D globe"
@@ -1631,11 +1696,13 @@ export default function MapPage() {
       return true;
     } catch (error) {
       message.error(
-        error instanceof Error ? error.message : options.errorMessage,
+        error instanceof Error
+          ? error.message
+          : english
+            ? "Load failed"
+            : "加载失败",
       );
       return false;
-    } finally {
-      if (trackQuerying) setQuerying(false);
     }
   }
 
@@ -2131,7 +2198,10 @@ export default function MapPage() {
       targetName: spatialTargetLayer.name,
       resource,
       profile,
-      query,
+      query: {
+        ...query,
+        attributeFilters: spatialTargetLayer.query?.attributeFilters ?? [],
+      },
     };
   }
 
@@ -2909,7 +2979,9 @@ export default function MapPage() {
                 visualizationSummaryLoading={
                   rightPanelVisualizationSummaryLoading
                 }
-                visualizationSummaryError={visualizationSummaryError}
+                visualizationSummaryError={
+                  showingAttributeResult ? null : visualizationSummaryError
+                }
                 currentView={currentMapView}
                 mapConfig={bootstrap.map}
               />

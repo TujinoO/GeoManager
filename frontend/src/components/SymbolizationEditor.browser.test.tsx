@@ -2,7 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { App as AntApp, ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { api } from "../api/client";
 import {
   cloneDefaultRasterSymbolization,
   cloneDefaultVectorSymbolization,
@@ -15,6 +16,74 @@ import {
   VectorSymbolizationEditor,
 } from "./SymbolizationEditor";
 import "../styles.css";
+
+afterEach(() => vi.restoreAllMocks());
+
+it("requires a fresh unique-value palette when changing the classification band", async () => {
+  const onApply = vi.fn();
+  let finishClassification: (result: {
+    band: number;
+    items: [{ value: number; label: string; color: string }];
+  }) => void = () => {};
+  const classify = vi
+    .spyOn(api, "classifyRasterUniqueValues")
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishClassification = resolve;
+        }),
+    )
+    .mockResolvedValueOnce({
+      band: 2,
+      items: [{ value: 19, label: "B2 匹配值", color: "#59a678" }],
+    });
+  render(
+    <ConfigProvider locale={zhCN} theme={appTheme}>
+      <AntApp>
+        <RasterEditorHarness onApply={onApply} datasetId={24} />
+      </AntApp>
+    </ConfigProvider>,
+  );
+
+  fireEvent.click(screen.getByRole("radio", { name: "唯一值" }));
+  const apply = screen.getByRole("button", { name: "确定" });
+  expect(apply).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: /^分\s*类$/ }));
+  expect(classify).toHaveBeenCalledWith(24, 1, {
+    signal: expect.any(AbortSignal),
+  });
+  expect(apply).toBeDisabled();
+  finishClassification({
+    band: 1,
+    items: [{ value: 43, label: "B1 匹配值", color: "#a05a31" }],
+  });
+  await waitFor(() => expect(apply).toBeEnabled());
+  expect(screen.getByText("B1 匹配值")).toBeVisible();
+
+  fireEvent.mouseDown(screen.getByRole("combobox", { name: "分类波段" }));
+  fireEvent.click(await screen.findByText("2 · Band 2"));
+  expect(screen.queryByText("B1 匹配值")).not.toBeInTheDocument();
+  expect(apply).toBeDisabled();
+  const classifyButton = await screen.findByRole("button", {
+    name: /分\s*类$/,
+  });
+  await waitFor(() =>
+    expect(classifyButton).not.toHaveClass("ant-btn-loading"),
+  );
+  fireEvent.click(classifyButton);
+  expect(classify).toHaveBeenLastCalledWith(24, 2, {
+    signal: expect.any(AbortSignal),
+  });
+  await waitFor(() => expect(apply).toBeEnabled());
+  fireEvent.click(apply);
+  expect(onApply).toHaveBeenCalledWith(
+    expect.objectContaining({
+      mode: "unique",
+      bands: [2],
+      uniqueValues: [{ value: 19, label: "B2 匹配值", color: "#59a678" }],
+    }),
+  );
+});
 
 describe("symbolization JSON reuse", () => {
   it("keeps raster import instructions and JSON text readable", async () => {
@@ -89,7 +158,7 @@ describe("symbolization JSON reuse", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "导入 JSON" }));
     const imported = cloneDefaultRasterSymbolization();
-    imported.bands = [2];
+    imported.bands = [3];
     fireEvent.change(
       await screen.findByRole("textbox", { name: "符号化方案 JSON" }),
       { target: { value: JSON.stringify(imported) } },
@@ -97,7 +166,7 @@ describe("symbolization JSON reuse", () => {
     fireEvent.click(screen.getByRole("button", { name: "校验并导入" }));
 
     expect(
-      await screen.findByText("目标栅格缺少方案引用的波段：2"),
+      await screen.findByText("目标栅格缺少方案引用的波段：3"),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("textbox", { name: "符号化方案 JSON" }),
@@ -140,18 +209,30 @@ describe("symbolization JSON reuse", () => {
 
 function RasterEditorHarness({
   onApply,
+  datasetId,
 }: {
   onApply: (value: RasterSymbolization) => void;
+  datasetId?: number;
 }) {
   const [value, setValue] = useState(cloneDefaultRasterSymbolization());
   return (
     <RasterSymbolizationEditor
       value={value}
+      datasetId={datasetId}
       bands={[
         {
           band: 1,
           type: "Byte",
           description: "Band 1",
+          colorInterpretation: "Gray",
+          min: 0,
+          max: 255,
+          isInteger: true,
+        },
+        {
+          band: 2,
+          type: "Byte",
+          description: "Band 2",
           colorInterpretation: "Gray",
           min: 0,
           max: 255,

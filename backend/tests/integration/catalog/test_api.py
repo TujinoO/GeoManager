@@ -367,6 +367,49 @@ class ResourceQueryApiTests(IsolatedCatalogStorageMixin, TestCase):
         )
         self.assertIn("warnings", payload)
 
+    def test_invalid_attribute_filters_return_400_without_falling_back_to_full_layer(
+        self,
+    ):
+        for conditions in (
+            {},
+            None,
+            [None],
+            [{"field": "height", "operator": "gt", "value": "nan"}],
+            [{"field": "height", "operator": "gt", "value": ""}],
+            [{"field": "height", "operator": "between", "value": "20"}],
+            [{"field": "height", "operator": "between", "value": "20", "valueTo": "1"}],
+            [{"field": "missing", "operator": "eq", "value": "1"}],
+        ):
+            with self.subTest(conditions=conditions):
+                response = self.client.post(
+                    f"/api/catalog/resources/{self.resource.id}/query/",
+                    data={"attributeFilters": conditions, "limit": 10},
+                    content_type="application/json",
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertIn("detail", response.json())
+
+    def test_attribute_query_requires_both_feature_permissions(self):
+        for permission in ("query_data", "load_vector_layer"):
+            user = get_user_model().objects.create_user(
+                username=f"query-only-{permission}"
+            )
+            grant(user, ("core", "browse_data"), ("core", permission))
+            self.client.force_login(user)
+            with patch("apps.catalog.views.query_data_resource") as query:
+                response = self.client.post(
+                    f"/api/catalog/resources/{self.resource.id}/query/",
+                    data={
+                        "attributeFilters": [
+                            {"field": "height", "operator": "gt", "value": "5"}
+                        ],
+                        "limit": 10,
+                    },
+                    content_type="application/json",
+                )
+                self.assertEqual(response.status_code, 403)
+                query.assert_not_called()
+
     def test_resource_query_filters_by_spatial_polygon(self):
         response = self.client.post(
             f"/api/catalog/resources/{self.resource.id}/query/",

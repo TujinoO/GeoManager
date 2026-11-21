@@ -35,6 +35,7 @@ it("applies a local draft only after the user requests backend rendering", () =>
   fireEvent.click(screen.getByRole("switch", { name: "NoData透明" }));
   expect(ctx.startRasterRender).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "应用渲染方案" }));
+  expect(ctx.setLayerSymbolization).not.toHaveBeenCalled();
   expect(ctx.startRasterRender).toHaveBeenCalledWith(
     "group",
     "raster",

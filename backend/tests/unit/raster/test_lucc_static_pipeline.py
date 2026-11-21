@@ -6,8 +6,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from django.test import SimpleTestCase, TestCase, override_settings
-
+import numpy as np
+import rasterio
 from apps.core.storage import (
     raster_processed_path,
     raster_source_path,
@@ -23,6 +23,8 @@ from apps.raster.services.importer import (
     scan_unprocessed_source_files,
 )
 from apps.raster.services.tile_pyramid import build_atomic_mbtiles_pyramid
+from django.test import SimpleTestCase, TestCase, override_settings
+from rasterio.transform import from_bounds
 
 
 def _project_config(root: Path) -> SimpleNamespace:
@@ -93,7 +95,8 @@ class LuccStaticRendererRegressionTests(TestCase):
         original_hash = str(original_result["styleHash"])
         original_stat = processed_path.stat()
 
-        processed_path.write_bytes(b"changed-categorical-cog-content")
+        with processed_path.open("ab") as changed_file:
+            changed_file.write(b"changed-categorical-cog-content")
         os.utime(
             processed_path,
             ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns + 1_000_000_000),
@@ -136,7 +139,20 @@ class LuccStaticRendererRegressionTests(TestCase):
         processed_relative_path = "lucc-static.cog.tif"
         processed_path = raster_processed_path(processed_relative_path)
         processed_path.parent.mkdir(parents=True, exist_ok=True)
-        processed_path.write_bytes(b"categorical-cog")
+        with rasterio.open(
+            processed_path,
+            "w",
+            driver="GTiff",
+            width=256,
+            height=256,
+            count=1,
+            dtype="uint8",
+            crs="EPSG:3857",
+            transform=from_bounds(
+                -half_world, -half_world, half_world, half_world, 256, 256
+            ),
+        ) as dst:
+            dst.write(np.ones((256, 256), dtype="uint8"), 1)
         dataset = RasterDataset.objects.create(
             name="LUCC 静态瓦片",
             code="lucc-static-renderer",

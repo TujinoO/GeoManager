@@ -391,6 +391,19 @@ export interface RasterSymbolization {
   uniqueValues: RasterUniqueValue[];
 }
 
+/** A unique renderer with no visible class would produce transparent tiles. */
+export function hasVisibleRasterUniqueValues(
+  style: RasterSymbolization,
+): boolean {
+  return style.uniqueValues.some(({ color }) => {
+    const hex = color.trim();
+    return (
+      /^#?[\da-f]{6}([\da-f]{2})?$/i.test(hex) &&
+      hex.replace(/^#/, "").slice(6) !== "00"
+    );
+  });
+}
+
 export const defaultGroupSymbolization: GroupSymbolization = {
   opacity: 100,
 };

@@ -6540,7 +6540,7 @@ export type VisualizationMonitorItem = {
 
 export type QueryRequest = {
     /**
-     * 属性过滤条件
+     * 所有属性条件按 AND 合并。空数组表示无属性过滤；无效或不完整的条件返回 400，不回退为全量。
      */
     attributeFilters: Array<AttributeFilter>;
     /**
@@ -6559,15 +6559,15 @@ export type AttributeFilter = {
      */
     field: string;
     /**
-     * 过滤操作符
+     * contains 为字面包含（不将百分号或下划线当作通配符）；between 包含两端。空值不参与比较。
      */
     operator: 'contains' | 'eq' | 'ne' | 'gt' | 'gte' | 'lt' | 'lte' | 'between';
     /**
-     * 过滤值
+     * 非空比较值。数值字段按有限数值比较；布尔字段接受 true/false 或 1/0；日期时间字段支持 YYYY-MM-DD（按日）或 ISO 8601 日期时间。
      */
     value: string;
     /**
-     * between 操作符时使用的结束值
+     * between 时必填，不能小于起始值；日期和时间区间的两端须使用相同粒度。
      */
     valueTo?: string;
 };

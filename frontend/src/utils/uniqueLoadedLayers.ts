@@ -17,7 +17,19 @@ export function resourceLayerKey(layer: ResourceLayerIdentity): string {
   }
   // A spatial/attribute query is a derived result, not another copy of its
   // complete source. Keep different results and collapse identical queries.
-  return `query:${layer.sourceResource.id}:${stableJson(query)}`;
+  const filterKeys = (query.attributeFilters ?? []).map(
+    ({ field, operator, value, valueTo }) =>
+      stableJson({
+        field,
+        operator,
+        value,
+        ...(operator === "between" ? { valueTo } : {}),
+      }),
+  );
+  return `query:${layer.sourceResource.id}:${stableJson({
+    spatialFilter: query.spatialFilter ?? null,
+    attributeFilters: [...new Set(filterKeys)].sort(),
+  })}`;
 }
 
 function stableJson(value: unknown): string {
@@ -70,4 +82,30 @@ export function uniqueLoadedLayerGroups(
     }
   }
   return changed ? next : groups;
+}
+
+// Apply a successful attribute query as a single visibility change. Keep source
+// and other derived/styled layers available in the tree for manual comparison.
+export function showAttributeQueryLayer(
+  groups: LoadedLayerGroup[],
+  result: LoadedLayerGroup,
+): LoadedLayerGroup[] {
+  const resultLayer = result.children[0];
+  if (resultLayer?.layerType !== "vector") return groups;
+  const resultKey = restoredLayerKey(resultLayer);
+  return [
+    result,
+    ...groups.flatMap((group) => {
+      const children = group.children.flatMap((layer) => {
+        if (
+          layer.layerType !== "vector" ||
+          layer.sourceResource.id !== resultLayer.sourceResource.id
+        )
+          return [layer];
+        if (restoredLayerKey(layer) === resultKey) return [];
+        return [layer.visible ? { ...layer, visible: false } : layer];
+      });
+      return children.length || group.isManual ? [{ ...group, children }] : [];
+    }),
+  ];
 }

@@ -11948,7 +11948,7 @@ components:
       properties:
         attributeFilters:
           type: array
-          description: 属性过滤条件
+          description: 所有属性条件按 AND 合并。空数组表示无属性过滤；无效或不完整的条件返回 400，不回退为全量。
           items:
             $ref: '#/components/schemas/AttributeFilter'
         spatialFilter:
@@ -11971,13 +11971,13 @@ components:
         operator:
           type: string
           enum: [contains, eq, ne, gt, gte, lt, lte, between]
-          description: 过滤操作符
+          description: contains 为字面包含（不将百分号或下划线当作通配符）；between 包含两端。空值不参与比较。
         value:
           type: string
-          description: 过滤值
+          description: 非空比较值。数值字段按有限数值比较；布尔字段接受 true/false 或 1/0；日期时间字段支持 YYYY-MM-DD（按日）或 ISO 8601 日期时间。
         valueTo:
           type: string
-          description: between 操作符时使用的结束值
+          description: between 时必填，不能小于起始值；日期和时间区间的两端须使用相同粒度。
 
     SpatialFilter:
       type: object

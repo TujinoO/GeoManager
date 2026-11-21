@@ -2,7 +2,10 @@ import { Button, Select, Slider, Space, Switch, Typography } from "antd";
 import { useContext, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LayerContext } from "../hooks/LayerContext";
-import type { RasterSymbolization } from "../symbolization";
+import {
+  hasVisibleRasterUniqueValues,
+  type RasterSymbolization,
+} from "../symbolization";
 import type { LoadedRasterLayer } from "../types";
 
 export default function RasterRenderingControls({
@@ -30,21 +33,24 @@ export default function RasterRenderingControls({
   const validBands = draft.bands.every((band) =>
     bands.some((item) => item.band === band),
   );
+  const missingUniqueColors =
+    draft.mode === "unique" && !hasVisibleRasterUniqueValues(draft);
   const label = (zh: string, en: string) => (english ? en : zh);
   function update(next: Partial<RasterSymbolization>) {
     setDraft((current) => ({ ...current, ...next }));
   }
   function apply() {
-    if (!editable || !layer || !group || !context || !validBands || busy)
+    if (
+      !editable ||
+      !layer ||
+      !group ||
+      !context ||
+      !validBands ||
+      busy ||
+      missingUniqueColors
+    )
       return;
-    context.setLayerSymbolization(group.id, layer.id, draft);
-    context.startRasterRender(
-      group.id,
-      layer.id,
-      draft,
-      { ...layer, symbolization: draft },
-      "custom",
-    );
+    context.startRasterRender(group.id, layer.id, draft, layer, "custom");
   }
   return (
     <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
@@ -178,12 +184,17 @@ export default function RasterRenderingControls({
       <Button
         type="primary"
         onClick={apply}
-        disabled={!editable || !validBands || busy}
+        disabled={!editable || !validBands || busy || missingUniqueColors}
       >
         {busy
           ? label("正在渲染", "Rendering")
           : label("应用渲染方案", "Apply rendering")}
       </Button>
+      {editable && missingUniqueColors && (
+        <Typography.Text type="secondary">
+          {i18n.t("symbolization.classifyBeforeApply")}
+        </Typography.Text>
+      )}
       {!editable && (
         <Typography.Text type="secondary">
           {!layer

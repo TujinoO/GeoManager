@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+import re
 from math import isfinite
 import sqlite3
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from contextlib import closing
 from pathlib import Path
 from time import perf_counter
@@ -194,7 +195,7 @@ def query_resource(resource: DataResource, payload: dict[str, Any]) -> dict[str,
         raise DataQueryError("当前只支持矢量 GeoPackage 查询")
 
     spatial_filter = payload.get("spatialFilter")
-    attribute_filters = payload.get("attributeFilters") or []
+    attribute_filters = payload.get("attributeFilters", [])
     query_geometry = spatial_filter_geometry(spatial_filter)
     limit = _limit(payload.get("limit"))
     layer_name = validate_vector_layer_name(resource.storage_path or "")
@@ -604,66 +605,143 @@ def _api_geometry_type(value: str) -> str:
     }.get(normalized, value)
 
 
-def _attribute_filter_where(
-    fields: list[dict[str, Any]], filters: list[dict[str, Any]]
-) -> str | None:
+_ATTRIBUTE_COMPARISON_SYMBOLS = {
+    "eq": "=",
+    "ne": "!=",
+    "gt": ">",
+    "gte": ">=",
+    "lt": "<",
+    "lte": "<=",
+}
+_ATTRIBUTE_NUMBER = re.compile(
+    r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
+)
+_ATTRIBUTE_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+
+
+def _attribute_filter_where(fields: list[dict[str, Any]], filters: Any) -> str | None:
+    if not isinstance(filters, list):
+        raise DataQueryError("属性查询条件必须是数组")
     field_types = {field["name"]: field["type"] for field in fields}
     clauses = []
-    for filter_item in filters:
-        field = str(filter_item.get("field", "")).strip()
-        operator = str(filter_item.get("operator", "contains")).strip()
-        if field not in field_types:
+    for index, item in enumerate(filters, start=1):
+        if not isinstance(item, dict):
+            raise DataQueryError(f"第 {index} 条属性查询条件无效")
+        field = item.get("field")
+        operator = item.get("operator")
+        if not isinstance(field, str) or field not in field_types:
             raise DataQueryError(f"属性字段不存在：{field}")
+        if not isinstance(operator, str) or operator not in {
+            *_ATTRIBUTE_COMPARISON_SYMBOLS,
+            "contains",
+            "between",
+        }:
+            raise DataQueryError(f"不支持的属性操作符：{operator}")
+        value = _required_filter_value(item.get("value"), index)
         column = _quote_sql_identifier(field)
-        numeric = field_types[field] == "number"
-        expression = (
-            f"CAST(REPLACE(TRIM(CAST({column} AS TEXT)), ',', '') AS REAL)"
-            if numeric
-            else column
-        )
-        value = filter_item.get("value")
+        field_type = field_types[field]
         if operator == "contains":
             escaped = (
-                str(value or "")
-                .replace("\\", "\\\\")
-                .replace("%", "\\%")
-                .replace("_", "\\_")
+                value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             )
             clauses.append(
                 f"CAST({column} AS TEXT) LIKE {_sql_literal('%' + escaped + '%')} ESCAPE '\\' COLLATE NOCASE"
             )
-        elif operator in {"eq", "ne", "gt", "gte", "lt", "lte"}:
-            symbols = {
-                "eq": "=",
-                "ne": "!=",
-                "gt": ">",
-                "gte": ">=",
-                "lt": "<",
-                "lte": "<=",
-            }
-            clauses.append(
-                f"{expression} {symbols[operator]} {_filter_sql_literal(value, numeric)}"
+            continue
+
+        value_to = (
+            _required_filter_value(item.get("valueTo"), index)
+            if operator == "between"
+            else None
+        )
+        date_only = (
+            field_type == "datetime" and _ATTRIBUTE_DATE.fullmatch(value) is not None
+        )
+        if (
+            field_type == "datetime"
+            and value_to is not None
+            and date_only != (_ATTRIBUTE_DATE.fullmatch(value_to) is not None)
+        ):
+            raise DataQueryError(f"第 {index} 条区间的两端须使用相同的日期或时间格式")
+        expression = column
+        if field_type == "number":
+            expression = _numeric_filter_expression(column)
+        elif field_type == "boolean":
+            expression = f"(CASE LOWER(TRIM(CAST({column} AS TEXT))) WHEN 'true' THEN 1 WHEN '1' THEN 1 WHEN 'false' THEN 0 WHEN '0' THEN 0 END)"
+        elif field_type == "datetime":
+            expression = f"{'date' if date_only else 'julianday'}({column})"
+        lower, comparable = _typed_filter_value(value, field_type, date_only)
+        if value_to is not None:
+            upper, upper_comparable = _typed_filter_value(
+                value_to, field_type, date_only
             )
-        elif operator == "between":
-            clauses.append(
-                f"{expression} BETWEEN {_filter_sql_literal(value, numeric)} "
-                f"AND {_filter_sql_literal(filter_item.get('valueTo'), numeric)}"
-            )
+            if comparable > upper_comparable:
+                raise DataQueryError(f"第 {index} 条区间的起始值不能大于结束值")
+            clauses.append(f"{expression} BETWEEN {lower} AND {upper}")
         else:
-            raise DataQueryError(f"不支持的属性操作符：{operator}")
+            clauses.append(
+                f"{expression} {_ATTRIBUTE_COMPARISON_SYMBOLS[operator]} {lower}"
+            )
     return " AND ".join(f"({clause})" for clause in clauses) or None
 
 
-def _filter_sql_literal(value: Any, numeric: bool) -> str:
-    if not numeric:
-        return _sql_literal(str(value))
-    try:
-        parsed = float(_clean_numeric_text(value))
-    except (TypeError, ValueError) as exc:
-        raise DataQueryError(f"数值查询条件无效：{value}") from exc
-    if not isfinite(parsed):
-        raise DataQueryError(f"数值查询条件无效：{value}")
-    return repr(parsed)
+def _required_filter_value(value: Any, index: int) -> str:
+    if not isinstance(value, str) or not value.strip() or "\x00" in value:
+        raise DataQueryError(f"第 {index} 条属性查询条件缺少有效的比较值")
+    return value
+
+
+def _numeric_filter_expression(column: str) -> str:
+    # Sampled numeric TEXT columns can still have outliers after the sample.
+    # SQLite CAST alone treats 'N/A' as 0 and '32株' as 32.
+    text = f"LOWER(REPLACE(TRIM(CAST({column} AS TEXT), char(9, 10, 11, 12, 13, 32)), ',', ''))"
+    pos = f"INSTR({text}, 'e')"
+    mantissa = (
+        f"(CASE WHEN {pos} > 0 THEN SUBSTR({text}, 1, {pos} - 1) ELSE {text} END)"
+    )
+    exponent = f"SUBSTR({text}, {pos} + 1)"
+    unsigned_exponent = f"LTRIM({exponent}, '+-')"
+    unsigned_mantissa = f"(CASE WHEN SUBSTR({mantissa}, 1, 1) IN ('+', '-') THEN SUBSTR({mantissa}, 2) ELSE {mantissa} END)"
+    parsed = f"CAST({text} AS NUMERIC)"
+    finite_range = "BETWEEN -1.7976931348623157e308 AND 1.7976931348623157e308"
+    return (
+        f"(CASE WHEN TYPEOF({column}) IN ('integer', 'real') "
+        f"AND {column} {finite_range} THEN {column} "
+        f"WHEN {unsigned_mantissa} GLOB '*[0-9]*' AND {unsigned_mantissa} NOT GLOB '*[^0-9.]*' "
+        f"AND {unsigned_mantissa} NOT GLOB '*.*.*' "
+        f"AND ({pos} = 0 OR ({unsigned_exponent} <> '' AND {unsigned_exponent} NOT GLOB '*[^0-9]*' "
+        f"AND {exponent} NOT GLOB '[+-][+-]*')) "
+        f"AND {parsed} {finite_range} THEN {parsed} END)"
+    )
+
+
+def _typed_filter_value(value: str, field_type: str, date_only: bool):
+    if field_type == "number":
+        clean = _clean_numeric_text(value)
+        if not _ATTRIBUTE_NUMBER.fullmatch(clean) or not isfinite(float(clean)):
+            raise DataQueryError(f"数值查询条件无效：{value}")
+        digits = clean.lstrip("+-")
+        number = int(clean) if len(digits) <= 19 and digits.isdigit() else float(clean)
+        return repr(number), number
+    if field_type == "boolean":
+        number = {"1": 1, "true": 1, "0": 0, "false": 0}.get(value.strip().lower())
+        if number is None:
+            raise DataQueryError(f"布尔查询条件无效：{value}")
+        return str(number), number
+    if field_type == "datetime":
+        try:
+            if date_only:
+                day = date.fromisoformat(value)
+                return _sql_literal(day.isoformat()), day
+            if len(value) <= 10:
+                raise ValueError(value)
+            stamp = datetime.fromisoformat(value)
+            if stamp.tzinfo is not None:
+                stamp = stamp.astimezone(timezone.utc).replace(tzinfo=None)
+            return f"julianday({_sql_literal(stamp.isoformat())})", stamp
+        except (ValueError, OverflowError) as exc:
+            raise DataQueryError(f"日期时间查询条件无效：{value}") from exc
+    return _sql_literal(value), value
 
 
 def _sql_literal(value: str) -> str:

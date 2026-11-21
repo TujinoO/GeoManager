@@ -30,6 +30,7 @@ from apps.raster.services.tile_pyramid import (
     native_web_mercator_max_zoom,
     read_mbtiles_tile,
 )
+from apps.raster.services.unique_values import validate_unique_style
 
 
 @dataclass
@@ -92,6 +93,8 @@ def register_tile_style(
     normalized_rules = normalize_rules(
         rules or dataset.default_rules, dataset.processed_gdalinfo
     )
+    if normalized_rules["mode"] == "unique":
+        validate_unique_style(raster_path, normalized_rules)
     sh = _style_hash_for_rules(raster_path, normalized_rules)
 
     _remember_tile_style(
@@ -121,6 +124,7 @@ def register_tile_style(
         "tileSampling": (
             "nearest"
             if dataset.raster_kind == RasterDataset.RasterKind.CATEGORICAL
+            or normalized_rules["mode"] == "unique"
             else "linear"
         ),
         "bounds3857": dataset.bounds_3857,

@@ -529,7 +529,6 @@ export default function LayerPanel() {
     const targetLayer = ctx.groups
       .find((g) => g.id === groupId)
       ?.children.find((l) => l.id === layerId);
-    ctx.setLayerSymbolization(groupId, layerId, symbolization);
     if (
       "mode" in symbolization &&
       "bands" in symbolization &&
@@ -539,9 +538,11 @@ export default function LayerPanel() {
         groupId,
         layerId,
         symbolization,
-        { ...targetLayer, symbolization },
+        targetLayer,
         "custom",
       );
+    } else if (targetLayer?.layerType === "vector") {
+      ctx.setLayerSymbolization(groupId, layerId, symbolization);
     }
   }
 

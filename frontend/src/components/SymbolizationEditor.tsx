@@ -20,12 +20,13 @@ import {
   Typography,
 } from "antd";
 import type { ReactNode } from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api/client";
 import i18n, { currentLocale } from "../i18n";
 import {
   defaultVectorSymbolization,
+  hasVisibleRasterUniqueValues,
   normalizeSymbolIconImage,
   platformSymbolIconGroups,
   type Anchor,
@@ -2568,6 +2569,19 @@ export function RasterSymbolizationEditor({
   useTranslation();
   const { message } = App.useApp();
   const [classifying, setClassifying] = useState(false);
+  const [activeTab, setActiveTab] = useState("render");
+  const latestValue = useRef(value);
+  const classificationRequest = useRef<AbortController | null>(null);
+  useEffect(() => {
+    setClassifying(false);
+    return () => {
+      classificationRequest.current?.abort();
+      classificationRequest.current = null;
+    };
+  }, [datasetId]);
+  useEffect(() => {
+    latestValue.current = value;
+  }, [value]);
   const [importOpen, setImportOpen] = useState(false);
   const bandOptions = (
     bands.length > 0
@@ -2598,17 +2612,30 @@ export function RasterSymbolizationEditor({
     ? isIntegerRasterBand(uniqueBandMeta)
     : true;
 
+  const missingUniqueColors =
+    value.mode === "unique" && !hasVisibleRasterUniqueValues(value);
+  const invalidUniqueBand = value.mode === "unique" && !uniqueBandIsInteger;
+  const showUniqueBandWarning =
+    !uniqueBandIsInteger && (value.mode === "unique" || activeTab === "unique");
+  const applyDisabled =
+    classifying || restoringDefault || missingUniqueColors || invalidUniqueBand;
+
   function update(next: Partial<RasterSymbolization>) {
-    onChange({ ...value, ...next });
+    onChange({ ...latestValue.current, ...next });
   }
 
-  function updateBand(index: number, band: number) {
+  function updateBand(index: number, band: number, mode = value.mode) {
     const nextBands =
-      value.mode === "rgb"
+      mode === "rgb"
         ? [value.bands[0] ?? 1, value.bands[1] ?? 1, value.bands[2] ?? 1]
         : [value.bands[0] ?? 1];
     nextBands[index] = band;
-    update({ bands: nextBands });
+    update({
+      mode,
+      bands: nextBands,
+      // A palette describes values from one band only.
+      ...(nextBands[0] !== uniqueBand ? { uniqueValues: [] } : {}),
+    });
   }
 
   function updateMode(mode: RasterSymbolization["mode"]) {
@@ -2622,6 +2649,7 @@ export function RasterSymbolizationEditor({
           ]
         : [current[0] ?? 1];
     update({ mode, bands: nextBands });
+    if (mode === "unique") setActiveTab("unique");
   }
 
   const copyJson = useCallback(async () => {
@@ -2645,6 +2673,7 @@ export function RasterSymbolizationEditor({
   }
 
   async function classifyUniqueValues() {
+    if (classificationRequest.current || restoringDefault) return;
     if (!datasetId) {
       message.warning(i18n.t("symbolization.missingRasterId"));
       return;
@@ -2653,30 +2682,42 @@ export function RasterSymbolizationEditor({
       message.warning(i18n.t("symbolization.integerBandOnly"));
       return;
     }
+    const controller = new AbortController();
+    classificationRequest.current = controller;
     setClassifying(true);
     try {
       const result = await api.classifyRasterUniqueValues(
         datasetId,
         uniqueBand,
+        { signal: controller.signal },
       );
+      if (controller.signal.aborted) return;
       update({
         mode: "unique",
         bands: [uniqueBand],
         uniqueValues: result.items,
       });
+      if (!result.items.length) {
+        message.warning(i18n.t("symbolization.noClassifiablePixels"));
+        return;
+      }
       message.success(
         i18n.t("symbolization.classifiedValues", {
           count: result.items.length,
         }),
       );
     } catch (error) {
+      if (controller.signal.aborted) return;
       message.error(
         error instanceof Error
           ? error.message
           : i18n.t("symbolization.classificationFailed"),
       );
     } finally {
-      setClassifying(false);
+      if (classificationRequest.current === controller) {
+        classificationRequest.current = null;
+        setClassifying(false);
+      }
     }
   }
 
@@ -2716,6 +2757,8 @@ export function RasterSymbolizationEditor({
         <SymbolizationTitle
           title={i18n.t("symbolization.rasterTitle")}
           onApply={onApply}
+          applyDisabled={applyDisabled}
+          importDisabled={classifying || restoringDefault}
           onCopy={copyJson}
           onImport={() => setImportOpen(true)}
         />
@@ -2726,13 +2769,27 @@ export function RasterSymbolizationEditor({
           block
           className="symbolization-restore-default"
           loading={restoringDefault}
+          disabled={classifying}
           onClick={onRestoreDefault}
         >
           {i18n.t("symbolization.restoreDefault")}
         </Button>
       ) : null}
+      {!classifying && (missingUniqueColors || showUniqueBandWarning) && (
+        <Alert
+          type="warning"
+          showIcon
+          title={i18n.t(
+            showUniqueBandWarning
+              ? "symbolization.integerBandHelp"
+              : "symbolization.classifyBeforeApply",
+          )}
+        />
+      )}
       <Tabs
         size="small"
+        activeKey={activeTab}
+        onChange={setActiveTab}
         items={[
           {
             key: "render",
@@ -2754,6 +2811,7 @@ export function RasterSymbolizationEditor({
                   <Segmented
                     block
                     value={value.mode}
+                    disabled={classifying || restoringDefault}
                     options={[
                       {
                         value: "gray",
@@ -2784,6 +2842,7 @@ export function RasterSymbolizationEditor({
                       <Select
                         className="full-width"
                         value={band}
+                        disabled={classifying || restoringDefault}
                         options={bandOptions}
                         onChange={(nextBand) => updateBand(index, nextBand)}
                       />
@@ -2890,27 +2949,22 @@ export function RasterSymbolizationEditor({
                 orientation="vertical"
                 className="full-width symbolization-stack"
               >
-                <ControlRow label={i18n.t("symbolization.classificationField")}>
+                <ControlRow label={i18n.t("symbolization.classificationBand")}>
                   <Select
                     className="full-width"
                     value={uniqueBand}
+                    aria-label={i18n.t("symbolization.classificationBand")}
+                    disabled={classifying || restoringDefault}
                     options={bandOptions}
-                    onChange={(nextBand) =>
-                      update({ mode: "unique", bands: [nextBand] })
-                    }
+                    onChange={(nextBand) => updateBand(0, nextBand, "unique")}
                   />
                 </ControlRow>
-                {!uniqueBandIsInteger && (
-                  <Alert
-                    type="warning"
-                    showIcon
-                    title={i18n.t("symbolization.integerBandHelp")}
-                  />
-                )}
                 <Button
                   block
                   loading={classifying}
-                  disabled={!datasetId || !uniqueBandIsInteger}
+                  disabled={
+                    !datasetId || !uniqueBandIsInteger || restoringDefault
+                  }
                   onClick={classifyUniqueValues}
                 >
                   {i18n.t("symbolization.classify")}
@@ -2927,6 +2981,7 @@ export function RasterSymbolizationEditor({
                   >
                     <ColorPicker
                       value={item.color}
+                      disabled={classifying || restoringDefault}
                       showText
                       onChange={(color) =>
                         updateUniqueColor(
@@ -3080,11 +3135,15 @@ function SymbolizationTitle({
   onApply,
   onCopy,
   onImport,
+  applyDisabled = false,
+  importDisabled = false,
 }: {
   title: string;
   onApply?: () => void;
   onCopy?: () => void;
   onImport?: () => void;
+  applyDisabled?: boolean;
+  importDisabled?: boolean;
 }) {
   return (
     <div className="symbolization-title">
@@ -3096,7 +3155,12 @@ function SymbolizationTitle({
           </Button>
         )}
         {onImport && (
-          <Button size="small" autoInsertSpace={false} onClick={onImport}>
+          <Button
+            size="small"
+            autoInsertSpace={false}
+            disabled={importDisabled}
+            onClick={onImport}
+          >
             {i18n.t("symbolization.importJson")}
           </Button>
         )}
@@ -3105,6 +3169,7 @@ function SymbolizationTitle({
             type="primary"
             size="small"
             autoInsertSpace={false}
+            disabled={applyDisabled}
             onClick={onApply}
           >
             {i18n.t("common.confirm")}

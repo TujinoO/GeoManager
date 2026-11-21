@@ -12,6 +12,7 @@ import {
 import { useCachedLayerGroups } from "./useCachedLayerGroups";
 import {
   restoredLayerKey,
+  showAttributeQueryLayer,
   uniqueLoadedLayerGroups,
 } from "../utils/uniqueLoadedLayers";
 
@@ -252,6 +253,12 @@ export function useLayerGroups(cacheKey = "default") {
     [setGroups],
   );
 
+  const addAttributeQueryResult = useCallback(
+    (group: LoadedLayerGroup) =>
+      setGroups((current) => showAttributeQueryLayer(current, group)),
+    [setGroups],
+  );
+
   const replaceGroups = useCallback(
     (nextGroups: LoadedLayerGroup[]) => {
       setGroups(nextGroups);
@@ -263,6 +270,7 @@ export function useLayerGroups(cacheKey = "default") {
     groups,
     setGroups,
     addGroup,
+    addAttributeQueryResult,
     replaceGroups,
     updateLayer,
     updateRasterLayer,

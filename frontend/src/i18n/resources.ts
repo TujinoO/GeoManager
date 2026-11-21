@@ -187,7 +187,9 @@ export const zhCN = {
       accountOrPasswordIncorrect: "账号或密码错误",
       contactAdminTitle: "请联系平台管理员重置密码",
       contactAdminDescription:
-        "当前阶段暂未接入邮件找回密码。请联系平台管理员在“认证授权—用户管理”中重置密码，并妥善保存管理员提供的临时密码。",
+        "平台暂不支持自动找回密码。请发送邮件至下方邮箱，申请人工重置密码。",
+      contactAdminNote:
+        "邮件中请注明平台账号、姓名和单位，不要填写现用密码或验证码。",
       permissionsAfterLogin: "后台功能和数据范围将在登录后按账号权限显示。",
       standardUser: "普通用户",
       researchUser: "申请科研用户",
@@ -264,9 +266,27 @@ export const zhCN = {
       dataResources: "数据资源",
       selectResource: "选择资源",
       attributeQuery: "属性查询",
+      attributeQueryHint:
+        "筛选当前资源中的要素；多条条件必须同时满足。区间包含两端。",
+      attributeQueryOperator: "比较方式",
+      attributeQueryStart: "起始值",
+      attributeQueryRemove: "移除条件",
+      attributeQueryTrue: "是（真）",
+      attributeQueryFalse: "否（假）",
+      attributeQueryIncomplete:
+        "请填写第 {{row}} 条条件的字段和值；区间须填写两端。",
+      attributeQueryNumber: "第 {{row}} 条条件必须填写有效数字。",
+      attributeQueryOrder: "第 {{row}} 条条件的起始值不能大于结束值。",
+      attributeQueryNoMatches: "没有符合条件的要素",
+      attributeQueryOutcome: "命中 {{total}} 条，地图加载 {{returned}} 条",
+      attributeQueryLayerHint:
+        "同资源的其他图层已隐藏，可在「图层」中重新开启。",
+      attributeQueryLimited:
+        "结果超过加载上限，只显示本次返回的要素；可增加条件缩小结果。",
+      attributeQueryUnavailable: "部分命中要素因几何校验未加载到地图。",
       queryAndLoad: "查询并加载",
       noResources: "暂无可用数据资源",
-      metadataFilter: "元数据筛选",
+      metadataFilter: "资源目录筛选",
       resourceSearchPlaceholder: "数据名称、来源或单位",
       dataCategory: "数据分类",
       allCategories: "全部分类",
@@ -277,7 +297,7 @@ export const zhCN = {
       documentData: "文档资料",
       imageData: "图片资料",
       dataSource: "数据来源",
-      filterData: "筛选数据",
+      filterData: "筛选资源列表",
       syncingCatalog: "正在同步数据目录...",
       fieldsAndMetadata: "字段与元信息",
       provider: "提供单位",
@@ -291,7 +311,7 @@ export const zhCN = {
       selectField: "选择字段",
       fieldValue: "字段值",
       endValue: "结束值",
-      addCondition: "添加属性条件",
+      addCondition: "添加条件",
       contains: "包含",
       equals: "等于",
       notEquals: "不等于",
@@ -808,6 +828,7 @@ export const zhCN = {
         "一个图例类别可以包含多个原始值，用于合并别名和录入变体",
       germplasmTemplate: "种质默认模板",
       classificationField: "分类字段",
+      classificationBand: "分类波段",
       mergedValues: "已应用分类值合并",
       includedValues: "包含原始值",
       iconScaleLabel: "{{name}} 图标大小倍数",
@@ -890,6 +911,9 @@ export const zhCN = {
       noData: "无",
       missingRasterId: "缺少栅格数据集编号",
       integerBandOnly: "唯一值分类仅支持整型波段",
+      classifyBeforeApply:
+        "请在“唯一值”页签对当前波段执行分类，并至少保留一个不完全透明的类别颜色。",
+      noClassifiablePixels: "当前波段没有可分类的有效像元，请选择其他波段。",
       classifiedValues: "已分类 {{count}} 个唯一值",
       classificationFailed: "唯一值分类失败",
       rasterTitle: "栅格符号化",
@@ -1182,7 +1206,9 @@ export const enUS = {
       contactAdminTitle:
         "Contact the platform administrator to reset your password",
       contactAdminDescription:
-        "Email-based password recovery is not available yet. Ask the platform administrator to reset your password under Authorization – User Management, and keep the temporary password secure.",
+        "Automatic password recovery is not available. Email the address below to request a manual password reset.",
+      contactAdminNote:
+        "Include your platform username, name, and organization. Do not include your current password or any verification codes.",
       permissionsAfterLogin:
         "Administrative features and data access will be shown according to the signed-in account.",
       standardUser: "Standard user",
@@ -1265,9 +1291,30 @@ export const enUS = {
       dataResources: "Data resources",
       selectResource: "Select resource",
       attributeQuery: "Attribute query",
+      attributeQueryHint:
+        "Filter features in the selected resource. All conditions must match. Ranges include both endpoints.",
+      attributeQueryOperator: "Comparison operator",
+      attributeQueryStart: "Start value",
+      attributeQueryRemove: "Remove condition",
+      attributeQueryTrue: "True",
+      attributeQueryFalse: "False",
+      attributeQueryIncomplete:
+        "Choose a field and enter a value for condition {{row}}. A range needs both endpoints.",
+      attributeQueryNumber: "Enter valid numbers for condition {{row}}.",
+      attributeQueryOrder:
+        "The start value cannot exceed the end value in condition {{row}}.",
+      attributeQueryNoMatches: "No features match these conditions",
+      attributeQueryOutcome:
+        "{{total}} matches; {{returned}} loaded on the map",
+      attributeQueryLayerHint:
+        "Other layers from this resource are hidden. Turn them back on in Layers.",
+      attributeQueryLimited:
+        "The loading limit was exceeded. Only returned features are shown; add conditions to narrow the query.",
+      attributeQueryUnavailable:
+        "Some matches did not pass geometry validation and were not loaded.",
       queryAndLoad: "Query and load",
       noResources: "No data resources are available",
-      metadataFilter: "Metadata filters",
+      metadataFilter: "Resource catalog filters",
       resourceSearchPlaceholder: "Data name, source, or organization",
       dataCategory: "Data category",
       allCategories: "All categories",
@@ -1278,7 +1325,7 @@ export const enUS = {
       documentData: "Documents",
       imageData: "Images",
       dataSource: "Data source",
-      filterData: "Filter data",
+      filterData: "Filter resource list",
       syncingCatalog: "Synchronizing the data catalog...",
       fieldsAndMetadata: "Fields and metadata",
       provider: "Provider",
@@ -1292,7 +1339,7 @@ export const enUS = {
       selectField: "Select field",
       fieldValue: "Field value",
       endValue: "End value",
-      addCondition: "Add attribute condition",
+      addCondition: "Add condition",
       contains: "Contains",
       equals: "Equals",
       notEquals: "Does not equal",
@@ -1846,6 +1893,7 @@ export const enUS = {
         "One legend class can contain multiple raw values to merge aliases and input variants",
       germplasmTemplate: "Default germplasm template",
       classificationField: "Classification field",
+      classificationBand: "Classification band",
       mergedValues: "Merged classification values applied",
       includedValues: "Included raw values",
       iconScaleLabel: "Icon scale for {{name}}",
@@ -1931,6 +1979,10 @@ export const enUS = {
       missingRasterId: "Raster dataset ID is missing",
       integerBandOnly:
         "Unique-value classification supports integer bands only",
+      classifyBeforeApply:
+        "Classify the current band on the Unique values tab and keep at least one class color visible.",
+      noClassifiablePixels:
+        "This band has no valid pixels to classify. Choose another band.",
       classifiedValues: "Classified {{count}} unique values",
       classificationFailed: "Unique-value classification failed",
       rasterTitle: "Raster symbolization",
